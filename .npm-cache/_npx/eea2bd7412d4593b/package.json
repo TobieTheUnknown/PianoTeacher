@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@upstash/context7-mcp": "^1.0.33"
+  },
+  "_npx": {
+    "packages": [
+      "@upstash/context7-mcp"
+    ]
+  }
+}

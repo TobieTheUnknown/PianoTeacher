@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "genkit-cli": "^1.27.0"
+  },
+  "_npx": {
+    "packages": [
+      "genkit-cli@^1.22.0"
+    ]
+  }
+}

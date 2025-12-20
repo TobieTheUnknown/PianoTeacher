@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "firebase-tools": "^15.1.0"
+  },
+  "_npx": {
+    "packages": [
+      "firebase-tools@latest"
+    ]
+  }
+}
