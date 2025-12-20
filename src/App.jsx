@@ -33,62 +33,45 @@ function App() {
 
   return (
     <Layout>
-      <header style={{
+      {/* Modern Navigation */}
+      <nav style={{
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '2rem',
-        paddingBottom: '1rem',
-        borderBottom: '1px solid var(--border-color)'
+        justifyContent: 'center',
+        marginBottom: '3rem',
+        position: 'sticky',
+        top: '1rem',
+        zIndex: 100
       }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
-          🎹 Piano Teacher
-        </h1>
-        <nav style={{ display: 'flex', gap: '1rem' }}>
-          <button
+        <div style={{
+          display: 'inline-flex',
+          gap: '0.5rem',
+          padding: '0.5rem',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid var(--glass-border)',
+          borderRadius: 'var(--radius-full)',
+          boxShadow: 'var(--shadow-xl)'
+        }}>
+          <NavButton
+            active={mode === 'library'}
             onClick={() => setMode('library')}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: mode === 'library' ? 'var(--bg-tertiary)' : 'transparent',
-              color: mode === 'library' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            Bibliothèque
-          </button>
-          <button
+            icon="📚"
+            label="Bibliothèque"
+          />
+          <NavButton
+            active={mode === 'edit'}
             onClick={() => setMode('edit')}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: mode === 'edit' ? 'var(--bg-tertiary)' : 'transparent',
-              color: mode === 'edit' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            Éditeur
-          </button>
-          <button
+            icon="✏️"
+            label="Éditeur"
+          />
+          <NavButton
+            active={mode === 'view'}
             onClick={() => setMode('view')}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: mode === 'view' ? 'var(--bg-tertiary)' : 'transparent',
-              color: mode === 'view' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            Apprentissage
-          </button>
-        </nav>
-      </header>
+            icon="🎵"
+            label="Apprentissage"
+          />
+        </div>
+      </nav>
 
       <main>
         {mode === 'library' && (
@@ -111,6 +94,47 @@ function App() {
         )}
       </main>
     </Layout>
+  );
+}
+
+// Navigation Button Component
+function NavButton({ active, onClick, icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '0.75rem 1.5rem',
+        background: active ? 'var(--gradient-primary)' : 'transparent',
+        color: active ? 'white' : 'var(--text-secondary)',
+        border: 'none',
+        borderRadius: 'var(--radius-full)',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '0.9375rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        transition: 'all var(--transition-fast)',
+        boxShadow: active ? 'var(--shadow-glow)' : 'none',
+        transform: active ? 'scale(1)' : 'scale(0.95)',
+        whiteSpace: 'nowrap'
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.color = 'var(--text-primary)';
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.color = 'var(--text-secondary)';
+          e.currentTarget.style.background = 'transparent';
+        }
+      }}
+    >
+      <span style={{ fontSize: '1.1rem' }}>{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 

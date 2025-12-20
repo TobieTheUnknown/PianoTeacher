@@ -36,16 +36,64 @@ export function SongEditor({ song, updateSongMetadata, onImportSong, onSaveSong,
 
     return (
         <div className="song-editor">
-            <div className="card" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1.5rem' }}>
-                    <h2 style={{ marginTop: 0, color: 'var(--text-accent)' }}>Détails du Morceau</h2>
+            {/* Song Metadata Card */}
+            <div className="card" style={{
+                marginBottom: '3rem',
+                background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.9) 100%)'
+            }}>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'start',
+                    marginBottom: '2rem',
+                    paddingBottom: '1.5rem',
+                    borderBottom: '1px solid var(--border-color)'
+                }}>
+                    <div>
+                        <h2 style={{
+                            marginTop: 0,
+                            fontSize: '2rem',
+                            background: 'var(--gradient-primary)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text',
+                            marginBottom: '0.5rem'
+                        }}>
+                            Détails du Morceau
+                        </h2>
+                        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                            Configurez les informations de votre composition
+                        </p>
+                    </div>
 
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <button onClick={onSaveSong} style={{ backgroundColor: 'var(--accent-secondary)' }}>
-                            💾 Sauvegarder
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={onSaveSong}
+                            style={{
+                                background: 'var(--gradient-success)',
+                                color: 'white',
+                                border: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                boxShadow: '0 0 20px rgba(16, 185, 129, 0.3)'
+                            }}
+                        >
+                            <span>💾</span>
+                            <span>Sauvegarder</span>
                         </button>
-                        <button onClick={() => StorageService.exportSong(song)} style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
-                            📤 Exporter
+                        <button
+                            onClick={() => StorageService.exportSong(song)}
+                            style={{
+                                backgroundColor: 'var(--bg-elevated)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}
+                        >
+                            <span>📤</span>
+                            <span>Exporter</span>
                         </button>
                         <div style={{ position: 'relative' }}>
                             <input
@@ -63,73 +111,236 @@ export function SongEditor({ song, updateSongMetadata, onImportSong, onSaveSong,
                                     zIndex: 10
                                 }}
                             />
-                            <button style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--accent-primary)' }}>
-                                {isImporting ? 'Importation...' : '📥 Importer MIDI'}
+                            <button style={{
+                                backgroundColor: 'var(--bg-elevated)',
+                                border: '1px solid var(--accent-secondary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}>
+                                <span>📥</span>
+                                <span>{isImporting ? 'Importation...' : 'Importer MIDI'}</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                    gap: '2rem'
+                }}>
                     <div className="form-group">
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Titre</label>
+                        <label style={{
+                            display: 'block',
+                            marginBottom: '0.75rem',
+                            color: 'var(--text-primary)',
+                            fontWeight: '600',
+                            fontSize: '0.9375rem'
+                        }}>
+                            🎵 Titre
+                        </label>
                         <input
                             type="text"
                             value={song.title}
                             onChange={(e) => updateSongMetadata({ title: e.target.value })}
-                            style={{ width: '100%', padding: '0.8rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                            placeholder="Entrez le titre du morceau"
                         />
                     </div>
                     <div className="form-group">
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Tempo (BPM)</label>
+                        <label style={{
+                            display: 'block',
+                            marginBottom: '0.75rem',
+                            color: 'var(--text-primary)',
+                            fontWeight: '600',
+                            fontSize: '0.9375rem'
+                        }}>
+                            ⏱️ Tempo (BPM)
+                        </label>
                         <input
                             type="number"
                             value={song.tempo}
                             onChange={(e) => updateSongMetadata({ tempo: parseInt(e.target.value) })}
-                            style={{ width: '100%', padding: '0.8rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                            placeholder="120"
                         />
                     </div>
                 </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ margin: 0 }}>Structure</h2>
-                <button onClick={addPhrase}>+ Ajouter une phrase</button>
+            {/* Phrases Section Header */}
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '2rem'
+            }}>
+                <div>
+                    <h2 style={{
+                        margin: 0,
+                        fontSize: '2rem',
+                        background: 'var(--gradient-primary)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text'
+                    }}>
+                        Structure & Phrases
+                    </h2>
+                    <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-secondary)' }}>
+                        {song.phrases.length} {song.phrases.length === 1 ? 'phrase' : 'phrases'}
+                    </p>
+                </div>
+                <button
+                    onClick={addPhrase}
+                    style={{
+                        background: 'var(--gradient-primary)',
+                        color: 'white',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        boxShadow: 'var(--shadow-glow)'
+                    }}
+                >
+                    <span style={{ fontSize: '1.2rem' }}>+</span>
+                    <span>Ajouter une phrase</span>
+                </button>
             </div>
 
+            {/* Phrases List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                 {song.phrases.map((phrase, index) => (
-                    <div key={phrase.id} className="card">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <h3 style={{ margin: 0 }}>{phrase.name}</h3>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button onClick={() => handlePlayPhrase(phrase)} style={{ backgroundColor: 'var(--accent-primary)' }}>▶ Lecture</button>
-                                <button onClick={handleStop}>⏹ Stop</button>
-                                <button onClick={() => removePhrase(phrase.id)} style={{ backgroundColor: '#ef4444' }}>Supprimer</button>
+                    <div
+                        key={phrase.id}
+                        className="card"
+                        style={{
+                            position: 'relative',
+                            overflow: 'hidden',
+                            background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.9) 100%)'
+                        }}
+                    >
+                        {/* Phrase number badge */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '1.5rem',
+                            right: '1.5rem',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: 'var(--gradient-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: '700',
+                            fontSize: '1.125rem',
+                            color: 'white',
+                            boxShadow: 'var(--shadow-md)'
+                        }}>
+                            {index + 1}
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '1.5rem',
+                            paddingBottom: '1rem',
+                            borderBottom: '1px solid var(--border-color)'
+                        }}>
+                            <h3 style={{
+                                margin: 0,
+                                fontSize: '1.5rem',
+                                color: 'var(--text-primary)',
+                                paddingRight: '3rem'
+                            }}>
+                                {phrase.name}
+                            </h3>
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={() => handlePlayPhrase(phrase)}
+                                    style={{
+                                        background: 'var(--gradient-primary)',
+                                        color: 'white',
+                                        border: 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    <span>▶</span>
+                                    <span>Lecture</span>
+                                </button>
+                                <button
+                                    onClick={handleStop}
+                                    style={{
+                                        backgroundColor: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border-light)'
+                                    }}
+                                >
+                                    ⏹ Stop
+                                </button>
+                                <button
+                                    onClick={() => removePhrase(phrase.id)}
+                                    style={{
+                                        background: 'var(--gradient-danger)',
+                                        color: 'white',
+                                        border: 'none'
+                                    }}
+                                >
+                                    🗑️ Supprimer
+                                </button>
                             </div>
                         </div>
 
-                        <div style={{ marginBottom: '1rem' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        {/* Track Selector */}
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <div style={{
+                                display: 'flex',
+                                gap: '0.75rem',
+                                marginBottom: '1rem',
+                                padding: '0.5rem',
+                                background: 'var(--bg-primary)',
+                                borderRadius: 'var(--radius-lg)',
+                                border: '1px solid var(--border-color)'
+                            }}>
                                 <button
                                     onClick={() => setActiveTrack('melody')}
                                     style={{
                                         flex: 1,
-                                        backgroundColor: activeTrack === 'melody' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                                        opacity: activeTrack === 'melody' ? 1 : 0.7
+                                        background: activeTrack === 'melody' ? 'var(--gradient-primary)' : 'transparent',
+                                        color: activeTrack === 'melody' ? 'white' : 'var(--text-secondary)',
+                                        border: 'none',
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        fontWeight: '600',
+                                        boxShadow: activeTrack === 'melody' ? 'var(--shadow-md)' : 'none'
                                     }}
                                 >
-                                    Mélodie (Main Droite)
+                                    <span>🎹</span>
+                                    <span>Mélodie (Main Droite)</span>
                                 </button>
                                 <button
                                     onClick={() => setActiveTrack('chords')}
                                     style={{
                                         flex: 1,
-                                        backgroundColor: activeTrack === 'chords' ? 'var(--accent-secondary)' : 'var(--bg-tertiary)',
-                                        opacity: activeTrack === 'chords' ? 1 : 0.7
+                                        background: activeTrack === 'chords' ? 'var(--gradient-secondary)' : 'transparent',
+                                        color: activeTrack === 'chords' ? 'white' : 'var(--text-secondary)',
+                                        border: 'none',
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        fontWeight: '600',
+                                        boxShadow: activeTrack === 'chords' ? 'var(--shadow-md)' : 'none'
                                     }}
                                 >
-                                    Accords (Main Gauche)
+                                    <span>🎼</span>
+                                    <span>Accords (Main Gauche)</span>
                                 </button>
                             </div>
 
