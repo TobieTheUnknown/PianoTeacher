@@ -41,9 +41,14 @@ export const parseMidiFile = async (file) => {
                 const startTime = note.time * (song.tempo / 60);
                 const duration = note.duration * (song.tempo / 60);
 
+                // Round to avoid floating-point precision issues at measure boundaries
+                // This ensures notes at exactly beat 4.0, 8.0, etc. are correctly placed
+                const roundedStartTime = Math.round(startTime * 1000) / 1000;
+                const roundedDuration = Math.round(duration * 1000) / 1000;
+
                 // Create NoteEvent
                 // note.name is like "C4", "F#3" which matches our format
-                const event = createNoteEvent(note.name, startTime, duration);
+                const event = createNoteEvent(note.name, roundedStartTime, roundedDuration);
 
                 phrase.tracks[targetTrack].push(event);
             });
