@@ -1,7 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { getFrenchNoteName } from '../models/song';
+import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song }) {
+    const [highlightedMeasures, setHighlightedMeasures] = useState(new Set());
+
     // Analyze and structure the song data
     const analysis = useMemo(() => {
         if (!song || !song.phrases || song.phrases.length === 0) {
@@ -10,7 +13,6 @@ export function LiveLearning({ song }) {
 
         const measures = [];
         const allNotes = new Set();
-        const allChords = new Set();
 
         song.phrases.forEach(phrase => {
             const phraseMeasures = getMeasuresFromPhrase(phrase);
@@ -18,7 +20,7 @@ export function LiveLearning({ song }) {
             phraseMeasures.forEach(measure => {
                 // Collect unique notes
                 measure.melody.forEach(n => allNotes.add(n.pitch.slice(0, -1)));
-                measure.chords.forEach(n => allChords.add(n.pitch.slice(0, -1)));
+                measure.chords.forEach(n => allNotes.add(n.pitch.slice(0, -1)));
 
                 // Build measure summary
                 const chordGroup = groupNotesByTime(measure.chords);
@@ -26,17 +28,14 @@ export function LiveLearning({ song }) {
                     ? getFrenchNoteName(chordGroup[0].notes[0].pitch).split(/\d/)[0]
                     : '-';
 
-                const melodyCount = measure.melody.length;
-                const complexity = melodyCount > 8 ? 'high' : melodyCount > 4 ? 'medium' : 'low';
-
                 measures.push({
                     number: measures.length + 1,
                     chordName,
                     chordNotes: chordGroup.length > 0 ? chordGroup[0].notes : [],
-                    melodyCount,
-                    complexity,
+                    melodyCount: measure.melody.length,
                     hasChord: chordGroup.length > 0,
-                    melody: measure.melody
+                    melody: measure.melody,
+                    chords: measure.chords
                 });
             });
         });
@@ -46,10 +45,32 @@ export function LiveLearning({ song }) {
             totalMeasures: measures.length,
             key: song.key,
             tempo: song.tempo,
-            uniqueNotes: Array.from(allNotes).sort(),
-            uniqueChords: Array.from(allChords).sort()
+            uniqueNotes: Array.from(allNotes).sort()
         };
     }, [song]);
+
+    const toggleHighlight = (measureNumber) => {
+        setHighlightedMeasures(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(measureNumber)) {
+                newSet.delete(measureNumber);
+            } else {
+                newSet.add(measureNumber);
+            }
+            return newSet;
+        });
+    };
+
+    const handlePlayMeasure = async (measure) => {
+        await audioEngine.initialize();
+
+        // Combine melody and chords for playback
+        const allNotes = [...measure.melody, ...measure.chords];
+
+        if (allNotes.length > 0) {
+            audioEngine.playNotes(allNotes, song.tempo);
+        }
+    };
 
     if (!analysis) {
         return (
@@ -57,6 +78,12 @@ export function LiveLearning({ song }) {
                 Aucun morceau chargé. Importez un fichier MIDI pour commencer.
             </div>
         );
+    }
+
+    // Group measures by 4
+    const measureGroups = [];
+    for (let i = 0; i < analysis.measures.length; i += 4) {
+        measureGroups.push(analysis.measures.slice(i, i + 4));
     }
 
     return (
@@ -96,7 +123,7 @@ export function LiveLearning({ song }) {
                 </div>
             </div>
 
-            {/* Quick Reference Cards */}
+            {/* Quick Reference */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
@@ -135,7 +162,7 @@ export function LiveLearning({ song }) {
                     </div>
                 </div>
 
-                {/* Complexity Overview */}
+                {/* Instructions */}
                 <div className="card" style={{ padding: '1.5rem' }}>
                     <h3 style={{
                         color: 'var(--accent-primary)',
@@ -145,27 +172,12 @@ export function LiveLearning({ song }) {
                         alignItems: 'center',
                         gap: '0.5rem'
                     }}>
-                        📈 Aperçu de complexité
+                        💡 Mode d'emploi
                     </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <ComplexityBar
-                            label="Facile"
-                            count={analysis.measures.filter(m => m.complexity === 'low').length}
-                            total={analysis.totalMeasures}
-                            color="#10b981"
-                        />
-                        <ComplexityBar
-                            label="Moyen"
-                            count={analysis.measures.filter(m => m.complexity === 'medium').length}
-                            total={analysis.totalMeasures}
-                            color="#f59e0b"
-                        />
-                        <ComplexityBar
-                            label="Difficile"
-                            count={analysis.measures.filter(m => m.complexity === 'high').length}
-                            total={analysis.totalMeasures}
-                            color="#ef4444"
-                        />
+                    <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div>🎵 <strong>Cliquez sur une mesure</strong> pour l'écouter</div>
+                        <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner une mesure</div>
+                        <div>📍 Utilisez le surlignage pour marquer les mesures difficiles</div>
                     </div>
                 </div>
             </div>
@@ -183,40 +195,37 @@ export function LiveLearning({ song }) {
                     🎵 Progression complète du morceau
                 </h3>
 
-                {/* Legend */}
-                <div style={{
-                    display: 'flex',
-                    gap: '1.5rem',
-                    marginBottom: '1.5rem',
-                    padding: '1rem',
-                    background: 'var(--bg-tertiary)',
-                    borderRadius: 'var(--radius-md)',
-                    flexWrap: 'wrap',
-                    fontSize: '0.9rem'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '20px', height: '20px', background: '#10b981', borderRadius: '4px' }}></div>
-                        <span>Facile (≤4 notes)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '20px', height: '20px', background: '#f59e0b', borderRadius: '4px' }}></div>
-                        <span>Moyen (5-8 notes)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '20px', height: '20px', background: '#ef4444', borderRadius: '4px' }}></div>
-                        <span>Difficile (&gt;8 notes)</span>
-                    </div>
-                </div>
+                {/* Measures grouped by 4 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    {measureGroups.map((group, groupIdx) => (
+                        <div key={groupIdx}>
+                            {/* Group label */}
+                            <div style={{
+                                marginBottom: '0.75rem',
+                                fontSize: '0.9rem',
+                                color: 'var(--text-secondary)',
+                                fontWeight: 'bold'
+                            }}>
+                                Mesures {group[0].number} - {group[group.length - 1].number}
+                            </div>
 
-                {/* Measures Grid */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                    gap: '1rem',
-                    marginTop: '1rem'
-                }}>
-                    {analysis.measures.map((measure, idx) => (
-                        <MeasureCard key={idx} measure={measure} />
+                            {/* 4 measures per row */}
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(4, 1fr)',
+                                gap: '1rem'
+                            }}>
+                                {group.map((measure) => (
+                                    <MeasureCard
+                                        key={measure.number}
+                                        measure={measure}
+                                        isHighlighted={highlightedMeasures.has(measure.number)}
+                                        onToggleHighlight={toggleHighlight}
+                                        onPlay={handlePlayMeasure}
+                                    />
+                                ))}
+                            </div>
+                        </div>
                     ))}
                 </div>
             </div>
@@ -244,11 +253,11 @@ export function LiveLearning({ song }) {
                 }}>
                     <TipCard
                         icon="📍"
-                        text="Concentrez-vous d'abord sur les mesures vertes (faciles)"
+                        text="Surlignez les mesures difficiles pour les retrouver facilement"
                     />
                     <TipCard
                         icon="🎵"
-                        text="Apprenez les accords de base avant d'ajouter la mélodie"
+                        text="Écoutez chaque mesure avant de la jouer pour mémoriser la mélodie"
                     />
                     <TipCard
                         icon="⏱️"
@@ -256,7 +265,7 @@ export function LiveLearning({ song }) {
                     />
                     <TipCard
                         icon="🔄"
-                        text="Répétez chaque section difficile (rouge) séparément"
+                        text="Travaillez par groupes de 4 mesures pour respecter la structure musicale"
                     />
                 </div>
             </div>
@@ -265,49 +274,64 @@ export function LiveLearning({ song }) {
 }
 
 // Helper component for measure cards
-function MeasureCard({ measure }) {
-    const complexityColors = {
-        low: '#10b981',
-        medium: '#f59e0b',
-        high: '#ef4444'
-    };
-
+function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay }) {
     return (
-        <div style={{
-            padding: '1rem',
-            background: 'var(--bg-tertiary)',
-            borderRadius: 'var(--radius-md)',
-            border: `3px solid ${complexityColors[measure.complexity]}`,
-            transition: 'all var(--transition-fast)',
-            cursor: 'pointer',
-            position: 'relative',
-            overflow: 'hidden'
-        }}
-        onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-        }}
-        onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'none';
-        }}
+        <div
+            onClick={() => onPlay(measure)}
+            style={{
+                padding: '1rem',
+                background: 'var(--bg-tertiary)',
+                borderRadius: 'var(--radius-md)',
+                border: isHighlighted
+                    ? '3px solid var(--accent-primary)'
+                    : '2px solid var(--border-color)',
+                transition: 'all var(--transition-fast)',
+                cursor: 'pointer',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none'
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-lg)';
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'none';
+            }}
         >
-            {/* Measure number badge */}
-            <div style={{
-                position: 'absolute',
-                top: '0.5rem',
-                right: '0.5rem',
-                background: complexityColors[measure.complexity],
-                color: 'white',
-                borderRadius: '50%',
-                width: '24px',
-                height: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.75rem',
-                fontWeight: 'bold'
-            }}>
+            {/* Measure number badge - clickable to highlight */}
+            <div
+                onClick={(e) => {
+                    e.stopPropagation(); // Prevent playing when clicking number
+                    onToggleHighlight(measure.number);
+                }}
+                style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    right: '0.5rem',
+                    background: isHighlighted ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    border: '2px solid ' + (isHighlighted ? 'var(--accent-primary)' : 'var(--border-light)'),
+                    transition: 'all var(--transition-fast)',
+                    zIndex: 10
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                }}
+            >
                 {measure.number}
             </div>
 
@@ -345,7 +369,7 @@ function MeasureCard({ measure }) {
                     color: 'var(--text-secondary)',
                     marginBottom: '0.25rem'
                 }}>
-                    Mélodie
+                    Mélodie ({measure.melodyCount} notes)
                 </div>
                 <div style={{
                     display: 'flex',
@@ -367,37 +391,17 @@ function MeasureCard({ measure }) {
                     )}
                 </div>
             </div>
-        </div>
-    );
-}
 
-// Helper component for complexity bars
-function ComplexityBar({ label, count, total, color }) {
-    const percentage = (count / total) * 100;
-
-    return (
-        <div>
+            {/* Play indicator on hover */}
             <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '0.25rem',
-                fontSize: '0.9rem'
+                position: 'absolute',
+                bottom: '0.5rem',
+                left: '0.5rem',
+                fontSize: '0.7rem',
+                color: 'var(--text-secondary)',
+                opacity: 0.7
             }}>
-                <span>{label}</span>
-                <span style={{ fontWeight: 'bold' }}>{count} / {total}</span>
-            </div>
-            <div style={{
-                height: '8px',
-                background: 'var(--bg-tertiary)',
-                borderRadius: '4px',
-                overflow: 'hidden'
-            }}>
-                <div style={{
-                    width: `${percentage}%`,
-                    height: '100%',
-                    background: color,
-                    transition: 'width var(--transition-normal)'
-                }} />
+                ▶ Cliquer pour écouter
             </div>
         </div>
     );
