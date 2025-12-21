@@ -75,6 +75,20 @@ export function useSong() {
         }));
     }, []);
 
+    const toggleHighlightedMeasure = useCallback((measureNumber) => {
+        setSong(prev => {
+            const highlightedMeasures = prev.highlightedMeasures || [];
+            const isHighlighted = highlightedMeasures.includes(measureNumber);
+
+            return {
+                ...prev,
+                highlightedMeasures: isHighlighted
+                    ? highlightedMeasures.filter(m => m !== measureNumber)
+                    : [...highlightedMeasures, measureNumber]
+            };
+        });
+    }, []);
+
     return {
         song,
         updateSongMetadata,
@@ -85,6 +99,7 @@ export function useSong() {
         addPhrase,
         removePhrase,
         addNoteToPhrase,
-        removeNoteFromPhrase
+        removeNoteFromPhrase,
+        toggleHighlightedMeasure
     };
 }

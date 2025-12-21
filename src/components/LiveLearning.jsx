@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
-export function LiveLearning({ song }) {
-    const [highlightedMeasures, setHighlightedMeasures] = useState(new Set());
+export function LiveLearning({ song, onToggleHighlight }) {
+    const [showDetails, setShowDetails] = useState(false);
 
     // Analyze and structure the song data
     const analysis = useMemo(() => {
@@ -22,18 +22,14 @@ export function LiveLearning({ song }) {
                 measure.melody.forEach(n => allNotes.add(n.pitch.slice(0, -1)));
                 measure.chords.forEach(n => allNotes.add(n.pitch.slice(0, -1)));
 
-                // Build measure summary
-                const chordGroup = groupNotesByTime(measure.chords);
-                const chordName = chordGroup.length > 0
-                    ? getFrenchNoteName(chordGroup[0].notes[0].pitch).split(/\d/)[0]
-                    : '-';
+                // Build measure summary - get ALL chord groups
+                const chordGroups = groupNotesByTime(measure.chords);
 
                 measures.push({
                     number: measures.length + 1,
-                    chordName,
-                    chordNotes: chordGroup.length > 0 ? chordGroup[0].notes : [],
+                    chordGroups, // All chord groups in this measure
                     melodyCount: measure.melody.length,
-                    hasChord: chordGroup.length > 0,
+                    hasChord: chordGroups.length > 0,
                     melody: measure.melody,
                     chords: measure.chords
                 });
@@ -48,18 +44,6 @@ export function LiveLearning({ song }) {
             uniqueNotes: Array.from(allNotes).sort()
         };
     }, [song]);
-
-    const toggleHighlight = (measureNumber) => {
-        setHighlightedMeasures(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(measureNumber)) {
-                newSet.delete(measureNumber);
-            } else {
-                newSet.add(measureNumber);
-            }
-            return newSet;
-        });
-    };
 
     const handlePlayMeasure = async (measure) => {
         await audioEngine.initialize();
@@ -85,6 +69,8 @@ export function LiveLearning({ song }) {
     for (let i = 0; i < analysis.measures.length; i += 4) {
         measureGroups.push(analysis.measures.slice(i, i + 4));
     }
+
+    const highlightedMeasures = song.highlightedMeasures || [];
 
     return (
         <div className="live-learning" style={{ maxWidth: '1600px', margin: '0 auto' }}>
@@ -176,24 +162,48 @@ export function LiveLearning({ song }) {
                     </h3>
                     <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <div>🎵 <strong>Cliquez sur une mesure</strong> pour l'écouter</div>
-                        <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner une mesure</div>
-                        <div>📍 Utilisez le surlignage pour marquer les mesures difficiles</div>
+                        <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner</div>
+                        <div>👁️ <strong>Activez les détails</strong> pour voir les notes</div>
                     </div>
                 </div>
             </div>
 
             {/* Main Timeline View */}
             <div className="card" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                <h3 style={{
-                    color: 'var(--accent-primary)',
-                    marginBottom: '1.5rem',
-                    fontSize: '1.3rem',
+                <div style={{
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: '0.5rem'
+                    marginBottom: '1.5rem'
                 }}>
-                    🎵 Progression complète du morceau
-                </h3>
+                    <h3 style={{
+                        color: 'var(--accent-primary)',
+                        fontSize: '1.3rem',
+                        margin: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}>
+                        🎵 Progression complète du morceau
+                    </h3>
+
+                    {/* Toggle Details Button */}
+                    <button
+                        onClick={() => setShowDetails(!showDetails)}
+                        style={{
+                            background: showDetails ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                            color: showDetails ? 'white' : 'var(--text-primary)',
+                            border: showDetails ? 'none' : '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            boxShadow: showDetails ? 'var(--shadow-glow)' : 'var(--shadow-sm)'
+                        }}
+                    >
+                        <span>{showDetails ? '👁️' : '👁️‍🗨️'}</span>
+                        <span>{showDetails ? 'Masquer les détails' : 'Afficher les détails'}</span>
+                    </button>
+                </div>
 
                 {/* Measures grouped by 4 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -219,9 +229,10 @@ export function LiveLearning({ song }) {
                                     <MeasureCard
                                         key={measure.number}
                                         measure={measure}
-                                        isHighlighted={highlightedMeasures.has(measure.number)}
-                                        onToggleHighlight={toggleHighlight}
+                                        isHighlighted={highlightedMeasures.includes(measure.number)}
+                                        onToggleHighlight={onToggleHighlight}
                                         onPlay={handlePlayMeasure}
+                                        showDetails={showDetails}
                                     />
                                 ))}
                             </div>
@@ -274,7 +285,7 @@ export function LiveLearning({ song }) {
 }
 
 // Helper component for measure cards
-function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay }) {
+function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
     return (
         <div
             onClick={() => onPlay(measure)}
@@ -289,7 +300,8 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay }) {
                 cursor: 'pointer',
                 position: 'relative',
                 overflow: 'hidden',
-                boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none'
+                boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none',
+                minHeight: showDetails ? '160px' : '120px'
             }}
             onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-2px)';
@@ -335,34 +347,69 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay }) {
                 {measure.number}
             </div>
 
-            {/* Chord info */}
+            {/* Chord info - show ALL chords in measure */}
             <div style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
                 <div style={{
                     fontSize: '0.75rem',
                     color: 'var(--text-secondary)',
                     marginBottom: '0.25rem'
                 }}>
-                    Accord
+                    Accords {measure.chordGroups.length > 1 && `(${measure.chordGroups.length})`}
                 </div>
-                <div style={{
-                    fontSize: '1.1rem',
-                    fontWeight: 'bold',
-                    color: measure.hasChord ? 'var(--text-primary)' : 'var(--text-tertiary)'
-                }}>
-                    {measure.chordName}
-                </div>
-                {measure.chordNotes.length > 1 && (
+
+                {measure.hasChord ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {measure.chordGroups.map((chordGroup, idx) => {
+                            const chordName = getFrenchNoteName(chordGroup.notes[0].pitch).split(/\d/)[0];
+
+                            return (
+                                <div key={idx}>
+                                    <div style={{
+                                        fontSize: '1rem',
+                                        fontWeight: 'bold',
+                                        color: 'var(--text-primary)'
+                                    }}>
+                                        {chordName}
+                                    </div>
+
+                                    {/* Show chord notes when details are enabled */}
+                                    {showDetails && (
+                                        <div style={{
+                                            fontSize: '0.65rem',
+                                            color: 'var(--text-secondary)',
+                                            marginTop: '0.15rem',
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            gap: '0.2rem'
+                                        }}>
+                                            {chordGroup.notes.map((n, i) => (
+                                                <span key={i} style={{
+                                                    background: 'var(--bg-primary)',
+                                                    padding: '0.1rem 0.25rem',
+                                                    borderRadius: '3px',
+                                                    border: '1px solid var(--border-color)'
+                                                }}>
+                                                    {getFrenchNoteName(n.pitch)}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
                     <div style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--text-secondary)',
-                        marginTop: '0.25rem'
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        color: 'var(--text-tertiary)'
                     }}>
-                        {measure.chordNotes.map(n => getFrenchNoteName(n.pitch)).join(', ')}
+                        -
                     </div>
                 )}
             </div>
 
-            {/* Melody density indicator */}
+            {/* Melody info */}
             <div>
                 <div style={{
                     fontSize: '0.75rem',
@@ -371,37 +418,57 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay }) {
                 }}>
                     Mélodie ({measure.melodyCount} notes)
                 </div>
-                <div style={{
-                    display: 'flex',
-                    gap: '2px',
-                    flexWrap: 'wrap'
-                }}>
-                    {Array.from({ length: Math.min(measure.melodyCount, 12) }).map((_, i) => (
-                        <div key={i} style={{
-                            width: '6px',
-                            height: '6px',
-                            background: 'var(--accent-secondary)',
-                            borderRadius: '50%'
-                        }} />
-                    ))}
-                    {measure.melodyCount > 12 && (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                            +{measure.melodyCount - 12}
-                        </span>
-                    )}
-                </div>
-            </div>
 
-            {/* Play indicator on hover */}
-            <div style={{
-                position: 'absolute',
-                bottom: '0.5rem',
-                left: '0.5rem',
-                fontSize: '0.7rem',
-                color: 'var(--text-secondary)',
-                opacity: 0.7
-            }}>
-                ▶ Cliquer pour écouter
+                {showDetails ? (
+                    // Show actual melody notes when details are enabled
+                    <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '0.25rem',
+                        maxHeight: '60px',
+                        overflowY: 'auto'
+                    }}>
+                        {measure.melody.length > 0 ? (
+                            measure.melody.sort((a, b) => a.startTime - b.startTime).map((n, i) => (
+                                <span key={i} style={{
+                                    fontSize: '0.7rem',
+                                    background: 'var(--bg-primary)',
+                                    padding: '0.1rem 0.3rem',
+                                    borderRadius: '3px',
+                                    border: '1px solid var(--accent-secondary)',
+                                    color: 'var(--text-primary)'
+                                }}>
+                                    {getFrenchNoteName(n.pitch)}
+                                </span>
+                            ))
+                        ) : (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                                Aucune
+                            </span>
+                        )}
+                    </div>
+                ) : (
+                    // Show density dots when details are hidden
+                    <div style={{
+                        display: 'flex',
+                        gap: '2px',
+                        flexWrap: 'wrap'
+                    }}>
+                        {Array.from({ length: Math.min(measure.melodyCount, 12) }).map((_, i) => (
+                            <div key={i} style={{
+                                width: '6px',
+                                height: '6px',
+                                background: 'var(--accent-secondary)',
+                                borderRadius: '50%'
+                            }} />
+                        ))}
+                        {measure.melodyCount > 12 && (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                +{measure.melodyCount - 12}
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -17,7 +17,8 @@ function App() {
     addPhrase,
     removePhrase,
     addNoteToPhrase,
-    removeNoteFromPhrase
+    removeNoteFromPhrase,
+    toggleHighlightedMeasure
   } = useSong();
 
   const [mode, setMode] = useState('library'); // 'library', 'edit', 'view', 'live'
@@ -100,7 +101,7 @@ function App() {
           <SongViewer song={song} />
         )}
         {mode === 'live' && (
-          <LiveLearning song={song} />
+          <LiveLearning song={song} onToggleHighlight={toggleHighlightedMeasure} />
         )}
       </main>
     </Layout>
