@@ -6,11 +6,15 @@ const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
 export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
-    const [keys] = useState(() => getPianoRollKeys(3, 5)); // C3 to B5
+    const [keys] = useState(() => getPianoRollKeys(1, 5)); // C1 to B5
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote, trackName }
     const [scrollTop, setScrollTop] = useState(0);
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
+
+    // Hand separation line
+    const [separatorEnabled, setSeparatorEnabled] = useState(false);
+    const [separatorPitch, setSeparatorPitch] = useState('C4'); // Default separation at C4
 
     // Combine notes from both tracks with track information
     const allNotes = [
@@ -91,7 +95,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
             const roundedStartTime = Math.round(newStartTime * 4) / 4; // Snap to 1/4 beat
 
             const originalKeyIndex = keys.indexOf(dragState.originalNote.pitch);
-            const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex - deltaPitch));
+            const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
             const newPitch = keys[newKeyIndex];
 
             if (roundedStartTime !== dragState.originalNote.startTime || newPitch !== dragState.originalNote.pitch) {
@@ -106,11 +110,36 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                     lastPlayedPitchRef.current = newPitch;
                 }
             }
+        } else if (dragState.type === 'separator') {
+            // Move separator line
+            handleSeparatorDrag(e, deltaY);
         }
     };
 
     const handleMouseUp = () => {
         setDragState(null);
+    };
+
+    const handleSeparatorMouseDown = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        setDragState({
+            type: 'separator',
+            startY: e.clientY,
+            originalPitch: separatorPitch
+        });
+    };
+
+    const handleSeparatorDrag = (e, deltaY) => {
+        const deltaPitch = Math.round(deltaY / CELL_HEIGHT);
+        const originalKeyIndex = keys.indexOf(dragState.originalPitch);
+        const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
+        const newPitch = keys[newKeyIndex];
+
+        if (newPitch !== separatorPitch) {
+            setSeparatorPitch(newPitch);
+        }
     };
 
     useEffect(() => {
@@ -125,16 +154,40 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
     }, [dragState]);
 
     return (
-        <div className="piano-roll" style={{
-            display: 'flex',
-            border: '1px solid var(--border-light)',
-            borderRadius: 'var(--radius-lg)',
-            height: '450px',
-            overflow: 'hidden',
-            backgroundColor: 'var(--bg-primary)',
-            boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
-            userSelect: 'none'
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {/* Separator Toggle Button */}
+            <button
+                onClick={() => setSeparatorEnabled(!separatorEnabled)}
+                style={{
+                    alignSelf: 'flex-start',
+                    background: separatorEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                    color: separatorEnabled ? 'white' : 'var(--text-secondary)',
+                    border: separatorEnabled ? 'none' : '1px solid var(--border-light)',
+                    padding: '0.5rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}
+            >
+                <span>{separatorEnabled ? '✓' : '○'}</span>
+                <span>Séparateur MG/MD</span>
+            </button>
+
+            <div className="piano-roll" style={{
+                display: 'flex',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-lg)',
+                height: '450px',
+                overflow: 'hidden',
+                backgroundColor: 'var(--bg-primary)',
+                boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
+                userSelect: 'none'
+            }}>
             {/* Piano Keys (Y-axis) */}
             <div style={{
                 width: '90px',
@@ -319,8 +372,44 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                             />
                         ))
                     ))}
+
+                    {/* Hand Separation Line */}
+                    {separatorEnabled && (
+                        <div
+                            onMouseDown={handleSeparatorMouseDown}
+                            style={{
+                                position: 'absolute',
+                                left: 0,
+                                right: 0,
+                                top: `${keys.indexOf(separatorPitch) * CELL_HEIGHT}px`,
+                                height: '3px',
+                                background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
+                                cursor: 'ns-resize',
+                                zIndex: 50,
+                                boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
+                                transition: dragState?.type === 'separator' ? 'none' : 'top 0.1s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <div style={{
+                                background: '#f59e0b',
+                                color: 'white',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: '600',
+                                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                                pointerEvents: 'none'
+                            }}>
+                                MG ↕ MD
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
+        </div>
         </div>
     );
 }
