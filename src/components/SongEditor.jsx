@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, updateSongMetadata, onImportSong, onSaveSong, addPhrase, removePhrase, addNoteToPhrase, removeNoteFromPhrase }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addPhrase, removePhrase, addNoteToPhrase, removeNoteFromPhrase }) {
     const [activeTrack, setActiveTrack] = useState('melody'); // 'melody' | 'chords'
     const [isImporting, setIsImporting] = useState(false);
 
@@ -143,7 +143,7 @@ export function SongEditor({ song, updateSongMetadata, onImportSong, onSaveSong,
                         <input
                             type="text"
                             value={song.title}
-                            onChange={(e) => updateSongMetadata({ title: e.target.value })}
+                            onChange={(e) => onUpdateMetadata({ title: e.target.value })}
                             placeholder="Entrez le titre du morceau"
                         />
                     </div>
@@ -160,7 +160,7 @@ export function SongEditor({ song, updateSongMetadata, onImportSong, onSaveSong,
                         <input
                             type="number"
                             value={song.tempo}
-                            onChange={(e) => updateSongMetadata({ tempo: parseInt(e.target.value) })}
+                            onChange={(e) => onUpdateMetadata({ tempo: parseInt(e.target.value) })}
                             placeholder="120"
                         />
                     </div>
