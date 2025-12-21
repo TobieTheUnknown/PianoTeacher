@@ -1,8 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { generatePartitionPDF } from '../services/PartitionGenerator';
 
 export function Partition({ song, onUpdateMetadata }) {
     const [pdfFile, setPdfFile] = useState(null);
-    const [pdfUrl, setPdfUrl] = useState(song.partitionPdfUrl || null);
+    const [pdfUrl, setPdfUrl] = useState(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    // Convert base64 to blob URL on component mount
+    useEffect(() => {
+        if (song.partitionPdfUrl && song.partitionPdfUrl.startsWith('data:application/pdf')) {
+            // If we have a base64 PDF, convert it to blob URL for display
+            fetch(song.partitionPdfUrl)
+                .then(res => res.blob())
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    setPdfUrl(url);
+                })
+                .catch(err => console.error('Error loading PDF:', err));
+        }
+
+        // Cleanup blob URLs on unmount
+        return () => {
+            if (pdfUrl && pdfUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(pdfUrl);
+            }
+        };
+    }, [song.partitionPdfUrl]);
 
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
@@ -13,13 +36,25 @@ export function Partition({ song, onUpdateMetadata }) {
             return;
         }
 
-        // Create object URL for preview
-        const url = URL.createObjectURL(file);
-        setPdfUrl(url);
         setPdfFile(file);
 
-        // Store the file name in song metadata
-        onUpdateMetadata({ partitionPdfUrl: url, partitionFileName: file.name });
+        // Convert PDF to base64 for persistence
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const base64Pdf = event.target.result;
+
+            // Store base64 in song metadata for persistence
+            onUpdateMetadata({
+                partitionPdfUrl: base64Pdf,
+                partitionFileName: file.name
+            });
+
+            // Create blob URL for immediate display
+            const blob = new Blob([file], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            setPdfUrl(url);
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleRemovePdf = () => {
@@ -29,6 +64,36 @@ export function Partition({ song, onUpdateMetadata }) {
         setPdfUrl(null);
         setPdfFile(null);
         onUpdateMetadata({ partitionPdfUrl: null, partitionFileName: null });
+    };
+
+    const handleGeneratePDF = async () => {
+        setIsGenerating(true);
+        try {
+            const result = await generatePartitionPDF(song);
+
+            if (result.success) {
+                // Store the generated PDF
+                onUpdateMetadata({
+                    partitionPdfUrl: result.pdfBase64,
+                    partitionFileName: result.fileName
+                });
+
+                // Create blob URL for display
+                fetch(result.pdfBase64)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        setPdfUrl(url);
+                    });
+            } else {
+                alert(`Erreur lors de la génération: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error generating partition:', error);
+            alert('Une erreur est survenue lors de la génération de la partition');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     return (
@@ -138,33 +203,53 @@ export function Partition({ song, onUpdateMetadata }) {
                                 Créez une partition à partir de votre fichier MIDI. La partition sera générée avec les bonnes notes et rythmes.
                             </p>
                             <button
-                                disabled
+                                onClick={handleGeneratePDF}
+                                disabled={isGenerating || song.phrases.length === 0}
                                 style={{
                                     width: '100%',
-                                    background: 'var(--bg-elevated)',
-                                    color: 'var(--text-secondary)',
-                                    border: '1px solid var(--border-color)',
+                                    background: isGenerating || song.phrases.length === 0
+                                        ? 'var(--bg-elevated)'
+                                        : 'var(--gradient-primary)',
+                                    color: isGenerating || song.phrases.length === 0
+                                        ? 'var(--text-secondary)'
+                                        : 'white',
+                                    border: isGenerating || song.phrases.length === 0
+                                        ? '1px solid var(--border-color)'
+                                        : 'none',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     gap: '0.5rem',
                                     padding: '1rem',
-                                    cursor: 'not-allowed',
-                                    opacity: 0.6
+                                    cursor: isGenerating || song.phrases.length === 0
+                                        ? 'not-allowed'
+                                        : 'pointer',
+                                    opacity: isGenerating || song.phrases.length === 0
+                                        ? 0.6
+                                        : 1,
+                                    boxShadow: isGenerating || song.phrases.length === 0
+                                        ? 'none'
+                                        : 'var(--shadow-glow)'
                                 }}
                             >
-                                <span style={{ fontSize: '1.2rem' }}>⚙️</span>
-                                <span>Bientôt disponible</span>
+                                <span style={{ fontSize: '1.2rem' }}>
+                                    {isGenerating ? '⏳' : '🎼'}
+                                </span>
+                                <span>
+                                    {isGenerating ? 'Génération en cours...' : 'Générer la partition'}
+                                </span>
                             </button>
-                            <p style={{
-                                marginTop: '1rem',
-                                fontSize: '0.85rem',
-                                color: 'var(--text-tertiary)',
-                                fontStyle: 'italic',
-                                textAlign: 'center'
-                            }}>
-                                Cette fonctionnalité sera ajoutée prochainement
-                            </p>
+                            {song.phrases.length === 0 && (
+                                <p style={{
+                                    marginTop: '1rem',
+                                    fontSize: '0.85rem',
+                                    color: 'var(--text-tertiary)',
+                                    fontStyle: 'italic',
+                                    textAlign: 'center'
+                                }}>
+                                    Importez d'abord un fichier MIDI dans l'éditeur
+                                </p>
+                            )}
                         </div>
                     </>
                 ) : (
