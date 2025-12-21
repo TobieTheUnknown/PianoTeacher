@@ -138,16 +138,25 @@ function createStaveNotes(noteGroups) {
  */
 export async function generatePartitionPDF(song) {
     try {
+        console.log('Starting PDF generation for song:', song.title);
+        console.log('Number of phrases:', song.phrases.length);
+
         // Create a container div for VexFlow rendering
         const containerDiv = document.createElement('div');
         containerDiv.style.width = '800px';
         containerDiv.style.height = '1000px';
+        containerDiv.style.position = 'absolute';
+        containerDiv.style.left = '0';
+        containerDiv.style.top = '0';
+        containerDiv.style.backgroundColor = 'white';
         document.body.appendChild(containerDiv);
 
         // Create VexFlow renderer
         const renderer = new Renderer(containerDiv, Renderer.Backends.SVG);
         renderer.resize(800, 1000);
         const context = renderer.getContext();
+
+        console.log('Renderer created, context:', context);
 
         let yPosition = 40;
         const staveWidth = 700;
@@ -161,10 +170,16 @@ export async function generatePartitionPDF(song) {
                 ...phrase.tracks.chords
             ];
 
-            if (allNotes.length === 0) return;
+            if (allNotes.length === 0) {
+                console.log('No notes in phrase', phraseIndex);
+                return;
+            }
+
+            console.log(`Phrase ${phraseIndex}: ${allNotes.length} notes`);
 
             // Group notes by time
             const noteGroups = groupNotesByTime(allNotes);
+            console.log(`Phrase ${phraseIndex}: ${noteGroups.length} note groups`);
 
             // Split into measures (4 beats per measure)
             const measuresData = [];
@@ -225,6 +240,14 @@ export async function generatePartitionPDF(song) {
         // Get the SVG element
         const svgElement = containerDiv.querySelector('svg');
 
+        if (!svgElement) {
+            throw new Error('No SVG element was created');
+        }
+
+        console.log('SVG element found:', svgElement);
+        console.log('SVG content length:', svgElement.outerHTML.length);
+        console.log('SVG has children:', svgElement.children.length);
+
         // Create PDF
         const pdf = new jsPDF({
             orientation: 'portrait',
@@ -232,12 +255,16 @@ export async function generatePartitionPDF(song) {
             format: [800, 1000]
         });
 
+        console.log('Converting SVG to PDF...');
+
         // Convert SVG to PDF using svg2pdf.js
         await svg2pdf(svgElement, pdf, {
             xOffset: 0,
             yOffset: 0,
             scale: 1
         });
+
+        console.log('SVG converted to PDF successfully');
 
         // Convert PDF to base64 for storage
         const pdfBase64 = pdf.output('dataurlstring');
