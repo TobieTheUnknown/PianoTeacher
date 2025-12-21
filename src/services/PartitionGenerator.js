@@ -1,5 +1,6 @@
 import { Renderer, Stave, StaveNote, Formatter, Voice, Accidental } from 'vexflow';
 import jsPDF from 'jspdf';
+import { svg2pdf } from 'svg2pdf.js';
 
 /**
  * Converts a MIDI note name to VexFlow notation
@@ -231,12 +232,11 @@ export async function generatePartitionPDF(song) {
             format: [800, 1000]
         });
 
-        // Convert SVG to PDF
-        await pdf.svg(svgElement, {
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 1000
+        // Convert SVG to PDF using svg2pdf.js
+        await svg2pdf(svgElement, pdf, {
+            xOffset: 0,
+            yOffset: 0,
+            scale: 1
         });
 
         // Convert PDF to base64 for storage
