@@ -2,68 +2,52 @@ import React, { useMemo } from 'react';
 import { getFrenchNoteName } from '../models/song';
 
 export function LiveLearning({ song }) {
-    // Analyze the song to extract key information
+    // Analyze and structure the song data
     const analysis = useMemo(() => {
         if (!song || !song.phrases || song.phrases.length === 0) {
             return null;
         }
 
-        // Collect all unique notes from melody and chords
+        const measures = [];
         const allNotes = new Set();
-        const chordProgression = [];
-        const melodyNotes = [];
+        const allChords = new Set();
 
         song.phrases.forEach(phrase => {
-            // Extract melody notes
-            phrase.tracks.melody.forEach(note => {
-                const noteName = note.pitch.slice(0, -1); // Remove octave
-                allNotes.add(noteName);
-                melodyNotes.push(note.pitch);
-            });
+            const phraseMeasures = getMeasuresFromPhrase(phrase);
 
-            // Extract chord notes and build progression
-            const chordsByMeasure = groupChordsByMeasure(phrase);
-            chordsByMeasure.forEach(measure => {
-                measure.chords.forEach(chord => {
-                    chord.notes.forEach(note => {
-                        const noteName = note.pitch.slice(0, -1);
-                        allNotes.add(noteName);
-                    });
+            phraseMeasures.forEach(measure => {
+                // Collect unique notes
+                measure.melody.forEach(n => allNotes.add(n.pitch.slice(0, -1)));
+                measure.chords.forEach(n => allChords.add(n.pitch.slice(0, -1)));
 
-                    // Identify chord type
-                    const chordName = identifyChord(chord.notes);
-                    if (chordName && !chordProgression.some(c => c.name === chordName)) {
-                        chordProgression.push({ name: chordName, notes: chord.notes });
-                    }
+                // Build measure summary
+                const chordGroup = groupNotesByTime(measure.chords);
+                const chordName = chordGroup.length > 0
+                    ? getFrenchNoteName(chordGroup[0].notes[0].pitch).split(/\d/)[0]
+                    : '-';
+
+                const melodyCount = measure.melody.length;
+                const complexity = melodyCount > 8 ? 'high' : melodyCount > 4 ? 'medium' : 'low';
+
+                measures.push({
+                    number: measures.length + 1,
+                    chordName,
+                    chordNotes: chordGroup.length > 0 ? chordGroup[0].notes : [],
+                    melodyCount,
+                    complexity,
+                    hasChord: chordGroup.length > 0,
+                    melody: measure.melody
                 });
             });
         });
 
-        // Detect alterations (sharps/flats)
-        const alterations = Array.from(allNotes).filter(note =>
-            note.includes('#') || note.includes('b')
-        );
-
-        // Count note frequencies for melody
-        const noteFrequency = {};
-        melodyNotes.forEach(note => {
-            noteFrequency[note] = (noteFrequency[note] || 0) + 1;
-        });
-
-        // Get most common notes
-        const topNotes = Object.entries(noteFrequency)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 8)
-            .map(([note]) => note);
-
         return {
+            measures,
+            totalMeasures: measures.length,
             key: song.key,
             tempo: song.tempo,
-            allNotes: Array.from(allNotes).sort(),
-            chordProgression,
-            alterations,
-            topNotes,
-            totalMeasures: song.phrases.reduce((sum, p) => sum + p.length, 0)
+            uniqueNotes: Array.from(allNotes).sort(),
+            uniqueChords: Array.from(allChords).sort()
         };
     }, [song]);
 
@@ -76,267 +60,368 @@ export function LiveLearning({ song }) {
     }
 
     return (
-        <div className="live-learning">
+        <div className="live-learning" style={{ maxWidth: '1600px', margin: '0 auto' }}>
             {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-                <h2 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
-                    Live Learning
+            <div style={{
+                textAlign: 'center',
+                marginBottom: '3rem',
+                padding: '2rem',
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
+                borderRadius: 'var(--radius-xl)',
+                border: '1px solid var(--border-color)'
+            }}>
+                <h2 style={{
+                    fontSize: '2.5rem',
+                    marginBottom: '0.5rem',
+                    background: 'var(--gradient-primary)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                }}>
+                    ⚡ Live Learning
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
-                    Vue d'ensemble de "{song.title}"
+                <p style={{ fontSize: '1.3rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    {song.title}
                 </p>
+                <div style={{
+                    display: 'flex',
+                    gap: '2rem',
+                    justifyContent: 'center',
+                    flexWrap: 'wrap',
+                    fontSize: '1rem'
+                }}>
+                    <span>🎼 <strong>{analysis.key}</strong></span>
+                    <span>⏱️ <strong>{analysis.tempo} BPM</strong></span>
+                    <span>📊 <strong>{analysis.totalMeasures} mesures</strong></span>
+                </div>
             </div>
 
-            {/* Main Grid */}
+            {/* Quick Reference Cards */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
                 gap: '1.5rem',
-                maxWidth: '1400px',
-                margin: '0 auto'
+                marginBottom: '3rem'
             }}>
-                {/* Key & Tempo Card */}
-                <div className="card" style={{ padding: '2rem' }}>
+                {/* Notes Used */}
+                <div className="card" style={{ padding: '1.5rem' }}>
                     <h3 style={{
                         color: 'var(--accent-primary)',
-                        marginBottom: '1.5rem',
+                        marginBottom: '1rem',
+                        fontSize: '1.1rem',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem'
                     }}>
-                        <span style={{ fontSize: '1.5rem' }}>🎼</span>
-                        Informations de base
+                        🎹 Notes utilisées ({analysis.uniqueNotes.length})
                     </h3>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <InfoRow label="Tonalité" value={analysis.key} />
-                        <InfoRow label="Tempo" value={`${analysis.tempo} BPM`} />
-                        <InfoRow label="Mesures" value={analysis.totalMeasures} />
-                    </div>
-                </div>
-
-                {/* Scale/Notes Card */}
-                <div className="card" style={{ padding: '2rem' }}>
-                    <h3 style={{
-                        color: 'var(--accent-primary)',
-                        marginBottom: '1.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        <span style={{ fontSize: '1.5rem' }}>🎹</span>
-                        Notes utilisées
-                    </h3>
-
                     <div style={{
                         display: 'flex',
                         flexWrap: 'wrap',
-                        gap: '0.5rem',
-                        marginBottom: '1.5rem'
+                        gap: '0.5rem'
                     }}>
-                        {analysis.allNotes.map(note => (
+                        {analysis.uniqueNotes.map(note => (
                             <span key={note} style={{
-                                padding: '0.5rem 1rem',
-                                background: 'var(--gradient-primary)',
-                                color: 'white',
-                                borderRadius: '8px',
+                                padding: '0.4rem 0.8rem',
+                                background: 'var(--bg-tertiary)',
+                                borderRadius: '6px',
+                                fontSize: '0.9rem',
                                 fontWeight: 'bold',
-                                fontSize: '1rem',
-                                boxShadow: 'var(--shadow-md)'
+                                border: '1px solid var(--border-color)'
                             }}>
                                 {note}
                             </span>
                         ))}
                     </div>
-
-                    {analysis.alterations.length > 0 && (
-                        <>
-                            <h4 style={{
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.9rem',
-                                marginBottom: '0.75rem',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                            }}>
-                                Altérations importantes
-                            </h4>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                {analysis.alterations.map(note => (
-                                    <span key={note} style={{
-                                        padding: '0.4rem 0.8rem',
-                                        background: 'var(--bg-tertiary)',
-                                        border: '2px solid var(--accent-secondary)',
-                                        color: 'var(--accent-secondary)',
-                                        borderRadius: '6px',
-                                        fontWeight: 'bold'
-                                    }}>
-                                        {note}
-                                    </span>
-                                ))}
-                            </div>
-                        </>
-                    )}
                 </div>
 
-                {/* Chord Progression Card */}
-                <div className="card" style={{ padding: '2rem' }}>
+                {/* Complexity Overview */}
+                <div className="card" style={{ padding: '1.5rem' }}>
                     <h3 style={{
                         color: 'var(--accent-primary)',
-                        marginBottom: '1.5rem',
+                        marginBottom: '1rem',
+                        fontSize: '1.1rem',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem'
                     }}>
-                        <span style={{ fontSize: '1.5rem' }}>🎸</span>
-                        Progression d'accords
+                        📈 Aperçu de complexité
                     </h3>
-
-                    {analysis.chordProgression.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            {analysis.chordProgression.map((chord, idx) => (
-                                <div key={idx} style={{
-                                    padding: '1rem',
-                                    background: 'var(--bg-tertiary)',
-                                    borderRadius: '8px',
-                                    borderLeft: '4px solid var(--accent-secondary)'
-                                }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.3rem' }}>
-                                        {chord.name}
-                                    </div>
-                                    <div style={{
-                                        fontSize: '0.85rem',
-                                        color: 'var(--text-secondary)',
-                                        display: 'flex',
-                                        gap: '0.5rem',
-                                        flexWrap: 'wrap'
-                                    }}>
-                                        {chord.notes.map((note, i) => (
-                                            <span key={i}>{getFrenchNoteName(note.pitch)}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                            Pas d'accords détectés
-                        </p>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <ComplexityBar
+                            label="Facile"
+                            count={analysis.measures.filter(m => m.complexity === 'low').length}
+                            total={analysis.totalMeasures}
+                            color="#10b981"
+                        />
+                        <ComplexityBar
+                            label="Moyen"
+                            count={analysis.measures.filter(m => m.complexity === 'medium').length}
+                            total={analysis.totalMeasures}
+                            color="#f59e0b"
+                        />
+                        <ComplexityBar
+                            label="Difficile"
+                            count={analysis.measures.filter(m => m.complexity === 'high').length}
+                            total={analysis.totalMeasures}
+                            color="#ef4444"
+                        />
+                    </div>
                 </div>
+            </div>
 
-                {/* Top Melody Notes Card */}
-                <div className="card" style={{ padding: '2rem' }}>
-                    <h3 style={{
-                        color: 'var(--accent-primary)',
-                        marginBottom: '1.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        <span style={{ fontSize: '1.5rem' }}>⭐</span>
-                        Notes principales de la mélodie
-                    </h3>
+            {/* Main Timeline View */}
+            <div className="card" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                <h3 style={{
+                    color: 'var(--accent-primary)',
+                    marginBottom: '1.5rem',
+                    fontSize: '1.3rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}>
+                    🎵 Progression complète du morceau
+                </h3>
 
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-                        gap: '0.75rem'
-                    }}>
-                        {analysis.topNotes.map((note, idx) => (
-                            <div key={idx} style={{
-                                padding: '1rem',
-                                background: `linear-gradient(135deg, ${
-                                    idx === 0 ? 'var(--accent-primary)' : 'var(--accent-secondary)'
-                                } 0%, ${
-                                    idx === 0 ? 'var(--accent-secondary)' : 'var(--bg-tertiary)'
-                                } 100%)`,
-                                color: idx < 3 ? 'white' : 'var(--text-primary)',
-                                borderRadius: '12px',
-                                textAlign: 'center',
-                                fontWeight: 'bold',
-                                fontSize: '1.1rem',
-                                boxShadow: idx < 3 ? 'var(--shadow-md)' : 'none',
-                                border: idx >= 3 ? '2px solid var(--border-color)' : 'none'
-                            }}>
-                                {getFrenchNoteName(note)}
-                            </div>
-                        ))}
+                {/* Legend */}
+                <div style={{
+                    display: 'flex',
+                    gap: '1.5rem',
+                    marginBottom: '1.5rem',
+                    padding: '1rem',
+                    background: 'var(--bg-tertiary)',
+                    borderRadius: 'var(--radius-md)',
+                    flexWrap: 'wrap',
+                    fontSize: '0.9rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '20px', height: '20px', background: '#10b981', borderRadius: '4px' }}></div>
+                        <span>Facile (≤4 notes)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '20px', height: '20px', background: '#f59e0b', borderRadius: '4px' }}></div>
+                        <span>Moyen (5-8 notes)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '20px', height: '20px', background: '#ef4444', borderRadius: '4px' }}></div>
+                        <span>Difficile (&gt;8 notes)</span>
                     </div>
                 </div>
 
-                {/* Quick Tips Card */}
-                <div className="card" style={{
-                    padding: '2rem',
-                    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
-                    border: '2px solid var(--accent-primary)'
+                {/* Measures Grid */}
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                    gap: '1rem',
+                    marginTop: '1rem'
                 }}>
-                    <h3 style={{
-                        color: 'var(--accent-primary)',
-                        marginBottom: '1.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        <span style={{ fontSize: '1.5rem' }}>💡</span>
-                        Conseils d'apprentissage
-                    </h3>
+                    {analysis.measures.map((measure, idx) => (
+                        <MeasureCard key={idx} measure={measure} />
+                    ))}
+                </div>
+            </div>
 
-                    <ul style={{
-                        listStyle: 'none',
-                        padding: 0,
-                        margin: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.75rem'
-                    }}>
-                        <li style={{ display: 'flex', gap: '0.5rem' }}>
-                            <span>📍</span>
-                            <span>Commencez par apprendre les notes principales en gras</span>
-                        </li>
-                        <li style={{ display: 'flex', gap: '0.5rem' }}>
-                            <span>🎵</span>
-                            <span>Pratiquez les accords un par un avant de jouer la progression</span>
-                        </li>
-                        <li style={{ display: 'flex', gap: '0.5rem' }}>
-                            <span>🎹</span>
-                            <span>Familiarisez-vous avec les altérations (# et ♭)</span>
-                        </li>
-                        <li style={{ display: 'flex', gap: '0.5rem' }}>
-                            <span>⏱️</span>
-                            <span>Utilisez un métronome à {Math.round(analysis.tempo * 0.7)} BPM pour débuter</span>
-                        </li>
-                    </ul>
+            {/* Tips */}
+            <div className="card" style={{
+                padding: '2rem',
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
+                border: '2px solid var(--accent-primary)'
+            }}>
+                <h3 style={{
+                    color: 'var(--accent-primary)',
+                    marginBottom: '1.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}>
+                    <span style={{ fontSize: '1.5rem' }}>💡</span>
+                    Conseils d'apprentissage
+                </h3>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                    gap: '1rem'
+                }}>
+                    <TipCard
+                        icon="📍"
+                        text="Concentrez-vous d'abord sur les mesures vertes (faciles)"
+                    />
+                    <TipCard
+                        icon="🎵"
+                        text="Apprenez les accords de base avant d'ajouter la mélodie"
+                    />
+                    <TipCard
+                        icon="⏱️"
+                        text={`Commencez à ${Math.round(analysis.tempo * 0.6)} BPM puis augmentez progressivement`}
+                    />
+                    <TipCard
+                        icon="🔄"
+                        text="Répétez chaque section difficile (rouge) séparément"
+                    />
                 </div>
             </div>
         </div>
     );
 }
 
-// Helper component for info rows
-function InfoRow({ label, value }) {
+// Helper component for measure cards
+function MeasureCard({ measure }) {
+    const complexityColors = {
+        low: '#10b981',
+        medium: '#f59e0b',
+        high: '#ef4444'
+    };
+
     return (
         <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0.75rem',
+            padding: '1rem',
             background: 'var(--bg-tertiary)',
-            borderRadius: '8px'
-        }}>
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>{label}</span>
-            <span style={{
-                fontWeight: 'bold',
-                fontSize: '1.1rem',
-                color: 'var(--text-primary)'
+            borderRadius: 'var(--radius-md)',
+            border: `3px solid ${complexityColors[measure.complexity]}`,
+            transition: 'all var(--transition-fast)',
+            cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden'
+        }}
+        onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+        }}
+        onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+        }}
+        >
+            {/* Measure number badge */}
+            <div style={{
+                position: 'absolute',
+                top: '0.5rem',
+                right: '0.5rem',
+                background: complexityColors[measure.complexity],
+                color: 'white',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.75rem',
+                fontWeight: 'bold'
             }}>
-                {value}
-            </span>
+                {measure.number}
+            </div>
+
+            {/* Chord info */}
+            <div style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
+                <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.25rem'
+                }}>
+                    Accord
+                </div>
+                <div style={{
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold',
+                    color: measure.hasChord ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                }}>
+                    {measure.chordName}
+                </div>
+                {measure.chordNotes.length > 1 && (
+                    <div style={{
+                        fontSize: '0.7rem',
+                        color: 'var(--text-secondary)',
+                        marginTop: '0.25rem'
+                    }}>
+                        {measure.chordNotes.map(n => getFrenchNoteName(n.pitch)).join(', ')}
+                    </div>
+                )}
+            </div>
+
+            {/* Melody density indicator */}
+            <div>
+                <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.25rem'
+                }}>
+                    Mélodie
+                </div>
+                <div style={{
+                    display: 'flex',
+                    gap: '2px',
+                    flexWrap: 'wrap'
+                }}>
+                    {Array.from({ length: Math.min(measure.melodyCount, 12) }).map((_, i) => (
+                        <div key={i} style={{
+                            width: '6px',
+                            height: '6px',
+                            background: 'var(--accent-secondary)',
+                            borderRadius: '50%'
+                        }} />
+                    ))}
+                    {measure.melodyCount > 12 && (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            +{measure.melodyCount - 12}
+                        </span>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
 
-// Helper function to group chords by measure
-function groupChordsByMeasure(phrase) {
+// Helper component for complexity bars
+function ComplexityBar({ label, count, total, color }) {
+    const percentage = (count / total) * 100;
+
+    return (
+        <div>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '0.25rem',
+                fontSize: '0.9rem'
+            }}>
+                <span>{label}</span>
+                <span style={{ fontWeight: 'bold' }}>{count} / {total}</span>
+            </div>
+            <div style={{
+                height: '8px',
+                background: 'var(--bg-tertiary)',
+                borderRadius: '4px',
+                overflow: 'hidden'
+            }}>
+                <div style={{
+                    width: `${percentage}%`,
+                    height: '100%',
+                    background: color,
+                    transition: 'width var(--transition-normal)'
+                }} />
+            </div>
+        </div>
+    );
+}
+
+// Helper component for tips
+function TipCard({ icon, text }) {
+    return (
+        <div style={{
+            display: 'flex',
+            gap: '0.75rem',
+            padding: '1rem',
+            background: 'var(--bg-secondary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)'
+        }}>
+            <span style={{ fontSize: '1.5rem' }}>{icon}</span>
+            <span style={{ fontSize: '0.95rem', lineHeight: '1.5' }}>{text}</span>
+        </div>
+    );
+}
+
+// Helper functions
+function getMeasuresFromPhrase(phrase) {
     const measures = [];
     const EPSILON = 0.001;
 
@@ -344,51 +429,36 @@ function groupChordsByMeasure(phrase) {
         const measureStart = i * 4;
         const measureEnd = (i + 1) * 4;
 
-        const chordNotes = phrase.tracks.chords.filter(n =>
-            n.startTime >= measureStart - EPSILON &&
-            n.startTime < measureEnd - EPSILON
-        );
-
-        // Group notes by start time
-        const groups = [];
-        const sorted = [...chordNotes].sort((a, b) => a.startTime - b.startTime);
-
-        sorted.forEach(note => {
-            const lastGroup = groups[groups.length - 1];
-            if (lastGroup && Math.abs(lastGroup.startTime - note.startTime) < 0.1) {
-                lastGroup.notes.push(note);
-            } else {
-                groups.push({
-                    startTime: note.startTime,
-                    notes: [note]
-                });
-            }
-        });
-
         measures.push({
-            index: i + 1,
-            chords: groups
+            melody: phrase.tracks.melody.filter(n =>
+                n.startTime >= measureStart - EPSILON &&
+                n.startTime < measureEnd - EPSILON
+            ),
+            chords: phrase.tracks.chords.filter(n =>
+                n.startTime >= measureStart - EPSILON &&
+                n.startTime < measureEnd - EPSILON
+            )
         });
     }
 
     return measures;
 }
 
-// Helper function to identify chord type (simplified)
-function identifyChord(notes) {
-    if (notes.length === 0) return null;
+function groupNotesByTime(notes) {
+    const groups = [];
+    const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
 
-    // Get root note (bass/lowest note)
-    const root = notes[0].pitch.slice(0, -1);
+    sorted.forEach(note => {
+        const lastGroup = groups[groups.length - 1];
+        if (lastGroup && Math.abs(lastGroup.startTime - note.startTime) < 0.1) {
+            lastGroup.notes.push(note);
+        } else {
+            groups.push({
+                startTime: note.startTime,
+                notes: [note]
+            });
+        }
+    });
 
-    // Simple chord identification based on number of notes
-    if (notes.length === 1) {
-        return root;
-    } else if (notes.length === 2) {
-        return `${root} (powerchord)`;
-    } else if (notes.length >= 3) {
-        return `${root} (accord)`;
-    }
-
-    return root;
+    return groups;
 }
