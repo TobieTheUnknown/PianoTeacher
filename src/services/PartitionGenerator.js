@@ -1,4 +1,4 @@
-import { Factory, Renderer, Stave, StaveNote, Formatter, Voice, Accidental } from 'vexflow';
+import { Renderer, Stave, StaveNote, Formatter, Voice, Accidental } from 'vexflow';
 import jsPDF from 'jspdf';
 
 /**
