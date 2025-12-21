@@ -9,6 +9,7 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
     const [keys] = useState(() => getPianoRollKeys(3, 5)); // C3 to B5
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote }
+    const [scrollTop, setScrollTop] = useState(0);
 
     const handleGridClick = (pitch, beatIndex) => {
         // Check if note exists at this position
@@ -44,7 +45,7 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
         const deltaY = e.clientY - dragState.startY;
 
         const deltaBeats = deltaX / CELL_WIDTH;
-        const deltaPitch = -Math.round(deltaY / CELL_HEIGHT); // Negative because Y increases downward
+        const deltaPitch = Math.round(deltaY / CELL_HEIGHT); // Positive when moving down
 
         if (dragState.type === 'resize') {
             // Resize: only change duration
@@ -70,6 +71,12 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
                     startTime: roundedStartTime,
                     pitch: newPitch
                 });
+
+                // Play note while dragging
+                if (newPitch !== dragState.originalNote.pitch) {
+                    audioEngine.playNote(newPitch);
+                    dragState.originalNote = { ...dragState.originalNote, pitch: newPitch };
+                }
             }
         }
     };
@@ -110,7 +117,7 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
                 position: 'relative',
                 boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)'
             }}>
-                <div style={{ transform: `translateY(-${scrollRef.current?.scrollTop || 0}px)` }}>
+                <div style={{ transform: `translateY(-${scrollTop}px)` }}>
                     {keys.map(pitch => {
                         const isBlack = pitch.includes('#');
                         return (
@@ -159,7 +166,7 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
                     background: 'linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%)'
                 }}
                 onScroll={(e) => {
-                    // Sync scroll if we had separate headers, but here we just need to handle internal scroll
+                    setScrollTop(e.target.scrollTop);
                 }}
             >
                 <div style={{
@@ -264,18 +271,22 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
                     })}
 
                     {/* Click Area Overlay */}
-                    {keys.map((pitch, yIndex) => (
+                    {!dragState && keys.map((pitch, yIndex) => (
                         Array.from({ length: phrase.length * 4 }).map((_, xIndex) => (
                             <div
                                 key={`${pitch}-${xIndex}`}
-                                onClick={() => !dragState && handleGridClick(pitch, xIndex)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleGridClick(pitch, xIndex);
+                                }}
                                 style={{
                                     position: 'absolute',
                                     left: `${xIndex * CELL_WIDTH}px`,
                                     top: `${yIndex * CELL_HEIGHT}px`,
                                     width: `${CELL_WIDTH}px`,
                                     height: `${CELL_HEIGHT}px`,
-                                    zIndex: 5
+                                    zIndex: 5,
+                                    cursor: 'crosshair'
                                 }}
                             />
                         ))

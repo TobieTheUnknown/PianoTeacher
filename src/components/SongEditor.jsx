@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addPhrase, removePhrase, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote }) {
     const [activeTrack, setActiveTrack] = useState('melody'); // 'melody' | 'chords'
     const [isImporting, setIsImporting] = useState(false);
 
@@ -167,43 +167,20 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
                 </div>
             </div>
 
-            {/* Phrases Section Header */}
+            {/* Piano Roll Section Header */}
             <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
                 marginBottom: '2rem'
             }}>
-                <div>
-                    <h2 style={{
-                        margin: 0,
-                        fontSize: '2rem',
-                        background: 'var(--gradient-primary)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text'
-                    }}>
-                        Structure & Phrases
-                    </h2>
-                    <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-secondary)' }}>
-                        {song.phrases.length} {song.phrases.length === 1 ? 'phrase' : 'phrases'}
-                    </p>
-                </div>
-                <button
-                    onClick={addPhrase}
-                    style={{
-                        background: 'var(--gradient-primary)',
-                        color: 'white',
-                        border: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        boxShadow: 'var(--shadow-glow)'
-                    }}
-                >
-                    <span style={{ fontSize: '1.2rem' }}>+</span>
-                    <span>Ajouter une phrase</span>
-                </button>
+                <h2 style={{
+                    margin: 0,
+                    fontSize: '2rem',
+                    background: 'var(--gradient-primary)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                }}>
+                    Piano Roll
+                </h2>
             </div>
 
             {/* Phrases List */}
@@ -218,26 +195,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
                             background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.9) 100%)'
                         }}
                     >
-                        {/* Phrase number badge */}
-                        <div style={{
-                            position: 'absolute',
-                            top: '1.5rem',
-                            right: '1.5rem',
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            background: 'var(--gradient-primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: '700',
-                            fontSize: '1.125rem',
-                            color: 'white',
-                            boxShadow: 'var(--shadow-md)'
-                        }}>
-                            {index + 1}
-                        </div>
-
                         <div style={{
                             display: 'flex',
                             justifyContent: 'space-between',
@@ -249,8 +206,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
                             <h3 style={{
                                 margin: 0,
                                 fontSize: '1.5rem',
-                                color: 'var(--text-primary)',
-                                paddingRight: '3rem'
+                                color: 'var(--text-primary)'
                             }}>
                                 {phrase.name}
                             </h3>
@@ -277,16 +233,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
                                     }}
                                 >
                                     ⏹ Stop
-                                </button>
-                                <button
-                                    onClick={() => removePhrase(phrase.id)}
-                                    style={{
-                                        background: 'var(--gradient-danger)',
-                                        color: 'white',
-                                        border: 'none'
-                                    }}
-                                >
-                                    🗑️ Supprimer
                                 </button>
                             </div>
                         </div>
