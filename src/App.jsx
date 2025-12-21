@@ -18,6 +18,7 @@ function App() {
     removePhrase,
     addNoteToPhrase,
     removeNoteFromPhrase,
+    updateNoteInPhrase,
     toggleHighlightedMeasure
   } = useSong();
 
@@ -95,6 +96,7 @@ function App() {
             onRemovePhrase={removePhrase}
             onAddNote={addNoteToPhrase}
             onRemoveNote={removeNoteFromPhrase}
+            onUpdateNote={updateNoteInPhrase}
           />
         )}
         {mode === 'view' && (

@@ -75,6 +75,24 @@ export function useSong() {
         }));
     }, []);
 
+    const updateNoteInPhrase = useCallback((phraseId, trackName, noteId, updates) => {
+        setSong(prev => ({
+            ...prev,
+            phrases: prev.phrases.map(p => {
+                if (p.id !== phraseId) return p;
+                return {
+                    ...p,
+                    tracks: {
+                        ...p.tracks,
+                        [trackName]: p.tracks[trackName].map(n =>
+                            n.id === noteId ? { ...n, ...updates } : n
+                        )
+                    }
+                };
+            })
+        }));
+    }, []);
+
     const toggleHighlightedMeasure = useCallback((measureNumber) => {
         setSong(prev => {
             const highlightedMeasures = prev.highlightedMeasures || [];
@@ -100,6 +118,7 @@ export function useSong() {
         removePhrase,
         addNoteToPhrase,
         removeNoteFromPhrase,
+        updateNoteInPhrase,
         toggleHighlightedMeasure
     };
 }

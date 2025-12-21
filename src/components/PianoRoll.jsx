@@ -5,9 +5,10 @@ import { audioEngine } from '../services/AudioEngine';
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote }) {
+export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdateNote }) {
     const [keys] = useState(() => getPianoRollKeys(3, 5)); // C3 to B5
     const scrollRef = useRef(null);
+    const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote }
 
     const handleGridClick = (pitch, beatIndex) => {
         // Check if note exists at this position
@@ -23,6 +24,71 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote }) {
         }
     };
 
+    const handleNoteMouseDown = (e, note, type) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        setDragState({
+            type,
+            noteId: note.id,
+            startX: e.clientX,
+            startY: e.clientY,
+            originalNote: { ...note }
+        });
+    };
+
+    const handleMouseMove = (e) => {
+        if (!dragState) return;
+
+        const deltaX = e.clientX - dragState.startX;
+        const deltaY = e.clientY - dragState.startY;
+
+        const deltaBeats = deltaX / CELL_WIDTH;
+        const deltaPitch = -Math.round(deltaY / CELL_HEIGHT); // Negative because Y increases downward
+
+        if (dragState.type === 'resize') {
+            // Resize: only change duration
+            const newDuration = Math.max(0.25, dragState.originalNote.duration + deltaBeats);
+            const roundedDuration = Math.round(newDuration * 4) / 4; // Snap to 1/4 beat
+
+            if (roundedDuration !== dragState.originalNote.duration) {
+                onUpdateNote(phrase.id, trackName, dragState.noteId, {
+                    duration: roundedDuration
+                });
+            }
+        } else if (dragState.type === 'move') {
+            // Move: change startTime and pitch
+            const newStartTime = Math.max(0, dragState.originalNote.startTime + deltaBeats);
+            const roundedStartTime = Math.round(newStartTime * 4) / 4; // Snap to 1/4 beat
+
+            const originalKeyIndex = keys.indexOf(dragState.originalNote.pitch);
+            const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
+            const newPitch = keys[newKeyIndex];
+
+            if (roundedStartTime !== dragState.originalNote.startTime || newPitch !== dragState.originalNote.pitch) {
+                onUpdateNote(phrase.id, trackName, dragState.noteId, {
+                    startTime: roundedStartTime,
+                    pitch: newPitch
+                });
+            }
+        }
+    };
+
+    const handleMouseUp = () => {
+        setDragState(null);
+    };
+
+    useEffect(() => {
+        if (dragState) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            return () => {
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [dragState]);
+
     return (
         <div className="piano-roll" style={{
             display: 'flex',
@@ -31,7 +97,8 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote }) {
             height: '450px',
             overflow: 'hidden',
             backgroundColor: 'var(--bg-primary)',
-            boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)'
+            boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
+            userSelect: 'none'
         }}>
             {/* Piano Keys (Y-axis) */}
             <div style={{
@@ -136,13 +203,11 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote }) {
                         const keyIndex = keys.indexOf(note.pitch);
                         if (keyIndex === -1) return null; // Note out of range
 
+                        const isDragging = dragState?.noteId === note.id;
+
                         return (
                             <div
                                 key={note.id}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onRemoveNote(phrase.id, trackName, note.id);
-                                }}
                                 style={{
                                     position: 'absolute',
                                     left: `${note.startTime * CELL_WIDTH}px`,
@@ -153,29 +218,48 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote }) {
                                         ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
                                         : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                                     borderRadius: 'var(--radius-sm)',
-                                    cursor: 'pointer',
+                                    cursor: isDragging ? 'grabbing' : 'grab',
                                     boxShadow: trackName === 'melody'
                                         ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
                                         : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
-                                    zIndex: 10,
-                                    transition: 'all var(--transition-fast)',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                                    zIndex: isDragging ? 100 : 10,
+                                    transition: isDragging ? 'none' : 'all var(--transition-fast)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    opacity: isDragging ? 0.8 : 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
                                 }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                    e.currentTarget.style.zIndex = '20';
-                                    e.currentTarget.style.boxShadow = trackName === 'melody'
-                                        ? '0 4px 12px rgba(139, 92, 246, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3)'
-                                        : '0 4px 12px rgba(59, 130, 246, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                    e.currentTarget.style.zIndex = '10';
-                                    e.currentTarget.style.boxShadow = trackName === 'melody'
-                                        ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                                        : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)';
-                                }}
-                            />
+                                onMouseDown={(e) => handleNoteMouseDown(e, note, 'move')}
+                            >
+                                {/* Resize handle on the right */}
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        right: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: '8px',
+                                        cursor: 'ew-resize',
+                                        background: 'rgba(255, 255, 255, 0.1)',
+                                        borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
+                                        opacity: isDragging && dragState.type === 'resize' ? 1 : 0,
+                                        transition: 'opacity 0.2s'
+                                    }}
+                                    onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        handleNoteMouseDown(e, note, 'resize');
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.opacity = '1';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!isDragging) {
+                                            e.currentTarget.style.opacity = '0';
+                                        }
+                                    }}
+                                />
+                            </div>
                         );
                     })}
 
@@ -184,7 +268,7 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote }) {
                         Array.from({ length: phrase.length * 4 }).map((_, xIndex) => (
                             <div
                                 key={`${pitch}-${xIndex}`}
-                                onClick={() => handleGridClick(pitch, xIndex)}
+                                onClick={() => !dragState && handleGridClick(pitch, xIndex)}
                                 style={{
                                     position: 'absolute',
                                     left: `${xIndex * CELL_WIDTH}px`,

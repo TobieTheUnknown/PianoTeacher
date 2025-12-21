@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addPhrase, removePhrase, addNoteToPhrase, removeNoteFromPhrase }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addPhrase, removePhrase, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote }) {
     const [activeTrack, setActiveTrack] = useState('melody'); // 'melody' | 'chords'
     const [isImporting, setIsImporting] = useState(false);
 
@@ -349,6 +349,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
                                 trackName={activeTrack}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
+                                onUpdateNote={onUpdateNote}
                             />
                         </div>
                     </div>
