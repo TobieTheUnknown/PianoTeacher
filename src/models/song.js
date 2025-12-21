@@ -19,6 +19,7 @@ export const createSong = (title = 'Nouveau Morceau') => ({
     key: 'C',
     tempo: 120,
     phrases: [],
+    highlightedMeasures: [], // Array of measure numbers that are highlighted
     createdAt: new Date().toISOString(),
 });
 

@@ -7,11 +7,22 @@ export function SongViewer({ song }) {
     // Helper to group notes by measure
     const getMeasures = (phrase) => {
         const measures = [];
+        const EPSILON = 0.001; // Small epsilon for floating-point comparison
+
         for (let i = 0; i < phrase.length; i++) {
+            const measureStart = i * 4;
+            const measureEnd = (i + 1) * 4;
+
             measures.push({
                 index: i + 1,
-                melody: phrase.tracks.melody.filter(n => n.startTime >= i * 4 && n.startTime < (i + 1) * 4),
-                chords: phrase.tracks.chords.filter(n => n.startTime >= i * 4 && n.startTime < (i + 1) * 4)
+                melody: phrase.tracks.melody.filter(n =>
+                    n.startTime >= measureStart - EPSILON &&
+                    n.startTime < measureEnd - EPSILON
+                ),
+                chords: phrase.tracks.chords.filter(n =>
+                    n.startTime >= measureStart - EPSILON &&
+                    n.startTime < measureEnd - EPSILON
+                )
             });
         }
         return measures;
