@@ -42,7 +42,10 @@ function groupNotesByTime(notes) {
     const groups = {};
     const EPSILON = 0.001;
 
-    notes.forEach(note => {
+    // Filter out invalid notes
+    const validNotes = notes.filter(note => note && note.name && note.startTime !== undefined);
+
+    validNotes.forEach(note => {
         const time = Math.round(note.startTime * 1000) / 1000;
 
         // Find existing group within epsilon
@@ -65,8 +68,12 @@ function groupNotesByTime(notes) {
             time: parseFloat(time),
             notes: notes.sort((a, b) => {
                 // Sort by pitch (higher notes first for better visual)
-                const pitchA = parseInt(a.name.match(/\d+$/)[0]);
-                const pitchB = parseInt(b.name.match(/\d+$/)[0]);
+                if (!a.name || !b.name) return 0;
+                const matchA = a.name.match(/\d+$/);
+                const matchB = b.name.match(/\d+$/);
+                if (!matchA || !matchB) return 0;
+                const pitchA = parseInt(matchA[0]);
+                const pitchB = parseInt(matchB[0]);
                 return pitchB - pitchA;
             })
         }))
@@ -79,34 +86,40 @@ function groupNotesByTime(notes) {
 function createStaveNotes(noteGroups) {
     return noteGroups.map(group => {
         const { notes } = group;
-        const duration = getDuration(notes[0].duration);
+        // Filter out any invalid notes
+        const validNotes = notes.filter(n => n && n.name && n.duration !== undefined);
+        if (validNotes.length === 0) {
+            // Return a rest if no valid notes
+            return new StaveNote({ keys: ['b/4'], duration: 'qr' });
+        }
+        const duration = getDuration(validNotes[0].duration);
 
-        if (notes.length === 1) {
+        if (validNotes.length === 1) {
             // Single note
-            const vexNote = midiNoteToVexFlow(notes[0].name);
+            const vexNote = midiNoteToVexFlow(validNotes[0].name);
             const staveNote = new StaveNote({
                 keys: [vexNote],
                 duration: duration
             });
 
             // Add accidentals if needed
-            if (notes[0].name.includes('#')) {
+            if (validNotes[0].name.includes('#')) {
                 staveNote.addModifier(new Accidental('#'), 0);
-            } else if (notes[0].name.includes('b')) {
+            } else if (validNotes[0].name.includes('b')) {
                 staveNote.addModifier(new Accidental('b'), 0);
             }
 
             return staveNote;
         } else {
             // Chord (multiple notes at same time)
-            const vexNotes = notes.map(n => midiNoteToVexFlow(n.name));
+            const vexNotes = validNotes.map(n => midiNoteToVexFlow(n.name));
             const staveNote = new StaveNote({
                 keys: vexNotes,
                 duration: duration
             });
 
             // Add accidentals for each note in the chord
-            notes.forEach((note, index) => {
+            validNotes.forEach((note, index) => {
                 if (note.name.includes('#')) {
                     staveNote.addModifier(new Accidental('#'), index);
                 } else if (note.name.includes('b')) {
