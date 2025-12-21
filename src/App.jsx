@@ -3,7 +3,6 @@ import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
 import { SongViewer } from './components/SongViewer';
 import { LiveLearning } from './components/LiveLearning';
-import { Partition } from './components/Partition';
 import { SongLibrary } from './components/SongLibrary';
 import { useSong } from './useSong';
 
@@ -22,7 +21,7 @@ function App() {
     toggleHighlightedMeasure
   } = useSong();
 
-  const [mode, setMode] = useState('library'); // 'library', 'edit', 'view', 'live', 'partition'
+  const [mode, setMode] = useState('library'); // 'library', 'edit', 'view', 'live'
 
   const handleLoadSong = (id) => {
     loadSong(id);
@@ -79,12 +78,6 @@ function App() {
             icon="⚡"
             label="Live Learning"
           />
-          <NavButton
-            active={mode === 'partition'}
-            onClick={() => setMode('partition')}
-            icon="📄"
-            label="Partition"
-          />
         </div>
       </nav>
 
@@ -109,9 +102,6 @@ function App() {
         )}
         {mode === 'live' && (
           <LiveLearning song={song} onToggleHighlight={toggleHighlightedMeasure} />
-        )}
-        {mode === 'partition' && (
-          <Partition song={song} onUpdateMetadata={updateSongMetadata} />
         )}
       </main>
     </Layout>

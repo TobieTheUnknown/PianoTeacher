@@ -20,8 +20,6 @@ export const createSong = (title = 'Nouveau Morceau') => ({
     tempo: 120,
     phrases: [],
     highlightedMeasures: [], // Array of measure numbers that are highlighted
-    partitionPdfUrl: null, // URL to uploaded PDF partition
-    partitionFileName: null, // Name of uploaded PDF file
     createdAt: new Date().toISOString(),
 });
 
