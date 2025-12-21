@@ -5,22 +5,42 @@ import { audioEngine } from '../services/AudioEngine';
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdateNote }) {
+export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
     const [keys] = useState(() => getPianoRollKeys(3, 5)); // C3 to B5
     const scrollRef = useRef(null);
-    const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote }
+    const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote, trackName }
     const [scrollTop, setScrollTop] = useState(0);
+    const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
+
+    // Combine notes from both tracks with track information
+    const allNotes = [
+        ...phrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
+        ...phrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' }))
+    ];
 
     const handleGridClick = (pitch, beatIndex) => {
-        // Check if note exists at this position
-        const existingNote = phrase.tracks[trackName].find(
-            n => n.pitch === pitch && Math.abs(n.startTime - beatIndex) < 0.1
-        );
+        // Check if note exists at this position in either track
+        let existingNote = null;
+        let trackName = null;
+
+        for (const track of ['melody', 'chords']) {
+            const found = phrase.tracks[track].find(
+                n => n.pitch === pitch && Math.abs(n.startTime - beatIndex) < 0.1
+            );
+            if (found) {
+                existingNote = found;
+                trackName = track;
+                break;
+            }
+        }
 
         if (existingNote) {
             onRemoveNote(phrase.id, trackName, existingNote.id);
         } else {
-            onAddNote(phrase.id, trackName, pitch, beatIndex, 1); // Default duration 1 beat
+            // Assign to melody or chords based on pitch (C4/60 is the dividing line)
+            const midiPitch = keys.indexOf(pitch);
+            const autoTrack = midiPitch >= keys.indexOf('C4') ? 'melody' : 'chords';
+            onAddNote(phrase.id, autoTrack, pitch, beatIndex, 1); // Default duration 1 beat
             audioEngine.playNote(pitch);
         }
     };
@@ -29,9 +49,17 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
         e.stopPropagation();
         e.preventDefault();
 
+        // Alt+Click or Ctrl+Click to delete note
+        if (e.altKey || e.ctrlKey || e.metaKey) {
+            onRemoveNote(phrase.id, note.trackName, note.id);
+            return;
+        }
+
+        lastPlayedPitchRef.current = note.pitch;
         setDragState({
             type,
             noteId: note.id,
+            trackName: note.trackName,
             startX: e.clientX,
             startY: e.clientY,
             originalNote: { ...note }
@@ -53,7 +81,7 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
             const roundedDuration = Math.round(newDuration * 4) / 4; // Snap to 1/4 beat
 
             if (roundedDuration !== dragState.originalNote.duration) {
-                onUpdateNote(phrase.id, trackName, dragState.noteId, {
+                onUpdateNote(phrase.id, dragState.trackName, dragState.noteId, {
                     duration: roundedDuration
                 });
             }
@@ -63,19 +91,19 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
             const roundedStartTime = Math.round(newStartTime * 4) / 4; // Snap to 1/4 beat
 
             const originalKeyIndex = keys.indexOf(dragState.originalNote.pitch);
-            const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
+            const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex - deltaPitch));
             const newPitch = keys[newKeyIndex];
 
             if (roundedStartTime !== dragState.originalNote.startTime || newPitch !== dragState.originalNote.pitch) {
-                onUpdateNote(phrase.id, trackName, dragState.noteId, {
+                onUpdateNote(phrase.id, dragState.trackName, dragState.noteId, {
                     startTime: roundedStartTime,
                     pitch: newPitch
                 });
 
-                // Play note while dragging
-                if (newPitch !== dragState.originalNote.pitch) {
+                // Play note while dragging (only when pitch changes)
+                if (newPitch !== lastPlayedPitchRef.current) {
                     audioEngine.playNote(newPitch);
-                    dragState.originalNote = { ...dragState.originalNote, pitch: newPitch };
+                    lastPlayedPitchRef.current = newPitch;
                 }
             }
         }
@@ -206,7 +234,7 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
                     })}
 
                     {/* Notes */}
-                    {phrase.tracks[trackName].map(note => {
+                    {allNotes.map(note => {
                         const keyIndex = keys.indexOf(note.pitch);
                         if (keyIndex === -1) return null; // Note out of range
 
@@ -214,19 +242,19 @@ export function PianoRoll({ phrase, trackName, onAddNote, onRemoveNote, onUpdate
 
                         return (
                             <div
-                                key={note.id}
+                                key={`${note.trackName}-${note.id}`}
                                 style={{
                                     position: 'absolute',
                                     left: `${note.startTime * CELL_WIDTH}px`,
                                     top: `${keyIndex * CELL_HEIGHT + 1}px`,
                                     width: `${note.duration * CELL_WIDTH - 2}px`,
                                     height: `${CELL_HEIGHT - 2}px`,
-                                    background: trackName === 'melody'
+                                    background: note.trackName === 'melody'
                                         ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
                                         : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                                     borderRadius: 'var(--radius-sm)',
                                     cursor: isDragging ? 'grabbing' : 'grab',
-                                    boxShadow: trackName === 'melody'
+                                    boxShadow: note.trackName === 'melody'
                                         ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
                                         : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
                                     zIndex: isDragging ? 100 : 10,

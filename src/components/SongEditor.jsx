@@ -6,7 +6,6 @@ import { parseMidiFile } from '../services/MidiService';
 import { StorageService } from '../services/StorageService';
 
 export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote }) {
-    const [activeTrack, setActiveTrack] = useState('melody'); // 'melody' | 'chords'
     const [isImporting, setIsImporting] = useState(false);
 
     const handlePlayPhrase = async (phrase) => {
@@ -237,62 +236,10 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
                             </div>
                         </div>
 
-                        {/* Track Selector */}
+                        {/* Piano Roll */}
                         <div style={{ marginBottom: '1.5rem' }}>
-                            <div style={{
-                                display: 'flex',
-                                gap: '0.75rem',
-                                marginBottom: '1rem',
-                                padding: '0.5rem',
-                                background: 'var(--bg-primary)',
-                                borderRadius: 'var(--radius-lg)',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <button
-                                    onClick={() => setActiveTrack('melody')}
-                                    style={{
-                                        flex: 1,
-                                        background: activeTrack === 'melody' ? 'var(--gradient-primary)' : 'transparent',
-                                        color: activeTrack === 'melody' ? 'white' : 'var(--text-secondary)',
-                                        border: 'none',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '0.5rem',
-                                        fontWeight: '600',
-                                        boxShadow: activeTrack === 'melody' ? 'var(--shadow-md)' : 'none'
-                                    }}
-                                >
-                                    <span>🎹</span>
-                                    <span>Mélodie (Main Droite)</span>
-                                </button>
-                                <button
-                                    onClick={() => setActiveTrack('chords')}
-                                    style={{
-                                        flex: 1,
-                                        background: activeTrack === 'chords' ? 'var(--gradient-secondary)' : 'transparent',
-                                        color: activeTrack === 'chords' ? 'white' : 'var(--text-secondary)',
-                                        border: 'none',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '0.5rem',
-                                        fontWeight: '600',
-                                        boxShadow: activeTrack === 'chords' ? 'var(--shadow-md)' : 'none'
-                                    }}
-                                >
-                                    <span>🎼</span>
-                                    <span>Accords (Main Gauche)</span>
-                                </button>
-                            </div>
-
                             <PianoRoll
                                 phrase={phrase}
-                                trackName={activeTrack}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}
