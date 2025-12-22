@@ -107,6 +107,19 @@ export function useSong() {
         });
     }, []);
 
+    const updateHandSeparators = useCallback((phraseId, separators) => {
+        setSong(prev => ({
+            ...prev,
+            phrases: prev.phrases.map(p => {
+                if (p.id !== phraseId) return p;
+                return {
+                    ...p,
+                    handSeparators: separators
+                };
+            })
+        }));
+    }, []);
+
     return {
         song,
         updateSongMetadata,
@@ -119,6 +132,7 @@ export function useSong() {
         addNoteToPhrase,
         removeNoteFromPhrase,
         updateNoteInPhrase,
-        toggleHighlightedMeasure
+        toggleHighlightedMeasure,
+        updateHandSeparators
     };
 }

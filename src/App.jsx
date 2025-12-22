@@ -19,7 +19,8 @@ function App() {
     addNoteToPhrase,
     removeNoteFromPhrase,
     updateNoteInPhrase,
-    toggleHighlightedMeasure
+    toggleHighlightedMeasure,
+    updateHandSeparators
   } = useSong();
 
   const [mode, setMode] = useState('library'); // 'library', 'edit', 'view', 'live'
@@ -95,6 +96,7 @@ function App() {
             addNoteToPhrase={addNoteToPhrase}
             removeNoteFromPhrase={removeNoteFromPhrase}
             onUpdateNote={updateNoteInPhrase}
+            onUpdateHandSeparators={updateHandSeparators}
           />
         )}
         {mode === 'view' && (

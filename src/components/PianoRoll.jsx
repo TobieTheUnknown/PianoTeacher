@@ -5,16 +5,16 @@ import { audioEngine } from '../services/AudioEngine';
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
+export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators }) {
     const [keys] = useState(() => getPianoRollKeys(1, 5)); // C1 to B5
     const scrollRef = useRef(null);
-    const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote, trackName }
+    const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
     const [scrollTop, setScrollTop] = useState(0);
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
 
-    // Hand separation line
-    const [separatorEnabled, setSeparatorEnabled] = useState(false);
-    const [separatorPitch, setSeparatorPitch] = useState('C4'); // Default separation at C4
+    // Hand separation lines - use phrase data or default
+    const handSeparators = phrase.handSeparators || [];
+    const [separatorEnabled, setSeparatorEnabled] = useState(handSeparators.length > 0);
 
     // Fullscreen and zoom
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -22,6 +22,16 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
 
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
+
+    // Helper to get applicable separator for a given measure
+    const getSeparatorForMeasure = (measureIndex) => {
+        if (!separatorEnabled || handSeparators.length === 0) return null;
+        // Find the most recent separator before or at this measure
+        const applicable = handSeparators
+            .filter(s => s.fromMeasure <= measureIndex)
+            .sort((a, b) => b.fromMeasure - a.fromMeasure);
+        return applicable[0] || null;
+    };
 
     // Combine notes from both tracks with track information
     const allNotes = [
@@ -120,7 +130,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
             }
         } else if (dragState.type === 'separator') {
             // Move separator line
-            handleSeparatorDrag(e, deltaY);
+            handleSeparatorDrag(e, deltaX, deltaY);
         }
     };
 
@@ -134,25 +144,41 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
         setDragState(null);
     };
 
-    const handleSeparatorMouseDown = (e) => {
+    const handleSeparatorMouseDown = (e, separatorIndex) => {
         e.stopPropagation();
         e.preventDefault();
 
+        const separator = handSeparators[separatorIndex];
         setDragState({
             type: 'separator',
+            startX: e.clientX,
             startY: e.clientY,
-            originalPitch: separatorPitch
+            separatorIndex,
+            originalPitch: separator.pitch,
+            originalMeasure: separator.fromMeasure
         });
     };
 
-    const handleSeparatorDrag = (e, deltaY) => {
+    const handleSeparatorDrag = (e, deltaX, deltaY) => {
+        if (!dragState || dragState.type !== 'separator') return;
+
         const deltaPitch = Math.round(deltaY / cellHeight);
+        const deltaMeasure = Math.round(deltaX / (cellWidth * 4)); // 4 beats per measure
+
         const originalKeyIndex = keys.indexOf(dragState.originalPitch);
         const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
         const newPitch = keys[newKeyIndex];
 
-        if (newPitch !== separatorPitch) {
-            setSeparatorPitch(newPitch);
+        const newMeasure = Math.max(0, Math.min(phrase.length - 1, dragState.originalMeasure + deltaMeasure));
+
+        const currentSeparator = handSeparators[dragState.separatorIndex];
+        if (newPitch !== currentSeparator.pitch || newMeasure !== currentSeparator.fromMeasure) {
+            const updatedSeparators = handSeparators.map((sep, idx) =>
+                idx === dragState.separatorIndex
+                    ? { ...sep, pitch: newPitch, fromMeasure: newMeasure }
+                    : sep
+            );
+            onUpdateHandSeparators(updatedSeparators);
         }
     };
 
@@ -173,7 +199,17 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {/* Separator Toggle */}
                 <button
-                    onClick={() => setSeparatorEnabled(!separatorEnabled)}
+                    onClick={() => {
+                        if (separatorEnabled) {
+                            // Disable: clear all separators
+                            onUpdateHandSeparators([]);
+                            setSeparatorEnabled(false);
+                        } else {
+                            // Enable: add default separator at C4 from measure 0
+                            onUpdateHandSeparators([{ fromMeasure: 0, pitch: 'C4' }]);
+                            setSeparatorEnabled(true);
+                        }
+                    }}
                     style={{
                         background: separatorEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
                         color: separatorEnabled ? 'white' : 'var(--text-secondary)',
@@ -465,40 +501,51 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                         ))
                     ))}
 
-                    {/* Hand Separation Line */}
-                    {separatorEnabled && (
-                        <div
-                            onMouseDown={handleSeparatorMouseDown}
-                            style={{
-                                position: 'absolute',
-                                left: 0,
-                                right: 0,
-                                top: `${keys.indexOf(separatorPitch) * cellHeight}px`,
-                                height: '3px',
-                                background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
-                                cursor: 'ns-resize',
-                                zIndex: 50,
-                                boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
-                                transition: dragState?.type === 'separator' ? 'none' : 'top 0.1s',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}
-                        >
-                            <div style={{
-                                background: '#f59e0b',
-                                color: 'white',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '0.75rem',
-                                fontWeight: '600',
-                                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-                                pointerEvents: 'none'
-                            }}>
-                                MG ↕ MD
+                    {/* Hand Separation Lines */}
+                    {separatorEnabled && handSeparators.map((separator, idx) => {
+                        const nextSeparator = handSeparators.find(s => s.fromMeasure > separator.fromMeasure);
+                        const lineStart = separator.fromMeasure * 4 * cellWidth; // Convert measure to beats to pixels
+                        const lineEnd = nextSeparator
+                            ? nextSeparator.fromMeasure * 4 * cellWidth
+                            : phrase.length * 4 * cellWidth;
+
+                        return (
+                            <div
+                                key={idx}
+                                onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
+                                style={{
+                                    position: 'absolute',
+                                    left: `${lineStart}px`,
+                                    width: `${lineEnd - lineStart}px`,
+                                    top: `${keys.indexOf(separator.pitch) * cellHeight}px`,
+                                    height: '3px',
+                                    background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
+                                    cursor: 'move',
+                                    zIndex: 50,
+                                    boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
+                                    transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'flex-start',
+                                    paddingLeft: '0.5rem'
+                                }}
+                            >
+                                <div style={{
+                                    background: '#f59e0b',
+                                    color: 'white',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                                    pointerEvents: 'none',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    MG ↕ MD (M{separator.fromMeasure + 1})
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })}
                 </div>
             </div>
         </div>
