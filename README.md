@@ -223,7 +223,7 @@ Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 - [@tonejs/midi](https://github.com/Tonejs/Midi) - Pour le parsing MIDI
 - [React](https://react.dev/) - Pour le framework UI
 - [Vite](https://vitejs.dev/) - Pour l'expérience de développement
-- [Jotabe] (https://www.twitch.tv/jotabemusique) - Pour l'envie de m'y mettre et les cours de piano
+- [Jotabe](https://www.twitch.tv/jotabemusique) - Pour l'envie de m'y mettre et les cours de piano
 
 ---
 
