@@ -6,7 +6,7 @@ import { audioEngine } from '../services/AudioEngine';
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators }) {
+export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
     const [keys] = useState(() => getPianoRollKeys(1, 5)); // C1 to B5
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
@@ -422,10 +422,42 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                     setScrollTop(e.target.scrollTop);
                 }}
             >
+                {/* Measure Counter - Sticky Header */}
+                <div style={{
+                    position: 'sticky',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '32px',
+                    background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
+                    backdropFilter: 'blur(8px)',
+                    borderBottom: '2px solid var(--accent-primary)',
+                    display: 'flex',
+                    zIndex: 50,
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                }}>
+                    {Array.from({ length: phrase.length }).map((_, measureIndex) => (
+                        <div key={`measure-${measureIndex}`} style={{
+                            width: `${4 * cellWidth}px`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: '700',
+                            fontSize: '0.875rem',
+                            color: 'var(--text-primary)',
+                            borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
+                            background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.1)' : 'transparent'
+                        }}>
+                            Mesure {measureIndex + 1}
+                        </div>
+                    ))}
+                </div>
+
                 <div style={{
                     width: `${phrase.length * 4 * cellWidth}px`, // 4 beats per measure
                     height: `${keys.length * cellHeight}px`,
-                    position: 'relative'
+                    position: 'relative',
+                    marginTop: '0px'
                 }}>
                     {/* Grid Lines - Vertical */}
                     {Array.from({ length: phrase.length * 4 }).map((_, i) => (
@@ -673,33 +705,58 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
                             🎹 Piano Roll - Mode Plein Écran
                         </h3>
-                        <button
-                            onClick={() => setIsFullscreen(false)}
-                            style={{
-                                background: 'var(--gradient-primary)',
-                                color: 'white',
-                                border: 'none',
-                                padding: '0.75rem 1.5rem',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '0.9375rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'scale(1.05)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'scale(1)';
-                            }}
-                        >
-                            <span style={{ fontSize: '1.2rem' }}>✕</span>
-                            <span>Fermer</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                            {/* Split Button in Fullscreen */}
+                            {onSplit && (
+                                <button
+                                    onClick={onSplit}
+                                    style={{
+                                        backgroundColor: isSplitMode ? 'var(--accent-secondary)' : 'var(--bg-elevated)',
+                                        border: '1px solid var(--accent-secondary)',
+                                        color: isSplitMode ? 'white' : 'var(--text-primary)',
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: '0.9375rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <span>✂️</span>
+                                    <span>Découper</span>
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setIsFullscreen(false)}
+                                style={{
+                                    background: 'var(--gradient-primary)',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: '0.9375rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                            >
+                                <span style={{ fontSize: '1.2rem' }}>✕</span>
+                                <span>Fermer</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Modal Content */}
@@ -711,6 +768,101 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         minHeight: 0,
                         overflow: 'hidden'
                     }}>
+                        {/* Split Controls in Fullscreen */}
+                        {isSplitMode && (
+                            <div style={{
+                                padding: '1.5rem',
+                                marginBottom: '1.5rem',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '2px solid var(--accent-secondary)',
+                                borderRadius: 'var(--radius-lg)',
+                                flexShrink: 0
+                            }}>
+                                <h4 style={{
+                                    margin: '0 0 1rem 0',
+                                    fontSize: '1rem',
+                                    color: 'var(--text-primary)'
+                                }}>
+                                    🎯 Mode Découpage
+                                </h4>
+                                <p style={{
+                                    margin: '0 0 1rem 0',
+                                    fontSize: '0.875rem',
+                                    color: 'var(--text-secondary)'
+                                }}>
+                                    Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase.
+                                </p>
+                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <div style={{ flex: '1', minWidth: '200px' }}>
+                                        <label style={{
+                                            display: 'block',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '0.875rem',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: '600'
+                                        }}>
+                                            Mesure de découpage
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={splitTime}
+                                            onChange={(e) => onSplitTimeChange(e.target.value)}
+                                            placeholder="Ex: 2"
+                                            step="1"
+                                            min="1"
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                fontSize: '1rem',
+                                                background: 'var(--bg-elevated)',
+                                                border: '1px solid var(--border-light)',
+                                                borderRadius: 'var(--radius-md)',
+                                                color: 'var(--text-primary)'
+                                            }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                        <button
+                                            onClick={onConfirmSplit}
+                                            style={{
+                                                background: 'var(--gradient-success)',
+                                                color: 'white',
+                                                border: 'none',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                padding: '0.75rem 1.5rem',
+                                                fontWeight: '600',
+                                                borderRadius: 'var(--radius-md)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.9375rem'
+                                            }}
+                                        >
+                                            <span>✓</span>
+                                            <span>Valider</span>
+                                        </button>
+                                        <button
+                                            onClick={onCancelSplit}
+                                            style={{
+                                                backgroundColor: 'var(--bg-elevated)',
+                                                border: '1px solid var(--border-light)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                padding: '0.75rem 1.5rem',
+                                                borderRadius: 'var(--radius-md)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.9375rem',
+                                                color: 'var(--text-primary)'
+                                            }}
+                                        >
+                                            <span>✗</span>
+                                            <span>Annuler</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {pianoRollContent}
                     </div>
                 </div>

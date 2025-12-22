@@ -38,12 +38,15 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     const handleConfirmSplit = () => {
         if (!splitMode || !splitTime) return;
-        const time = parseFloat(splitTime);
-        if (isNaN(time) || time <= 0) {
-            alert('Veuillez entrer un temps valide (en beats)');
+        const measure = parseFloat(splitTime);
+        if (isNaN(measure) || measure <= 0) {
+            alert('Veuillez entrer une mesure valide');
             return;
         }
-        onSplitPhrase(splitMode.phraseId, time);
+        // Convert measure to beats (assuming 4/4 time signature)
+        const beatsPerMeasure = 4;
+        const timeInBeats = (measure - 1) * beatsPerMeasure;
+        onSplitPhrase(splitMode.phraseId, timeInBeats);
         setSplitMode(null);
         setSplitTime('');
     };
@@ -388,7 +391,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                     fontSize: '0.875rem',
                                     color: 'var(--text-secondary)'
                                 }}>
-                                    Entrez le temps (en beats) où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase.
+                                    Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase.
                                 </p>
                                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                     <div style={{ flex: '1', minWidth: '200px' }}>
@@ -399,15 +402,15 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                             color: 'var(--text-primary)',
                                             fontWeight: '600'
                                         }}>
-                                            Temps de découpage (beats)
+                                            Mesure de découpage
                                         </label>
                                         <input
                                             type="number"
                                             value={splitTime}
                                             onChange={(e) => setSplitTime(e.target.value)}
-                                            placeholder="Ex: 8.0"
-                                            step="0.25"
-                                            min="0.25"
+                                            placeholder="Ex: 2"
+                                            step="1"
+                                            min="1"
                                             style={{
                                                 width: '100%',
                                                 padding: '0.75rem',
@@ -459,6 +462,12 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}
                                 onUpdateHandSeparators={(separators) => onUpdateHandSeparators(phrase.id, separators)}
+                                onSplit={() => handleStartSplit(phrase.id)}
+                                isSplitMode={splitMode?.phraseId === phrase.id}
+                                splitTime={splitTime}
+                                onSplitTimeChange={setSplitTime}
+                                onConfirmSplit={handleConfirmSplit}
+                                onCancelSplit={handleCancelSplit}
                             />
                         </div>
                     </div>
