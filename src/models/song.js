@@ -86,12 +86,49 @@ export const getFrenchKeyName = (key) => {
 export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 export const OCTAVES = [2, 3, 4, 5];
 
-export const getFrenchNoteName = (pitch) => {
+// Get the correct enharmonic spelling for a note based on key signature
+const getEnharmonicNote = (note, keySignature) => {
+    if (!keySignature || typeof keySignature === 'string') {
+        return note; // Legacy format, return as-is
+    }
+
+    const { note: tonic, mode } = keySignature;
+
+    // Define which keys use flats vs sharps
+    const flatKeys = {
+        major: ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'],
+        minor: ['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab']
+    };
+
+    const usesFlats = flatKeys[mode]?.includes(tonic);
+
+    // Enharmonic equivalents mapping
+    const enharmonicMap = {
+        'C#': usesFlats ? 'Db' : 'C#',
+        'Db': usesFlats ? 'Db' : 'C#',
+        'D#': usesFlats ? 'Eb' : 'D#',
+        'Eb': usesFlats ? 'Eb' : 'D#',
+        'F#': usesFlats ? 'Gb' : 'F#',
+        'Gb': usesFlats ? 'Gb' : 'F#',
+        'G#': usesFlats ? 'Ab' : 'G#',
+        'Ab': usesFlats ? 'Ab' : 'G#',
+        'A#': usesFlats ? 'Bb' : 'A#',
+        'Bb': usesFlats ? 'Bb' : 'A#'
+    };
+
+    return enharmonicMap[note] || note;
+};
+
+export const getFrenchNoteName = (pitch, keySignature = null) => {
     if (!pitch) return '';
     // pitch is like "C4" or "F#3"
     const note = pitch.slice(0, -1);
     const octave = pitch.slice(-1);
-    return `${NOTE_NAMES[note] || note}${octave}`;
+
+    // Get the correct enharmonic spelling
+    const correctNote = keySignature ? getEnharmonicNote(note, keySignature) : note;
+
+    return `${NOTE_NAMES[correctNote] || correctNote}${octave}`;
 };
 
 // Helper to generate a scale or chromatic list for the Piano Roll Y-axis

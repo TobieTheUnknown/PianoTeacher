@@ -268,6 +268,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                 )}
                                                 <MeasureCard
                                                     measure={measure}
+                                                    keySignature={song.key}
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
                                                     onToggleHighlight={onToggleHighlight}
                                                     onPlay={handlePlayMeasure}
@@ -327,7 +328,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
 }
 
 // Helper component for measure cards
-function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
+function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
     return (
         <div
             onClick={() => onPlay(measure)}
@@ -402,7 +403,7 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDe
                 {measure.hasChord ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         {measure.chordGroups.map((chordGroup, idx) => {
-                            const chordName = getFrenchNoteName(chordGroup.notes[0].pitch).split(/\d/)[0];
+                            const chordName = getFrenchNoteName(chordGroup.notes[0].pitch, keySignature).split(/\d/)[0];
 
                             return (
                                 <div key={idx}>
@@ -431,7 +432,7 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDe
                                                     borderRadius: '3px',
                                                     border: '1px solid var(--border-color)'
                                                 }}>
-                                                    {getFrenchNoteName(n.pitch)}
+                                                    {getFrenchNoteName(n.pitch, keySignature)}
                                                 </span>
                                             ))}
                                         </div>
@@ -480,7 +481,7 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDe
                                     border: '1px solid var(--accent-secondary)',
                                     color: 'var(--text-primary)'
                                 }}>
-                                    {getFrenchNoteName(n.pitch)}
+                                    {getFrenchNoteName(n.pitch, keySignature)}
                                 </span>
                             ))
                         ) : (

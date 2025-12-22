@@ -523,6 +523,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         <div style={{ marginBottom: '1.5rem' }}>
                             <PianoRoll
                                 phrase={phrase}
+                                keySignature={song.key}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}

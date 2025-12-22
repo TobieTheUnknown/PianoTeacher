@@ -6,7 +6,7 @@ import { audioEngine } from '../services/AudioEngine';
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
+export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
     const [keys] = useState(() => getPianoRollKeys(1, 5)); // C1 to B5
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
@@ -418,7 +418,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                                         : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
                                 }}
                                 >
-                                    {getFrenchNoteName(pitch)}
+                                    {getFrenchNoteName(pitch, keySignature)}
                                 </div>
                             );
                         })}

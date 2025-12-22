@@ -193,12 +193,12 @@ export function SongViewer({ song }) {
                                                     }}>
                                                         {/* Main Note (Root/Bass) */}
                                                         <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                                                            {getFrenchNoteName(group.notes[0].pitch)}
+                                                            {getFrenchNoteName(group.notes[0].pitch, song.key)}
                                                         </span>
                                                         {/* Details if multiple notes */}
                                                         {group.notes.length > 1 && (
                                                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                                ({group.notes.map(n => getFrenchNoteName(n.pitch)).join(', ')})
+                                                                ({group.notes.map(n => getFrenchNoteName(n.pitch, song.key)).join(', ')})
                                                             </span>
                                                         )}
                                                     </div>
@@ -243,7 +243,7 @@ export function SongViewer({ song }) {
                                                         padding: '0.2rem 0.5rem',
                                                         borderRadius: '4px'
                                                     }}>
-                                                        {getFrenchNoteName(n.pitch)}
+                                                        {getFrenchNoteName(n.pitch, song.key)}
                                                     </span>
                                                 ))
                                             ) : (
@@ -271,7 +271,7 @@ export function SongViewer({ song }) {
                                                 borderRadius: '50%',
                                                 backgroundColor: 'var(--accent-primary)',
                                                 border: '2px solid var(--bg-secondary)'
-                                            }} title={`MD: ${getFrenchNoteName(n.pitch)}`} />
+                                            }} title={`MD: ${getFrenchNoteName(n.pitch, song.key)}`} />
                                         ))}
                                         {/* Chord Dots */}
                                         {measure.chords.map(n => (
@@ -284,7 +284,7 @@ export function SongViewer({ song }) {
                                                 borderRadius: '50%',
                                                 backgroundColor: 'var(--accent-secondary)',
                                                 border: '2px solid var(--bg-secondary)'
-                                            }} title={`MG: ${getFrenchNoteName(n.pitch)}`} />
+                                            }} title={`MG: ${getFrenchNoteName(n.pitch, song.key)}`} />
                                         ))}
                                     </div>
                                 </div>
