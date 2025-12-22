@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
 import { parseMidiFile } from '../services/MidiService';
@@ -7,6 +7,13 @@ import { StorageService } from '../services/StorageService';
 
 export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
     const [isImporting, setIsImporting] = useState(false);
+
+    // Pre-initialize MIDI sounds when the editor loads
+    useEffect(() => {
+        audioEngine.initialize().catch(error => {
+            console.error('Failed to initialize audio engine:', error);
+        });
+    }, []);
 
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
