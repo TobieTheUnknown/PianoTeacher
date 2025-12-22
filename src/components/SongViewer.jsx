@@ -1,28 +1,67 @@
 import React from 'react';
-import { getFrenchNoteName } from '../models/song';
+import { getFrenchNoteName, getPianoRollKeys } from '../models/song';
 
 import { audioEngine } from '../services/AudioEngine';
 
 export function SongViewer({ song }) {
+    const keys = getPianoRollKeys(1, 5); // Same range as PianoRoll
+
+    // Helper to get applicable separator for a measure
+    const getSeparatorForMeasure = (phrase, measureIndex) => {
+        const handSeparators = phrase.handSeparators || [];
+        if (handSeparators.length === 0) return null;
+
+        const applicable = handSeparators
+            .filter(s => s.fromMeasure <= measureIndex)
+            .sort((a, b) => b.fromMeasure - a.fromMeasure);
+        return applicable[0] || null;
+    };
+
+    // Helper to split notes by hand using separator
+    const splitNotesByHand = (notes, separatorPitch) => {
+        if (!separatorPitch) {
+            // No separator: use default tracks
+            return {
+                rightHand: notes.filter(n => n.trackName === 'melody'),
+                leftHand: notes.filter(n => n.trackName === 'chords')
+            };
+        }
+
+        // Use separator: notes above separator = right hand, below = left hand
+        const separatorIndex = keys.indexOf(separatorPitch);
+        return {
+            rightHand: notes.filter(n => keys.indexOf(n.pitch) < separatorIndex),
+            leftHand: notes.filter(n => keys.indexOf(n.pitch) >= separatorIndex)
+        };
+    };
+
     // Helper to group notes by measure
     const getMeasures = (phrase) => {
         const measures = [];
         const EPSILON = 0.001; // Small epsilon for floating-point comparison
 
+        // Combine all notes with track information
+        const allNotes = [
+            ...phrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
+            ...phrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' }))
+        ];
+
         for (let i = 0; i < phrase.length; i++) {
             const measureStart = i * 4;
             const measureEnd = (i + 1) * 4;
 
+            const measuresNotes = allNotes.filter(n =>
+                n.startTime >= measureStart - EPSILON &&
+                n.startTime < measureEnd - EPSILON
+            );
+
+            const separator = getSeparatorForMeasure(phrase, i);
+            const { rightHand, leftHand } = splitNotesByHand(measuresNotes, separator?.pitch);
+
             measures.push({
                 index: i + 1,
-                melody: phrase.tracks.melody.filter(n =>
-                    n.startTime >= measureStart - EPSILON &&
-                    n.startTime < measureEnd - EPSILON
-                ),
-                chords: phrase.tracks.chords.filter(n =>
-                    n.startTime >= measureStart - EPSILON &&
-                    n.startTime < measureEnd - EPSILON
-                )
+                melody: rightHand, // Right hand = melody
+                chords: leftHand   // Left hand = chords
             });
         }
         return measures;

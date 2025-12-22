@@ -30,7 +30,8 @@ export const createPhrase = (name = 'Section A', length = 4) => ({
     tracks: {
         melody: [], // Right hand: Array of NoteEvents
         chords: [], // Left hand: Array of NoteEvents
-    }
+    },
+    handSeparators: [] // Array of { fromMeasure: number, pitch: string } for manual MG/MD separation
 });
 
 export const createNoteEvent = (pitch, startTime, duration) => ({
