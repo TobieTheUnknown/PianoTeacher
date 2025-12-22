@@ -211,7 +211,14 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
     }, [dragState]);
 
     const pianoRollContent = (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%' }}>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem',
+            height: '100%',
+            flex: isFullscreen ? '1' : 'none',
+            minHeight: 0
+        }}>
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {/* Separator Toggle */}
