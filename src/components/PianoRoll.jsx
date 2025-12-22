@@ -21,10 +21,8 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
 
-    // Auto-increase zoom in fullscreen mode for better visibility
-    const effectiveZoom = isFullscreen ? Math.max(zoom, 1.5) : zoom;
-    const cellWidth = CELL_WIDTH * effectiveZoom;
-    const cellHeight = CELL_HEIGHT * effectiveZoom;
+    const cellWidth = CELL_WIDTH * zoom;
+    const cellHeight = CELL_HEIGHT * zoom;
 
     // Helper to get applicable separator for a given measure
     const getSeparatorForMeasure = (measureIndex) => {
@@ -295,7 +293,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         −
                     </button>
                     <span style={{ fontSize: '0.875rem', fontWeight: '600', minWidth: '50px', textAlign: 'center' }}>
-                        {Math.round(effectiveZoom * 100)}%
+                        {Math.round(zoom * 100)}%
                     </span>
                     <button
                         onClick={() => setZoom(Math.min(3, zoom + 0.25))}
