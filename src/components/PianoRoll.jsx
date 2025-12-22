@@ -10,7 +10,6 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
     const [keys] = useState(() => getPianoRollKeys(1, 5)); // C1 to B5
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
-    const [scrollTop, setScrollTop] = useState(0);
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
 
     // Hand separation lines - use phrase data or default
@@ -360,56 +359,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                 boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
                 userSelect: 'none'
             }}>
-            {/* Piano Keys (Y-axis) */}
-            <div style={{
-                width: '90px',
-                overflowY: 'hidden',
-                borderRight: '2px solid var(--border-color)',
-                background: 'linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%)',
-                flexShrink: 0,
-                position: 'relative',
-                boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)'
-            }}>
-                <div style={{ transform: `translateY(-${scrollTop}px)` }}>
-                    {keys.map(pitch => {
-                        const isBlack = pitch.includes('#');
-                        return (
-                            <div key={pitch} style={{
-                                height: `${cellHeight}px`,
-                                background: isBlack
-                                    ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                    : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
-                                color: isBlack ? '#ecf0f1' : '#2c3e50',
-                                borderBottom: `1px solid ${isBlack ? '#1a252f' : '#dee2e6'}`,
-                                fontSize: '0.8125rem',
-                                fontWeight: '600',
-                                display: 'flex',
-                                alignItems: 'center',
-                                paddingLeft: '0.75rem',
-                                boxSizing: 'border-box',
-                                transition: 'all var(--transition-fast)',
-                                cursor: 'pointer',
-                                position: 'relative'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = isBlack
-                                    ? 'linear-gradient(90deg, #34495e 0%, #3d5a73 100%)'
-                                    : 'linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = isBlack
-                                    ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                    : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
-                            }}
-                            >
-                                {getFrenchNoteName(pitch)}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Grid (Content) */}
+            {/* Grid (Content) - Now contains both piano keys and grid */}
             <div
                 ref={scrollRef}
                 style={{
@@ -418,17 +368,68 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                     position: 'relative',
                     background: 'linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%)'
                 }}
-                onScroll={(e) => {
-                    setScrollTop(e.target.scrollTop);
-                }}
             >
                 <div style={{
-                    width: `${phrase.length * 4 * cellWidth}px`, // 4 beats per measure
+                    width: `${90 + phrase.length * 4 * cellWidth}px`, // Piano keys width + grid width
                     minHeight: '100%',
-                    position: 'relative'
+                    position: 'relative',
+                    display: 'flex'
                 }}>
-                    {/* Measure Counter - Sticky at top, scrolls horizontally with content */}
+                    {/* Piano Keys (Y-axis) - Sticky on left */}
                     <div style={{
+                        position: 'sticky',
+                        left: 0,
+                        width: '90px',
+                        zIndex: 100,
+                        background: 'linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%)',
+                        borderRight: '2px solid var(--border-color)',
+                        boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)',
+                        flexShrink: 0
+                    }}>
+                        {keys.map(pitch => {
+                            const isBlack = pitch.includes('#');
+                            return (
+                                <div key={pitch} style={{
+                                    height: `${cellHeight}px`,
+                                    background: isBlack
+                                        ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
+                                        : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
+                                    color: isBlack ? '#ecf0f1' : '#2c3e50',
+                                    borderBottom: `1px solid ${isBlack ? '#1a252f' : '#dee2e6'}`,
+                                    fontSize: '0.8125rem',
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    paddingLeft: '0.75rem',
+                                    boxSizing: 'border-box',
+                                    transition: 'all var(--transition-fast)',
+                                    cursor: 'pointer',
+                                    position: 'relative'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = isBlack
+                                        ? 'linear-gradient(90deg, #34495e 0%, #3d5a73 100%)'
+                                        : 'linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = isBlack
+                                        ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
+                                        : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
+                                }}
+                                >
+                                    {getFrenchNoteName(pitch)}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Grid content wrapper */}
+                    <div style={{
+                        flex: 1,
+                        position: 'relative'
+                    }}>
+                        {/* Measure Counter - Sticky at top, scrolls horizontally with content */}
+                        <div style={{
                         position: 'sticky',
                         top: 0,
                         left: 0,
@@ -659,6 +660,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                                 </React.Fragment>
                             );
                         })}
+                    </div>
                     </div>
                 </div>
             </div>
