@@ -93,6 +93,7 @@ function App() {
             onUpdateMetadata={updateSongMetadata}
             onImportSong={importSong}
             onSaveSong={saveSong}
+            onAddPhrase={addPhrase}
             addNoteToPhrase={addNoteToPhrase}
             removeNoteFromPhrase={removeNoteFromPhrase}
             onUpdateNote={updateNoteInPhrase}

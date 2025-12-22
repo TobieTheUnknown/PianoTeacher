@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
     const [isImporting, setIsImporting] = useState(false);
 
     // Pre-initialize MIDI sounds when the editor loads
@@ -175,6 +175,9 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
 
             {/* Piano Roll Section Header */}
             <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 marginBottom: '2rem'
             }}>
                 <h2 style={{
@@ -187,11 +190,92 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, a
                 }}>
                     Piano Roll
                 </h2>
+                <button
+                    onClick={onAddPhrase}
+                    style={{
+                        background: 'var(--gradient-primary)',
+                        color: 'white',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: 'var(--radius-lg)',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '0.9375rem',
+                        boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)',
+                        transition: 'all var(--transition-fast)'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 0 30px rgba(59, 130, 246, 0.5)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.3)';
+                    }}
+                >
+                    <span>➕</span>
+                    <span>Ajouter une section</span>
+                </button>
             </div>
+
+            {/* Empty State */}
+            {song.phrases.length === 0 && (
+                <div className="card" style={{
+                    padding: '4rem 2rem',
+                    textAlign: 'center',
+                    background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.9) 100%)',
+                    border: '2px dashed var(--border-color)'
+                }}>
+                    <div style={{
+                        fontSize: '4rem',
+                        marginBottom: '1.5rem',
+                        opacity: 0.5
+                    }}>
+                        🎹
+                    </div>
+                    <h3 style={{
+                        marginTop: 0,
+                        marginBottom: '1rem',
+                        fontSize: '1.5rem',
+                        color: 'var(--text-primary)'
+                    }}>
+                        Aucune section pour le moment
+                    </h3>
+                    <p style={{
+                        margin: 0,
+                        color: 'var(--text-secondary)',
+                        fontSize: '1rem',
+                        marginBottom: '2rem'
+                    }}>
+                        Commencez par créer une nouvelle section ou importez un fichier MIDI
+                    </p>
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <button
+                            onClick={onAddPhrase}
+                            style={{
+                                background: 'var(--gradient-primary)',
+                                color: 'white',
+                                border: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.875rem 1.75rem',
+                                fontSize: '1rem'
+                            }}
+                        >
+                            <span>➕</span>
+                            <span>Créer une section</span>
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Phrases List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                {song.phrases.map((phrase, index) => (
+                {song.phrases.map((phrase) => (
                     <div
                         key={phrase.id}
                         className="card"
