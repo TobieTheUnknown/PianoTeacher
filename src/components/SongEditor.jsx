@@ -9,6 +9,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null); // { phraseId, splitTime }
     const [splitTime, setSplitTime] = useState('');
+    const [isBatchSplit, setIsBatchSplit] = useState(false); // Toggle between single and batch split
 
     // Pre-initialize MIDI sounds when the editor loads
     useEffect(() => {
@@ -38,16 +39,37 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     const handleConfirmSplit = () => {
         if (!splitMode || !splitTime) return;
-        const measure = parseFloat(splitTime);
-        if (isNaN(measure) || measure <= 0) {
+        const interval = parseFloat(splitTime);
+        if (isNaN(interval) || interval <= 0) {
             alert('Veuillez entrer une mesure valide');
             return;
         }
-        // Convert measure to beats (assuming 4/4 time signature)
-        // measure 1 = split after measure 1 = beat 4
+
         const beatsPerMeasure = 4;
-        const timeInBeats = measure * beatsPerMeasure;
-        onSplitPhrase(splitMode.phraseId, timeInBeats);
+
+        if (isBatchSplit) {
+            // Batch split: split every X measures
+            const phrase = song.phrases.find(p => p.id === splitMode.phraseId);
+            if (!phrase) return;
+
+            const phraseLengthInMeasures = phrase.length;
+            const splitPoints = [];
+
+            // Generate split points at every interval
+            for (let measure = interval; measure < phraseLengthInMeasures; measure += interval) {
+                splitPoints.push(measure * beatsPerMeasure);
+            }
+
+            // Split from the end to avoid index shifting issues
+            splitPoints.reverse().forEach(timeInBeats => {
+                onSplitPhrase(splitMode.phraseId, timeInBeats);
+            });
+        } else {
+            // Single split at specified measure
+            const timeInBeats = interval * beatsPerMeasure;
+            onSplitPhrase(splitMode.phraseId, timeInBeats);
+        }
+
         setSplitMode(null);
         setSplitTime('');
     };
@@ -392,8 +414,44 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                     fontSize: '0.875rem',
                                     color: 'var(--text-secondary)'
                                 }}>
-                                    Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase.
+                                    {isBatchSplit
+                                        ? "Découpez la phrase toutes les X mesures. Chaque segment deviendra une nouvelle phrase."
+                                        : "Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase."
+                                    }
                                 </p>
+
+                                {/* Batch Split Toggle */}
+                                <div style={{
+                                    marginBottom: '1rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-elevated)',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border-light)'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        id="batch-split"
+                                        checked={isBatchSplit}
+                                        onChange={(e) => setIsBatchSplit(e.target.checked)}
+                                        style={{
+                                            width: '18px',
+                                            height: '18px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <label htmlFor="batch-split" style={{
+                                        cursor: 'pointer',
+                                        fontSize: '0.875rem',
+                                        color: 'var(--text-primary)',
+                                        fontWeight: '600'
+                                    }}>
+                                        Découper toutes les X mesures
+                                    </label>
+                                </div>
+
                                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                     <div style={{ flex: '1', minWidth: '200px' }}>
                                         <label style={{
@@ -403,13 +461,13 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                             color: 'var(--text-primary)',
                                             fontWeight: '600'
                                         }}>
-                                            Mesure de découpage
+                                            {isBatchSplit ? "Intervalle (mesures)" : "Mesure de découpage"}
                                         </label>
                                         <input
                                             type="number"
                                             value={splitTime}
                                             onChange={(e) => setSplitTime(e.target.value)}
-                                            placeholder="Ex: 2"
+                                            placeholder={isBatchSplit ? "Ex: 4" : "Ex: 2"}
                                             step="1"
                                             min="1"
                                             style={{
