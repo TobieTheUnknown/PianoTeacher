@@ -44,8 +44,9 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             return;
         }
         // Convert measure to beats (assuming 4/4 time signature)
+        // measure 1 = split after measure 1 = beat 4
         const beatsPerMeasure = 4;
-        const timeInBeats = (measure - 1) * beatsPerMeasure;
+        const timeInBeats = measure * beatsPerMeasure;
         onSplitPhrase(splitMode.phraseId, timeInBeats);
         setSplitMode(null);
         setSplitTime('');

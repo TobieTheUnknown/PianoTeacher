@@ -11,6 +11,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
     const [scrollTop, setScrollTop] = useState(0);
+    const [scrollLeft, setScrollLeft] = useState(0);
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
 
     // Hand separation lines - use phrase data or default
@@ -420,21 +421,22 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                 }}
                 onScroll={(e) => {
                     setScrollTop(e.target.scrollTop);
+                    setScrollLeft(e.target.scrollLeft);
                 }}
             >
-                {/* Measure Counter - Sticky Header */}
+                {/* Measure Counter - Fixed at top, scrolls horizontally */}
                 <div style={{
-                    position: 'sticky',
+                    position: 'absolute',
                     top: 0,
-                    left: 0,
-                    right: 0,
+                    left: `${scrollLeft}px`,
                     height: '32px',
                     background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
                     backdropFilter: 'blur(8px)',
                     borderBottom: '2px solid var(--accent-primary)',
                     display: 'flex',
                     zIndex: 50,
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                    pointerEvents: 'none'
                 }}>
                     {Array.from({ length: phrase.length }).map((_, measureIndex) => (
                         <div key={`measure-${measureIndex}`} style={{
@@ -443,12 +445,12 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontWeight: '700',
-                            fontSize: '0.875rem',
+                            fontSize: '1rem',
                             color: 'var(--text-primary)',
                             borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
-                            background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.1)' : 'transparent'
+                            background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.15)' : 'transparent'
                         }}>
-                            Mesure {measureIndex + 1}
+                            {measureIndex + 1}
                         </div>
                     ))}
                 </div>
