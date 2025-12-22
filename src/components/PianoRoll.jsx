@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getPianoRollKeys, getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
@@ -20,8 +21,10 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
 
-    const cellWidth = CELL_WIDTH * zoom;
-    const cellHeight = CELL_HEIGHT * zoom;
+    // Auto-increase zoom in fullscreen mode for better visibility
+    const effectiveZoom = isFullscreen ? Math.max(zoom, 1.5) : zoom;
+    const cellWidth = CELL_WIDTH * effectiveZoom;
+    const cellHeight = CELL_HEIGHT * effectiveZoom;
 
     // Helper to get applicable separator for a given measure
     const getSeparatorForMeasure = (measureIndex) => {
@@ -210,6 +213,26 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
         }
     }, [dragState]);
 
+    // Block body scroll and handle Escape key when fullscreen is active
+    useEffect(() => {
+        if (isFullscreen) {
+            document.body.style.overflow = 'hidden';
+
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    setIsFullscreen(false);
+                }
+            };
+
+            window.addEventListener('keydown', handleEscape);
+
+            return () => {
+                document.body.style.overflow = '';
+                window.removeEventListener('keydown', handleEscape);
+            };
+        }
+    }, [isFullscreen]);
+
     const pianoRollContent = (
         <div style={{
             display: 'flex',
@@ -272,7 +295,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         −
                     </button>
                     <span style={{ fontSize: '0.875rem', fontWeight: '600', minWidth: '50px', textAlign: 'center' }}>
-                        {Math.round(zoom * 100)}%
+                        {Math.round(effectiveZoom * 100)}%
                     </span>
                     <button
                         onClick={() => setZoom(Math.min(3, zoom + 0.25))}
@@ -308,23 +331,25 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                     </button>
                 </div>
 
-                {/* Fullscreen Toggle */}
-                <button
-                    onClick={() => setIsFullscreen(!isFullscreen)}
-                    style={{
-                        background: isFullscreen ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                        color: isFullscreen ? 'white' : 'var(--text-secondary)',
-                        border: isFullscreen ? 'none' : '1px solid var(--border-light)',
-                        padding: '0.5rem 1rem',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        marginLeft: 'auto'
-                    }}
-                >
-                    {isFullscreen ? '⤓ Réduire' : '⤢ Plein écran'}
-                </button>
+                {/* Fullscreen Toggle - only show when not in fullscreen */}
+                {!isFullscreen && (
+                    <button
+                        onClick={() => setIsFullscreen(true)}
+                        style={{
+                            background: 'var(--bg-elevated)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-light)',
+                            padding: '0.5rem 1rem',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            marginLeft: 'auto'
+                        }}
+                    >
+                        ⤢ Plein écran
+                    </button>
+                )}
             </div>
 
             <div className="piano-roll" style={{
@@ -605,25 +630,73 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
         </div>
     );
 
-    // Render with fullscreen wrapper if enabled
-    if (isFullscreen) {
-        return (
+    // Render fullscreen modal using portal
+    const fullscreenModal = isFullscreen && createPortal(
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 9999,
+            background: 'var(--bg-primary)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+        }}>
+            {/* Modal Header with close button */}
             <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 9999,
-                background: 'var(--bg-primary)',
-                padding: '1rem',
+                padding: '1rem 1.5rem',
+                borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
-                flexDirection: 'column'
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexShrink: 0
+            }}>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>
+                    Piano Roll - Mode Plein Écran
+                </h3>
+                <button
+                    onClick={() => setIsFullscreen(false)}
+                    style={{
+                        background: 'var(--gradient-primary)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.9375rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)'
+                    }}
+                >
+                    <span>✕</span>
+                    <span>Fermer</span>
+                </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{
+                flex: 1,
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                overflow: 'hidden'
             }}>
                 {pianoRollContent}
             </div>
-        );
-    }
+        </div>,
+        document.body
+    );
 
-    return pianoRollContent;
+    return (
+        <>
+            {pianoRollContent}
+            {fullscreenModal}
+        </>
+    );
 }
