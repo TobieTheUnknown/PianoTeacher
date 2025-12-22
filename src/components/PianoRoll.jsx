@@ -215,9 +215,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem',
-            height: '100%',
-            flex: isFullscreen ? '1' : 'none',
-            minHeight: 0
+            ...(isFullscreen ? { flex: '1', minHeight: 0 } : { height: '100%' })
         }}>
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -333,12 +331,11 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                 display: 'flex',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-lg)',
-                height: isFullscreen ? 'auto' : '450px',
+                ...(isFullscreen ? { flex: '1', minHeight: 0 } : { height: '450px' }),
                 overflow: 'hidden',
                 backgroundColor: 'var(--bg-primary)',
                 boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
-                userSelect: 'none',
-                flex: isFullscreen ? '1' : 'none'
+                userSelect: 'none'
             }}>
             {/* Piano Keys (Y-axis) */}
             <div style={{
