@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getFrenchNoteName } from '../models/song';
+import { getFrenchNoteName, getPianoRollKeys } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song, onToggleHighlight }) {
@@ -495,7 +495,7 @@ function TipCard({ icon, text }) {
 function getMeasuresFromPhrase(phrase) {
     const measures = [];
     const EPSILON = 0.001;
-    const keys = require('../models/song').getPianoRollKeys(1, 5);
+    const keys = getPianoRollKeys(1, 5);
 
     // Helper to get applicable separator for a measure
     const getSeparatorForMeasure = (measureIndex) => {
