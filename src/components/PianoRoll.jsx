@@ -631,72 +631,69 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
     );
 
     // Render fullscreen modal using portal
-    const fullscreenModal = isFullscreen && createPortal(
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            zIndex: 9999,
-            background: 'var(--bg-primary)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-        }}>
-            {/* Modal Header with close button */}
+    if (isFullscreen) {
+        return createPortal(
             <div style={{
-                padding: '1rem 1.5rem',
-                borderBottom: '1px solid var(--border-light)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexShrink: 0
-            }}>
-                <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>
-                    Piano Roll - Mode Plein Écran
-                </h3>
-                <button
-                    onClick={() => setIsFullscreen(false)}
-                    style={{
-                        background: 'var(--gradient-primary)',
-                        color: 'white',
-                        border: 'none',
-                        padding: '0.75rem 1.5rem',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.9375rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)'
-                    }}
-                >
-                    <span>✕</span>
-                    <span>Fermer</span>
-                </button>
-            </div>
-
-            {/* Modal Content */}
-            <div style={{
-                flex: 1,
-                padding: '1.5rem',
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                zIndex: 9999,
+                background: 'var(--bg-primary)',
                 display: 'flex',
                 flexDirection: 'column',
-                minHeight: 0,
                 overflow: 'hidden'
             }}>
-                {pianoRollContent}
-            </div>
-        </div>,
-        document.body
-    );
+                {/* Modal Header with close button */}
+                <div style={{
+                    padding: '1rem 1.5rem',
+                    borderBottom: '1px solid var(--border-light)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexShrink: 0
+                }}>
+                    <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>
+                        Piano Roll - Mode Plein Écran
+                    </h3>
+                    <button
+                        onClick={() => setIsFullscreen(false)}
+                        style={{
+                            background: 'var(--gradient-primary)',
+                            color: 'white',
+                            border: 'none',
+                            padding: '0.75rem 1.5rem',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: '0.9375rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)'
+                        }}
+                    >
+                        <span>✕</span>
+                        <span>Fermer</span>
+                    </button>
+                </div>
 
-    return (
-        <>
-            {pianoRollContent}
-            {fullscreenModal}
-        </>
-    );
+                {/* Modal Content */}
+                <div style={{
+                    flex: 1,
+                    padding: '1.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    overflow: 'hidden'
+                }}>
+                    {pianoRollContent}
+                </div>
+            </div>,
+            document.body
+        );
+    }
+
+    return pianoRollContent;
 }
