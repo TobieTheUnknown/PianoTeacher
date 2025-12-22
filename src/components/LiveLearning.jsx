@@ -219,29 +219,12 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     {measureGroups.map((group, groupIdx) => {
                         // Check if there's a phrase break in this group
-                        const phraseBreakInGroup = analysis.phraseBreaks.find(
-                            pb => pb.measureIndex >= group[0].number - 1 && pb.measureIndex < group[group.length - 1].number
+                        const phraseBreaksInGroup = analysis.phraseBreaks.filter(
+                            pb => pb.measureIndex >= group[0].number - 1 && pb.measureIndex <= group[group.length - 1].number
                         );
-                        const breakIndex = phraseBreakInGroup ? phraseBreakInGroup.measureIndex - (group[0].number - 1) : -1;
 
                         return (
                             <div key={groupIdx}>
-                                {/* Phrase separator if this group starts with a new phrase */}
-                                {analysis.phraseBreaks.some(pb => pb.measureIndex === group[0].number - 1) && (
-                                    <div style={{
-                                        marginBottom: '1rem',
-                                        padding: '0.75rem 1.5rem',
-                                        background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-                                        borderLeft: '4px solid var(--accent-primary)',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontWeight: 'bold',
-                                        fontSize: '1.1rem',
-                                        color: 'var(--text-primary)'
-                                    }}>
-                                        🎵 {analysis.phraseBreaks.find(pb => pb.measureIndex === group[0].number - 1).phraseName}
-                                    </div>
-                                )}
-
                                 {/* Group label */}
                                 <div style={{
                                     marginBottom: '0.75rem',
@@ -258,34 +241,41 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                     gridTemplateColumns: 'repeat(4, 1fr)',
                                     gap: '1rem'
                                 }}>
-                                    {group.map((measure, idx) => (
-                                        <React.Fragment key={measure.number}>
-                                            {/* Insert phrase separator mid-group if needed */}
-                                            {idx === breakIndex && (
-                                                <div style={{
-                                                    gridColumn: '1 / -1',
-                                                    marginTop: '1rem',
-                                                    marginBottom: '1rem',
-                                                    padding: '0.75rem 1.5rem',
-                                                    background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-                                                    borderLeft: '4px solid var(--accent-primary)',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    fontWeight: 'bold',
-                                                    fontSize: '1.1rem',
-                                                    color: 'var(--text-primary)'
-                                                }}>
-                                                    🎵 {phraseBreakInGroup.phraseName}
-                                                </div>
-                                            )}
-                                            <MeasureCard
-                                                measure={measure}
-                                                isHighlighted={highlightedMeasures.includes(measure.number)}
-                                                onToggleHighlight={onToggleHighlight}
-                                                onPlay={handlePlayMeasure}
-                                                showDetails={showDetails}
-                                            />
-                                        </React.Fragment>
-                                    ))}
+                                    {group.map((measure, idx) => {
+                                        // Check if there's a phrase break right before this measure
+                                        const phraseBreakHere = phraseBreaksInGroup.find(
+                                            pb => pb.measureIndex === measure.number - 1
+                                        );
+
+                                        return (
+                                            <React.Fragment key={measure.number}>
+                                                {/* Insert phrase separator before this measure if needed */}
+                                                {phraseBreakHere && (
+                                                    <div style={{
+                                                        gridColumn: '1 / -1',
+                                                        marginTop: idx === 0 ? '0' : '1rem',
+                                                        marginBottom: '1rem',
+                                                        padding: '0.75rem 1.5rem',
+                                                        background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
+                                                        borderLeft: '4px solid var(--accent-primary)',
+                                                        borderRadius: 'var(--radius-md)',
+                                                        fontWeight: 'bold',
+                                                        fontSize: '1.1rem',
+                                                        color: 'var(--text-primary)'
+                                                    }}>
+                                                        🎵 {phraseBreakHere.phraseName}
+                                                    </div>
+                                                )}
+                                                <MeasureCard
+                                                    measure={measure}
+                                                    isHighlighted={highlightedMeasures.includes(measure.number)}
+                                                    onToggleHighlight={onToggleHighlight}
+                                                    onPlay={handlePlayMeasure}
+                                                    showDetails={showDetails}
+                                                />
+                                            </React.Fragment>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );

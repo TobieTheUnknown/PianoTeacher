@@ -177,6 +177,16 @@ export function useSong() {
         }));
     }, []);
 
+    const renamePhrasesInOrder = useCallback(() => {
+        setSong(prev => ({
+            ...prev,
+            phrases: prev.phrases.map((p, index) => ({
+                ...p,
+                name: `Phrase ${String.fromCharCode(65 + index)}`
+            }))
+        }));
+    }, []);
+
     return {
         song,
         updateSongMetadata,
@@ -191,6 +201,7 @@ export function useSong() {
         removeNoteFromPhrase,
         updateNoteInPhrase,
         toggleHighlightedMeasure,
-        updateHandSeparators
+        updateHandSeparators,
+        renamePhrasesInOrder
     };
 }

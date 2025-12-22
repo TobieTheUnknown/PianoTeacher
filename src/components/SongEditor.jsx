@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null); // { phraseId, splitTime }
     const [splitTime, setSplitTime] = useState('');
@@ -64,6 +64,12 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             splitPoints.reverse().forEach(timeInBeats => {
                 onSplitPhrase(splitMode.phraseId, timeInBeats);
             });
+
+            // After all splits are done, rename all phrases in alphabetical order
+            // Use setTimeout to ensure all state updates have completed
+            setTimeout(() => {
+                onRenamePhrasesInOrder();
+            }, 100);
         } else {
             // Single split at specified measure
             const timeInBeats = interval * beatsPerMeasure;

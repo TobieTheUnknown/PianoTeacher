@@ -20,7 +20,7 @@ export const parseMidiFile = async (file) => {
         const durationInBeats = midi.duration * (song.tempo / 60);
         const phraseLength = Math.ceil(durationInBeats / 4); // in measures
 
-        const phrase = createPhrase('Imported MIDI', phraseLength);
+        const phrase = createPhrase('Phrase A', phraseLength);
 
         // Process tracks
         midi.tracks.forEach(track => {

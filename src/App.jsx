@@ -21,7 +21,8 @@ function App() {
     removeNoteFromPhrase,
     updateNoteInPhrase,
     toggleHighlightedMeasure,
-    updateHandSeparators
+    updateHandSeparators,
+    renamePhrasesInOrder
   } = useSong();
 
   const [mode, setMode] = useState('library'); // 'library', 'edit', 'view', 'live'
@@ -96,6 +97,7 @@ function App() {
             onSaveSong={saveSong}
             onAddPhrase={addPhrase}
             onSplitPhrase={splitPhrase}
+            onRenamePhrasesInOrder={renamePhrasesInOrder}
             addNoteToPhrase={addNoteToPhrase}
             removeNoteFromPhrase={removeNoteFromPhrase}
             onUpdateNote={updateNoteInPhrase}
