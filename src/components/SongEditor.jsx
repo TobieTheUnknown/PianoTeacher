@@ -5,8 +5,11 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
     const [isImporting, setIsImporting] = useState(false);
+    const [splitMode, setSplitMode] = useState(null); // { phraseId, splitTime }
+    const [splitTime, setSplitTime] = useState('');
+    const [isBatchSplit, setIsBatchSplit] = useState(false); // Toggle between single and batch split
 
     // Pre-initialize MIDI sounds when the editor loads
     useEffect(() => {
@@ -22,6 +25,59 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     const handleStop = () => {
         audioEngine.stop();
+    };
+
+    const handleStartSplit = (phraseId) => {
+        setSplitMode({ phraseId });
+        setSplitTime('');
+    };
+
+    const handleCancelSplit = () => {
+        setSplitMode(null);
+        setSplitTime('');
+    };
+
+    const handleConfirmSplit = () => {
+        if (!splitMode || !splitTime) return;
+        const interval = parseFloat(splitTime);
+        if (isNaN(interval) || interval <= 0) {
+            alert('Veuillez entrer une mesure valide');
+            return;
+        }
+
+        const beatsPerMeasure = 4;
+
+        if (isBatchSplit) {
+            // Batch split: split every X measures
+            const phrase = song.phrases.find(p => p.id === splitMode.phraseId);
+            if (!phrase) return;
+
+            const phraseLengthInMeasures = phrase.length;
+            const splitPoints = [];
+
+            // Generate split points at every interval
+            for (let measure = interval; measure < phraseLengthInMeasures; measure += interval) {
+                splitPoints.push(measure * beatsPerMeasure);
+            }
+
+            // Split from the end to avoid index shifting issues
+            splitPoints.reverse().forEach(timeInBeats => {
+                onSplitPhrase(splitMode.phraseId, timeInBeats);
+            });
+
+            // After all splits are done, rename all phrases in alphabetical order
+            // Use setTimeout to ensure all state updates have completed
+            setTimeout(() => {
+                onRenamePhrasesInOrder();
+            }, 100);
+        } else {
+            // Single split at specified measure
+            const timeInBeats = interval * beatsPerMeasure;
+            onSplitPhrase(splitMode.phraseId, timeInBeats);
+        }
+
+        setSplitMode(null);
+        setSplitTime('');
     };
 
     const handleFileChange = async (e) => {
@@ -217,7 +273,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     }}
                 >
                     <span>➕</span>
-                    <span>Ajouter une section</span>
+                    <span>Ajouter une phrase</span>
                 </button>
             </div>
 
@@ -242,7 +298,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         fontSize: '1.5rem',
                         color: 'var(--text-primary)'
                     }}>
-                        Aucune section pour le moment
+                        Aucune phrase pour le moment
                     </h3>
                     <p style={{
                         margin: 0,
@@ -250,7 +306,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         fontSize: '1rem',
                         marginBottom: '2rem'
                     }}>
-                        Commencez par créer une nouvelle section ou importez un fichier MIDI
+                        Commencez par créer une nouvelle phrase ou importez un fichier MIDI
                     </p>
                     <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                         <button
@@ -267,7 +323,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             }}
                         >
                             <span>➕</span>
-                            <span>Créer une section</span>
+                            <span>Créer une phrase</span>
                         </button>
                     </div>
                 </div>
@@ -324,8 +380,144 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 >
                                     ⏹ Stop
                                 </button>
+                                <button
+                                    onClick={() => handleStartSplit(phrase.id)}
+                                    disabled={splitMode !== null}
+                                    style={{
+                                        backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-secondary)' : 'var(--bg-elevated)',
+                                        border: '1px solid var(--accent-secondary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        opacity: splitMode !== null && splitMode?.phraseId !== phrase.id ? 0.5 : 1,
+                                        cursor: splitMode !== null && splitMode?.phraseId !== phrase.id ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <span>✂️</span>
+                                    <span>Découper</span>
+                                </button>
                             </div>
                         </div>
+
+                        {/* Split Controls */}
+                        {splitMode?.phraseId === phrase.id && (
+                            <div style={{
+                                padding: '1.5rem',
+                                marginBottom: '1.5rem',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '2px solid var(--accent-secondary)',
+                                borderRadius: 'var(--radius-lg)'
+                            }}>
+                                <h4 style={{
+                                    margin: '0 0 1rem 0',
+                                    fontSize: '1rem',
+                                    color: 'var(--text-primary)'
+                                }}>
+                                    🎯 Mode Découpage
+                                </h4>
+                                <p style={{
+                                    margin: '0 0 1rem 0',
+                                    fontSize: '0.875rem',
+                                    color: 'var(--text-secondary)'
+                                }}>
+                                    {isBatchSplit
+                                        ? "Découpez la phrase toutes les X mesures. Chaque segment deviendra une nouvelle phrase."
+                                        : "Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase."
+                                    }
+                                </p>
+
+                                {/* Batch Split Toggle */}
+                                <div style={{
+                                    marginBottom: '1rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-elevated)',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border-light)'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        id="batch-split"
+                                        checked={isBatchSplit}
+                                        onChange={(e) => setIsBatchSplit(e.target.checked)}
+                                        style={{
+                                            width: '18px',
+                                            height: '18px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <label htmlFor="batch-split" style={{
+                                        cursor: 'pointer',
+                                        fontSize: '0.875rem',
+                                        color: 'var(--text-primary)',
+                                        fontWeight: '600'
+                                    }}>
+                                        Découper toutes les X mesures
+                                    </label>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <div style={{ flex: '1', minWidth: '200px' }}>
+                                        <label style={{
+                                            display: 'block',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '0.875rem',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: '600'
+                                        }}>
+                                            {isBatchSplit ? "Intervalle (mesures)" : "Mesure de découpage"}
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={splitTime}
+                                            onChange={(e) => setSplitTime(e.target.value)}
+                                            placeholder={isBatchSplit ? "Ex: 4" : "Ex: 2"}
+                                            step="1"
+                                            min="1"
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                fontSize: '1rem'
+                                            }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                        <button
+                                            onClick={handleConfirmSplit}
+                                            style={{
+                                                background: 'var(--gradient-success)',
+                                                color: 'white',
+                                                border: 'none',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                padding: '0.75rem 1.5rem',
+                                                fontWeight: '600'
+                                            }}
+                                        >
+                                            <span>✓</span>
+                                            <span>Valider</span>
+                                        </button>
+                                        <button
+                                            onClick={handleCancelSplit}
+                                            style={{
+                                                backgroundColor: 'var(--bg-elevated)',
+                                                border: '1px solid var(--border-light)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                padding: '0.75rem 1.5rem'
+                                            }}
+                                        >
+                                            <span>✗</span>
+                                            <span>Annuler</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Piano Roll */}
                         <div style={{ marginBottom: '1.5rem' }}>
@@ -335,6 +527,12 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}
                                 onUpdateHandSeparators={(separators) => onUpdateHandSeparators(phrase.id, separators)}
+                                onSplit={() => handleStartSplit(phrase.id)}
+                                isSplitMode={splitMode?.phraseId === phrase.id}
+                                splitTime={splitTime}
+                                onSplitTimeChange={setSplitTime}
+                                onConfirmSplit={handleConfirmSplit}
+                                onCancelSplit={handleCancelSplit}
                             />
                         </div>
                     </div>

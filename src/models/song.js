@@ -23,7 +23,7 @@ export const createSong = (title = 'Nouveau Morceau') => ({
     createdAt: new Date().toISOString(),
 });
 
-export const createPhrase = (name = 'Section A', length = 4) => ({
+export const createPhrase = (name = 'Phrase A', length = 4) => ({
     id: generateId(),
     name,
     length, // in measures

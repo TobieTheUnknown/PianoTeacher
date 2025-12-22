@@ -102,29 +102,59 @@ export function SongViewer({ song }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
-                {song.phrases.map((phrase) => (
-                    <div key={phrase.id}>
-                        <h3 style={{
-                            color: 'var(--accent-primary)',
-                            borderBottom: '2px solid var(--bg-tertiary)',
-                            paddingBottom: '0.5rem',
-                            marginBottom: '1.5rem'
-                        }}>
-                            {phrase.name}
-                        </h3>
+                {song.phrases.map((phrase, phraseIndex) => {
+                    // Calculate global measure offset for continuous numbering
+                    const measureOffset = song.phrases
+                        .slice(0, phraseIndex)
+                        .reduce((total, p) => total + p.length, 0);
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                            {getMeasures(phrase).map((measure) => (
-                                <div key={measure.index} className="card" style={{ padding: '1.5rem' }}>
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        marginBottom: '1rem',
-                                        borderBottom: '1px solid var(--border-color)',
-                                        paddingBottom: '0.5rem'
-                                    }}>
-                                        <span style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Mesure {measure.index}</span>
-                                    </div>
+                    const measures = getMeasures(phrase);
+
+                    // Group measures by 4
+                    const measureGroups = [];
+                    for (let i = 0; i < measures.length; i += 4) {
+                        measureGroups.push(measures.slice(i, i + 4));
+                    }
+
+                    return (
+                        <div key={phrase.id}>
+                            <h3 style={{
+                                color: 'var(--accent-primary)',
+                                borderBottom: '2px solid var(--bg-tertiary)',
+                                paddingBottom: '0.5rem',
+                                marginBottom: '1.5rem'
+                            }}>
+                                {phrase.name}
+                            </h3>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                {measureGroups.map((group, groupIdx) => (
+                                    <div key={groupIdx}>
+                                        {/* Group label */}
+                                        <div style={{
+                                            marginBottom: '0.75rem',
+                                            fontSize: '0.9rem',
+                                            color: 'var(--text-secondary)',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            Mesures {measureOffset + group[0].index} - {measureOffset + group[group.length - 1].index}
+                                        </div>
+
+                                        {/* 4 measures per row */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                                            {group.map((measure) => {
+                                                const globalMeasureNumber = measureOffset + measure.index;
+                                                return (
+                                                    <div key={measure.index} className="card" style={{ padding: '1.5rem' }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                marginBottom: '1rem',
+                                                borderBottom: '1px solid var(--border-color)',
+                                                paddingBottom: '0.5rem'
+                                            }}>
+                                                <span style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Mesure {globalMeasureNumber}</span>
+                                            </div>
 
                                     {/* Left Hand (Chords) - NOW FIRST */}
                                     <div style={{ marginBottom: '1.5rem' }}>
@@ -258,10 +288,15 @@ export function SongViewer({ song }) {
                                         ))}
                                     </div>
                                 </div>
-                            ))}
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

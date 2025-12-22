@@ -6,11 +6,10 @@ import { audioEngine } from '../services/AudioEngine';
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators }) {
+export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
     const [keys] = useState(() => getPianoRollKeys(1, 5)); // C1 to B5
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
-    const [scrollTop, setScrollTop] = useState(0);
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
 
     // Hand separation lines - use phrase data or default
@@ -360,56 +359,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                 boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
                 userSelect: 'none'
             }}>
-            {/* Piano Keys (Y-axis) */}
-            <div style={{
-                width: '90px',
-                overflowY: 'hidden',
-                borderRight: '2px solid var(--border-color)',
-                background: 'linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%)',
-                flexShrink: 0,
-                position: 'relative',
-                boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)'
-            }}>
-                <div style={{ transform: `translateY(-${scrollTop}px)` }}>
-                    {keys.map(pitch => {
-                        const isBlack = pitch.includes('#');
-                        return (
-                            <div key={pitch} style={{
-                                height: `${cellHeight}px`,
-                                background: isBlack
-                                    ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                    : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
-                                color: isBlack ? '#ecf0f1' : '#2c3e50',
-                                borderBottom: `1px solid ${isBlack ? '#1a252f' : '#dee2e6'}`,
-                                fontSize: '0.8125rem',
-                                fontWeight: '600',
-                                display: 'flex',
-                                alignItems: 'center',
-                                paddingLeft: '0.75rem',
-                                boxSizing: 'border-box',
-                                transition: 'all var(--transition-fast)',
-                                cursor: 'pointer',
-                                position: 'relative'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = isBlack
-                                    ? 'linear-gradient(90deg, #34495e 0%, #3d5a73 100%)'
-                                    : 'linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = isBlack
-                                    ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                    : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
-                            }}
-                            >
-                                {getFrenchNoteName(pitch)}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Grid (Content) */}
+            {/* Grid (Content) - Now contains both piano keys and grid */}
             <div
                 ref={scrollRef}
                 style={{
@@ -418,15 +368,104 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                     position: 'relative',
                     background: 'linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%)'
                 }}
-                onScroll={(e) => {
-                    setScrollTop(e.target.scrollTop);
-                }}
             >
                 <div style={{
-                    width: `${phrase.length * 4 * cellWidth}px`, // 4 beats per measure
-                    height: `${keys.length * cellHeight}px`,
-                    position: 'relative'
+                    width: `${90 + phrase.length * 4 * cellWidth}px`, // Piano keys width + grid width
+                    minHeight: '100%',
+                    position: 'relative',
+                    display: 'flex'
                 }}>
+                    {/* Piano Keys (Y-axis) - Sticky on left */}
+                    <div style={{
+                        position: 'sticky',
+                        left: 0,
+                        width: '90px',
+                        zIndex: 100,
+                        background: 'linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%)',
+                        borderRight: '2px solid var(--border-color)',
+                        boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)',
+                        flexShrink: 0,
+                        paddingTop: '32px' // Match measure counter height
+                    }}>
+                        {keys.map(pitch => {
+                            const isBlack = pitch.includes('#');
+                            return (
+                                <div key={pitch} style={{
+                                    height: `${cellHeight}px`,
+                                    background: isBlack
+                                        ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
+                                        : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
+                                    color: isBlack ? '#ecf0f1' : '#2c3e50',
+                                    borderBottom: `1px solid ${isBlack ? '#1a252f' : '#dee2e6'}`,
+                                    fontSize: '0.8125rem',
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    paddingLeft: '0.75rem',
+                                    boxSizing: 'border-box',
+                                    transition: 'all var(--transition-fast)',
+                                    cursor: 'pointer',
+                                    position: 'relative'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = isBlack
+                                        ? 'linear-gradient(90deg, #34495e 0%, #3d5a73 100%)'
+                                        : 'linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = isBlack
+                                        ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
+                                        : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
+                                }}
+                                >
+                                    {getFrenchNoteName(pitch)}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Grid content wrapper */}
+                    <div style={{
+                        flex: 1,
+                        position: 'relative'
+                    }}>
+                        {/* Measure Counter - Sticky at top, scrolls horizontally with content */}
+                        <div style={{
+                        position: 'sticky',
+                        top: 0,
+                        left: 0,
+                        height: '32px',
+                        background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
+                        backdropFilter: 'blur(8px)',
+                        borderBottom: '2px solid var(--accent-primary)',
+                        display: 'flex',
+                        zIndex: 50,
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                        marginBottom: '0px'
+                    }}>
+                        {Array.from({ length: phrase.length }).map((_, measureIndex) => (
+                            <div key={`measure-${measureIndex}`} style={{
+                                width: `${4 * cellWidth}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: '700',
+                                fontSize: '1rem',
+                                color: 'var(--text-primary)',
+                                borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
+                                background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.15)' : 'transparent'
+                            }}>
+                                {measureIndex + 1}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Grid content */}
+                    <div style={{
+                        width: '100%',
+                        height: `${keys.length * cellHeight}px`,
+                        position: 'relative'
+                    }}>
                     {/* Grid Lines - Vertical */}
                     {Array.from({ length: phrase.length * 4 }).map((_, i) => (
                         <div key={`v-${i}`} style={{
@@ -453,6 +492,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                                 height: `${cellHeight}px`,
                                 backgroundColor: isBlack ? 'rgba(0, 0, 0, 0.15)' : 'transparent',
                                 borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                boxSizing: 'border-box',
                                 pointerEvents: 'none'
                             }} />
                         );
@@ -622,6 +662,8 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                                 </React.Fragment>
                             );
                         })}
+                    </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -673,33 +715,58 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
                             🎹 Piano Roll - Mode Plein Écran
                         </h3>
-                        <button
-                            onClick={() => setIsFullscreen(false)}
-                            style={{
-                                background: 'var(--gradient-primary)',
-                                color: 'white',
-                                border: 'none',
-                                padding: '0.75rem 1.5rem',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '0.9375rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'scale(1.05)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'scale(1)';
-                            }}
-                        >
-                            <span style={{ fontSize: '1.2rem' }}>✕</span>
-                            <span>Fermer</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                            {/* Split Button in Fullscreen */}
+                            {onSplit && (
+                                <button
+                                    onClick={onSplit}
+                                    style={{
+                                        backgroundColor: isSplitMode ? 'var(--accent-secondary)' : 'var(--bg-elevated)',
+                                        border: '1px solid var(--accent-secondary)',
+                                        color: isSplitMode ? 'white' : 'var(--text-primary)',
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: '0.9375rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <span>✂️</span>
+                                    <span>Découper</span>
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setIsFullscreen(false)}
+                                style={{
+                                    background: 'var(--gradient-primary)',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: '0.9375rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                            >
+                                <span style={{ fontSize: '1.2rem' }}>✕</span>
+                                <span>Fermer</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Modal Content */}
@@ -711,6 +778,101 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         minHeight: 0,
                         overflow: 'hidden'
                     }}>
+                        {/* Split Controls in Fullscreen */}
+                        {isSplitMode && (
+                            <div style={{
+                                padding: '1.5rem',
+                                marginBottom: '1.5rem',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '2px solid var(--accent-secondary)',
+                                borderRadius: 'var(--radius-lg)',
+                                flexShrink: 0
+                            }}>
+                                <h4 style={{
+                                    margin: '0 0 1rem 0',
+                                    fontSize: '1rem',
+                                    color: 'var(--text-primary)'
+                                }}>
+                                    🎯 Mode Découpage
+                                </h4>
+                                <p style={{
+                                    margin: '0 0 1rem 0',
+                                    fontSize: '0.875rem',
+                                    color: 'var(--text-secondary)'
+                                }}>
+                                    Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase.
+                                </p>
+                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <div style={{ flex: '1', minWidth: '200px' }}>
+                                        <label style={{
+                                            display: 'block',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '0.875rem',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: '600'
+                                        }}>
+                                            Mesure de découpage
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={splitTime}
+                                            onChange={(e) => onSplitTimeChange(e.target.value)}
+                                            placeholder="Ex: 2"
+                                            step="1"
+                                            min="1"
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                fontSize: '1rem',
+                                                background: 'var(--bg-elevated)',
+                                                border: '1px solid var(--border-light)',
+                                                borderRadius: 'var(--radius-md)',
+                                                color: 'var(--text-primary)'
+                                            }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                        <button
+                                            onClick={onConfirmSplit}
+                                            style={{
+                                                background: 'var(--gradient-success)',
+                                                color: 'white',
+                                                border: 'none',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                padding: '0.75rem 1.5rem',
+                                                fontWeight: '600',
+                                                borderRadius: 'var(--radius-md)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.9375rem'
+                                            }}
+                                        >
+                                            <span>✓</span>
+                                            <span>Valider</span>
+                                        </button>
+                                        <button
+                                            onClick={onCancelSplit}
+                                            style={{
+                                                backgroundColor: 'var(--bg-elevated)',
+                                                border: '1px solid var(--border-light)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                padding: '0.75rem 1.5rem',
+                                                borderRadius: 'var(--radius-md)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.9375rem',
+                                                color: 'var(--text-primary)'
+                                            }}
+                                        >
+                                            <span>✗</span>
+                                            <span>Annuler</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {pianoRollContent}
                     </div>
                 </div>
