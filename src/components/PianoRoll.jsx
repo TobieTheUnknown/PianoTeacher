@@ -172,11 +172,28 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
         const newMeasure = Math.max(0, Math.min(phrase.length - 1, dragState.originalMeasure + deltaMeasure));
 
         const currentSeparator = handSeparators[dragState.separatorIndex];
-        if (newPitch !== currentSeparator.pitch || newMeasure !== currentSeparator.fromMeasure) {
+
+        // If moving to a new measure, create a new automation point
+        if (newMeasure !== currentSeparator.fromMeasure) {
+            // Check if a separator already exists at the target measure
+            const existingIndex = handSeparators.findIndex(s => s.fromMeasure === newMeasure);
+
+            if (existingIndex !== -1) {
+                // Update existing separator at that measure
+                const updatedSeparators = handSeparators.map((sep, idx) =>
+                    idx === existingIndex ? { ...sep, pitch: newPitch } : sep
+                );
+                onUpdateHandSeparators(updatedSeparators);
+            } else {
+                // Create new automation point
+                const updatedSeparators = [...handSeparators, { fromMeasure: newMeasure, pitch: newPitch }]
+                    .sort((a, b) => a.fromMeasure - b.fromMeasure);
+                onUpdateHandSeparators(updatedSeparators);
+            }
+        } else if (newPitch !== currentSeparator.pitch) {
+            // Just changing pitch at current measure
             const updatedSeparators = handSeparators.map((sep, idx) =>
-                idx === dragState.separatorIndex
-                    ? { ...sep, pitch: newPitch, fromMeasure: newMeasure }
-                    : sep
+                idx === dragState.separatorIndex ? { ...sep, pitch: newPitch } : sep
             );
             onUpdateHandSeparators(updatedSeparators);
         }
@@ -501,51 +518,83 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         ))
                     ))}
 
-                    {/* Hand Separation Lines */}
-                    {separatorEnabled && handSeparators.map((separator, idx) => {
-                        const nextSeparator = handSeparators.find(s => s.fromMeasure > separator.fromMeasure);
-                        const lineStart = separator.fromMeasure * 4 * cellWidth; // Convert measure to beats to pixels
-                        const lineEnd = nextSeparator
-                            ? nextSeparator.fromMeasure * 4 * cellWidth
-                            : phrase.length * 4 * cellWidth;
+                    {/* Hand Separation Lines (Automation) */}
+                    {separatorEnabled && handSeparators
+                        .sort((a, b) => a.fromMeasure - b.fromMeasure)
+                        .map((separator, idx) => {
+                            const nextSeparator = handSeparators.find(s => s.fromMeasure > separator.fromMeasure);
+                            const lineStart = separator.fromMeasure * 4 * cellWidth;
+                            const lineEnd = nextSeparator
+                                ? nextSeparator.fromMeasure * 4 * cellWidth
+                                : phrase.length * 4 * cellWidth;
 
-                        return (
-                            <div
-                                key={idx}
-                                onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
-                                style={{
-                                    position: 'absolute',
-                                    left: `${lineStart}px`,
-                                    width: `${lineEnd - lineStart}px`,
-                                    top: `${keys.indexOf(separator.pitch) * cellHeight}px`,
-                                    height: '3px',
-                                    background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
-                                    cursor: 'move',
-                                    zIndex: 50,
-                                    boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
-                                    transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'flex-start',
-                                    paddingLeft: '0.5rem'
-                                }}
-                            >
-                                <div style={{
-                                    background: '#f59e0b',
-                                    color: 'white',
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '600',
-                                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-                                    pointerEvents: 'none',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    MG ↕ MD (M{separator.fromMeasure + 1})
-                                </div>
-                            </div>
-                        );
-                    })}
+                            return (
+                                <React.Fragment key={idx}>
+                                    {/* Horizontal line segment */}
+                                    <div
+                                        onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
+                                        style={{
+                                            position: 'absolute',
+                                            left: `${lineStart}px`,
+                                            width: `${lineEnd - lineStart}px`,
+                                            top: `${keys.indexOf(separator.pitch) * cellHeight}px`,
+                                            height: '3px',
+                                            background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
+                                            cursor: 'move',
+                                            zIndex: 50,
+                                            boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
+                                            transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
+                                        }}
+                                    />
+
+                                    {/* Automation point marker */}
+                                    <div
+                                        onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
+                                        onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            // Double-click to delete automation point (but keep at least one)
+                                            if (handSeparators.length > 1) {
+                                                const updatedSeparators = handSeparators.filter((_, i) => i !== idx);
+                                                onUpdateHandSeparators(updatedSeparators);
+                                            }
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            left: `${lineStart - 6}px`,
+                                            top: `${keys.indexOf(separator.pitch) * cellHeight - 6}px`,
+                                            width: '12px',
+                                            height: '12px',
+                                            borderRadius: '50%',
+                                            background: '#f59e0b',
+                                            border: '2px solid white',
+                                            cursor: 'move',
+                                            zIndex: 51,
+                                            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.8)',
+                                            transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
+                                        }}
+                                    />
+
+                                    {/* Label showing measure number */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: `${lineStart + 8}px`,
+                                        top: `${keys.indexOf(separator.pitch) * cellHeight - 20}px`,
+                                        background: '#f59e0b',
+                                        color: 'white',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: '600',
+                                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                                        pointerEvents: 'none',
+                                        whiteSpace: 'nowrap',
+                                        zIndex: 52
+                                    }}>
+                                        M{separator.fromMeasure + 1}
+                                    </div>
+                                </React.Fragment>
+                            );
+                        })}
                 </div>
             </div>
         </div>
