@@ -491,6 +491,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                                 height: `${cellHeight}px`,
                                 backgroundColor: isBlack ? 'rgba(0, 0, 0, 0.15)' : 'transparent',
                                 borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                boxSizing: 'border-box',
                                 pointerEvents: 'none'
                             }} />
                         );
