@@ -16,6 +16,13 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
     const [separatorEnabled, setSeparatorEnabled] = useState(false);
     const [separatorPitch, setSeparatorPitch] = useState('C4'); // Default separation at C4
 
+    // Fullscreen and zoom
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
+
+    const cellWidth = CELL_WIDTH * zoom;
+    const cellHeight = CELL_HEIGHT * zoom;
+
     // Combine notes from both tracks with track information
     const allNotes = [
         ...phrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
@@ -53,12 +60,6 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
         e.stopPropagation();
         e.preventDefault();
 
-        // Alt+Click or Ctrl+Click to delete note
-        if (e.altKey || e.ctrlKey || e.metaKey) {
-            onRemoveNote(phrase.id, note.trackName, note.id);
-            return;
-        }
-
         lastPlayedPitchRef.current = note.pitch;
         setDragState({
             type,
@@ -66,7 +67,8 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
             trackName: note.trackName,
             startX: e.clientX,
             startY: e.clientY,
-            originalNote: { ...note }
+            originalNote: { ...note },
+            hasMoved: false // Track if mouse has moved to distinguish click from drag
         });
     };
 
@@ -76,8 +78,14 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
         const deltaX = e.clientX - dragState.startX;
         const deltaY = e.clientY - dragState.startY;
 
-        const deltaBeats = deltaX / CELL_WIDTH;
-        const deltaPitch = Math.round(deltaY / CELL_HEIGHT); // Positive when moving down
+        // Check if mouse has moved significantly (threshold of 3 pixels)
+        const hasMoved = Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3;
+        if (hasMoved && dragState.hasMoved === false) {
+            setDragState(prev => ({ ...prev, hasMoved: true }));
+        }
+
+        const deltaBeats = deltaX / cellWidth;
+        const deltaPitch = Math.round(deltaY / cellHeight); // Positive when moving down
 
         if (dragState.type === 'resize') {
             // Resize: only change duration
@@ -117,6 +125,12 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
     };
 
     const handleMouseUp = () => {
+        // If mouse didn't move, treat as click to delete note
+        if (dragState && !dragState.hasMoved && dragState.type !== 'separator') {
+            if (dragState.noteId) {
+                onRemoveNote(phrase.id, dragState.trackName, dragState.noteId);
+            }
+        }
         setDragState(null);
     };
 
@@ -132,7 +146,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
     };
 
     const handleSeparatorDrag = (e, deltaY) => {
-        const deltaPitch = Math.round(deltaY / CELL_HEIGHT);
+        const deltaPitch = Math.round(deltaY / cellHeight);
         const originalKeyIndex = keys.indexOf(dragState.originalPitch);
         const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
         const newPitch = keys[newKeyIndex];
@@ -153,40 +167,118 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
         }
     }, [dragState]);
 
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {/* Separator Toggle Button */}
-            <button
-                onClick={() => setSeparatorEnabled(!separatorEnabled)}
-                style={{
-                    alignSelf: 'flex-start',
-                    background: separatorEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                    color: separatorEnabled ? 'white' : 'var(--text-secondary)',
-                    border: separatorEnabled ? 'none' : '1px solid var(--border-light)',
-                    padding: '0.5rem 1rem',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '0.875rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all var(--transition-fast)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
-                }}
-            >
-                <span>{separatorEnabled ? '✓' : '○'}</span>
-                <span>Séparateur MG/MD</span>
-            </button>
+    const pianoRollContent = (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%' }}>
+            {/* Toolbar */}
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Separator Toggle */}
+                <button
+                    onClick={() => setSeparatorEnabled(!separatorEnabled)}
+                    style={{
+                        background: separatorEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                        color: separatorEnabled ? 'white' : 'var(--text-secondary)',
+                        border: separatorEnabled ? 'none' : '1px solid var(--border-light)',
+                        padding: '0.5rem 1rem',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}
+                >
+                    <span>{separatorEnabled ? '✓' : '○'}</span>
+                    <span>Séparateur MG/MD</span>
+                </button>
+
+                {/* Zoom Controls */}
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                        onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}
+                        style={{
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border-light)',
+                            padding: '0.5rem',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        −
+                    </button>
+                    <span style={{ fontSize: '0.875rem', fontWeight: '600', minWidth: '50px', textAlign: 'center' }}>
+                        {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                        onClick={() => setZoom(Math.min(3, zoom + 0.25))}
+                        style={{
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border-light)',
+                            padding: '0.5rem',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        +
+                    </button>
+                    <button
+                        onClick={() => setZoom(1)}
+                        style={{
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border-light)',
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
+                        }}
+                    >
+                        100%
+                    </button>
+                </div>
+
+                {/* Fullscreen Toggle */}
+                <button
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    style={{
+                        background: isFullscreen ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                        color: isFullscreen ? 'white' : 'var(--text-secondary)',
+                        border: isFullscreen ? 'none' : '1px solid var(--border-light)',
+                        padding: '0.5rem 1rem',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        marginLeft: 'auto'
+                    }}
+                >
+                    {isFullscreen ? '⤓ Réduire' : '⤢ Plein écran'}
+                </button>
+            </div>
 
             <div className="piano-roll" style={{
                 display: 'flex',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-lg)',
-                height: '450px',
+                height: isFullscreen ? 'calc(100vh - 8rem)' : '450px',
                 overflow: 'hidden',
                 backgroundColor: 'var(--bg-primary)',
                 boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
-                userSelect: 'none'
+                userSelect: 'none',
+                flex: isFullscreen ? 1 : 'none'
             }}>
             {/* Piano Keys (Y-axis) */}
             <div style={{
@@ -203,7 +295,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                         const isBlack = pitch.includes('#');
                         return (
                             <div key={pitch} style={{
-                                height: `${CELL_HEIGHT}px`,
+                                height: `${cellHeight}px`,
                                 background: isBlack
                                     ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
                                     : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
@@ -251,15 +343,15 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                 }}
             >
                 <div style={{
-                    width: `${phrase.length * 4 * CELL_WIDTH}px`, // 4 beats per measure
-                    height: `${keys.length * CELL_HEIGHT}px`,
+                    width: `${phrase.length * 4 * cellWidth}px`, // 4 beats per measure
+                    height: `${keys.length * cellHeight}px`,
                     position: 'relative'
                 }}>
                     {/* Grid Lines - Vertical */}
                     {Array.from({ length: phrase.length * 4 }).map((_, i) => (
                         <div key={`v-${i}`} style={{
                             position: 'absolute',
-                            left: `${i * CELL_WIDTH}px`,
+                            left: `${i * cellWidth}px`,
                             top: 0,
                             bottom: 0,
                             width: i % 4 === 0 ? '2px' : '1px',
@@ -277,8 +369,8 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                                 position: 'absolute',
                                 left: 0,
                                 right: 0,
-                                top: `${i * CELL_HEIGHT}px`,
-                                height: `${CELL_HEIGHT}px`,
+                                top: `${i * cellHeight}px`,
+                                height: `${cellHeight}px`,
                                 backgroundColor: isBlack ? 'rgba(0, 0, 0, 0.15)' : 'transparent',
                                 borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
                                 pointerEvents: 'none'
@@ -298,10 +390,10 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                                 key={`${note.trackName}-${note.id}`}
                                 style={{
                                     position: 'absolute',
-                                    left: `${note.startTime * CELL_WIDTH}px`,
-                                    top: `${keyIndex * CELL_HEIGHT + 1}px`,
-                                    width: `${note.duration * CELL_WIDTH - 2}px`,
-                                    height: `${CELL_HEIGHT - 2}px`,
+                                    left: `${note.startTime * cellWidth}px`,
+                                    top: `${keyIndex * cellHeight + 1}px`,
+                                    width: `${note.duration * cellWidth - 2}px`,
+                                    height: `${cellHeight - 2}px`,
                                     background: note.trackName === 'melody'
                                         ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
                                         : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
@@ -362,10 +454,10 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                                 }}
                                 style={{
                                     position: 'absolute',
-                                    left: `${xIndex * CELL_WIDTH}px`,
-                                    top: `${yIndex * CELL_HEIGHT}px`,
-                                    width: `${CELL_WIDTH}px`,
-                                    height: `${CELL_HEIGHT}px`,
+                                    left: `${xIndex * cellWidth}px`,
+                                    top: `${yIndex * cellHeight}px`,
+                                    width: `${cellWidth}px`,
+                                    height: `${cellHeight}px`,
                                     zIndex: 5,
                                     cursor: 'crosshair'
                                 }}
@@ -381,7 +473,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
                                 position: 'absolute',
                                 left: 0,
                                 right: 0,
-                                top: `${keys.indexOf(separatorPitch) * CELL_HEIGHT}px`,
+                                top: `${keys.indexOf(separatorPitch) * cellHeight}px`,
                                 height: '3px',
                                 background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
                                 cursor: 'ns-resize',
@@ -412,4 +504,26 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote }) {
         </div>
         </div>
     );
+
+    // Render with fullscreen wrapper if enabled
+    if (isFullscreen) {
+        return (
+            <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 9999,
+                background: 'var(--bg-primary)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column'
+            }}>
+                {pianoRollContent}
+            </div>
+        );
+    }
+
+    return pianoRollContent;
 }
