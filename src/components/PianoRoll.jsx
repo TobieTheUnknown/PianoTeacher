@@ -384,7 +384,8 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                         background: 'linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%)',
                         borderRight: '2px solid var(--border-color)',
                         boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        paddingTop: '32px' // Match measure counter height
                     }}>
                         {keys.map(pitch => {
                             const isBlack = pitch.includes('#');
