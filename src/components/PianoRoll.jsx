@@ -11,7 +11,6 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
     const [scrollTop, setScrollTop] = useState(0);
-    const [scrollLeft, setScrollLeft] = useState(0);
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
 
     // Hand separation lines - use phrase data or default
@@ -421,46 +420,50 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                 }}
                 onScroll={(e) => {
                     setScrollTop(e.target.scrollTop);
-                    setScrollLeft(e.target.scrollLeft);
                 }}
             >
-                {/* Measure Counter - Fixed at top, scrolls horizontally */}
-                <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: `${scrollLeft}px`,
-                    height: '32px',
-                    background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
-                    backdropFilter: 'blur(8px)',
-                    borderBottom: '2px solid var(--accent-primary)',
-                    display: 'flex',
-                    zIndex: 50,
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                    pointerEvents: 'none'
-                }}>
-                    {Array.from({ length: phrase.length }).map((_, measureIndex) => (
-                        <div key={`measure-${measureIndex}`} style={{
-                            width: `${4 * cellWidth}px`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: '700',
-                            fontSize: '1rem',
-                            color: 'var(--text-primary)',
-                            borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
-                            background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.15)' : 'transparent'
-                        }}>
-                            {measureIndex + 1}
-                        </div>
-                    ))}
-                </div>
-
                 <div style={{
                     width: `${phrase.length * 4 * cellWidth}px`, // 4 beats per measure
-                    height: `${keys.length * cellHeight}px`,
-                    position: 'relative',
-                    marginTop: '0px'
+                    minHeight: '100%',
+                    position: 'relative'
                 }}>
+                    {/* Measure Counter - Sticky at top, scrolls horizontally with content */}
+                    <div style={{
+                        position: 'sticky',
+                        top: 0,
+                        left: 0,
+                        height: '32px',
+                        background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
+                        backdropFilter: 'blur(8px)',
+                        borderBottom: '2px solid var(--accent-primary)',
+                        display: 'flex',
+                        zIndex: 50,
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                        marginBottom: '0px'
+                    }}>
+                        {Array.from({ length: phrase.length }).map((_, measureIndex) => (
+                            <div key={`measure-${measureIndex}`} style={{
+                                width: `${4 * cellWidth}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: '700',
+                                fontSize: '1rem',
+                                color: 'var(--text-primary)',
+                                borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
+                                background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.15)' : 'transparent'
+                            }}>
+                                {measureIndex + 1}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Grid content */}
+                    <div style={{
+                        width: '100%',
+                        height: `${keys.length * cellHeight}px`,
+                        position: 'relative'
+                    }}>
                     {/* Grid Lines - Vertical */}
                     {Array.from({ length: phrase.length * 4 }).map((_, i) => (
                         <div key={`v-${i}`} style={{
@@ -656,6 +659,7 @@ export function PianoRoll({ phrase, onAddNote, onRemoveNote, onUpdateNote, onUpd
                                 </React.Fragment>
                             );
                         })}
+                    </div>
                 </div>
             </div>
         </div>
