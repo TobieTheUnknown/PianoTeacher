@@ -1,5 +1,5 @@
 import React from 'react';
-import { getFrenchNoteName, getPianoRollKeys } from '../models/song';
+import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys } from '../models/song';
 
 import { audioEngine } from '../services/AudioEngine';
 
@@ -96,7 +96,7 @@ export function SongViewer({ song }) {
             <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
                 <h2 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>{song.title}</h2>
                 <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', color: 'var(--text-secondary)' }}>
-                    <span>Tonalité: <strong style={{ color: 'var(--text-primary)' }}>{song.key}</strong></span>
+                    <span>Tonalité: <strong style={{ color: 'var(--text-primary)' }}>{getFrenchKeyName(song.key)}</strong></span>
                     <span>Tempo: <strong style={{ color: 'var(--text-primary)' }}>{song.tempo} BPM</strong></span>
                 </div>
             </div>

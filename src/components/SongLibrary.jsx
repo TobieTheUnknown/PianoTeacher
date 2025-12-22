@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageService } from '../services/StorageService';
+import { getFrenchKeyName } from '../models/song';
 
 export function SongLibrary({ onLoadSong, onNewSong }) {
     const [songs, setSongs] = useState([]);
@@ -161,7 +162,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                     👤 {song.artist || 'Artiste inconnu'}
                                 </p>
                                 <p style={{ margin: '0.25rem 0' }}>
-                                    🎹 {song.key} • ⏱️ {song.tempo} BPM
+                                    🎹 {getFrenchKeyName(song.key)} • ⏱️ {song.tempo} BPM
                                 </p>
                                 <p style={{
                                     fontSize: '0.8125rem',

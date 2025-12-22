@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getFrenchNoteName, getPianoRollKeys } from '../models/song';
+import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song, onToggleHighlight }) {
@@ -113,7 +113,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     flexWrap: 'wrap',
                     fontSize: '1rem'
                 }}>
-                    <span>🎼 <strong>{analysis.key}</strong></span>
+                    <span>🎼 <strong>{getFrenchKeyName(analysis.key)}</strong></span>
                     <span>⏱️ <strong>{analysis.tempo} BPM</strong></span>
                     <span>📊 <strong>{analysis.totalMeasures} mesures</strong></span>
                 </div>

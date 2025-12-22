@@ -16,7 +16,7 @@ export const createSong = (title = 'Nouveau Morceau') => ({
     id: generateId(),
     title,
     artist: '',
-    key: 'C',
+    key: { note: 'C', mode: 'major' }, // Key signature with note and mode
     tempo: 120,
     phrases: [],
     highlightedMeasures: [], // Array of measure numbers that are highlighted
@@ -62,6 +62,25 @@ export const NOTE_NAMES = {
     'A#': 'La#',
     'Bb': 'Sib',
     'B': 'Si'
+};
+
+export const KEY_MODE_NAMES = {
+    'major': 'Majeur',
+    'minor': 'mineur'
+};
+
+// Convert key object to French notation
+export const getFrenchKeyName = (key) => {
+    if (typeof key === 'string') {
+        // Legacy format: just note name
+        return NOTE_NAMES[key] || key;
+    }
+    if (key && key.note && key.mode) {
+        const noteName = NOTE_NAMES[key.note] || key.note;
+        const modeName = KEY_MODE_NAMES[key.mode] || key.mode;
+        return `${noteName} ${modeName}`;
+    }
+    return 'Do Majeur'; // Default
 };
 
 export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
