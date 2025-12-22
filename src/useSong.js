@@ -32,7 +32,7 @@ export function useSong() {
     const addPhrase = useCallback(() => {
         setSong(prev => ({
             ...prev,
-            phrases: [...prev.phrases, createPhrase(`Section ${String.fromCharCode(65 + prev.phrases.length)}`)]
+            phrases: [...prev.phrases, createPhrase(`Phrase ${String.fromCharCode(65 + prev.phrases.length)}`)]
         }));
     }, []);
 
@@ -41,6 +41,63 @@ export function useSong() {
             ...prev,
             phrases: prev.phrases.filter(p => p.id !== phraseId)
         }));
+    }, []);
+
+    const splitPhrase = useCallback((phraseId, splitTime) => {
+        setSong(prev => {
+            const phraseIndex = prev.phrases.findIndex(p => p.id === phraseId);
+            if (phraseIndex === -1) return prev;
+
+            const phrase = prev.phrases[phraseIndex];
+
+            // Split notes by track
+            const beforeMelody = phrase.tracks.melody.filter(n => n.startTime < splitTime);
+            const afterMelody = phrase.tracks.melody
+                .filter(n => n.startTime >= splitTime)
+                .map(n => ({ ...n, startTime: n.startTime - splitTime }));
+
+            const beforeChords = phrase.tracks.chords.filter(n => n.startTime < splitTime);
+            const afterChords = phrase.tracks.chords
+                .filter(n => n.startTime >= splitTime)
+                .map(n => ({ ...n, startTime: n.startTime - splitTime }));
+
+            // Calculate new phrase lengths (in beats / 4 to get measures, assuming 4/4 time)
+            const beatsPerMeasure = 4;
+            const beforeLength = Math.ceil(splitTime / beatsPerMeasure);
+
+            // Find the last note in the second phrase to determine its length
+            const allAfterNotes = [...afterMelody, ...afterChords];
+            const maxEndTime = allAfterNotes.length > 0
+                ? Math.max(...allAfterNotes.map(n => n.startTime + n.duration))
+                : beatsPerMeasure;
+            const afterLength = Math.ceil(maxEndTime / beatsPerMeasure);
+
+            // Create updated first phrase
+            const updatedPhrase = {
+                ...phrase,
+                length: beforeLength,
+                tracks: {
+                    melody: beforeMelody,
+                    chords: beforeChords
+                }
+            };
+
+            // Create new second phrase
+            const newPhraseName = `Phrase ${String.fromCharCode(65 + prev.phrases.length)}`;
+            const newPhrase = createPhrase(newPhraseName, afterLength);
+            newPhrase.tracks.melody = afterMelody;
+            newPhrase.tracks.chords = afterChords;
+
+            // Insert new phrase right after the current one
+            const newPhrases = [...prev.phrases];
+            newPhrases[phraseIndex] = updatedPhrase;
+            newPhrases.splice(phraseIndex + 1, 0, newPhrase);
+
+            return {
+                ...prev,
+                phrases: newPhrases
+            };
+        });
     }, []);
 
     const addNoteToPhrase = useCallback((phraseId, trackName, pitch, startTime, duration) => {
@@ -129,6 +186,7 @@ export function useSong() {
         saveSong,
         addPhrase,
         removePhrase,
+        splitPhrase,
         addNoteToPhrase,
         removeNoteFromPhrase,
         updateNoteInPhrase,

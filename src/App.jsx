@@ -16,6 +16,7 @@ function App() {
     saveSong,
     addPhrase,
     removePhrase,
+    splitPhrase,
     addNoteToPhrase,
     removeNoteFromPhrase,
     updateNoteInPhrase,
@@ -94,6 +95,7 @@ function App() {
             onImportSong={importSong}
             onSaveSong={saveSong}
             onAddPhrase={addPhrase}
+            onSplitPhrase={splitPhrase}
             addNoteToPhrase={addNoteToPhrase}
             removeNoteFromPhrase={removeNoteFromPhrase}
             onUpdateNote={updateNoteInPhrase}
