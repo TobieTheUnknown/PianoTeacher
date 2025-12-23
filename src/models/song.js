@@ -87,7 +87,7 @@ export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#'
 export const OCTAVES = [2, 3, 4, 5];
 
 // Get the correct enharmonic spelling for a note based on key signature
-const getEnharmonicNote = (note, keySignature) => {
+export const getEnharmonicNote = (note, keySignature) => {
     if (!keySignature || typeof keySignature === 'string') {
         return note; // Legacy format, return as-is
     }

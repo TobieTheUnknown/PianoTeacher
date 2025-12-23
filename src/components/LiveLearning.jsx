@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys } from '../models/song';
+import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys, NOTE_NAMES, getEnharmonicNote } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song, onToggleHighlight }) {
@@ -143,18 +143,22 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         flexWrap: 'wrap',
                         gap: '0.5rem'
                     }}>
-                        {analysis.uniqueNotes.map(note => (
-                            <span key={note} style={{
-                                padding: '0.4rem 0.8rem',
-                                background: 'var(--bg-tertiary)',
-                                borderRadius: '6px',
-                                fontSize: '0.9rem',
-                                fontWeight: 'bold',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                {note}
-                            </span>
-                        ))}
+                        {analysis.uniqueNotes.map(note => {
+                            const correctNote = getEnharmonicNote(note, analysis.key);
+                            const frenchNote = NOTE_NAMES[correctNote] || correctNote;
+                            return (
+                                <span key={note} style={{
+                                    padding: '0.4rem 0.8rem',
+                                    background: 'var(--bg-tertiary)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.9rem',
+                                    fontWeight: 'bold',
+                                    border: '1px solid var(--border-color)'
+                                }}>
+                                    {frenchNote}
+                                </span>
+                            );
+                        })}
                     </div>
                 </div>
 
