@@ -4,6 +4,7 @@ import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song, onToggleHighlight }) {
     const [showDetails, setShowDetails] = useState(false);
+    const [showOctaves, setShowOctaves] = useState(false);
 
     // Analyze and structure the song data
     const analysis = useMemo(() => {
@@ -70,6 +71,14 @@ export function LiveLearning({ song, onToggleHighlight }) {
         if (notesToPlay.length > 0) {
             audioEngine.playNotes(notesToPlay, song.tempo);
         }
+    };
+
+    // Helper to display note name with optional octave
+    const displayNoteName = (pitch, keySignature) => {
+        const fullName = getFrenchNoteName(pitch, keySignature);
+        if (showOctaves) return fullName;
+        // Remove the octave number (last character)
+        return fullName.slice(0, -1);
     };
 
     if (!analysis) {
@@ -208,22 +217,52 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         🎵 Progression complète du morceau
                     </h3>
 
-                    {/* Toggle Details Button */}
-                    <button
-                        onClick={() => setShowDetails(!showDetails)}
-                        style={{
-                            background: showDetails ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                            color: showDetails ? 'white' : 'var(--text-primary)',
-                            border: showDetails ? 'none' : '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            boxShadow: showDetails ? 'var(--shadow-glow)' : 'var(--shadow-sm)'
-                        }}
-                    >
-                        <span>{showDetails ? '👁️' : '👁️‍🗨️'}</span>
-                        <span>{showDetails ? 'Masquer les détails' : 'Afficher les détails'}</span>
-                    </button>
+                    {/* Toggle Buttons */}
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            onClick={() => setShowOctaves(!showOctaves)}
+                            style={{
+                                background: showOctaves ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                                color: showOctaves ? 'white' : 'var(--text-primary)',
+                                border: showOctaves ? 'none' : '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                boxShadow: showOctaves ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
+                                padding: '0.75rem 1.5rem',
+                                borderRadius: 'var(--radius-md)',
+                                cursor: 'pointer',
+                                fontSize: '0.9375rem',
+                                fontWeight: '600',
+                                transition: 'all var(--transition-fast)'
+                            }}
+                            title={showOctaves ? 'Masquer les octaves' : 'Afficher les octaves'}
+                        >
+                            <span>🎹</span>
+                            <span>{showOctaves ? 'Octaves' : 'Octaves'}</span>
+                        </button>
+                        <button
+                            onClick={() => setShowDetails(!showDetails)}
+                            style={{
+                                background: showDetails ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                                color: showDetails ? 'white' : 'var(--text-primary)',
+                                border: showDetails ? 'none' : '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                boxShadow: showDetails ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
+                                padding: '0.75rem 1.5rem',
+                                borderRadius: 'var(--radius-md)',
+                                cursor: 'pointer',
+                                fontSize: '0.9375rem',
+                                fontWeight: '600',
+                                transition: 'all var(--transition-fast)'
+                            }}
+                        >
+                            <span>{showDetails ? '👁️' : '👁️‍🗨️'}</span>
+                            <span>{showDetails ? 'Masquer les détails' : 'Afficher les détails'}</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Measures grouped by 4 */}
@@ -284,6 +323,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     onToggleHighlight={onToggleHighlight}
                                                     onPlay={handlePlayMeasure}
                                                     showDetails={showDetails}
+                                                    displayNoteName={displayNoteName}
                                                 />
                                             </React.Fragment>
                                         );
@@ -339,7 +379,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
 }
 
 // Helper component for measure cards
-function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
+function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails, displayNoteName }) {
     return (
         <div
             onClick={() => onPlay(measure, 'both')}
@@ -491,7 +531,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 {measure.hasChord ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         {measure.chordGroups.map((chordGroup, idx) => {
-                            const chordName = getFrenchNoteName(chordGroup.notes[0].pitch, keySignature).split(/\d/)[0];
+                            const chordName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
 
                             return (
                                 <div key={idx}>
@@ -520,7 +560,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                                     borderRadius: '3px',
                                                     border: '1px solid var(--border-color)'
                                                 }}>
-                                                    {getFrenchNoteName(n.pitch, keySignature)}
+                                                    {displayNoteName(n.pitch, keySignature)}
                                                 </span>
                                             ))}
                                         </div>
@@ -550,80 +590,58 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                     Mélodie ({measure.melodyCount} notes)
                 </div>
 
-                {measure.melody.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        {(() => {
-                            const sortedMelody = measure.melody.sort((a, b) => a.startTime - b.startTime);
-                            const firstNote = sortedMelody[0];
-                            const measureStart = Math.floor(firstNote.startTime / 4) * 4;
-                            const halfMeasure = measureStart + 2;
+                <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.25rem',
+                    alignItems: 'center'
+                }}>
+                    {measure.melody.length > 0 ? (
+                        <>
+                            {/* First note with emphasis */}
+                            {measure.melody.sort((a, b) => a.startTime - b.startTime).slice(0, 1).map((n, i) => (
+                                <span key={i} style={{
+                                    fontSize: '0.75rem',
+                                    background: 'var(--bg-primary)',
+                                    padding: '0.2rem 0.4rem',
+                                    borderRadius: '4px',
+                                    border: '2px solid var(--accent-primary)',
+                                    color: 'var(--text-primary)',
+                                    fontWeight: 'bold'
+                                }}>
+                                    {displayNoteName(n.pitch, keySignature)}
+                                </span>
+                            ))}
 
-                            // Split notes into two groups based on timing
-                            const firstHalf = sortedMelody.filter(n => n.startTime < halfMeasure);
-                            const secondHalf = sortedMelody.filter(n => n.startTime >= halfMeasure);
-
-                            const renderNotes = (notes, showAll) => {
-                                if (notes.length === 0) return null;
-
-                                return (
-                                    <div style={{
-                                        display: 'flex',
-                                        flexWrap: 'wrap',
-                                        gap: '0.25rem',
-                                        alignItems: 'center'
+                            {showDetails ? (
+                                // Show all remaining notes when details are enabled
+                                measure.melody.sort((a, b) => a.startTime - b.startTime).slice(1).map((n, i) => (
+                                    <span key={i + 1} style={{
+                                        fontSize: '0.7rem',
+                                        background: 'var(--bg-primary)',
+                                        padding: '0.1rem 0.3rem',
+                                        borderRadius: '3px',
+                                        border: '1px solid var(--accent-primary)',
+                                        color: 'var(--text-primary)'
                                     }}>
-                                        {/* First note with emphasis */}
-                                        <span style={{
-                                            fontSize: '0.75rem',
-                                            background: 'var(--bg-primary)',
-                                            padding: '0.2rem 0.4rem',
-                                            borderRadius: '4px',
-                                            border: '2px solid var(--accent-primary)',
-                                            color: 'var(--text-primary)',
-                                            fontWeight: 'bold'
-                                        }}>
-                                            {getFrenchNoteName(notes[0].pitch, keySignature)}
-                                        </span>
-
-                                        {showAll ? (
-                                            // Show all remaining notes
-                                            notes.slice(1).map((n, i) => (
-                                                <span key={i + 1} style={{
-                                                    fontSize: '0.7rem',
-                                                    background: 'var(--bg-primary)',
-                                                    padding: '0.1rem 0.3rem',
-                                                    borderRadius: '3px',
-                                                    border: '1px solid var(--accent-primary)',
-                                                    color: 'var(--text-primary)'
-                                                }}>
-                                                    {getFrenchNoteName(n.pitch, keySignature)}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            // Show count
-                                            notes.length > 1 && (
-                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                                    +{notes.length - 1}
-                                                </span>
-                                            )
-                                        )}
-                                    </div>
-                                );
-                            };
-
-                            return (
-                                <>
-                                    {renderNotes(firstHalf, showDetails)}
-                                    {secondHalf.length > 0 && renderNotes(secondHalf, showDetails)}
-                                </>
-                            );
-                        })()}
-                    </div>
-                ) : (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
-                        Aucune
-                    </span>
-                )}
+                                        {displayNoteName(n.pitch, keySignature)}
+                                    </span>
+                                ))
+                            ) : (
+                                // Show count when details are hidden
+                                measure.melody.length > 1 && (
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                        +{measure.melody.length - 1}
+                                    </span>
+                                )
+                            )}
+                        </>
+                    ) : (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                            Aucune
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Visual Timeline Bar */}
@@ -645,7 +663,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                         borderRadius: '50%',
                         backgroundColor: 'var(--accent-primary)',
                         border: '2px solid var(--bg-tertiary)'
-                    }} title={`Main droite: ${getFrenchNoteName(n.pitch, keySignature)}`} />
+                    }} title={`Main droite: ${displayNoteName(n.pitch, keySignature)}`} />
                 ))}
                 {/* Chord Dots (Left Hand - Bottom) */}
                 {measure.chords.map(n => (
@@ -658,7 +676,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                         borderRadius: '50%',
                         backgroundColor: 'var(--accent-secondary)',
                         border: '2px solid var(--bg-tertiary)'
-                    }} title={`Main gauche: ${getFrenchNoteName(n.pitch, keySignature)}`} />
+                    }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
                 ))}
             </div>
         </div>
