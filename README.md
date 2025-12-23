@@ -4,48 +4,55 @@
 
 Piano Teacher est une application web interactive d'apprentissage du piano qui transforme vos fichiers MIDI en outils pédagogiques visuels et interactifs.
 
-![Piano Teacher Banner](docs/screenshots/banner.png)
+![Piano Teacher Dashboard](docs/screenshots/library.png)
 
 ## ✨ Fonctionnalités
 
-### 📚 Bibliothèque de Morceaux
-- Sauvegarde automatique de vos morceaux dans le navigateur
-- Gestion complète : créer, charger, et supprimer des morceaux
-- Métadonnées : titre, artiste, tonalité, tempo
-- Persistance locale avec LocalStorage
+### 📚 Bibliothèque de Morceaux (Dashboard)
+- Interface moderne avec **Glassmorphism** et effets de surbrillance
+- Gestion complète : créer, importer, et supprimer des morceaux
+- Affichage des métadonnées (tonalité, tempo, nombre de mesures)
+- Persistance locale sécurisée
 
-### ✏️ Éditeur
-- **Import MIDI** : Importez vos fichiers MIDI et convertissez-les automatiquement en partition visuelle
-- **Gestion des phrases** : Organisez votre morceau en sections (couplet, refrain, pont, etc.)
-- **Édition des métadonnées** : Modifiez le titre, l'artiste, la tonalité et le tempo
-- **Séparation main gauche/main droite** : Visualisation distincte de la mélodie et des accords
+### ✏️ Éditeur (Piano Roll)
+- **Import MIDI intelligent** : Conversion automatique des fichiers `.mid` en séquences de notes
+- **Séparation MG/MD** : Algorithme de séparation automatique basé sur le pitch pour isoler la main gauche et la main droite
+- **Édition de phrases** : Découpage du morceau en sections d'apprentissage (Intro, Refrain, etc.)
+- **Interaction temps réel** : Visualisation claire sur une grille de piano roll professionnelle
 
-![Éditeur](docs/screenshots/editor.png)
+![Éditeur](docs/screenshots/editor_new.png)
 
-### 🎵 Apprentissage (Vue Détaillée)
-- **Affichage mesure par mesure** : Visualisez chaque mesure avec toutes ses notes
-- **Notation française** : Do, Ré, Mi au lieu de C, D, E
-- **Lecture audio** : Écoutez chaque mesure individuellement
-- **Code couleur** : Différenciation visuelle entre mélodie (main droite) et accords (main gauche)
-- **Navigation intuitive** : Parcourez facilement votre morceau
+### 📖 Apprentissage (Vue d'Ensemble)
+- **Progression visuelle** : Vue mosaïque de toutes les mesures du morceau
+- **Analyse harmonique** : Détection des accords et de la complexité mélodique par mesure
+- **Filtrage par main** : Choisissez de travailler la Main Gauche, la Main Droite ou les deux
+- **Surlignage intelligent** : Marquez les mesures à retravailler, sauvegardé automatiquement
+- **Affichage et lecture par mesure** : Cliquez sur n'importe quelle mesure pour l'écouter individuellement et l'étudier en détail
 
-![Apprentissage](docs/screenshots/learning.png)
+![Apprentissage Vue d'Ensemble](docs/screenshots/learning_new.png)
 
-### ⚡ Live Learning (Vue d'Ensemble)
-- **Grille complète** : Visualisez toutes les mesures du morceau en un coup d'œil
-- **Indicateurs de complexité** : Compteurs d'accords et de notes de mélodie par mesure
-- **Surlignage personnalisé** : Marquez les mesures difficiles pour y revenir plus tard
-- **Affichage détaillé optionnel** : Dévoilez les notes et accords avec un bouton toggle
-- **Organisation musicale** : Mesures groupées 4 par 4 pour une meilleure lisibilité
-- **Persistance des highlights** : Vos mesures surlignées sont sauvegardées automatiquement
+### 🎹 Mode Synthesia
+- **Immersion totale** : Visualisation des notes tombantes vers un clavier virtuel
+- **Code couleur dynamique** : Bleu pour la main droite, Rose pour la main gauche
+- **Contrôle du tempo** : Ralentissez la lecture pour apprendre à votre rythme
+- **Suivi de précision** : Statistiques en temps réel sur les notes jouées et manquées
 
-![Live Learning](docs/screenshots/live-learning.png)
+![Mode Synthesia](docs/screenshots/synthesia.png)
 
 ## 🚀 Installation
 
 ### Prérequis
-- Node.js (version 16 ou supérieure)
-- npm ou yarn
+
+#### 1. Installer Node.js & NPM
+Node.js est le moteur qui permet de faire tourner l'application. NPM (installé avec Node.js) gère les bibliothèques nécessaires.
+- **Téléchargement** : Allez sur [nodejs.org](https://nodejs.org/) et téléchargez la version **LTS** (recommandée).
+- **Vérification** : Ouvrez un terminal et tapez `node -v` pour confirmer l'installation.
+
+#### 2. Installer Git
+Git est nécessaire pour télécharger ("cloner") le code du projet.
+- **Windows** : Téléchargez et installez [git-scm.com](https://git-scm.com/).
+- **macOS** : Tapez `git --version` dans votre terminal. Si non présent, le Launchpad vous proposera de l'installer.
+- **Linux** : Utilisez votre gestionnaire de paquets (ex: `sudo apt install git`).
 
 ### Installation locale
 
@@ -185,12 +192,12 @@ Correction de l'affichage pour montrer TOUS les accords d'une mesure, pas seulem
 - [ ] Export en PDF de partitions
 - [ ] Métronome intégré avec accent sur le temps fort
 - [ ] Mode entraînement avec répétition de boucles
-- [ ] Ralentissement/accélération du tempo
+- [x] Ralentissement/accélération du tempo
 - [ ] Enregistrement et playback des performances
 - [ ] Partage de morceaux via URL
-- [ ] Support clavier MIDI physique
+- [ ] Support clavier MIDI physique (Connectivité directe)
 - [ ] Annotations et doigtés
-- [ ] Statistiques de pratique
+- [x] Statistiques de pratique (Précision Synthesia)
 
 ## 🤝 Contribution
 
