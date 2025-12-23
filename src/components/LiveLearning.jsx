@@ -89,11 +89,44 @@ export function LiveLearning({ song, onToggleHighlight }) {
         );
     }
 
-    // Group measures by 4
-    const measureGroups = [];
-    for (let i = 0; i < analysis.measures.length; i += 4) {
-        measureGroups.push(analysis.measures.slice(i, i + 4));
-    }
+    // Group measures by phrase, then by 4 within each phrase
+    const phrasesWithGroups = useMemo(() => {
+        const result = [];
+        let currentPhraseIndex = 0;
+
+        song.phrases.forEach((phrase, phraseIdx) => {
+            const phraseMeasures = getMeasuresFromPhrase(phrase);
+
+            // Build measure objects for this phrase
+            const measures = phraseMeasures.map((measure, idx) => {
+                const chordGroups = groupNotesByTime(measure.chords);
+                return {
+                    number: currentPhraseIndex + idx + 1,
+                    chordGroups,
+                    melodyCount: measure.melody.length,
+                    hasChord: chordGroups.length > 0,
+                    melody: measure.melody,
+                    chords: measure.chords
+                };
+            });
+
+            // Group measures by 4
+            const groups = [];
+            for (let i = 0; i < measures.length; i += 4) {
+                groups.push(measures.slice(i, i + 4));
+            }
+
+            result.push({
+                phraseName: phrase.name,
+                phraseIndex: phraseIdx,
+                groups
+            });
+
+            currentPhraseIndex += phraseMeasures.length;
+        });
+
+        return result;
+    }, [song]);
 
     const highlightedMeasures = song.highlightedMeasures || [];
 
@@ -194,6 +227,41 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         <div>🎹 <strong>Boutons MG/MD</strong> pour jouer chaque main séparément</div>
                         <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner une mesure</div>
                         <div>👁️ <strong>Activez les détails</strong> pour voir toutes les notes</div>
+                        <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                            <strong>Timeline :</strong>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem', marginLeft: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{
+                                        width: '10px',
+                                        height: '10px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'var(--accent-primary)',
+                                        border: '2px solid var(--bg-elevated)'
+                                    }}></div>
+                                    <span>Main droite (MD)</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{
+                                        width: '10px',
+                                        height: '10px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'var(--accent-secondary)',
+                                        border: '2px solid var(--bg-elevated)'
+                                    }}></div>
+                                    <span>Main gauche (MG)</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{
+                                        width: '10px',
+                                        height: '10px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'rgb(16, 185, 129)',
+                                        border: '2px solid var(--bg-elevated)'
+                                    }}></div>
+                                    <span>2 mains ensemble</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -265,58 +333,49 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     </div>
                 </div>
 
-                {/* Measures grouped by 4 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {measureGroups.map((group, groupIdx) => {
-                        // Check if there's a phrase break in this group
-                        const phraseBreaksInGroup = analysis.phraseBreaks.filter(
-                            pb => pb.measureIndex >= group[0].number - 1 && pb.measureIndex <= group[group.length - 1].number
-                        );
-
-                        return (
-                            <div key={groupIdx}>
-                                {/* Group label */}
+                {/* Measures grouped by phrase, then by 4 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+                    {phrasesWithGroups.map((phrase) => (
+                        <div key={phrase.phraseIndex}>
+                            {/* Phrase Header */}
+                            {phrase.phraseIndex > 0 && (
                                 <div style={{
-                                    marginBottom: '0.75rem',
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    fontWeight: 'bold'
+                                    padding: '0.75rem 1.5rem',
+                                    background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
+                                    borderLeft: '4px solid var(--accent-primary)',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: '1.5rem'
                                 }}>
-                                    Mesures {group[0].number} - {group[group.length - 1].number}
+                                    🎵 {phrase.phraseName}
                                 </div>
+                            )}
 
-                                {/* 4 measures per row */}
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(4, 1fr)',
-                                    gap: '1rem'
-                                }}>
-                                    {group.map((measure, idx) => {
-                                        // Check if there's a phrase break right before this measure
-                                        const phraseBreakHere = phraseBreaksInGroup.find(
-                                            pb => pb.measureIndex === measure.number - 1
-                                        );
+                            {/* Groups of 4 measures */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                {phrase.groups.map((group, groupIdx) => (
+                                    <div key={groupIdx}>
+                                        {/* Group label with measure range */}
+                                        <div style={{
+                                            marginBottom: '0.75rem',
+                                            fontSize: '0.9rem',
+                                            color: 'var(--text-secondary)',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            Mesures {group[0].number} - {group[group.length - 1].number}
+                                        </div>
 
-                                        return (
-                                            <React.Fragment key={measure.number}>
-                                                {/* Insert phrase separator before this measure if needed */}
-                                                {phraseBreakHere && (
-                                                    <div style={{
-                                                        gridColumn: '1 / -1',
-                                                        marginTop: idx === 0 ? '0' : '1rem',
-                                                        marginBottom: '1rem',
-                                                        padding: '0.75rem 1.5rem',
-                                                        background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-                                                        borderLeft: '4px solid var(--accent-primary)',
-                                                        borderRadius: 'var(--radius-md)',
-                                                        fontWeight: 'bold',
-                                                        fontSize: '1.1rem',
-                                                        color: 'var(--text-primary)'
-                                                    }}>
-                                                        🎵 {phraseBreakHere.phraseName}
-                                                    </div>
-                                                )}
+                                        {/* 4 measures per row */}
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(4, 1fr)',
+                                            gap: '1rem'
+                                        }}>
+                                            {group.map((measure) => (
                                                 <MeasureCard
+                                                    key={measure.number}
                                                     measure={measure}
                                                     keySignature={song.key}
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
@@ -325,13 +384,13 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     showDetails={showDetails}
                                                     displayNoteName={displayNoteName}
                                                 />
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        );
-                    })}
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -652,32 +711,77 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 position: 'relative',
                 borderRadius: '2px'
             }}>
-                {/* Melody Dots (Right Hand - Top) */}
-                {measure.melody.map(n => (
-                    <div key={`melody-${n.id}`} style={{
-                        position: 'absolute',
-                        left: `${((n.startTime % 4) / 4) * 100}%`,
-                        top: '-3px',
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent-primary)',
-                        border: '2px solid var(--bg-tertiary)'
-                    }} title={`Main droite: ${displayNoteName(n.pitch, keySignature)}`} />
-                ))}
-                {/* Chord Dots (Left Hand - Bottom) */}
-                {measure.chords.map(n => (
-                    <div key={`chord-${n.id}`} style={{
-                        position: 'absolute',
-                        left: `${((n.startTime % 4) / 4) * 100}%`,
-                        bottom: '-3px',
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent-secondary)',
-                        border: '2px solid var(--bg-tertiary)'
-                    }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
-                ))}
+                {(() => {
+                    // Helper function to check if two notes are simultaneous (within 0.15 beats)
+                    const areSimultaneous = (time1, time2) => Math.abs(time1 - time2) < 0.15;
+
+                    // Find simultaneous notes (both hands playing together)
+                    const simultaneousTimes = new Set();
+                    measure.melody.forEach(melodyNote => {
+                        measure.chords.forEach(chordNote => {
+                            if (areSimultaneous(melodyNote.startTime, chordNote.startTime)) {
+                                simultaneousTimes.add(melodyNote.startTime);
+                            }
+                        });
+                    });
+
+                    // Filter out melody notes that are simultaneous
+                    const soloMelodyNotes = measure.melody.filter(n =>
+                        !Array.from(simultaneousTimes).some(t => areSimultaneous(n.startTime, t))
+                    );
+
+                    // Filter out chord notes that are simultaneous
+                    const soloChordNotes = measure.chords.filter(n =>
+                        !Array.from(simultaneousTimes).some(t => areSimultaneous(n.startTime, t))
+                    );
+
+                    return (
+                        <>
+                            {/* Solo Melody Dots (Right Hand - Top) */}
+                            {soloMelodyNotes.map(n => (
+                                <div key={`melody-${n.id}`} style={{
+                                    position: 'absolute',
+                                    left: `${((n.startTime % 4) / 4) * 100}%`,
+                                    top: '-3px',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'var(--accent-primary)',
+                                    border: '2px solid var(--bg-tertiary)'
+                                }} title={`Main droite: ${displayNoteName(n.pitch, keySignature)}`} />
+                            ))}
+
+                            {/* Solo Chord Dots (Left Hand - Bottom) */}
+                            {soloChordNotes.map(n => (
+                                <div key={`chord-${n.id}`} style={{
+                                    position: 'absolute',
+                                    left: `${((n.startTime % 4) / 4) * 100}%`,
+                                    bottom: '-3px',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'var(--accent-secondary)',
+                                    border: '2px solid var(--bg-tertiary)'
+                                }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
+                            ))}
+
+                            {/* Both Hands Together (Center - Green) */}
+                            {Array.from(simultaneousTimes).map((time, idx) => (
+                                <div key={`both-${idx}`} style={{
+                                    position: 'absolute',
+                                    left: `${((time % 4) / 4) * 100}%`,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'rgb(16, 185, 129)',
+                                    border: '2px solid var(--bg-tertiary)'
+                                }} title="2 mains ensemble" />
+                            ))}
+                        </>
+                    );
+                })()}
             </div>
         </div>
     );
