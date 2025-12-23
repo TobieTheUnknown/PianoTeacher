@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
+import { SynthesiaView } from './components/SynthesiaView';
 import { useSong } from './useSong';
 
 function App() {
@@ -24,7 +25,7 @@ function App() {
     renamePhrasesInOrder
   } = useSong();
 
-  const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn'
+  const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn', 'synthesia'
 
   const handleLoadSong = (id) => {
     loadSong(id);
@@ -75,6 +76,12 @@ function App() {
             icon="📖"
             label="Apprentissage"
           />
+          <NavButton
+            active={mode === 'synthesia'}
+            onClick={() => setMode('synthesia')}
+            icon="🎹"
+            label="Synthesia"
+          />
         </div>
       </nav>
 
@@ -99,6 +106,9 @@ function App() {
         )}
         {mode === 'learn' && (
           <LiveLearning song={song} onToggleHighlight={toggleHighlightedMeasure} />
+        )}
+        {mode === 'synthesia' && (
+          <SynthesiaView song={song} />
         )}
       </main>
     </Layout>
