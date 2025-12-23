@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
 import { parseMidiFile } from '../services/MidiService';
@@ -14,6 +14,11 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [exportStringText, setExportStringText] = useState('');
     const [importStringText, setImportStringText] = useState('');
     const [importJsonFile, setImportJsonFile] = useState(null);
+    const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'unsaved'
+
+    // Refs for auto-save
+    const isInitialMount = useRef(true);
+    const saveTimeoutRef = useRef(null);
 
     // Pre-initialize MIDI sounds when the editor loads
     useEffect(() => {
@@ -21,6 +26,40 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             console.error('Failed to initialize audio engine:', error);
         });
     }, []);
+
+    // Auto-save with debouncing
+    useEffect(() => {
+        // Skip initial mount to avoid saving on first load
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+
+        // Clear previous timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        // Set status to unsaved
+        setSaveStatus('unsaved');
+
+        // Set timeout for auto-save (1.5 seconds after last change)
+        saveTimeoutRef.current = setTimeout(() => {
+            setSaveStatus('saving');
+            onSaveSong();
+            // Wait a bit before showing "saved" to give visual feedback
+            setTimeout(() => {
+                setSaveStatus('saved');
+            }, 500);
+        }, 1500);
+
+        // Cleanup timeout on unmount
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
+    }, [song, onSaveSong]);
 
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
@@ -176,27 +215,39 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         </p>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <button
-                            onClick={onSaveSong}
-                            style={{
-                                background: 'var(--gradient-success)',
-                                color: 'white',
-                                border: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                boxShadow: '0 0 20px rgba(16, 185, 129, 0.3)',
-                                padding: '0.75rem 1.5rem',
-                                borderRadius: 'var(--radius-lg)',
-                                cursor: 'pointer',
-                                fontWeight: '600',
-                                fontSize: '0.9375rem'
-                            }}
-                        >
-                            <span>💾</span>
-                            <span>Sauvegarder</span>
-                        </button>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        {/* Save Status Indicator */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem 1rem',
+                            borderRadius: 'var(--radius-lg)',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            backgroundColor: saveStatus === 'saved' ? 'rgba(16, 185, 129, 0.1)' :
+                                           saveStatus === 'saving' ? 'rgba(59, 130, 246, 0.1)' :
+                                           'rgba(251, 191, 36, 0.1)',
+                            color: saveStatus === 'saved' ? 'rgb(16, 185, 129)' :
+                                   saveStatus === 'saving' ? 'rgb(59, 130, 246)' :
+                                   'rgb(251, 191, 36)',
+                            border: `1px solid ${saveStatus === 'saved' ? 'rgba(16, 185, 129, 0.3)' :
+                                                 saveStatus === 'saving' ? 'rgba(59, 130, 246, 0.3)' :
+                                                 'rgba(251, 191, 36, 0.3)'}`,
+                            transition: 'all 0.3s ease'
+                        }}>
+                            <span>{
+                                saveStatus === 'saved' ? '✓' :
+                                saveStatus === 'saving' ? '⏳' :
+                                '✎'
+                            }</span>
+                            <span>{
+                                saveStatus === 'saved' ? 'Sauvegardé' :
+                                saveStatus === 'saving' ? 'Sauvegarde...' :
+                                'Modifications non sauvegardées'
+                            }</span>
+                        </div>
+
                         <button
                             onClick={handleOpenImportExport}
                             style={{
