@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ScoreService } from '../services/ScoreService';
 
 /**
@@ -17,6 +17,7 @@ export function SynthesiaView({ song }) {
     const animationFrameRef = useRef(null);
     const startTimeRef = useRef(null);
     const pausedAtTimeRef = useRef(null);
+    const processedNotesRef = useRef(new Set()); // Track notes already marked as missed
 
     // State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -201,7 +202,8 @@ export function SynthesiaView({ song }) {
         return notes.sort((a, b) => a.startTime - b.startTime);
     }, [song]);
 
-    const allNotes = getAllNotes();
+    // Memoize allNotes to prevent recalculation on every render
+    const allNotes = useMemo(() => getAllNotes(), [getAllNotes]);
     const beatsPerSecond = (song?.tempo || 120) / 60;
 
     // Calculate total notes for stats
@@ -233,7 +235,12 @@ export function SynthesiaView({ song }) {
             }
 
             // Note was missed (passed the window without being played)
-            if (currentTime > noteTime + NOTE_TOLERANCE && !playedNotes.has(note.id)) {
+            // Only process each note once using processedNotesRef
+            if (currentTime > noteTime + NOTE_TOLERANCE &&
+                !playedNotes.has(note.id) &&
+                !processedNotesRef.current.has(note.id)) {
+
+                processedNotesRef.current.add(note.id);
                 setPlayedNotes(prev => new Map(prev).set(note.id, 'missed'));
                 setSessionStats(prev => ({
                     ...prev,
@@ -243,7 +250,7 @@ export function SynthesiaView({ song }) {
         });
 
         setExpectedNotes(currentExpectedNotes);
-    }, [currentTime, allNotes, beatsPerSecond, playedNotes]);
+    }, [currentTime, allNotes, beatsPerSecond]); // Removed playedNotes dependency
 
     // MIDI message handler with note detection
     const handleMIDIMessage = (message) => {
@@ -266,6 +273,7 @@ export function SynthesiaView({ song }) {
 
                 if (noteObj) {
                     // Correct note!
+                    processedNotesRef.current.add(noteObj.id); // Mark as processed
                     setPlayedNotes(prev => new Map(prev).set(noteObj.id, 'correct'));
                     setSessionStats(prev => ({
                         ...prev,
@@ -599,6 +607,7 @@ export function SynthesiaView({ song }) {
         setCurrentTime(0);
         startTimeRef.current = null;
         pausedAtTimeRef.current = null;
+        processedNotesRef.current = new Set(); // Reset processed notes tracking
         setPlayedNotes(new Map());
         setFeedbackMessages([]);
         setSessionStats({
