@@ -93,35 +93,43 @@ export function SynthesiaView({ song }) {
 
     // Get all notes from song with timing information
     const getAllNotes = useCallback(() => {
-        if (!song || !song.phrases) return [];
+        if (!song || !song.phrases || song.phrases.length === 0) return [];
 
         const notes = [];
         let currentTime = 0;
 
         song.phrases.forEach(phrase => {
-            // Add melody notes (right hand)
-            phrase.melody.forEach(note => {
-                notes.push({
-                    id: `${currentTime}_${note.pitch}_melody`,
-                    pitch: note.pitch,
-                    startTime: currentTime + note.startTime,
-                    duration: note.duration,
-                    hand: 'right',
-                    velocity: note.velocity || 64
+            // Add melody notes (right hand) - check if melody exists and is an array
+            if (phrase.melody && Array.isArray(phrase.melody)) {
+                phrase.melody.forEach(note => {
+                    if (note && typeof note.pitch === 'number') {
+                        notes.push({
+                            id: `${currentTime}_${note.pitch}_melody`,
+                            pitch: note.pitch,
+                            startTime: currentTime + (note.startTime || 0),
+                            duration: note.duration || 0.5,
+                            hand: 'right',
+                            velocity: note.velocity || 64
+                        });
+                    }
                 });
-            });
+            }
 
-            // Add chord notes (left hand)
-            phrase.chords.forEach(note => {
-                notes.push({
-                    id: `${currentTime}_${note.pitch}_chord`,
-                    pitch: note.pitch,
-                    startTime: currentTime + note.startTime,
-                    duration: note.duration,
-                    hand: 'left',
-                    velocity: note.velocity || 64
+            // Add chord notes (left hand) - check if chords exists and is an array
+            if (phrase.chords && Array.isArray(phrase.chords)) {
+                phrase.chords.forEach(note => {
+                    if (note && typeof note.pitch === 'number') {
+                        notes.push({
+                            id: `${currentTime}_${note.pitch}_chord`,
+                            pitch: note.pitch,
+                            startTime: currentTime + (note.startTime || 0),
+                            duration: note.duration || 0.5,
+                            hand: 'left',
+                            velocity: note.velocity || 64
+                        });
+                    }
                 });
-            });
+            }
 
             // Update time for next phrase
             currentTime += phrase.duration || 4;
