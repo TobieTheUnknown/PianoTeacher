@@ -61,87 +61,25 @@ export const StorageService = {
         downloadAnchorNode.remove();
     },
 
-    // Simple LZ-based compression
-    _compress: (str) => {
-        const dict = {};
-        const data = (str + '').split('');
-        const out = [];
-        let phrase = data[0];
-        let code = 256;
-
-        for (let i = 1; i < data.length; i++) {
-            const currChar = data[i];
-            if (dict[phrase + currChar] != null) {
-                phrase += currChar;
-            } else {
-                out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
-                dict[phrase + currChar] = code;
-                code++;
-                phrase = currChar;
-            }
-        }
-        out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
-
-        // Convert to string
-        let compressed = '';
-        for (let i = 0; i < out.length; i++) {
-            compressed += String.fromCharCode(out[i]);
-        }
-        return compressed;
-    },
-
-    _decompress: (compressed) => {
-        const dict = {};
-        const data = (compressed + '').split('');
-        let currChar = data[0];
-        let oldPhrase = currChar;
-        const out = [currChar];
-        let code = 256;
-        let phrase;
-
-        for (let i = 1; i < data.length; i++) {
-            const currCode = data[i].charCodeAt(0);
-            if (currCode < 256) {
-                phrase = data[i];
-            } else {
-                phrase = dict[currCode] ? dict[currCode] : (oldPhrase + currChar);
-            }
-            out.push(phrase);
-            currChar = phrase.charAt(0);
-            dict[code] = oldPhrase + currChar;
-            code++;
-            oldPhrase = phrase;
-        }
-        return out.join('');
-    },
-
-    // Convert song to compressed base64 string (compact format for sharing)
+    // Convert song to base64 encoded string (compact format for sharing)
     exportToString: (song) => {
         try {
             const jsonString = JSON.stringify(song);
-            // Compress then encode to base64
-            const compressed = StorageService._compress(jsonString);
-            return btoa(unescape(encodeURIComponent(compressed)));
+            // Use btoa for base64 encoding (works in browser)
+            return btoa(unescape(encodeURIComponent(jsonString)));
         } catch (error) {
             console.error('Error exporting to string:', error);
             return null;
         }
     },
 
-    // Import song from compressed base64 string or JSON string
+    // Import song from base64 string or JSON string
     importFromString: (dataString) => {
         try {
-            // Try to parse as compressed base64 first
+            // Try to parse as base64 first
             try {
-                const decoded = decodeURIComponent(escape(atob(dataString)));
-                // Try to decompress
-                try {
-                    const decompressed = StorageService._decompress(decoded);
-                    return JSON.parse(decompressed);
-                } catch {
-                    // If decompression fails, try parsing decoded string directly
-                    return JSON.parse(decoded);
-                }
+                const jsonString = decodeURIComponent(escape(atob(dataString)));
+                return JSON.parse(jsonString);
             } catch {
                 // If base64 fails, try parsing directly as JSON
                 return JSON.parse(dataString);
