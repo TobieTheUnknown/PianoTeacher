@@ -183,7 +183,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <div>🎵 <strong>Cliquez sur une mesure</strong> pour jouer les deux mains</div>
                         <div>🎹 <strong>Boutons MG/MD</strong> pour jouer chaque main séparément</div>
-                        <div>✓ <strong>Cochez la case</strong> pour surligner une mesure</div>
+                        <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner une mesure</div>
                         <div>👁️ <strong>Activez les détails</strong> pour voir toutes les notes</div>
                     </div>
                 </div>
@@ -366,46 +366,57 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'none';
             }}
         >
-            {/* Measure number and highlight checkbox */}
-            <div style={{
-                position: 'absolute',
-                top: '0.5rem',
-                right: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                zIndex: 10
-            }}>
-                <span style={{
-                    fontSize: '0.8rem',
+            {/* Measure number badge with highlight toggle */}
+            <div
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleHighlight(measure.number);
+                }}
+                style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    right: '0.5rem',
+                    background: isHighlighted
+                        ? 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%)'
+                        : 'var(--bg-elevated)',
+                    color: 'white',
+                    borderRadius: '8px',
+                    padding: '0.4rem 0.6rem',
+                    fontSize: '0.75rem',
                     fontWeight: 'bold',
-                    color: 'var(--text-secondary)'
-                }}>
-                    #{measure.number}
-                </span>
-                <input
-                    type="checkbox"
-                    checked={isHighlighted}
-                    onChange={(e) => {
-                        e.stopPropagation();
-                        onToggleHighlight(measure.number);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                        width: '18px',
-                        height: '18px',
-                        cursor: 'pointer',
-                        accentColor: 'var(--accent-primary)'
-                    }}
-                    title="Surligner cette mesure"
-                />
+                    cursor: 'pointer',
+                    border: isHighlighted
+                        ? '2px solid var(--accent-primary)'
+                        : '2px solid var(--border-light)',
+                    transition: 'all var(--transition-fast)',
+                    zIndex: 10,
+                    boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
+                    minWidth: '32px',
+                    textAlign: 'center'
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                    if (!isHighlighted) {
+                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                    }
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    if (!isHighlighted) {
+                        e.currentTarget.style.borderColor = 'var(--border-light)';
+                    }
+                }}
+                title={isHighlighted ? "Cliquez pour désurligner" : "Cliquez pour surligner"}
+            >
+                {measure.number}
             </div>
 
             {/* Play buttons */}
             <div style={{
                 display: 'flex',
                 gap: '0.25rem',
-                marginBottom: '0.75rem'
+                marginBottom: '0.75rem',
+                paddingRight: '3rem' // Space for measure number badge
             }}>
                 <button
                     onClick={(e) => {
