@@ -53,6 +53,7 @@ export function SynthesiaView({ song }) {
     // New features state
     const [handMode, setHandMode] = useState('both'); // 'left', 'right', 'both'
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
+    const [metronomeDivision, setMetronomeDivision] = useState('measure'); // 'measure', 'beat', 'half-beat'
     const [audioInitialized, setAudioInitialized] = useState(false);
 
     // New scoring and wait mode state
@@ -318,7 +319,7 @@ export function SynthesiaView({ song }) {
     }, [currentTime, isPlaying, handMode, allNotes, beatsPerSecond]);
 
     // Metronome Control - Synchronized with measure crossing
-    const lastMetronomeClickRef = useRef(-1); // Track last measure that triggered a click
+    const lastMetronomeClickRef = useRef(-1); // Track last click position
 
     useEffect(() => {
         if (!isPlaying || !isMetronomeOn || !audioInitialized) {
@@ -328,23 +329,49 @@ export function SynthesiaView({ song }) {
             return;
         }
 
-        // Calculate which measure is currently crossing the keyboard line
-        // Measures are typically 4 beats each
+        // Calculate current beat position
         const beatsPerMeasure = 4;
         const currentBeat = currentTime * beatsPerSecond;
-        const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
 
-        // Play click when a new measure crosses the keyboard line
-        if (currentMeasure !== lastMetronomeClickRef.current && currentMeasure >= 0) {
-            lastMetronomeClickRef.current = currentMeasure;
-            // Play click immediately (at current Tone.Transport time)
-            audioEngine.playClick(Tone.now());
+        // Calculate click position based on division
+        let currentClickPosition;
+        let clicksPerMeasure;
+
+        switch (metronomeDivision) {
+            case 'beat':
+                // Click on every beat (4 times per measure in 4/4)
+                currentClickPosition = Math.floor(currentBeat);
+                clicksPerMeasure = beatsPerMeasure;
+                break;
+            case 'half-beat':
+                // Click on every half beat (8 times per measure in 4/4)
+                currentClickPosition = Math.floor(currentBeat * 2);
+                clicksPerMeasure = beatsPerMeasure * 2;
+                break;
+            case 'measure':
+            default:
+                // Click on every measure (once per measure)
+                currentClickPosition = Math.floor(currentBeat / beatsPerMeasure);
+                clicksPerMeasure = 1;
+                break;
+        }
+
+        // Play click when position changes
+        if (currentClickPosition !== lastMetronomeClickRef.current && currentClickPosition >= 0) {
+            lastMetronomeClickRef.current = currentClickPosition;
+
+            // Determine if this is an accented beat (first beat of measure)
+            const beatInMeasure = Math.floor(currentBeat % beatsPerMeasure);
+            const isAccent = metronomeDivision === 'measure' || beatInMeasure < 0.1; // Accent first beat of measure
+
+            // Play click with accent if applicable
+            audioEngine.playClick(Tone.now(), isAccent);
         }
 
         // No need for automatic metronome loop anymore
         audioEngine.stopMetronome();
 
-    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond]);
+    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision]);
 
     // MIDI message handler with note detection
     const handleMIDIMessage = (message) => {
@@ -1186,27 +1213,51 @@ export function SynthesiaView({ song }) {
 
                 <div style={{ width: '1px', height: '30px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
 
-                {/* Metronome Toggle */}
-                <button
-                    onClick={() => setIsMetronomeOn(!isMetronomeOn)}
-                    style={{
-                        padding: '0.75rem 1rem',
-                        background: isMetronomeOn ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
-                        color: isMetronomeOn ? '#22c55e' : 'var(--text-secondary)',
-                        border: isMetronomeOn ? '1px solid #22c55e' : '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1.2rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '50px'
-                    }}
-                    title="Métronome"
-                >
-                    ⏰
-                </button>
+                {/* Metronome Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                        onClick={() => setIsMetronomeOn(!isMetronomeOn)}
+                        style={{
+                            padding: '0.75rem 1rem',
+                            background: isMetronomeOn ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
+                            color: isMetronomeOn ? '#22c55e' : 'var(--text-secondary)',
+                            border: isMetronomeOn ? '1px solid #22c55e' : '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1.2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '50px'
+                        }}
+                        title="Métronome"
+                    >
+                        ⏰
+                    </button>
+
+                    {/* Metronome Division Selector */}
+                    {isMetronomeOn && (
+                        <select
+                            value={metronomeDivision}
+                            onChange={(e) => setMetronomeDivision(e.target.value)}
+                            style={{
+                                padding: '0.5rem 0.75rem',
+                                background: 'var(--bg-tertiary)',
+                                color: 'var(--text-primary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 'var(--radius-md)',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem'
+                            }}
+                            title="Division du métronome"
+                        >
+                            <option value="measure">Par mesure</option>
+                            <option value="beat">Par temps</option>
+                            <option value="half-beat">Demi-temps</option>
+                        </select>
+                    )}
+                </div>
 
                 {/* Wait Mode Toggle */}
                 <button
