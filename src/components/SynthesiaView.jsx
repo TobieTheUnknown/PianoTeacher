@@ -57,6 +57,9 @@ export function SynthesiaView({ song }) {
     const [audioInitialized, setAudioInitialized] = useState(false);
     const [isLoopEnabled, setIsLoopEnabled] = useState(false);
     const [loopConfig, setLoopConfig] = useState(null); // { startMeasure, endMeasure, name }
+    const [selectedPhraseIndex, setSelectedPhraseIndex] = useState('');
+    const [customRangeStart, setCustomRangeStart] = useState('');
+    const [customRangeEnd, setCustomRangeEnd] = useState('');
 
     // New scoring and wait mode state
     const [waitMode, setWaitMode] = useState(false);
@@ -270,7 +273,39 @@ export function SynthesiaView({ song }) {
     const clearLoop = useCallback(() => {
         setLoopConfig(null);
         setIsLoopEnabled(false);
+        setSelectedPhraseIndex('');
+        setCustomRangeStart('');
+        setCustomRangeEnd('');
     }, []);
+
+    // Handle phrase selection from dropdown
+    const handlePhraseSelect = useCallback((event) => {
+        const index = event.target.value;
+        setSelectedPhraseIndex(index);
+        if (index !== '' && index !== 'custom') {
+            const phrase = phraseMeasureRanges[parseInt(index)];
+            if (phrase) {
+                setLoopForRange(phrase.startMeasure, phrase.endMeasure, phrase.name);
+            }
+        }
+    }, [phraseMeasureRanges, setLoopForRange]);
+
+    // Handle custom range loop
+    const handleCustomRangeLoop = useCallback(() => {
+        const start = parseInt(customRangeStart);
+        const end = parseInt(customRangeEnd);
+        if (!isNaN(start) && !isNaN(end) && start > 0 && end >= start) {
+            setLoopForRange(start, end, `Mesures ${start}-${end}`);
+            setSelectedPhraseIndex('custom');
+        }
+    }, [customRangeStart, customRangeEnd, setLoopForRange]);
+
+    // Calculate total measures in the song
+    const totalMeasures = useMemo(() => {
+        return phraseMeasureRanges.length > 0
+            ? phraseMeasureRanges[phraseMeasureRanges.length - 1].endMeasure
+            : 0;
+    }, [phraseMeasureRanges]);
 
     // Reset BPM when song changes
     useEffect(() => {
@@ -1173,194 +1208,45 @@ export function SynthesiaView({ song }) {
     return (
         <div style={{
             display: 'flex',
-            gap: '1rem',
-            padding: '2rem',
-            height: '100%'
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1.5rem',
+            padding: '2rem'
         }}>
-            {/* Left Sidebar - Phrases Navigation */}
             <div style={{
-                width: '280px',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem'
-            }}>
-                {/* Sidebar Header */}
-                <div style={{
-                    padding: '1rem',
-                    background: 'var(--bg-elevated)',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px solid var(--border-color)'
-                }}>
-                    <h3 style={{
-                        fontSize: '1rem',
-                        fontWeight: '600',
-                        color: 'var(--text-primary)',
-                        marginBottom: '0.5rem'
-                    }}>
-                        Navigation
-                    </h3>
-                    <p style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-secondary)'
-                    }}>
-                        Cliquez pour naviguer ou looper
-                    </p>
-                </div>
-
-                {/* Phrases List */}
-                <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem',
-                    overflowY: 'auto',
-                    padding: '0.5rem',
-                    background: 'var(--bg-elevated)',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px solid var(--border-color)'
-                }}>
-                    {phraseMeasureRanges.map((phrase) => {
-                        const isActive = loopConfig &&
-                                       loopConfig.startMeasure === phrase.startMeasure &&
-                                       loopConfig.endMeasure === phrase.endMeasure;
-
-                        return (
-                            <div
-                                key={phrase.phraseIndex}
-                                style={{
-                                    padding: '0.75rem',
-                                    background: isActive ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: isActive ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    marginBottom: '0.5rem'
-                                }}>
-                                    <span style={{
-                                        fontSize: '0.9rem',
-                                        fontWeight: '600',
-                                        color: isActive ? 'white' : 'var(--text-primary)'
-                                    }}>
-                                        {phrase.name}
-                                    </span>
-                                    <span style={{
-                                        fontSize: '0.75rem',
-                                        color: isActive ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)'
-                                    }}>
-                                        {phrase.startMeasure}-{phrase.endMeasure}
-                                    </span>
-                                </div>
-                                <div style={{
-                                    display: 'flex',
-                                    gap: '0.5rem'
-                                }}>
-                                    <button
-                                        onClick={() => jumpToMeasure(phrase.startMeasure)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '0.4rem',
-                                            background: isActive ? 'rgba(255,255,255,0.2)' : 'var(--bg-elevated)',
-                                            color: isActive ? 'white' : 'var(--text-primary)',
-                                            border: '1px solid ' + (isActive ? 'rgba(255,255,255,0.3)' : 'var(--border-color)'),
-                                            borderRadius: 'var(--radius-sm)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.75rem',
-                                            fontWeight: '500'
-                                        }}
-                                    >
-                                        ▶️ Aller
-                                    </button>
-                                    <button
-                                        onClick={() => setLoopForRange(phrase.startMeasure, phrase.endMeasure, phrase.name)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '0.4rem',
-                                            background: isActive ? 'rgba(255,255,255,0.2)' : 'var(--bg-elevated)',
-                                            color: isActive ? 'white' : 'var(--text-primary)',
-                                            border: '1px solid ' + (isActive ? 'rgba(255,255,255,0.3)' : 'var(--border-color)'),
-                                            borderRadius: 'var(--radius-sm)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.75rem',
-                                            fontWeight: '500'
-                                        }}
-                                    >
-                                        🔁 Loop
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-
-                    {/* Clear Loop Button */}
-                    {isLoopEnabled && (
-                        <button
-                            onClick={clearLoop}
-                            style={{
-                                padding: '0.75rem',
-                                background: '#ef4444',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: 'var(--radius-md)',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem',
-                                fontWeight: '600',
-                                marginTop: '0.5rem'
-                            }}
-                        >
-                            ❌ Arrêter le loop
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Main Content */}
-            <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: '1.5rem'
+                width: '100%',
+                maxWidth: `${CANVAS_WIDTH}px`
             }}>
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    width: '100%',
-                    maxWidth: `${CANVAS_WIDTH}px`
+                <h2 style={{
+                    fontSize: '1.5rem',
+                    fontWeight: '600',
+                    color: 'var(--text-primary)'
                 }}>
-                    <h2 style={{
-                        fontSize: '1.5rem',
-                        fontWeight: '600',
-                        color: 'var(--text-primary)'
-                    }}>
-                        Mode Synthesia - {song.title}
-                    </h2>
+                    Mode Synthesia - {song.title}
+                </h2>
 
-                    <button
-                        onClick={() => setShowScores(!showScores)}
-                        style={{
-                            padding: '0.75rem 1.5rem',
-                            background: 'var(--bg-elevated)',
-                            color: 'var(--text-primary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '0.9rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                        }}
-                    >
-                        📊 {showScores ? 'Masquer' : 'Voir'} Statistiques
-                    </button>
-                </div>
+                <button
+                    onClick={() => setShowScores(!showScores)}
+                    style={{
+                        padding: '0.75rem 1.5rem',
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '0.9rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}
+                >
+                    📊 {showScores ? 'Masquer' : 'Voir'} Statistiques
+                </button>
+            </div>
 
             {/* Statistics Panel */}
             {showScores && songStats && (
@@ -1679,6 +1565,153 @@ export function SynthesiaView({ song }) {
                 )}
             </div>
 
+            {/* Navigation & Loop Controls */}
+            <div style={{
+                width: '100%',
+                maxWidth: `${CANVAS_WIDTH}px`,
+                display: 'flex',
+                gap: '1rem',
+                alignItems: 'flex-end',
+                padding: '1rem 1.5rem',
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-color)'
+            }}>
+                {/* Phrase Selector */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                        Phrase / Section
+                    </label>
+                    <select
+                        value={selectedPhraseIndex}
+                        onChange={handlePhraseSelect}
+                        style={{
+                            padding: '0.75rem',
+                            background: 'var(--bg-tertiary)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: '500'
+                        }}
+                    >
+                        <option value="">Sélectionner une phrase...</option>
+                        {phraseMeasureRanges.map((phrase, index) => (
+                            <option key={index} value={index}>
+                                {phrase.name} (mesures {phrase.startMeasure}-{phrase.endMeasure})
+                            </option>
+                        ))}
+                        <option value="custom">--- Range personnalisé ---</option>
+                    </select>
+                </div>
+
+                {/* Custom Range Selector */}
+                {selectedPhraseIndex === 'custom' && (
+                    <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                                De la mesure
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                max={totalMeasures}
+                                value={customRangeStart}
+                                onChange={(e) => setCustomRangeStart(e.target.value)}
+                                placeholder="1"
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-tertiary)',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: '0.9rem',
+                                    width: '100px',
+                                    fontWeight: '500'
+                                }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                                À la mesure
+                            </label>
+                            <input
+                                type="number"
+                                min={customRangeStart || "1"}
+                                max={totalMeasures}
+                                value={customRangeEnd}
+                                onChange={(e) => setCustomRangeEnd(e.target.value)}
+                                placeholder={totalMeasures.toString()}
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-tertiary)',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: '0.9rem',
+                                    width: '100px',
+                                    fontWeight: '500'
+                                }}
+                            />
+                        </div>
+                        <button
+                            onClick={handleCustomRangeLoop}
+                            disabled={!customRangeStart || !customRangeEnd}
+                            style={{
+                                padding: '0.75rem 1.5rem',
+                                background: (!customRangeStart || !customRangeEnd) ? 'var(--bg-tertiary)' : 'var(--gradient-primary)',
+                                color: (!customRangeStart || !customRangeEnd) ? 'var(--text-secondary)' : 'white',
+                                border: 'none',
+                                borderRadius: 'var(--radius-md)',
+                                cursor: (!customRangeStart || !customRangeEnd) ? 'not-allowed' : 'pointer',
+                                fontWeight: '600',
+                                fontSize: '0.9rem',
+                                opacity: (!customRangeStart || !customRangeEnd) ? 0.5 : 1
+                            }}
+                        >
+                            🔁 Loop
+                        </button>
+                    </>
+                )}
+
+                {/* Clear Loop Button */}
+                {isLoopEnabled && (
+                    <button
+                        onClick={clearLoop}
+                        style={{
+                            padding: '0.75rem 1.5rem',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        ❌ Arrêter
+                    </button>
+                )}
+
+                {/* Current Loop Info */}
+                {isLoopEnabled && loopConfig && (
+                    <div style={{
+                        padding: '0.75rem 1.25rem',
+                        background: 'var(--primary-color)',
+                        color: 'white',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}>
+                        🔁 {loopConfig.name || `Mesures ${loopConfig.startMeasure}-${loopConfig.endMeasure}`}
+                    </div>
+                )}
+            </div>
+
             {/* Legend */}
             <div style={{
                 display: 'flex',
@@ -1725,7 +1758,6 @@ export function SynthesiaView({ song }) {
                     <li><strong>Mode Attente:</strong> La lecture s'arrête jusqu'à ce que vous jouiez la bonne note</li>
                     <li>Vos performances sont enregistrées et affichées dans les statistiques</li>
                 </ul>
-            </div>
             </div>
         </div>
     );
