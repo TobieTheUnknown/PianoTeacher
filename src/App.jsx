@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
-import { SongViewer } from './components/SongViewer';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
 import { useSong } from './useSong';
@@ -25,7 +24,7 @@ function App() {
     renamePhrasesInOrder
   } = useSong();
 
-  const [mode, setMode] = useState('library'); // 'library', 'edit', 'view', 'live'
+  const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn'
 
   const handleLoadSong = (id) => {
     loadSong(id);
@@ -71,16 +70,10 @@ function App() {
             label="Éditeur"
           />
           <NavButton
-            active={mode === 'view'}
-            onClick={() => setMode('view')}
-            icon="🎵"
+            active={mode === 'learn'}
+            onClick={() => setMode('learn')}
+            icon="📖"
             label="Apprentissage"
-          />
-          <NavButton
-            active={mode === 'live'}
-            onClick={() => setMode('live')}
-            icon="⚡"
-            label="Live Learning"
           />
         </div>
       </nav>
@@ -104,10 +97,7 @@ function App() {
             onUpdateHandSeparators={updateHandSeparators}
           />
         )}
-        {mode === 'view' && (
-          <SongViewer song={song} />
-        )}
-        {mode === 'live' && (
+        {mode === 'learn' && (
           <LiveLearning song={song} onToggleHighlight={toggleHighlightedMeasure} />
         )}
       </main>
