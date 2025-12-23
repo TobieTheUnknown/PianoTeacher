@@ -93,27 +93,62 @@ export function SynthesiaView({ song }) {
 
     // Get all notes from song with timing information
     const getAllNotes = useCallback(() => {
-        // Multiple defensive checks
-        if (!song) return [];
-        if (!song.phrases) return [];
-        if (!Array.isArray(song.phrases)) return [];
-        if (song.phrases.length === 0) return [];
+        console.log('🎵 [SynthesiaView] getAllNotes - START');
+        console.log('📦 [SynthesiaView] song:', song);
 
+        // Multiple defensive checks
+        if (!song) {
+            console.log('❌ [SynthesiaView] No song - returning empty array');
+            return [];
+        }
+
+        console.log('📋 [SynthesiaView] song.phrases:', song.phrases);
+
+        if (!song.phrases) {
+            console.log('❌ [SynthesiaView] No phrases - returning empty array');
+            return [];
+        }
+
+        if (!Array.isArray(song.phrases)) {
+            console.log('❌ [SynthesiaView] phrases is not an array - returning empty array');
+            return [];
+        }
+
+        if (song.phrases.length === 0) {
+            console.log('❌ [SynthesiaView] phrases array is empty - returning empty array');
+            return [];
+        }
+
+        console.log(`✅ [SynthesiaView] Processing ${song.phrases.length} phrases`);
         const notes = [];
         let currentTime = 0;
 
         try {
             // Use for...of instead of forEach for better error handling
-            for (const phrase of song.phrases) {
+            for (let i = 0; i < song.phrases.length; i++) {
+                const phrase = song.phrases[i];
+                console.log(`\n🔄 [SynthesiaView] Processing phrase ${i}:`, phrase);
+
                 // Skip invalid phrases
-                if (!phrase || typeof phrase !== 'object') {
+                if (!phrase) {
+                    console.log(`⚠️ [SynthesiaView] Phrase ${i} is null/undefined - skipping`);
+                    continue;
+                }
+
+                if (typeof phrase !== 'object') {
+                    console.log(`⚠️ [SynthesiaView] Phrase ${i} is not an object - skipping`);
                     continue;
                 }
 
                 // Process melody notes (right hand)
+                console.log(`  📝 [SynthesiaView] phrase.melody:`, phrase.melody);
                 const melodyNotes = phrase.melody || [];
+                console.log(`  📝 [SynthesiaView] melodyNotes (after || []):`, melodyNotes);
+
                 if (Array.isArray(melodyNotes)) {
-                    for (const note of melodyNotes) {
+                    console.log(`  ✅ [SynthesiaView] Processing ${melodyNotes.length} melody notes`);
+                    for (let j = 0; j < melodyNotes.length; j++) {
+                        const note = melodyNotes[j];
                         if (note && typeof note.pitch === 'number') {
                             notes.push({
                                 id: `${currentTime}_${note.pitch}_melody_${Math.random()}`,
@@ -125,12 +160,19 @@ export function SynthesiaView({ song }) {
                             });
                         }
                     }
+                } else {
+                    console.log(`  ⚠️ [SynthesiaView] melodyNotes is not an array`);
                 }
 
                 // Process chord notes (left hand)
+                console.log(`  🎹 [SynthesiaView] phrase.chords:`, phrase.chords);
                 const chordNotes = phrase.chords || [];
+                console.log(`  🎹 [SynthesiaView] chordNotes (after || []):`, chordNotes);
+
                 if (Array.isArray(chordNotes)) {
-                    for (const note of chordNotes) {
+                    console.log(`  ✅ [SynthesiaView] Processing ${chordNotes.length} chord notes`);
+                    for (let j = 0; j < chordNotes.length; j++) {
+                        const note = chordNotes[j];
                         if (note && typeof note.pitch === 'number') {
                             notes.push({
                                 id: `${currentTime}_${note.pitch}_chord_${Math.random()}`,
@@ -142,16 +184,20 @@ export function SynthesiaView({ song }) {
                             });
                         }
                     }
+                } else {
+                    console.log(`  ⚠️ [SynthesiaView] chordNotes is not an array`);
                 }
 
                 // Update time for next phrase
                 currentTime += (phrase.duration || 4);
             }
         } catch (error) {
-            console.error('Error processing song notes:', error);
+            console.error('💥 [SynthesiaView] ERROR in getAllNotes:', error);
+            console.error('Stack trace:', error.stack);
             return [];
         }
 
+        console.log(`\n🎉 [SynthesiaView] getAllNotes - COMPLETE - ${notes.length} notes total`);
         return notes.sort((a, b) => a.startTime - b.startTime);
     }, [song]);
 
