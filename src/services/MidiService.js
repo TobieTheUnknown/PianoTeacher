@@ -122,3 +122,77 @@ export const parseMidiFile = async (file) => {
         throw error;
     }
 };
+
+// Export song to MIDI file
+export const exportToMidi = (song) => {
+    try {
+        // Create new MIDI file
+        const midi = new Midi();
+        midi.header.name = song.title || 'Untitled';
+
+        // Set tempo (BPM)
+        midi.header.setTempo(0, song.tempo || 120);
+
+        // Create tracks for melody (right hand) and chords (left hand)
+        const melodyTrack = midi.addTrack();
+        melodyTrack.name = 'Melody (Right Hand)';
+
+        const chordsTrack = midi.addTrack();
+        chordsTrack.name = 'Chords (Left Hand)';
+
+        // Convert beats per second
+        const beatsPerSecond = (song.tempo || 120) / 60;
+
+        // Process all phrases
+        song.phrases.forEach(phrase => {
+            // Add melody notes
+            if (phrase.tracks?.melody) {
+                phrase.tracks.melody.forEach(note => {
+                    const timeInSeconds = note.startTime / beatsPerSecond;
+                    const durationInSeconds = note.duration / beatsPerSecond;
+
+                    melodyTrack.addNote({
+                        midi: note.pitch,
+                        time: timeInSeconds,
+                        duration: durationInSeconds,
+                        velocity: 0.8
+                    });
+                });
+            }
+
+            // Add chord notes
+            if (phrase.tracks?.chords) {
+                phrase.tracks.chords.forEach(note => {
+                    const timeInSeconds = note.startTime / beatsPerSecond;
+                    const durationInSeconds = note.duration / beatsPerSecond;
+
+                    chordsTrack.addNote({
+                        midi: note.pitch,
+                        time: timeInSeconds,
+                        duration: durationInSeconds,
+                        velocity: 0.7
+                    });
+                });
+            }
+        });
+
+        // Convert to array buffer
+        const midiArray = midi.toArray();
+
+        // Create blob and download
+        const blob = new Blob([midiArray], { type: 'audio/midi' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${song.title.replace(/\s+/g, '_')}.mid`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        return true;
+    } catch (error) {
+        console.error('Error exporting to MIDI:', error);
+        throw new Error('Erreur lors de l\'export MIDI');
+    }
+};
