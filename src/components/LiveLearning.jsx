@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys, NOTE_NAMES, getEnharmonicNote } from '../models/song';
+import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys, NOTE_NAMES, getEnharmonicNote, getNoteNameFromMidi } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song, onToggleHighlight }) {
@@ -16,6 +16,12 @@ export function LiveLearning({ song, onToggleHighlight }) {
         const allNotes = new Set();
         const phraseBreaks = []; // Track where each phrase starts
 
+        // Helper to get raw note name (e.g. "C" from 60/"C4")
+        const getRawNoteName = (pitch) => {
+            const name = typeof pitch === 'number' ? getNoteNameFromMidi(pitch) : pitch;
+            return name ? name.slice(0, -1) : '';
+        };
+
         song.phrases.forEach((phrase, phraseIndex) => {
             // Mark the start of this phrase
             if (phraseIndex > 0) {
@@ -29,8 +35,8 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
             phraseMeasures.forEach(measure => {
                 // Collect unique notes
-                measure.melody.forEach(n => allNotes.add(n.pitch.slice(0, -1)));
-                measure.chords.forEach(n => allNotes.add(n.pitch.slice(0, -1)));
+                measure.melody.forEach(n => allNotes.add(getRawNoteName(n.pitch)));
+                measure.chords.forEach(n => allNotes.add(getRawNoteName(n.pitch)));
 
                 // Build measure summary - get ALL chord groups
                 const chordGroups = groupNotesByTime(measure.chords);

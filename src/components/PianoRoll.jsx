@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { getPianoRollKeys, getFrenchNoteName } from '../models/song';
+import { getPianoRollKeys, getFrenchNoteName, getNoteNameFromMidi, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
 export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
-    const [keys] = useState(() => getPianoRollKeys(1, 5)); // C1 to B5
+    // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
+    const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
@@ -34,6 +35,7 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
     };
 
     // Combine notes from both tracks with track information
+    // Filter out notes that don't match our key range or numeric format
     const allNotes = [
         ...phrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
         ...phrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' }))
@@ -59,8 +61,8 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
             onRemoveNote(phrase.id, trackName, existingNote.id);
         } else {
             // Assign to melody or chords based on pitch (C4/60 is the dividing line)
-            const midiPitch = keys.indexOf(pitch);
-            const autoTrack = midiPitch >= keys.indexOf('C4') ? 'melody' : 'chords';
+            // pitch is now a MIDI number
+            const autoTrack = pitch >= 60 ? 'melody' : 'chords';
             onAddNote(phrase.id, autoTrack, pitch, beatIndex, 1); // Default duration 1 beat
             audioEngine.playNote(pitch);
         }
@@ -247,8 +249,8 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
                             onUpdateHandSeparators([]);
                             setSeparatorEnabled(false);
                         } else {
-                            // Enable: add default separator at C4 from measure 0
-                            onUpdateHandSeparators([{ fromMeasure: 0, pitch: 'C4' }]);
+                            // Enable: add default separator at C4 (60) from measure 0
+                            onUpdateHandSeparators([{ fromMeasure: 0, pitch: 60 }]);
                             setSeparatorEnabled(true);
                         }
                     }}
@@ -359,314 +361,323 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
                 boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
                 userSelect: 'none'
             }}>
-            {/* Grid (Content) - Now contains both piano keys and grid */}
-            <div
-                ref={scrollRef}
-                style={{
-                    flex: 1,
-                    overflow: 'auto',
-                    position: 'relative',
-                    background: 'linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%)'
-                }}
-            >
-                <div style={{
-                    width: `${90 + phrase.length * 4 * cellWidth}px`, // Piano keys width + grid width
-                    minHeight: '100%',
-                    position: 'relative',
-                    display: 'flex'
-                }}>
-                    {/* Piano Keys (Y-axis) - Sticky on left */}
-                    <div style={{
-                        position: 'sticky',
-                        left: 0,
-                        width: '90px',
-                        zIndex: 100,
-                        background: 'linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%)',
-                        borderRight: '2px solid var(--border-color)',
-                        boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)',
-                        flexShrink: 0,
-                        paddingTop: '32px' // Match measure counter height
-                    }}>
-                        {keys.map(pitch => {
-                            const isBlack = pitch.includes('#');
-                            return (
-                                <div key={pitch} style={{
-                                    height: `${cellHeight}px`,
-                                    background: isBlack
-                                        ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                        : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
-                                    color: isBlack ? '#ecf0f1' : '#2c3e50',
-                                    borderBottom: `1px solid ${isBlack ? '#1a252f' : '#dee2e6'}`,
-                                    fontSize: '0.8125rem',
-                                    fontWeight: '600',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    paddingLeft: '0.75rem',
-                                    boxSizing: 'border-box',
-                                    transition: 'all var(--transition-fast)',
-                                    cursor: 'pointer',
-                                    position: 'relative'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = isBlack
-                                        ? 'linear-gradient(90deg, #34495e 0%, #3d5a73 100%)'
-                                        : 'linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = isBlack
-                                        ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                        : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
-                                }}
-                                >
-                                    {getFrenchNoteName(pitch, keySignature)}
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Grid content wrapper */}
-                    <div style={{
+                {/* Grid (Content) - Now contains both piano keys and grid */}
+                <div
+                    ref={scrollRef}
+                    style={{
                         flex: 1,
-                        position: 'relative'
-                    }}>
-                        {/* Measure Counter - Sticky at top, scrolls horizontally with content */}
-                        <div style={{
-                        position: 'sticky',
-                        top: 0,
-                        left: 0,
-                        height: '32px',
-                        background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
-                        backdropFilter: 'blur(8px)',
-                        borderBottom: '2px solid var(--accent-primary)',
-                        display: 'flex',
-                        zIndex: 50,
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                        marginBottom: '0px'
-                    }}>
-                        {Array.from({ length: phrase.length }).map((_, measureIndex) => (
-                            <div key={`measure-${measureIndex}`} style={{
-                                width: `${4 * cellWidth}px`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: '700',
-                                fontSize: '1rem',
-                                color: 'var(--text-primary)',
-                                borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
-                                background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.15)' : 'transparent'
-                            }}>
-                                {measureIndex + 1}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Grid content */}
+                        overflow: 'auto',
+                        position: 'relative',
+                        background: 'linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%)'
+                    }}
+                >
                     <div style={{
-                        width: '100%',
-                        height: `${keys.length * cellHeight}px`,
-                        position: 'relative'
+                        width: `${90 + phrase.length * 4 * cellWidth}px`, // Piano keys width + grid width
+                        minHeight: '100%',
+                        position: 'relative',
+                        display: 'flex'
                     }}>
-                    {/* Grid Lines - Vertical */}
-                    {Array.from({ length: phrase.length * 4 }).map((_, i) => (
-                        <div key={`v-${i}`} style={{
-                            position: 'absolute',
-                            left: `${i * cellWidth}px`,
-                            top: 0,
-                            bottom: 0,
-                            width: i % 4 === 0 ? '2px' : '1px',
-                            background: i % 4 === 0
-                                ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
-                                : 'rgba(255, 255, 255, 0.05)',
-                            pointerEvents: 'none'
-                        }} />
-                    ))}
-                    {/* Grid Lines - Horizontal */}
-                    {keys.map((pitch, i) => {
-                        const isBlack = pitch.includes('#');
-                        return (
-                            <div key={`h-${i}`} style={{
-                                position: 'absolute',
+                        {/* Piano Keys (Y-axis) - Sticky on left */}
+                        <div style={{
+                            position: 'sticky',
+                            left: 0,
+                            width: '90px',
+                            zIndex: 100,
+                            background: 'linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%)',
+                            borderRight: '2px solid var(--border-color)',
+                            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)',
+                            flexShrink: 0,
+                            paddingTop: '32px' // Match measure counter height
+                        }}>
+                            {keys.map(pitch => {
+                                // Check if black key using helper or simple mod check
+                                // pitch is a number now
+                                const isBlack = [1, 3, 6, 8, 10].includes(pitch % 12);
+                                return (
+                                    <div key={pitch} style={{
+                                        height: `${cellHeight}px`,
+                                        background: isBlack
+                                            ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
+                                            : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
+                                        color: isBlack ? '#ecf0f1' : '#2c3e50',
+                                        borderBottom: `1px solid ${isBlack ? '#1a252f' : '#dee2e6'}`,
+                                        fontSize: '0.8125rem',
+                                        fontWeight: '600',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        paddingLeft: '0.75rem',
+                                        boxSizing: 'border-box',
+                                        transition: 'all var(--transition-fast)',
+                                        cursor: 'pointer',
+                                        position: 'relative'
+                                    }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = isBlack
+                                                ? 'linear-gradient(90deg, #34495e 0%, #3d5a73 100%)'
+                                                : 'linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = isBlack
+                                                ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
+                                                : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
+                                        }}
+                                    >
+                                        {getFrenchNoteName(pitch, keySignature)}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Grid content wrapper */}
+                        <div style={{
+                            flex: 1,
+                            position: 'relative'
+                        }}>
+                            {/* Measure Counter - Sticky at top, scrolls horizontally with content */}
+                            <div style={{
+                                position: 'sticky',
+                                top: 0,
                                 left: 0,
-                                right: 0,
-                                top: `${i * cellHeight}px`,
-                                height: `${cellHeight}px`,
-                                backgroundColor: isBlack ? 'rgba(0, 0, 0, 0.15)' : 'transparent',
-                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                                boxSizing: 'border-box',
-                                pointerEvents: 'none'
-                            }} />
-                        );
-                    })}
+                                height: '32px',
+                                background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
+                                backdropFilter: 'blur(8px)',
+                                borderBottom: '2px solid var(--accent-primary)',
+                                display: 'flex',
+                                zIndex: 50,
+                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                                marginBottom: '0px'
+                            }}>
+                                {Array.from({ length: phrase.length }).map((_, measureIndex) => (
+                                    <div key={`measure-${measureIndex}`} style={{
+                                        width: `${4 * cellWidth}px`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontWeight: '700',
+                                        fontSize: '1rem',
+                                        color: 'var(--text-primary)',
+                                        borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
+                                        background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.15)' : 'transparent'
+                                    }}>
+                                        {measureIndex + 1}
+                                    </div>
+                                ))}
+                            </div>
 
-                    {/* Notes */}
-                    {allNotes.map(note => {
-                        const keyIndex = keys.indexOf(note.pitch);
-                        if (keyIndex === -1) return null; // Note out of range
-
-                        const isDragging = dragState?.noteId === note.id;
-
-                        return (
-                            <div
-                                key={`${note.trackName}-${note.id}`}
-                                style={{
-                                    position: 'absolute',
-                                    left: `${note.startTime * cellWidth}px`,
-                                    top: `${keyIndex * cellHeight + 1}px`,
-                                    width: `${note.duration * cellWidth - 2}px`,
-                                    height: `${cellHeight - 2}px`,
-                                    background: note.trackName === 'melody'
-                                        ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
-                                        : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    cursor: isDragging ? 'grabbing' : 'grab',
-                                    boxShadow: note.trackName === 'melody'
-                                        ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                                        : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
-                                    zIndex: isDragging ? 100 : 10,
-                                    transition: isDragging ? 'none' : 'all var(--transition-fast)',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    opacity: isDragging ? 0.8 : 1,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between'
-                                }}
-                                onMouseDown={(e) => handleNoteMouseDown(e, note, 'move')}
-                            >
-                                {/* Resize handle on the right */}
-                                <div
-                                    style={{
+                            {/* Grid content */}
+                            <div style={{
+                                width: '100%',
+                                height: `${keys.length * cellHeight}px`,
+                                position: 'relative'
+                            }}>
+                                {/* Grid Lines - Vertical */}
+                                {Array.from({ length: phrase.length * 4 }).map((_, i) => (
+                                    <div key={`v-${i}`} style={{
                                         position: 'absolute',
-                                        right: 0,
+                                        left: `${i * cellWidth}px`,
                                         top: 0,
                                         bottom: 0,
-                                        width: '8px',
-                                        cursor: 'ew-resize',
-                                        background: 'rgba(255, 255, 255, 0.1)',
-                                        borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
-                                        opacity: isDragging && dragState.type === 'resize' ? 1 : 0,
-                                        transition: 'opacity 0.2s'
-                                    }}
-                                    onMouseDown={(e) => {
-                                        e.stopPropagation();
-                                        handleNoteMouseDown(e, note, 'resize');
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.opacity = '1';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (!isDragging) {
-                                            e.currentTarget.style.opacity = '0';
-                                        }
-                                    }}
-                                />
+                                        width: i % 4 === 0 ? '2px' : '1px',
+                                        background: i % 4 === 0
+                                            ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
+                                            : 'rgba(255, 255, 255, 0.05)',
+                                        pointerEvents: 'none'
+                                    }} />
+                                ))}
+                                {/* Grid Lines - Horizontal */}
+                                {keys.map((pitch, i) => {
+                                    const isBlack = [1, 3, 6, 8, 10].includes(pitch % 12);
+                                    return (
+                                        <div key={`h-${i}`} style={{
+                                            position: 'absolute',
+                                            left: 0,
+                                            right: 0,
+                                            top: `${i * cellHeight}px`,
+                                            height: `${cellHeight}px`,
+                                            backgroundColor: isBlack ? 'rgba(0, 0, 0, 0.15)' : 'transparent',
+                                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                            boxSizing: 'border-box',
+                                            pointerEvents: 'none'
+                                        }} />
+                                    );
+                                })}
+
+                                {/* Notes */}
+                                {allNotes.map(note => {
+                                    // Allow string notes (from old data) but try to handle them if possible
+                                    // Migration should handle this, but defensive coding is good
+                                    const notePitch = typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch;
+
+                                    const keyIndex = keys.indexOf(notePitch);
+                                    if (keyIndex === -1) return null; // Note out of range
+
+                                    const isDragging = dragState?.noteId === note.id;
+
+                                    return (
+                                        <div
+                                            key={`${note.trackName}-${note.id}`}
+                                            style={{
+                                                position: 'absolute',
+                                                left: `${note.startTime * cellWidth}px`,
+                                                top: `${keyIndex * cellHeight + 1}px`,
+                                                width: `${note.duration * cellWidth - 2}px`,
+                                                height: `${cellHeight - 2}px`,
+                                                background: note.trackName === 'melody'
+                                                    ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                                                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                borderRadius: 'var(--radius-sm)',
+                                                cursor: isDragging ? 'grabbing' : 'grab',
+                                                boxShadow: note.trackName === 'melody'
+                                                    ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                                                    : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                                                zIndex: isDragging ? 100 : 10,
+                                                transition: isDragging ? 'none' : 'all var(--transition-fast)',
+                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                opacity: isDragging ? 0.8 : 1,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between'
+                                            }}
+                                            onMouseDown={(e) => handleNoteMouseDown(e, note, 'move')}
+                                        >
+                                            {/* Resize handle on the right */}
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: 0,
+                                                    top: 0,
+                                                    bottom: 0,
+                                                    width: '8px',
+                                                    cursor: 'ew-resize',
+                                                    background: 'rgba(255, 255, 255, 0.1)',
+                                                    borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
+                                                    opacity: isDragging && dragState.type === 'resize' ? 1 : 0,
+                                                    transition: 'opacity 0.2s'
+                                                }}
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    handleNoteMouseDown(e, note, 'resize');
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.opacity = '1';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (!isDragging) {
+                                                        e.currentTarget.style.opacity = '0';
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Click Area Overlay */}
+                                {!dragState && keys.map((pitch, yIndex) => (
+                                    Array.from({ length: phrase.length * 4 }).map((_, xIndex) => (
+                                        <div
+                                            key={`${pitch}-${xIndex}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleGridClick(pitch, xIndex);
+                                            }}
+                                            style={{
+                                                position: 'absolute',
+                                                left: `${xIndex * cellWidth}px`,
+                                                top: `${yIndex * cellHeight}px`,
+                                                width: `${cellWidth}px`,
+                                                height: `${cellHeight}px`,
+                                                zIndex: 5,
+                                                cursor: 'crosshair'
+                                            }}
+                                        />
+                                    ))
+                                ))}
+
+                                {/* Hand Separation Lines (Automation) */}
+                                {separatorEnabled && handSeparators
+                                    .sort((a, b) => a.fromMeasure - b.fromMeasure)
+                                    .map((separator, idx) => {
+                                        const nextSeparator = handSeparators.find(s => s.fromMeasure > separator.fromMeasure);
+                                        const lineStart = separator.fromMeasure * 4 * cellWidth;
+                                        const lineEnd = nextSeparator
+                                            ? nextSeparator.fromMeasure * 4 * cellWidth
+                                            : phrase.length * 4 * cellWidth;
+
+                                        // Ensure pitch is number
+                                        const validPitch = typeof separator.pitch === 'string' ? getMidiNumber(separator.pitch) : separator.pitch;
+
+                                        return (
+                                            <React.Fragment key={idx}>
+                                                {/* Horizontal line segment */}
+                                                <div
+                                                    onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${lineStart}px`,
+                                                        width: `${lineEnd - lineStart}px`,
+                                                        top: `${keys.indexOf(validPitch) * cellHeight}px`,
+                                                        height: '3px',
+                                                        background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
+                                                        cursor: 'move',
+                                                        zIndex: 50,
+                                                        boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
+                                                        transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
+                                                    }}
+                                                />
+
+                                                {/* Automation point marker */}
+                                                <div
+                                                    onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
+                                                    onDoubleClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Double-click to delete automation point (but keep at least one)
+                                                        if (handSeparators.length > 1) {
+                                                            const updatedSeparators = handSeparators.filter((_, i) => i !== idx);
+                                                            onUpdateHandSeparators(updatedSeparators);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${lineStart - 6}px`,
+                                                        top: `${keys.indexOf(validPitch) * cellHeight - 6}px`,
+                                                        width: '12px',
+                                                        height: '12px',
+                                                        borderRadius: '50%',
+                                                        background: '#f59e0b',
+                                                        border: '2px solid white',
+                                                        cursor: 'move',
+                                                        zIndex: 51,
+                                                        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.8)',
+                                                        transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
+                                                    }}
+                                                />
+
+                                                {/* Label showing measure number */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    left: `${lineStart + 8}px`,
+                                                    top: `${keys.indexOf(validPitch) * cellHeight - 20}px`,
+                                                    background: '#f59e0b',
+                                                    color: 'white',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: '600',
+                                                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                                                    pointerEvents: 'none',
+                                                    whiteSpace: 'nowrap',
+                                                    zIndex: 52
+                                                }}>
+                                                    M{separator.fromMeasure + 1}
+                                                </div>
+                                            </React.Fragment>
+                                        );
+                                    })}
                             </div>
-                        );
-                    })}
-
-                    {/* Click Area Overlay */}
-                    {!dragState && keys.map((pitch, yIndex) => (
-                        Array.from({ length: phrase.length * 4 }).map((_, xIndex) => (
-                            <div
-                                key={`${pitch}-${xIndex}`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleGridClick(pitch, xIndex);
-                                }}
-                                style={{
-                                    position: 'absolute',
-                                    left: `${xIndex * cellWidth}px`,
-                                    top: `${yIndex * cellHeight}px`,
-                                    width: `${cellWidth}px`,
-                                    height: `${cellHeight}px`,
-                                    zIndex: 5,
-                                    cursor: 'crosshair'
-                                }}
-                            />
-                        ))
-                    ))}
-
-                    {/* Hand Separation Lines (Automation) */}
-                    {separatorEnabled && handSeparators
-                        .sort((a, b) => a.fromMeasure - b.fromMeasure)
-                        .map((separator, idx) => {
-                            const nextSeparator = handSeparators.find(s => s.fromMeasure > separator.fromMeasure);
-                            const lineStart = separator.fromMeasure * 4 * cellWidth;
-                            const lineEnd = nextSeparator
-                                ? nextSeparator.fromMeasure * 4 * cellWidth
-                                : phrase.length * 4 * cellWidth;
-
-                            return (
-                                <React.Fragment key={idx}>
-                                    {/* Horizontal line segment */}
-                                    <div
-                                        onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
-                                        style={{
-                                            position: 'absolute',
-                                            left: `${lineStart}px`,
-                                            width: `${lineEnd - lineStart}px`,
-                                            top: `${keys.indexOf(separator.pitch) * cellHeight}px`,
-                                            height: '3px',
-                                            background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
-                                            cursor: 'move',
-                                            zIndex: 50,
-                                            boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
-                                            transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
-                                        }}
-                                    />
-
-                                    {/* Automation point marker */}
-                                    <div
-                                        onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
-                                        onDoubleClick={(e) => {
-                                            e.stopPropagation();
-                                            // Double-click to delete automation point (but keep at least one)
-                                            if (handSeparators.length > 1) {
-                                                const updatedSeparators = handSeparators.filter((_, i) => i !== idx);
-                                                onUpdateHandSeparators(updatedSeparators);
-                                            }
-                                        }}
-                                        style={{
-                                            position: 'absolute',
-                                            left: `${lineStart - 6}px`,
-                                            top: `${keys.indexOf(separator.pitch) * cellHeight - 6}px`,
-                                            width: '12px',
-                                            height: '12px',
-                                            borderRadius: '50%',
-                                            background: '#f59e0b',
-                                            border: '2px solid white',
-                                            cursor: 'move',
-                                            zIndex: 51,
-                                            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.8)',
-                                            transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
-                                        }}
-                                    />
-
-                                    {/* Label showing measure number */}
-                                    <div style={{
-                                        position: 'absolute',
-                                        left: `${lineStart + 8}px`,
-                                        top: `${keys.indexOf(separator.pitch) * cellHeight - 20}px`,
-                                        background: '#f59e0b',
-                                        color: 'white',
-                                        padding: '2px 6px',
-                                        borderRadius: '4px',
-                                        fontSize: '0.7rem',
-                                        fontWeight: '600',
-                                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-                                        pointerEvents: 'none',
-                                        whiteSpace: 'nowrap',
-                                        zIndex: 52
-                                    }}>
-                                        M{separator.fromMeasure + 1}
-                                    </div>
-                                </React.Fragment>
-                            );
-                        })}
-                    </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
         </div>
     );
 

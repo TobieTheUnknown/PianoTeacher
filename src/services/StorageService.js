@@ -1,10 +1,64 @@
+import { getMidiNumber } from '../models/song';
+
 const STORAGE_KEY = 'piano_teacher_songs';
+
+// Helper to migrate legacy song data (string pitches) to new format (number pitches)
+const migrateSong = (song) => {
+    if (!song || !song.phrases) return song;
+
+    const migratedSong = { ...song };
+    migratedSong.phrases = song.phrases.map(phrase => {
+        const newPhrase = { ...phrase };
+
+        // Migrate melody
+        if (newPhrase.tracks?.melody) {
+            newPhrase.tracks.melody = newPhrase.tracks.melody.map(note => ({
+                ...note,
+                pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
+            }));
+        } else if (newPhrase.melody) {
+            // Legacy flat structure
+            newPhrase.melody = newPhrase.melody.map(note => ({
+                ...note,
+                pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
+            }));
+        }
+
+        // Migrate chords
+        if (newPhrase.tracks?.chords) {
+            newPhrase.tracks.chords = newPhrase.tracks.chords.map(note => ({
+                ...note,
+                pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
+            }));
+        } else if (newPhrase.chords) {
+            // Legacy flat structure
+            newPhrase.chords = newPhrase.chords.map(note => ({
+                ...note,
+                pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
+            }));
+        }
+
+        // Migrate hand separators if they exist
+        if (newPhrase.handSeparators) {
+            newPhrase.handSeparators = newPhrase.handSeparators.map(sep => ({
+                ...sep,
+                pitch: typeof sep.pitch === 'string' ? getMidiNumber(sep.pitch) : sep.pitch
+            }));
+        }
+
+        return newPhrase;
+    });
+
+    return migratedSong;
+};
 
 export const StorageService = {
     getSongs: () => {
         try {
             const songs = localStorage.getItem(STORAGE_KEY);
-            return songs ? JSON.parse(songs) : [];
+            const parsedSongs = songs ? JSON.parse(songs) : [];
+            // Migrate all loaded songs on the fly
+            return parsedSongs.map(migrateSong);
         } catch (error) {
             console.error('Error loading songs:', error);
             return [];

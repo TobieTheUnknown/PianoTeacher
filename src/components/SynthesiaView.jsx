@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ScoreService } from '../services/ScoreService';
+import { getFrenchNoteName } from '../models/song';
+import { audioEngine } from '../services/AudioEngine';
 
 /**
  * SynthesiaView - Falling notes visualization with scoring and wait mode
@@ -11,7 +13,28 @@ import { ScoreService } from '../services/ScoreService';
  * - Wait mode: pauses until correct note is played
  * - Scoring system with statistics
  * - Playback controls (play/pause/speed)
+ * - Hand Separation (Left/Right/Both)
+ * - Computer auto-play for non-user hands
+ * - Metronome
  */
+// Color constants
+const COLORS = {
+    background: '#1a1a1a',
+    whiteKey: '#ffffff',
+    blackKey: '#000000',
+    whiteKeyPressed: '#e6e6e6',
+    blackKeyPressed: '#333333',
+    whiteKeyCorrect: '#86efac', // green-300
+    blackKeyCorrect: '#22c55e', // green-500
+    whiteKeyWrong: '#fca5a5', // red-300
+    blackKeyWrong: '#ef4444', // red-500
+    rightHand: '#60a5fa', // blue-400
+    leftHand: '#f472b6', // pink-400
+    playedCorrect: '#22c55e', // green-500
+    playedWrong: '#ef4444', // red-500
+    missed: '#f59e0b' // amber-500
+};
+
 export function SynthesiaView({ song }) {
     const canvasRef = useRef(null);
     const animationFrameRef = useRef(null);
@@ -25,6 +48,11 @@ export function SynthesiaView({ song }) {
     const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
     const [midiAccess, setMidiAccess] = useState(null);
     const [activeNotes, setActiveNotes] = useState(new Set());
+
+    // New features state
+    const [handMode, setHandMode] = useState('both'); // 'left', 'right', 'both'
+    const [isMetronomeOn, setIsMetronomeOn] = useState(false);
+    const [audioInitialized, setAudioInitialized] = useState(false);
 
     // New scoring and wait mode state
     const [waitMode, setWaitMode] = useState(false);
@@ -56,26 +84,15 @@ export function SynthesiaView({ song }) {
     // Timing tolerance for note detection (in seconds)
     const NOTE_TOLERANCE = 0.3; // 300ms window
 
-    // Colors
-    const COLORS = {
-        rightHand: '#3b82f6', // Blue
-        leftHand: '#a855f7', // Purple
-        playedCorrect: '#22c55e', // Green
-        playedWrong: '#ef4444', // Red
-        missed: '#f59e0b', // Orange
-        background: '#1a1a2e',
-        whiteKey: '#ffffff',
-        blackKey: '#000000',
-        whiteKeyPressed: '#3b82f6',
-        blackKeyPressed: '#2563eb',
-        whiteKeyCorrect: '#22c55e',
-        blackKeyCorrect: '#16a34a',
-        whiteKeyWrong: '#ef4444',
-        blackKeyWrong: '#dc2626'
-    };
-
-    // Initialize MIDI
+    // Initialize Audio & MIDI
     useEffect(() => {
+        // Init Audio Service on mount (requires user interaction technically, but we prepare it)
+        const initAudio = async () => {
+            await audioEngine.initialize();
+            setAudioInitialized(true);
+        };
+        initAudio();
+
         if (navigator.requestMIDIAccess) {
             navigator.requestMIDIAccess()
                 .then(access => {
@@ -84,6 +101,10 @@ export function SynthesiaView({ song }) {
                 })
                 .catch(err => console.warn('MIDI access denied:', err));
         }
+
+        return () => {
+            audioEngine.stopAll();
+        };
     }, []);
 
     const setupMIDIInputs = (access) => {
@@ -92,68 +113,67 @@ export function SynthesiaView({ song }) {
         });
     };
 
+    // Helper to convert note name to MIDI number
+    const getMidiNumber = (noteName) => {
+        if (typeof noteName === 'number') return noteName;
+        if (!noteName) return null;
+
+        const noteToOffset = {
+            'C': 0, 'C#': 1, 'Db': 1,
+            'D': 2, 'D#': 3, 'Eb': 3,
+            'E': 4,
+            'F': 5, 'F#': 6, 'Gb': 6,
+            'G': 7, 'G#': 8, 'Ab': 8,
+            'A': 9, 'A#': 10, 'Bb': 10,
+            'B': 11
+        };
+
+        try {
+            // Extract note and octave (e.g., "C#4" -> note="C#", octave="4")
+            // Handle both 2 and 3 character note names
+            let note, octave;
+            if (isNaN(noteName[1])) {
+                note = noteName.slice(0, 2);
+                octave = parseInt(noteName.slice(2));
+            } else {
+                note = noteName[0];
+                octave = parseInt(noteName.slice(1));
+            }
+
+            if (noteToOffset[note] !== undefined && !isNaN(octave)) {
+                return 12 + (octave * 12) + noteToOffset[note];
+            }
+        } catch (e) {
+            console.warn('Invalid note name:', noteName);
+        }
+        return null;
+    };
+
     // Get all notes from song with timing information
     const getAllNotes = useCallback(() => {
-        console.log('🎵 [SynthesiaView] getAllNotes - START');
-        console.log('📦 [SynthesiaView] song:', song);
-
-        // Multiple defensive checks
-        if (!song) {
-            console.log('❌ [SynthesiaView] No song - returning empty array');
+        if (!song || !song.phrases || !Array.isArray(song.phrases)) {
             return [];
         }
 
-        console.log('📋 [SynthesiaView] song.phrases:', song.phrases);
-
-        if (!song.phrases) {
-            console.log('❌ [SynthesiaView] No phrases - returning empty array');
-            return [];
-        }
-
-        if (!Array.isArray(song.phrases)) {
-            console.log('❌ [SynthesiaView] phrases is not an array - returning empty array');
-            return [];
-        }
-
-        if (song.phrases.length === 0) {
-            console.log('❌ [SynthesiaView] phrases array is empty - returning empty array');
-            return [];
-        }
-
-        console.log(`✅ [SynthesiaView] Processing ${song.phrases.length} phrases`);
         const notes = [];
         let currentTime = 0;
 
         try {
-            // Use for...of instead of forEach for better error handling
-            for (let i = 0; i < song.phrases.length; i++) {
-                const phrase = song.phrases[i];
-                console.log(`\n🔄 [SynthesiaView] Processing phrase ${i}:`, phrase);
-
-                // Skip invalid phrases
-                if (!phrase) {
-                    console.log(`⚠️ [SynthesiaView] Phrase ${i} is null/undefined - skipping`);
-                    continue;
-                }
-
-                if (typeof phrase !== 'object') {
-                    console.log(`⚠️ [SynthesiaView] Phrase ${i} is not an object - skipping`);
-                    continue;
-                }
+            for (const phrase of song.phrases) {
+                if (!phrase) continue;
 
                 // Process melody notes (right hand)
-                console.log(`  📝 [SynthesiaView] phrase.melody:`, phrase.melody);
-                const melodyNotes = phrase.melody || [];
-                console.log(`  📝 [SynthesiaView] melodyNotes (after || []):`, melodyNotes);
-
+                const melodyNotes = phrase.tracks?.melody || phrase.melody || [];
                 if (Array.isArray(melodyNotes)) {
-                    console.log(`  ✅ [SynthesiaView] Processing ${melodyNotes.length} melody notes`);
-                    for (let j = 0; j < melodyNotes.length; j++) {
-                        const note = melodyNotes[j];
-                        if (note && typeof note.pitch === 'number') {
+                    for (const note of melodyNotes) {
+                        const midiPitch = typeof note.pitch === 'number'
+                            ? note.pitch
+                            : getMidiNumber(note.pitch);
+
+                        if (midiPitch !== null) {
                             notes.push({
-                                id: `${currentTime}_${note.pitch}_melody_${Math.random()}`,
-                                pitch: note.pitch,
+                                id: `${currentTime}_${midiPitch}_melody_${Math.random()}`,
+                                pitch: midiPitch,
                                 startTime: currentTime + (note.startTime || 0),
                                 duration: note.duration || 0.5,
                                 hand: 'right',
@@ -161,23 +181,20 @@ export function SynthesiaView({ song }) {
                             });
                         }
                     }
-                } else {
-                    console.log(`  ⚠️ [SynthesiaView] melodyNotes is not an array`);
                 }
 
                 // Process chord notes (left hand)
-                console.log(`  🎹 [SynthesiaView] phrase.chords:`, phrase.chords);
-                const chordNotes = phrase.chords || [];
-                console.log(`  🎹 [SynthesiaView] chordNotes (after || []):`, chordNotes);
-
+                const chordNotes = phrase.tracks?.chords || phrase.chords || [];
                 if (Array.isArray(chordNotes)) {
-                    console.log(`  ✅ [SynthesiaView] Processing ${chordNotes.length} chord notes`);
-                    for (let j = 0; j < chordNotes.length; j++) {
-                        const note = chordNotes[j];
-                        if (note && typeof note.pitch === 'number') {
+                    for (const note of chordNotes) {
+                        const midiPitch = typeof note.pitch === 'number'
+                            ? note.pitch
+                            : getMidiNumber(note.pitch);
+
+                        if (midiPitch !== null) {
                             notes.push({
-                                id: `${currentTime}_${note.pitch}_chord_${Math.random()}`,
-                                pitch: note.pitch,
+                                id: `${currentTime}_${midiPitch}_chord_${Math.random()}`,
+                                pitch: midiPitch,
                                 startTime: currentTime + (note.startTime || 0),
                                 duration: note.duration || 0.5,
                                 hand: 'left',
@@ -185,20 +202,16 @@ export function SynthesiaView({ song }) {
                             });
                         }
                     }
-                } else {
-                    console.log(`  ⚠️ [SynthesiaView] chordNotes is not an array`);
                 }
 
                 // Update time for next phrase
-                currentTime += (phrase.duration || 4);
+                currentTime += (phrase.duration || phrase.length * 4 || 4);
             }
         } catch (error) {
-            console.error('💥 [SynthesiaView] ERROR in getAllNotes:', error);
-            console.error('Stack trace:', error.stack);
+            console.error('Error in getAllNotes:', error);
             return [];
         }
 
-        console.log(`\n🎉 [SynthesiaView] getAllNotes - COMPLETE - ${notes.length} notes total`);
         return notes.sort((a, b) => a.startTime - b.startTime);
     }, [song]);
 
@@ -221,11 +234,20 @@ export function SynthesiaView({ song }) {
         }
     }, [song?.id]);
 
-    // Check for notes that should be played at current time
+    // Check for notes that should be played at current time (User's responsibility)
     useEffect(() => {
         const currentExpectedNotes = new Set();
+        const userHands = new Set();
+
+        if (handMode !== 'watch') {
+            if (handMode === 'both' || handMode === 'left') userHands.add('left');
+            if (handMode === 'both' || handMode === 'right') userHands.add('right');
+        }
 
         allNotes.forEach(note => {
+            // Only expect user to play notes for their selected hand
+            if (!userHands.has(note.hand)) return;
+
             const noteTime = note.startTime / beatsPerSecond;
             const timeDiff = Math.abs(currentTime - noteTime);
 
@@ -235,7 +257,6 @@ export function SynthesiaView({ song }) {
             }
 
             // Note was missed (passed the window without being played)
-            // Only process each note once using processedNotesRef
             if (currentTime > noteTime + NOTE_TOLERANCE &&
                 !playedNotes.has(note.id) &&
                 !processedNotesRef.current.has(note.id)) {
@@ -250,7 +271,52 @@ export function SynthesiaView({ song }) {
         });
 
         setExpectedNotes(currentExpectedNotes);
-    }, [currentTime, allNotes, beatsPerSecond]); // Removed playedNotes dependency
+    }, [currentTime, allNotes, beatsPerSecond, handMode]);
+
+    // Auto-Play Computer Notes
+    useEffect(() => {
+        if (!isPlaying) return;
+
+        const computerHands = new Set();
+        if (handMode === 'left') computerHands.add('right'); // User plays left, computer plays right
+        if (handMode === 'right') computerHands.add('left'); // User plays right, computer plays left
+        if (handMode === 'watch') {
+            computerHands.add('left');
+            computerHands.add('right');
+        }
+
+        // If computer has nothing to play, return
+        if (computerHands.size === 0) return;
+
+        allNotes.forEach(note => {
+            if (!computerHands.has(note.hand)) return;
+            if (processedNotesRef.current.has(note.id)) return; // Already played
+
+            const noteTime = note.startTime / beatsPerSecond;
+
+            // If it's time to play (or slightly past due but not processed)
+            // We use a tight window to trigger the audio
+            if (currentTime >= noteTime && currentTime < noteTime + 0.1) {
+                // Play audio
+                audioEngine.playNote(note.pitch, note.duration / beatsPerSecond);
+
+                // Mark visually as "correct" (or a specific "computer" status?)
+                // For now, let's mark as correct so it lights up green/blue
+                processedNotesRef.current.add(note.id);
+                setPlayedNotes(prev => new Map(prev).set(note.id, 'auto'));
+            }
+        });
+    }, [currentTime, isPlaying, handMode, allNotes, beatsPerSecond]);
+
+    // Metronome Control
+    useEffect(() => {
+        if (isPlaying && isMetronomeOn) {
+            audioEngine.setTempo(song?.tempo || 120);
+            audioEngine.startMetronome(song?.tempo || 120);
+        } else {
+            audioEngine.stopMetronome();
+        }
+    }, [isPlaying, isMetronomeOn, song?.tempo]);
 
     // MIDI message handler with note detection
     const handleMIDIMessage = (message) => {
@@ -288,13 +354,15 @@ export function SynthesiaView({ song }) {
                     }
                 }
             } else {
-                // Wrong note (not expected at this time)
-                setSessionStats(prev => ({
-                    ...prev,
-                    wrongNotes: prev.wrongNotes + 1
-                }));
+                // Only count wrong notes if we are supposed to be playing something
+                if (handMode !== 'watch') {
+                    setSessionStats(prev => ({
+                        ...prev,
+                        wrongNotes: prev.wrongNotes + 1
+                    }));
 
-                addFeedback(`✗ ${getMidiNoteName(note)}`, 'wrong', note);
+                    addFeedback(`✗ ${getMidiNoteName(note)}`, 'wrong', note);
+                }
             }
         } else if (command === 128 || (command === 144 && velocity === 0)) {
             // Note off
@@ -333,34 +401,35 @@ export function SynthesiaView({ song }) {
         }, 1000);
     };
 
-    // Get note name from MIDI number
+    // Get note name from MIDI number (French)
     const getMidiNoteName = (midiNum) => {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const octave = Math.floor(midiNum / 12) - 1;
-        const noteName = noteNames[midiNum % 12];
-        return `${noteName}${octave}`;
+        return getFrenchNoteName(midiNum);
+    };
+
+    const isBlackKey = (midiNote) => {
+        const noteInOctave = midiNote % 12;
+        return [1, 3, 6, 8, 10].includes(noteInOctave);
     };
 
     // Convert MIDI note to piano key position
     const getNoteX = (midiNote) => {
         if (midiNote < FIRST_KEY || midiNote > LAST_KEY) return null;
 
-        const noteInOctave = midiNote % 12;
-        const isBlack = [1, 3, 6, 8, 10].includes(noteInOctave);
-        const whiteNotesBefore = Math.floor((midiNote - FIRST_KEY) / 12) * 7 +
-            [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6][noteInOctave];
-
-        if (isBlack) {
-            const whiteKeyX = whiteNotesBefore * WHITE_KEY_WIDTH;
-            return whiteKeyX + WHITE_KEY_WIDTH * 0.7;
-        } else {
-            return whiteNotesBefore * WHITE_KEY_WIDTH;
+        // Count white keys before this note
+        let whiteKeyInfo = 0;
+        for (let i = FIRST_KEY; i < midiNote; i++) {
+            if (!isBlackKey(i)) whiteKeyInfo++;
         }
-    };
 
-    const isBlackKey = (midiNote) => {
-        const noteInOctave = midiNote % 12;
-        return [1, 3, 6, 8, 10].includes(noteInOctave);
+        const isNoteBlack = isBlackKey(midiNote);
+
+        if (!isNoteBlack) {
+            return whiteKeyInfo * WHITE_KEY_WIDTH;
+        } else {
+            // Black keys are centered on the boundary between the two surrounding white keys
+            const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
+            return (whiteKeyInfo * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2);
+        }
     };
 
     // Get key color based on state
@@ -383,14 +452,116 @@ export function SynthesiaView({ song }) {
             return isBlack ? COLORS.blackKeyPressed : COLORS.whiteKeyPressed;
         }
 
+        // Highlight expected notes on keyboard
+        /*
+        if (isExpectedNote) {
+             return isBlack ? '#444' : '#eee';
+        }
+        */
+
         return isBlack ? COLORS.blackKey : COLORS.whiteKey;
+    };
+
+    // Draw grid lines
+    const drawGrid = (ctx) => {
+        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+
+        // Vertical lines
+        ctx.lineWidth = 1;
+
+        // 1. Draw lanes for white key boundaries (faint)
+        ctx.beginPath();
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = 0.1;
+
+        for (let i = FIRST_KEY; i <= LAST_KEY + 1; i++) {
+            if (!isBlackKey(i)) {
+                const x = getNoteX(i);
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, keyboardY);
+            }
+        }
+        ctx.stroke();
+
+        // 2. Draw lanes for black keys
+        const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
+        ctx.fillStyle = '#ffffff';
+
+        for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
+            if (isBlackKey(i)) {
+                const x = getNoteX(i);
+                // Draw a faint background for the black key lane
+                ctx.globalAlpha = 0.03;
+                ctx.fillRect(x, 0, BLACK_KEY_WIDTH, keyboardY);
+
+                // Vertical lines at edges of black key lane
+                ctx.beginPath();
+                ctx.strokeStyle = '#ffffff';
+                ctx.globalAlpha = 0.05;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, keyboardY);
+                ctx.moveTo(x + BLACK_KEY_WIDTH, 0);
+                ctx.lineTo(x + BLACK_KEY_WIDTH, keyboardY);
+                ctx.stroke();
+            }
+        }
+
+        // 3. Draw HIT LINE (The "Now" line)
+        ctx.globalAlpha = 1.0;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ffffff';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, keyboardY);
+        ctx.lineTo(CANVAS_WIDTH, keyboardY);
+        ctx.stroke();
+        ctx.shadowBlur = 0; // Reset
+
+        // Horizontal lines (Beats) - Moving with the music
+        ctx.beginPath();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.3;
+
+        // Determine visible time range
+        const lookAheadTime = 4;
+        const visibleStartTime = currentTime;
+        const visibleEndTime = currentTime + lookAheadTime;
+
+        // Calculate beat duration in seconds
+        const secondsPerBeat = 60 / (song?.tempo || 120);
+
+        // Find the first beat that is visible
+        const firstVisibleBeat = Math.ceil(visibleStartTime / secondsPerBeat);
+
+        // Draw lines for all visible beats
+        for (let beat = firstVisibleBeat; beat * secondsPerBeat < visibleEndTime; beat++) {
+            const beatTime = beat * secondsPerBeat;
+            const timeDiff = beatTime - currentTime;
+
+            // Calculate Y position (falling down)
+            const y = NOTE_FALL_HEIGHT * (1 - timeDiff / lookAheadTime);
+
+            if (y >= 0 && y <= NOTE_FALL_HEIGHT) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(CANVAS_WIDTH, y);
+            }
+        }
+
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
     };
 
     // Draw piano keyboard
     const drawKeyboard = (ctx) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+        const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
 
         // Draw white keys first
+        ctx.textAlign = 'center';
+        ctx.font = '12px Arial';
+
         for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
             if (!isBlackKey(i)) {
                 const x = getNoteX(i);
@@ -398,6 +569,11 @@ export function SynthesiaView({ song }) {
                 ctx.fillRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
                 ctx.strokeStyle = '#cccccc';
                 ctx.strokeRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
+
+                // Label (French)
+                ctx.fillStyle = '#555';
+                const label = getMidiNoteName(i);
+                ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10);
             }
         }
 
@@ -406,9 +582,20 @@ export function SynthesiaView({ song }) {
             if (isBlackKey(i)) {
                 const x = getNoteX(i);
                 ctx.fillStyle = getKeyColor(i, true);
-                const blackKeyWidth = WHITE_KEY_WIDTH * 0.6;
-                const blackKeyHeight = KEYBOARD_HEIGHT * 0.6;
-                ctx.fillRect(x - blackKeyWidth / 2, keyboardY, blackKeyWidth, blackKeyHeight);
+                const blackKeyHeight = KEYBOARD_HEIGHT * 0.65;
+
+                ctx.fillRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
+
+                // Border
+                ctx.strokeStyle = '#333';
+                ctx.strokeRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
+
+                // Label
+                ctx.fillStyle = '#ccc';
+                ctx.font = '10px Arial';
+                const label = getMidiNoteName(i);
+                const shortLabel = label.replace(/[0-9-]/g, '');
+                ctx.fillText(shortLabel, x + BLACK_KEY_WIDTH / 2, keyboardY + blackKeyHeight - 8);
             }
         }
     };
@@ -416,6 +603,7 @@ export function SynthesiaView({ song }) {
     // Draw falling notes
     const drawFallingNotes = (ctx, currentTime) => {
         const lookAheadTime = 4; // Show notes 4 seconds ahead
+        const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
 
         allNotes.forEach(note => {
             const noteStartTime = note.startTime / beatsPerSecond;
@@ -426,39 +614,85 @@ export function SynthesiaView({ song }) {
                 return;
             }
 
+            const playStatus = playedNotes.get(note.id);
+
+            // If played correctly or by computer, don't draw the "falling" part if it's past the hit line
+            // Or maybe draw it as "exploded" / different opacity?
+            // User requested: "Allumage des notes jouées" - maybe they mean the 'hit' effect.
+            // But usually in Synthesia, helpful notes disappear after being hit or turn into 'sparks'.
+            // Let's fade them out aggressively if correct.
+
+            if ((playStatus === 'correct' || playStatus === 'auto') && currentTime > noteStartTime + 0.1) {
+                // If it's been hit, maybe don't draw it anymore?
+                // return; 
+            }
+
             const x = getNoteX(note.pitch);
             if (x === null) return;
 
             // Calculate Y position (notes fall down)
             const startY = NOTE_FALL_HEIGHT * (1 - (noteStartTime - currentTime) / lookAheadTime);
             const endY = NOTE_FALL_HEIGHT * (1 - (noteEndTime - currentTime) / lookAheadTime);
-            const height = Math.max(endY - startY, 5);
+            const height = Math.max(startY - endY, 5);
 
-            if (endY < 0) return;
+            if (endY < 0 && startY < 0) return; // Entirely above screen
 
             // Determine color based on play status
             let color = note.hand === 'right' ? COLORS.rightHand : COLORS.leftHand;
-            const playStatus = playedNotes.get(note.id);
 
             if (playStatus === 'correct') {
                 color = COLORS.playedCorrect;
             } else if (playStatus === 'missed') {
                 color = COLORS.missed;
+            } else if (playStatus === 'auto') {
+                // Computer played it
+                color = note.hand === 'right' ? '#93c5fd' : '#f9a8d4'; // Lighter version
             }
 
             // Draw note rectangle
-            const noteWidth = isBlackKey(note.pitch) ? WHITE_KEY_WIDTH * 0.6 : WHITE_KEY_WIDTH - 2;
-            const noteX = isBlackKey(note.pitch) ? x - noteWidth / 2 : x + 1;
+            const isNoteBlack = isBlackKey(note.pitch);
+            const noteWidth = isNoteBlack ? BLACK_KEY_WIDTH : WHITE_KEY_WIDTH - 2;
+            const noteX = isNoteBlack ? x : x + 1; // Black key x correction handled in getNoteX
+
+            // Special effect for hit notes
+            if (playStatus === 'correct' || playStatus === 'auto') {
+                ctx.globalAlpha = 0.3; // Fade out hit notes
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = color;
+            } else {
+                ctx.globalAlpha = 0.8;
+                ctx.shadowBlur = 0;
+            }
 
             ctx.fillStyle = color;
-            ctx.globalAlpha = playStatus ? 0.5 : 0.8;
-            ctx.fillRect(noteX, startY, noteWidth, height);
-            ctx.globalAlpha = 1.0;
+
+            // Draw from Top (endY) to Bottom
+            // Clip to not draw below keyboard line if we want them to disappear 'into' the keyboard?
+            // But they fall *onto* the keyboard.
+
+            ctx.fillRect(noteX, endY, noteWidth, height);
 
             // Draw border
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
-            ctx.strokeRect(noteX, startY, noteWidth, height);
+            ctx.strokeRect(noteX, endY, noteWidth, height);
+
+            ctx.globalAlpha = 1.0;
+            ctx.shadowBlur = 0;
+
+            // Draw Label inside note
+            if (height > 15) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                const label = getMidiNoteName(note.pitch).replace(/[0-9-]/g, '');
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(noteX, endY, noteWidth, height);
+                ctx.clip();
+                ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4);
+                ctx.restore();
+            }
         });
     };
 
@@ -491,6 +725,9 @@ export function SynthesiaView({ song }) {
         // Clear canvas
         ctx.fillStyle = COLORS.background;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Draw Grid
+        drawGrid(ctx);
 
         // Draw falling notes
         drawFallingNotes(ctx, currentTime);
@@ -781,7 +1018,8 @@ export function SynthesiaView({ song }) {
                 border: '2px solid var(--border-color)',
                 borderRadius: '8px',
                 overflow: 'hidden',
-                boxShadow: 'var(--shadow-xl)'
+                boxShadow: 'var(--shadow-xl)',
+                position: 'relative' // For overlay elements if needed
             }}>
                 <canvas
                     ref={canvasRef}
@@ -803,7 +1041,8 @@ export function SynthesiaView({ song }) {
                 background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-color)',
-                flexWrap: 'wrap'
+                flexWrap: 'wrap',
+                justifyContent: 'center'
             }}>
                 {/* Play/Pause Button */}
                 <button
@@ -842,6 +1081,85 @@ export function SynthesiaView({ song }) {
                     🔄 Recommencer
                 </button>
 
+                <div style={{ width: '1px', height: '30px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
+
+                {/* Hand Selection */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '500' }}>
+                        {handMode === 'watch' ? 'Mode Écoute (Auto)' : 'Votre Main:'}
+                    </span>
+                    <div style={{ display: 'flex', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                        <button
+                            onClick={() => setHandMode(handMode === 'left' ? 'watch' : 'left')}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                background: handMode === 'left' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                color: handMode === 'left' ? 'white' : 'var(--text-primary)',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                borderRight: '1px solid var(--border-color)'
+                            }}
+                            title="Vous jouez la main gauche"
+                        >
+                            Gauche
+                        </button>
+                        <button
+                            onClick={() => setHandMode(handMode === 'both' ? 'watch' : 'both')}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                background: handMode === 'both' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                color: handMode === 'both' ? 'white' : 'var(--text-primary)',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                borderRight: '1px solid var(--border-color)'
+                            }}
+                            title="Vous jouez les deux mains"
+                        >
+                            Deux mains
+                        </button>
+                        <button
+                            onClick={() => setHandMode(handMode === 'right' ? 'watch' : 'right')}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                background: handMode === 'right' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                color: handMode === 'right' ? 'white' : 'var(--text-primary)',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem'
+                            }}
+                            title="Vous jouez la main droite"
+                        >
+                            Droite
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ width: '1px', height: '30px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
+
+                {/* Metronome Toggle */}
+                <button
+                    onClick={() => setIsMetronomeOn(!isMetronomeOn)}
+                    style={{
+                        padding: '0.75rem 1rem',
+                        background: isMetronomeOn ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
+                        color: isMetronomeOn ? '#22c55e' : 'var(--text-secondary)',
+                        border: isMetronomeOn ? '1px solid #22c55e' : '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '1.2rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '50px'
+                    }}
+                    title="Métronome"
+                >
+                    ⏰
+                </button>
+
                 {/* Wait Mode Toggle */}
                 <button
                     onClick={() => setWaitMode(!waitMode)}
@@ -859,7 +1177,7 @@ export function SynthesiaView({ song }) {
                         gap: '0.5rem'
                     }}
                 >
-                    {waitMode ? '⏸️ Mode Attente: ON' : '▶️ Mode Attente: OFF'}
+                    {waitMode ? '⏸️ Attente: ON' : '▶️ Attente: OFF'}
                 </button>
 
                 {/* Speed Control */}
@@ -868,13 +1186,6 @@ export function SynthesiaView({ song }) {
                     alignItems: 'center',
                     gap: '0.75rem'
                 }}>
-                    <label style={{
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.9rem',
-                        fontWeight: '500'
-                    }}>
-                        Vitesse:
-                    </label>
                     <select
                         value={playbackSpeed}
                         onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
@@ -888,19 +1199,17 @@ export function SynthesiaView({ song }) {
                             fontSize: '0.9rem'
                         }}
                     >
-                        <option value="0.25">0.25x</option>
                         <option value="0.5">0.5x</option>
                         <option value="0.75">0.75x</option>
                         <option value="1.0">1x</option>
                         <option value="1.25">1.25x</option>
                         <option value="1.5">1.5x</option>
-                        <option value="2.0">2x</option>
                     </select>
                 </div>
 
                 {/* Time Display */}
                 <div style={{
-                    marginLeft: 'auto',
+                    marginLeft: '1rem',
                     color: 'var(--text-secondary)',
                     fontSize: '0.9rem',
                     fontFamily: 'monospace'
@@ -949,11 +1258,11 @@ export function SynthesiaView({ song }) {
                     paddingLeft: '1.5rem'
                 }}>
                     <li>Les notes tombent du haut vers le clavier en bas</li>
+                    <li><strong>Ligne de jeu :</strong> Jouez la note quand elle touche le haut du clavier (ligne lumineuse) !</li>
                     <li>Connectez votre clavier MIDI pour jouer en temps réel</li>
-                    <li>La ligne blanche indique le moment où il faut jouer la note</li>
+                    <li>Clicker sur le bouton de main active pour passer en <strong>Mode Écoute</strong> (l'ordinateur joue tout)</li>
                     <li><strong>Mode Attente:</strong> La lecture s'arrête jusqu'à ce que vous jouiez la bonne note</li>
                     <li>Vos performances sont enregistrées et affichées dans les statistiques</li>
-                    <li>Les notes deviennent vertes quand jouées correctement, oranges si manquées</li>
                 </ul>
             </div>
         </div>

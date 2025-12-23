@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import { getNoteNameFromMidi } from '../models/song';
 
 class AudioEngine {
     constructor() {
@@ -10,6 +11,17 @@ class AudioEngine {
         if (this.sampler) return;
 
         await Tone.start();
+
+        // Metronome Synth
+        this.metronomeSynth = new Tone.MembraneSynth({
+            pitchDecay: 0.008,
+            octaves: 2,
+            envelope: {
+                attack: 0.0006,
+                decay: 0.1,
+                sustain: 0
+            }
+        }).toDestination();
 
         return new Promise((resolve) => {
             this.sampler = new Tone.Sampler({
@@ -55,9 +67,10 @@ class AudioEngine {
         });
     }
 
-    playNote(pitch, duration = '8n') {
+    playNote(pitch, duration = '8n', time) {
         if (!this.sampler) return;
-        this.sampler.triggerAttackRelease(pitch, duration);
+        const note = typeof pitch === 'number' ? getNoteNameFromMidi(pitch) : pitch;
+        this.sampler.triggerAttackRelease(note, duration, time);
     }
 
     // Simple playback of a phrase
@@ -72,10 +85,11 @@ class AudioEngine {
         ];
 
         const part = new Tone.Part((time, note) => {
-            this.sampler.triggerAttackRelease(note.pitch, note.duration * Tone.Time('4n').toSeconds(), time);
+            const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
+            this.sampler.triggerAttackRelease(pitch, note.duration * Tone.Time('4n').toSeconds(), time);
         }, allNotes.map(n => ({
             time: n.startTime * Tone.Time('4n').toSeconds(),
-            pitch: n.pitch,
+            pitch: n.pitch, // Keep original in object, convert inside callback
             duration: n.duration
         })));
 
@@ -96,7 +110,8 @@ class AudioEngine {
         const minTime = Math.min(...notes.map(n => n.startTime));
 
         const part = new Tone.Part((time, note) => {
-            this.sampler.triggerAttackRelease(note.pitch, note.duration * Tone.Time('4n').toSeconds(), time);
+            const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
+            this.sampler.triggerAttackRelease(pitch, note.duration * Tone.Time('4n').toSeconds(), time);
         }, notes.map(n => ({
             time: (n.startTime - minTime) * Tone.Time('4n').toSeconds(),
             pitch: n.pitch,
@@ -109,10 +124,52 @@ class AudioEngine {
         this.isPlaying = true;
     }
 
+    // Metronome Features
+    playClick(time) {
+        if (!this.metronomeSynth) return;
+        this.metronomeSynth.triggerAttackRelease("C5", "32n", time);
+    }
+
+    startMetronome(tempo = 120) {
+        // Stop any existing metronome loop to avoid duplicates
+        this.stopMetronome();
+
+        Tone.Transport.bpm.value = tempo;
+
+        // Schedule click every quarter note
+        this.metronomeLoop = new Tone.Loop((time) => {
+            this.playClick(time);
+        }, "4n").start(0);
+
+        if (Tone.Transport.state !== 'started') {
+            Tone.Transport.start();
+        }
+    }
+
+    stopMetronome() {
+        if (this.metronomeLoop) {
+            this.metronomeLoop.stop();
+            this.metronomeLoop.dispose();
+            this.metronomeLoop = null;
+        }
+    }
+
+    setTempo(bpm) {
+        Tone.Transport.bpm.value = bpm;
+    }
+
     stop() {
         Tone.Transport.stop();
         Tone.Transport.cancel(); // Clear scheduled events
+        this.stopMetronome();
         this.isPlaying = false;
+
+        if (this.sampler) {
+            this.sampler.releaseAll();
+        }
+    }
+    stopAll() {
+        this.stop();
     }
 }
 

@@ -103,8 +103,8 @@ export const parseMidiFile = async (file) => {
                 const roundedDuration = Math.round(duration * 1000) / 1000;
 
                 // Create NoteEvent
-                // note.name is like "C4", "F#3" which matches our format
-                const event = createNoteEvent(note.name, roundedStartTime, roundedDuration);
+                // note.midi is the integer MIDI number (e.g., 60 for C4)
+                const event = createNoteEvent(note.midi, roundedStartTime, roundedDuration);
 
                 phrase.tracks[targetTrack].push(event);
             });
