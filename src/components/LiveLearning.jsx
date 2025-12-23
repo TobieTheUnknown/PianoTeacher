@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getFrenchNoteName, getPianoRollKeys } from '../models/song';
+import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys, NOTE_NAMES, getEnharmonicNote } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song, onToggleHighlight }) {
@@ -113,7 +113,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     flexWrap: 'wrap',
                     fontSize: '1rem'
                 }}>
-                    <span>🎼 <strong>{analysis.key}</strong></span>
+                    <span>🎼 <strong>{getFrenchKeyName(analysis.key)}</strong></span>
                     <span>⏱️ <strong>{analysis.tempo} BPM</strong></span>
                     <span>📊 <strong>{analysis.totalMeasures} mesures</strong></span>
                 </div>
@@ -143,18 +143,22 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         flexWrap: 'wrap',
                         gap: '0.5rem'
                     }}>
-                        {analysis.uniqueNotes.map(note => (
-                            <span key={note} style={{
-                                padding: '0.4rem 0.8rem',
-                                background: 'var(--bg-tertiary)',
-                                borderRadius: '6px',
-                                fontSize: '0.9rem',
-                                fontWeight: 'bold',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                {note}
-                            </span>
-                        ))}
+                        {analysis.uniqueNotes.map(note => {
+                            const correctNote = getEnharmonicNote(note, analysis.key);
+                            const frenchNote = NOTE_NAMES[correctNote] || correctNote;
+                            return (
+                                <span key={note} style={{
+                                    padding: '0.4rem 0.8rem',
+                                    background: 'var(--bg-tertiary)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.9rem',
+                                    fontWeight: 'bold',
+                                    border: '1px solid var(--border-color)'
+                                }}>
+                                    {frenchNote}
+                                </span>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -268,6 +272,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                 )}
                                                 <MeasureCard
                                                     measure={measure}
+                                                    keySignature={song.key}
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
                                                     onToggleHighlight={onToggleHighlight}
                                                     onPlay={handlePlayMeasure}
@@ -327,7 +332,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
 }
 
 // Helper component for measure cards
-function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
+function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
     return (
         <div
             onClick={() => onPlay(measure)}
@@ -402,7 +407,7 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDe
                 {measure.hasChord ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         {measure.chordGroups.map((chordGroup, idx) => {
-                            const chordName = getFrenchNoteName(chordGroup.notes[0].pitch).split(/\d/)[0];
+                            const chordName = getFrenchNoteName(chordGroup.notes[0].pitch, keySignature).split(/\d/)[0];
 
                             return (
                                 <div key={idx}>
@@ -431,7 +436,7 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDe
                                                     borderRadius: '3px',
                                                     border: '1px solid var(--border-color)'
                                                 }}>
-                                                    {getFrenchNoteName(n.pitch)}
+                                                    {getFrenchNoteName(n.pitch, keySignature)}
                                                 </span>
                                             ))}
                                         </div>
@@ -480,7 +485,7 @@ function MeasureCard({ measure, isHighlighted, onToggleHighlight, onPlay, showDe
                                     border: '1px solid var(--accent-secondary)',
                                     color: 'var(--text-primary)'
                                 }}>
-                                    {getFrenchNoteName(n.pitch)}
+                                    {getFrenchNoteName(n.pitch, keySignature)}
                                 </span>
                             ))
                         ) : (
