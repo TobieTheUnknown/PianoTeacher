@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import * as Tone from 'tone';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
@@ -308,15 +309,32 @@ export function SynthesiaView({ song }) {
         });
     }, [currentTime, isPlaying, handMode, allNotes, beatsPerSecond]);
 
-    // Metronome Control
+    // Metronome Control - Synchronized with measure crossing
+    const lastMetronomeClickRef = useRef(-1); // Track last measure that triggered a click
+
     useEffect(() => {
-        if (isPlaying && isMetronomeOn) {
-            audioEngine.setTempo(song?.tempo || 120);
-            audioEngine.startMetronome(song?.tempo || 120);
-        } else {
+        if (!isPlaying || !isMetronomeOn || !audioInitialized) {
             audioEngine.stopMetronome();
+            return;
         }
-    }, [isPlaying, isMetronomeOn, song?.tempo]);
+
+        // Calculate which measure is currently crossing the keyboard line
+        // Measures are typically 4 beats each
+        const beatsPerMeasure = 4;
+        const currentBeat = currentTime * beatsPerSecond;
+        const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
+
+        // Play click when a new measure crosses the keyboard line
+        if (currentMeasure !== lastMetronomeClickRef.current && currentMeasure >= 0) {
+            lastMetronomeClickRef.current = currentMeasure;
+            // Play click immediately (at current Tone.Transport time)
+            audioEngine.playClick(Tone.now());
+        }
+
+        // No need for automatic metronome loop anymore
+        audioEngine.stopMetronome();
+
+    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond]);
 
     // MIDI message handler with note detection
     const handleMIDIMessage = (message) => {
@@ -845,6 +863,7 @@ export function SynthesiaView({ song }) {
         startTimeRef.current = null;
         pausedAtTimeRef.current = null;
         processedNotesRef.current = new Set(); // Reset processed notes tracking
+        lastMetronomeClickRef.current = -1; // Reset metronome tracking
         setPlayedNotes(new Map());
         setFeedbackMessages([]);
         setSessionStats({
