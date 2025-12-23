@@ -99,6 +99,9 @@ export function SynthesiaView({ song }) {
         let currentTime = 0;
 
         song.phrases.forEach(phrase => {
+            // Skip if phrase is null or undefined
+            if (!phrase) return;
+
             // Add melody notes (right hand) - check if melody exists and is an array
             if (phrase.melody && Array.isArray(phrase.melody)) {
                 phrase.melody.forEach(note => {
