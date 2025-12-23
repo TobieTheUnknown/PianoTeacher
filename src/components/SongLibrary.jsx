@@ -5,8 +5,6 @@ import { getFrenchKeyName } from '../models/song';
 export function SongLibrary({ onLoadSong, onNewSong }) {
     const [songs, setSongs] = useState([]);
     const [showLibraryModal, setShowLibraryModal] = useState(false);
-    const [exportLibraryString, setExportLibraryString] = useState('');
-    const [importLibraryString, setImportLibraryString] = useState('');
     const [mergeOnImport, setMergeOnImport] = useState(false);
 
     useEffect(() => {
@@ -26,28 +24,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
     };
 
     const handleOpenLibraryModal = () => {
-        const str = StorageService.exportLibraryToString();
-        if (str) {
-            setExportLibraryString(str);
-        }
         setShowLibraryModal(true);
-    };
-
-    const handleCopyLibraryString = () => {
-        navigator.clipboard.writeText(exportLibraryString);
-        alert('Bibliothèque copiée dans le presse-papiers !');
-    };
-
-    const handleImportLibraryString = () => {
-        try {
-            StorageService.importLibrary(importLibraryString, mergeOnImport);
-            loadSongs();
-            setImportLibraryString('');
-            setShowLibraryModal(false);
-            alert(`Bibliothèque ${mergeOnImport ? 'fusionnée' : 'importée'} avec succès !`);
-        } catch (error) {
-            alert(error.message);
-        }
     };
 
     const handleImportLibraryJson = (e) => {
@@ -424,110 +401,10 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             </div>
                         </div>
 
-                        {/* Text Section */}
-                        <div style={{
-                            marginBottom: '1rem',
-                            padding: '1.5rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                📋 Export / Import Texte
-                            </h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                                Format texte compact pour copier/coller votre bibliothèque
-                            </p>
-
-                            {/* Export */}
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.95rem' }}>
-                                    Export
-                                </label>
-                                <textarea
-                                    value={exportLibraryString}
-                                    readOnly
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '100px',
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.7rem',
-                                        padding: '1rem',
-                                        backgroundColor: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 'var(--radius-md)',
-                                        color: 'var(--text-primary)',
-                                        resize: 'vertical'
-                                    }}
-                                />
-                                <button
-                                    onClick={handleCopyLibraryString}
-                                    style={{
-                                        marginTop: '0.5rem',
-                                        background: 'var(--gradient-success)',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        cursor: 'pointer',
-                                        fontWeight: '600',
-                                        fontSize: '0.875rem'
-                                    }}
-                                >
-                                    📋 Copier
-                                </button>
-                            </div>
-
-                            {/* Import */}
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.95rem' }}>
-                                    Import
-                                </label>
-                                <textarea
-                                    value={importLibraryString}
-                                    onChange={(e) => setImportLibraryString(e.target.value)}
-                                    placeholder="Collez la chaîne d'export de la bibliothèque ici..."
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '100px',
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.7rem',
-                                        padding: '1rem',
-                                        backgroundColor: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 'var(--radius-md)',
-                                        color: 'var(--text-primary)',
-                                        resize: 'vertical'
-                                    }}
-                                />
-                                <button
-                                    onClick={handleImportLibraryString}
-                                    disabled={!importLibraryString.trim()}
-                                    style={{
-                                        marginTop: '0.5rem',
-                                        background: importLibraryString.trim() ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        cursor: importLibraryString.trim() ? 'pointer' : 'not-allowed',
-                                        fontWeight: '600',
-                                        fontSize: '0.875rem',
-                                        opacity: importLibraryString.trim() ? 1 : 0.5
-                                    }}
-                                >
-                                    📥 Importer
-                                </button>
-                            </div>
-                        </div>
-
                         {/* Close Button */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                             <button
-                                onClick={() => {
-                                    setShowLibraryModal(false);
-                                    setImportLibraryString('');
-                                }}
+                                onClick={() => setShowLibraryModal(false)}
                                 style={{
                                     backgroundColor: 'var(--bg-elevated)',
                                     border: '1px solid var(--border-light)',
