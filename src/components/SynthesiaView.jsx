@@ -93,50 +93,64 @@ export function SynthesiaView({ song }) {
 
     // Get all notes from song with timing information
     const getAllNotes = useCallback(() => {
-        if (!song || !song.phrases || song.phrases.length === 0) return [];
+        // Multiple defensive checks
+        if (!song) return [];
+        if (!song.phrases) return [];
+        if (!Array.isArray(song.phrases)) return [];
+        if (song.phrases.length === 0) return [];
 
         const notes = [];
         let currentTime = 0;
 
-        song.phrases.forEach(phrase => {
-            // Skip if phrase is null or undefined
-            if (!phrase) return;
+        try {
+            // Use for...of instead of forEach for better error handling
+            for (const phrase of song.phrases) {
+                // Skip invalid phrases
+                if (!phrase || typeof phrase !== 'object') {
+                    continue;
+                }
 
-            // Add melody notes (right hand) - check if melody exists and is an array
-            if (phrase.melody && Array.isArray(phrase.melody)) {
-                phrase.melody.forEach(note => {
-                    if (note && typeof note.pitch === 'number') {
-                        notes.push({
-                            id: `${currentTime}_${note.pitch}_melody`,
-                            pitch: note.pitch,
-                            startTime: currentTime + (note.startTime || 0),
-                            duration: note.duration || 0.5,
-                            hand: 'right',
-                            velocity: note.velocity || 64
-                        });
+                // Process melody notes (right hand)
+                const melodyNotes = phrase.melody || [];
+                if (Array.isArray(melodyNotes)) {
+                    for (const note of melodyNotes) {
+                        if (note && typeof note.pitch === 'number') {
+                            notes.push({
+                                id: `${currentTime}_${note.pitch}_melody_${Math.random()}`,
+                                pitch: note.pitch,
+                                startTime: currentTime + (note.startTime || 0),
+                                duration: note.duration || 0.5,
+                                hand: 'right',
+                                velocity: note.velocity || 64
+                            });
+                        }
                     }
-                });
-            }
+                }
 
-            // Add chord notes (left hand) - check if chords exists and is an array
-            if (phrase.chords && Array.isArray(phrase.chords)) {
-                phrase.chords.forEach(note => {
-                    if (note && typeof note.pitch === 'number') {
-                        notes.push({
-                            id: `${currentTime}_${note.pitch}_chord`,
-                            pitch: note.pitch,
-                            startTime: currentTime + (note.startTime || 0),
-                            duration: note.duration || 0.5,
-                            hand: 'left',
-                            velocity: note.velocity || 64
-                        });
+                // Process chord notes (left hand)
+                const chordNotes = phrase.chords || [];
+                if (Array.isArray(chordNotes)) {
+                    for (const note of chordNotes) {
+                        if (note && typeof note.pitch === 'number') {
+                            notes.push({
+                                id: `${currentTime}_${note.pitch}_chord_${Math.random()}`,
+                                pitch: note.pitch,
+                                startTime: currentTime + (note.startTime || 0),
+                                duration: note.duration || 0.5,
+                                hand: 'left',
+                                velocity: note.velocity || 64
+                            });
+                        }
                     }
-                });
-            }
+                }
 
-            // Update time for next phrase
-            currentTime += phrase.duration || 4;
-        });
+                // Update time for next phrase
+                currentTime += (phrase.duration || 4);
+            }
+        } catch (error) {
+            console.error('Error processing song notes:', error);
+            return [];
+        }
 
         return notes.sort((a, b) => a.startTime - b.startTime);
     }, [song]);
