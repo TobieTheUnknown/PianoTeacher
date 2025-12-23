@@ -55,14 +55,20 @@ export function LiveLearning({ song, onToggleHighlight }) {
         };
     }, [song]);
 
-    const handlePlayMeasure = async (measure) => {
+    const handlePlayMeasure = async (measure, hand = 'both') => {
         await audioEngine.initialize();
 
-        // Combine melody and chords for playback
-        const allNotes = [...measure.melody, ...measure.chords];
+        let notesToPlay = [];
+        if (hand === 'both') {
+            notesToPlay = [...measure.melody, ...measure.chords];
+        } else if (hand === 'right') {
+            notesToPlay = measure.melody;
+        } else if (hand === 'left') {
+            notesToPlay = measure.chords;
+        }
 
-        if (allNotes.length > 0) {
-            audioEngine.playNotes(allNotes, song.tempo);
+        if (notesToPlay.length > 0) {
+            audioEngine.playNotes(notesToPlay, song.tempo);
         }
     };
 
@@ -101,7 +107,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text'
                 }}>
-                    ⚡ Live Learning
+                    📚 Apprentissage
                 </h2>
                 <p style={{ fontSize: '1.3rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>
                     {song.title}
@@ -175,9 +181,10 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         💡 Mode d'emploi
                     </h3>
                     <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div>🎵 <strong>Cliquez sur une mesure</strong> pour l'écouter</div>
+                        <div>🎵 <strong>Boutons MG/MD/2M</strong> pour jouer chaque main séparément</div>
                         <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner</div>
-                        <div>👁️ <strong>Activez les détails</strong> pour voir les notes</div>
+                        <div>👁️ <strong>Activez les détails</strong> pour voir toutes les notes</div>
+                        <div>🎹 <strong>Timeline colorée</strong> montre la position des notes</div>
                     </div>
                 </div>
             </div>
@@ -335,7 +342,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
 function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
     return (
         <div
-            onClick={() => onPlay(measure)}
             style={{
                 padding: '1rem',
                 background: 'var(--bg-tertiary)',
@@ -344,25 +350,16 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                     ? '3px solid var(--accent-primary)'
                     : '2px solid var(--border-color)',
                 transition: 'all var(--transition-fast)',
-                cursor: 'pointer',
                 position: 'relative',
                 overflow: 'hidden',
                 boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none',
-                minHeight: showDetails ? '160px' : '120px'
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-lg)';
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'none';
+                minHeight: showDetails ? '200px' : '140px'
             }}
         >
             {/* Measure number badge - clickable to highlight */}
             <div
                 onClick={(e) => {
-                    e.stopPropagation(); // Prevent playing when clicking number
+                    e.stopPropagation();
                     onToggleHighlight(measure.number);
                 }}
                 style={{
@@ -392,6 +389,89 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 }}
             >
                 {measure.number}
+            </div>
+
+            {/* Play buttons */}
+            <div style={{
+                display: 'flex',
+                gap: '0.25rem',
+                marginBottom: '0.75rem'
+            }}>
+                <button
+                    onClick={() => onPlay(measure, 'left')}
+                    style={{
+                        flex: 1,
+                        padding: '0.3rem',
+                        fontSize: '0.7rem',
+                        backgroundColor: 'transparent',
+                        border: '1px solid var(--accent-secondary)',
+                        color: 'var(--accent-secondary)',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--accent-secondary)';
+                        e.currentTarget.style.color = 'white';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = 'var(--accent-secondary)';
+                    }}
+                    title="Jouer main gauche"
+                >
+                    ▶ MG
+                </button>
+                <button
+                    onClick={() => onPlay(measure, 'right')}
+                    style={{
+                        flex: 1,
+                        padding: '0.3rem',
+                        fontSize: '0.7rem',
+                        backgroundColor: 'transparent',
+                        border: '1px solid var(--accent-primary)',
+                        color: 'var(--accent-primary)',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
+                        e.currentTarget.style.color = 'white';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = 'var(--accent-primary)';
+                    }}
+                    title="Jouer main droite"
+                >
+                    ▶ MD
+                </button>
+                <button
+                    onClick={() => onPlay(measure, 'both')}
+                    style={{
+                        flex: 1,
+                        padding: '0.3rem',
+                        fontSize: '0.7rem',
+                        backgroundColor: 'transparent',
+                        border: '1px solid var(--text-primary)',
+                        color: 'var(--text-primary)',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--text-primary)';
+                        e.currentTarget.style.color = 'var(--bg-tertiary)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-primary)';
+                    }}
+                    title="Jouer les deux mains"
+                >
+                    ▶ 2M
+                </button>
             </div>
 
             {/* Chord info - show ALL chords in measure */}
@@ -466,56 +546,94 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                     Mélodie ({measure.melodyCount} notes)
                 </div>
 
-                {showDetails ? (
-                    // Show actual melody notes when details are enabled
-                    <div style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '0.25rem',
-                        maxHeight: '60px',
-                        overflowY: 'auto'
-                    }}>
-                        {measure.melody.length > 0 ? (
-                            measure.melody.sort((a, b) => a.startTime - b.startTime).map((n, i) => (
+                <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.25rem',
+                    alignItems: 'center'
+                }}>
+                    {measure.melody.length > 0 ? (
+                        <>
+                            {/* Always show first note */}
+                            {measure.melody.sort((a, b) => a.startTime - b.startTime).slice(0, 1).map((n, i) => (
                                 <span key={i} style={{
-                                    fontSize: '0.7rem',
+                                    fontSize: '0.75rem',
                                     background: 'var(--bg-primary)',
-                                    padding: '0.1rem 0.3rem',
-                                    borderRadius: '3px',
-                                    border: '1px solid var(--accent-secondary)',
-                                    color: 'var(--text-primary)'
+                                    padding: '0.2rem 0.4rem',
+                                    borderRadius: '4px',
+                                    border: '2px solid var(--accent-primary)',
+                                    color: 'var(--text-primary)',
+                                    fontWeight: 'bold'
                                 }}>
                                     {getFrenchNoteName(n.pitch, keySignature)}
                                 </span>
-                            ))
-                        ) : (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
-                                Aucune
-                            </span>
-                        )}
-                    </div>
-                ) : (
-                    // Show density dots when details are hidden
-                    <div style={{
-                        display: 'flex',
-                        gap: '2px',
-                        flexWrap: 'wrap'
-                    }}>
-                        {Array.from({ length: Math.min(measure.melodyCount, 12) }).map((_, i) => (
-                            <div key={i} style={{
-                                width: '6px',
-                                height: '6px',
-                                background: 'var(--accent-secondary)',
-                                borderRadius: '50%'
-                            }} />
-                        ))}
-                        {measure.melodyCount > 12 && (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                +{measure.melodyCount - 12}
-                            </span>
-                        )}
-                    </div>
-                )}
+                            ))}
+
+                            {showDetails ? (
+                                // Show all remaining notes when details are enabled
+                                measure.melody.sort((a, b) => a.startTime - b.startTime).slice(1).map((n, i) => (
+                                    <span key={i + 1} style={{
+                                        fontSize: '0.7rem',
+                                        background: 'var(--bg-primary)',
+                                        padding: '0.1rem 0.3rem',
+                                        borderRadius: '3px',
+                                        border: '1px solid var(--accent-primary)',
+                                        color: 'var(--text-primary)'
+                                    }}>
+                                        {getFrenchNoteName(n.pitch, keySignature)}
+                                    </span>
+                                ))
+                            ) : (
+                                // Show count when details are hidden
+                                measure.melody.length > 1 && (
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                        +{measure.melody.length - 1}
+                                    </span>
+                                )
+                            )}
+                        </>
+                    ) : (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                            Aucune
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Visual Timeline Bar */}
+            <div style={{
+                marginTop: '1rem',
+                height: '4px',
+                backgroundColor: 'var(--bg-primary)',
+                position: 'relative',
+                borderRadius: '2px'
+            }}>
+                {/* Melody Dots (Right Hand - Top) */}
+                {measure.melody.map(n => (
+                    <div key={`melody-${n.id}`} style={{
+                        position: 'absolute',
+                        left: `${((n.startTime % 4) / 4) * 100}%`,
+                        top: '-3px',
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--accent-primary)',
+                        border: '2px solid var(--bg-tertiary)'
+                    }} title={`Main droite: ${getFrenchNoteName(n.pitch, keySignature)}`} />
+                ))}
+                {/* Chord Dots (Left Hand - Bottom) */}
+                {measure.chords.map(n => (
+                    <div key={`chord-${n.id}`} style={{
+                        position: 'absolute',
+                        left: `${((n.startTime % 4) / 4) * 100}%`,
+                        bottom: '-3px',
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--accent-secondary)',
+                        border: '2px solid var(--bg-tertiary)'
+                    }} title={`Main gauche: ${getFrenchNoteName(n.pitch, keySignature)}`} />
+                ))}
             </div>
         </div>
     );
