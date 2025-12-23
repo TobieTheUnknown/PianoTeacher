@@ -181,10 +181,10 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         💡 Mode d'emploi
                     </h3>
                     <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div>🎵 <strong>Boutons MG/MD/2M</strong> pour jouer chaque main séparément</div>
-                        <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner</div>
+                        <div>🎵 <strong>Cliquez sur une mesure</strong> pour jouer les deux mains</div>
+                        <div>🎹 <strong>Boutons MG/MD</strong> pour jouer chaque main séparément</div>
+                        <div>✓ <strong>Cochez la case</strong> pour surligner une mesure</div>
                         <div>👁️ <strong>Activez les détails</strong> pour voir toutes les notes</div>
-                        <div>🎹 <strong>Timeline colorée</strong> montre la position des notes</div>
                     </div>
                 </div>
             </div>
@@ -342,6 +342,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
 function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails }) {
     return (
         <div
+            onClick={() => onPlay(measure, 'both')}
             style={{
                 padding: '1rem',
                 background: 'var(--bg-tertiary)',
@@ -350,45 +351,54 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                     ? '3px solid var(--accent-primary)'
                     : '2px solid var(--border-color)',
                 transition: 'all var(--transition-fast)',
+                cursor: 'pointer',
                 position: 'relative',
                 overflow: 'hidden',
                 boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none',
                 minHeight: showDetails ? '200px' : '140px'
             }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-lg)';
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'none';
+            }}
         >
-            {/* Measure number badge - clickable to highlight */}
-            <div
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleHighlight(measure.number);
-                }}
-                style={{
-                    position: 'absolute',
-                    top: '0.5rem',
-                    right: '0.5rem',
-                    background: isHighlighted ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                    color: 'white',
-                    borderRadius: '50%',
-                    width: '28px',
-                    height: '28px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
+            {/* Measure number and highlight checkbox */}
+            <div style={{
+                position: 'absolute',
+                top: '0.5rem',
+                right: '0.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                zIndex: 10
+            }}>
+                <span style={{
+                    fontSize: '0.8rem',
                     fontWeight: 'bold',
-                    cursor: 'pointer',
-                    border: '2px solid ' + (isHighlighted ? 'var(--accent-primary)' : 'var(--border-light)'),
-                    transition: 'all var(--transition-fast)',
-                    zIndex: 10
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.1)';
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                }}
-            >
-                {measure.number}
+                    color: 'var(--text-secondary)'
+                }}>
+                    #{measure.number}
+                </span>
+                <input
+                    type="checkbox"
+                    checked={isHighlighted}
+                    onChange={(e) => {
+                        e.stopPropagation();
+                        onToggleHighlight(measure.number);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer',
+                        accentColor: 'var(--accent-primary)'
+                    }}
+                    title="Surligner cette mesure"
+                />
             </div>
 
             {/* Play buttons */}
@@ -398,7 +408,10 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 marginBottom: '0.75rem'
             }}>
                 <button
-                    onClick={() => onPlay(measure, 'left')}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPlay(measure, 'left');
+                    }}
                     style={{
                         flex: 1,
                         padding: '0.3rem',
@@ -423,7 +436,10 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                     ▶ MG
                 </button>
                 <button
-                    onClick={() => onPlay(measure, 'right')}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPlay(measure, 'right');
+                    }}
                     style={{
                         flex: 1,
                         padding: '0.3rem',
@@ -446,31 +462,6 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                     title="Jouer main droite"
                 >
                     ▶ MD
-                </button>
-                <button
-                    onClick={() => onPlay(measure, 'both')}
-                    style={{
-                        flex: 1,
-                        padding: '0.3rem',
-                        fontSize: '0.7rem',
-                        backgroundColor: 'transparent',
-                        border: '1px solid var(--text-primary)',
-                        color: 'var(--text-primary)',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        transition: 'all var(--transition-fast)'
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--text-primary)';
-                        e.currentTarget.style.color = 'var(--bg-tertiary)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = 'var(--text-primary)';
-                    }}
-                    title="Jouer les deux mains"
-                >
-                    ▶ 2M
                 </button>
             </div>
 
