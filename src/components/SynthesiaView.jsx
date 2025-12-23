@@ -517,6 +517,48 @@ export function SynthesiaView({ song }) {
         return isBlack ? COLORS.blackKey : COLORS.whiteKey;
     };
 
+    // Draw highlighted measure zones
+    const drawHighlightedMeasures = (ctx) => {
+        if (!song.highlightedMeasures || song.highlightedMeasures.length === 0) return;
+
+        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+        const lookAheadTime = 4;
+        const beatsPerMeasure = 4;
+        const highlightedMeasures = new Set(song.highlightedMeasures);
+
+        // Draw highlighted measure zones
+        ctx.fillStyle = '#60a5fa'; // Blue color
+        ctx.globalAlpha = 0.12;
+
+        const firstVisibleMeasure = Math.floor((currentTime * beatsPerSecond) / beatsPerMeasure);
+        const lastVisibleMeasure = Math.ceil(((currentTime + lookAheadTime) * beatsPerSecond) / beatsPerMeasure);
+
+        for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
+            if (highlightedMeasures.has(measure + 1)) { // +1 because measures are 1-indexed in highlightedMeasures
+                const measureStartTime = (measure * beatsPerMeasure) / beatsPerSecond;
+                const measureEndTime = ((measure + 1) * beatsPerMeasure) / beatsPerSecond;
+
+                const startTimeDiff = measureStartTime - currentTime;
+                const endTimeDiff = measureEndTime - currentTime;
+
+                const startY = NOTE_FALL_HEIGHT * (1 - startTimeDiff / lookAheadTime);
+                const endY = NOTE_FALL_HEIGHT * (1 - endTimeDiff / lookAheadTime);
+
+                if (endY >= 0 && startY <= NOTE_FALL_HEIGHT) {
+                    const rectStartY = Math.max(0, endY);
+                    const rectEndY = Math.min(NOTE_FALL_HEIGHT, startY);
+                    const rectHeight = rectEndY - rectStartY;
+
+                    if (rectHeight > 0) {
+                        ctx.fillRect(0, rectStartY, CANVAS_WIDTH, rectHeight);
+                    }
+                }
+            }
+        }
+
+        ctx.globalAlpha = 1.0;
+    };
+
     // Draw measure numbers
     const drawMeasureNumbers = (ctx) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
@@ -524,11 +566,9 @@ export function SynthesiaView({ song }) {
         const beatsPerMeasure = 4;
         const currentBeat = currentTime * beatsPerSecond;
         const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
+        const highlightedMeasures = new Set(song.highlightedMeasures || []);
 
         // Draw measure numbers on the left side
-        ctx.font = 'bold 20px Arial';
-        ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = 0.15;
         ctx.textAlign = 'left';
 
         // Calculate which measures are visible
@@ -543,7 +583,21 @@ export function SynthesiaView({ song }) {
             const y = NOTE_FALL_HEIGHT * (1 - timeDiff / lookAheadTime);
 
             if (y >= 0 && y <= NOTE_FALL_HEIGHT) {
-                ctx.fillText(`${measure + 1}`, 20, y + 7);
+                const measureNumber = measure + 1;
+                const isHighlighted = highlightedMeasures.has(measureNumber);
+
+                // Highlight active measures with different style
+                if (isHighlighted) {
+                    ctx.font = 'bold 24px Arial';
+                    ctx.fillStyle = '#60a5fa';
+                    ctx.globalAlpha = 0.9;
+                } else {
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.globalAlpha = 0.15;
+                }
+
+                ctx.fillText(`${measureNumber}`, 20, y + 7);
             }
         }
 
@@ -814,7 +868,10 @@ export function SynthesiaView({ song }) {
         ctx.fillStyle = COLORS.background;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Draw measure numbers first (in background)
+        // Draw highlighted measure zones first (in background)
+        drawHighlightedMeasures(ctx);
+
+        // Draw measure numbers (in background)
         drawMeasureNumbers(ctx);
 
         // Draw Grid (pass beatsPerSecond for tempo adjustment)
