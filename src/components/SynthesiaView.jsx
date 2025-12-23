@@ -551,7 +551,7 @@ export function SynthesiaView({ song }) {
     };
 
     // Draw grid lines
-    const drawGrid = (ctx) => {
+    const drawGrid = (ctx, beatsPerSecond) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
         // Vertical lines
@@ -617,8 +617,8 @@ export function SynthesiaView({ song }) {
         const visibleStartTime = currentTime;
         const visibleEndTime = currentTime + lookAheadTime;
 
-        // Calculate beat duration in seconds
-        const secondsPerBeat = 60 / (song?.tempo || 120);
+        // Calculate beat duration in seconds (using current BPM)
+        const secondsPerBeat = 1 / beatsPerSecond;
 
         // Find the first beat that is visible
         const firstVisibleBeat = Math.ceil(visibleStartTime / secondsPerBeat);
@@ -817,8 +817,8 @@ export function SynthesiaView({ song }) {
         // Draw measure numbers first (in background)
         drawMeasureNumbers(ctx);
 
-        // Draw Grid
-        drawGrid(ctx);
+        // Draw Grid (pass beatsPerSecond for tempo adjustment)
+        drawGrid(ctx, beatsPerSecond);
 
         // Draw falling notes
         drawFallingNotes(ctx, currentTime);
