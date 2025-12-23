@@ -380,8 +380,12 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                         ? 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%)'
                         : 'var(--bg-elevated)',
                     color: 'white',
-                    borderRadius: '8px',
-                    padding: '0.4rem 0.6rem',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     fontSize: '0.75rem',
                     fontWeight: 'bold',
                     cursor: 'pointer',
@@ -390,12 +394,10 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                         : '2px solid var(--border-light)',
                     transition: 'all var(--transition-fast)',
                     zIndex: 10,
-                    boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
-                    minWidth: '32px',
-                    textAlign: 'center'
+                    boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-sm)'
                 }}
                 onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.05)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
                     if (!isHighlighted) {
                         e.currentTarget.style.borderColor = 'var(--accent-primary)';
                     }
@@ -548,58 +550,80 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                     Mélodie ({measure.melodyCount} notes)
                 </div>
 
-                <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.25rem',
-                    alignItems: 'center'
-                }}>
-                    {measure.melody.length > 0 ? (
-                        <>
-                            {/* Always show first note */}
-                            {measure.melody.sort((a, b) => a.startTime - b.startTime).slice(0, 1).map((n, i) => (
-                                <span key={i} style={{
-                                    fontSize: '0.75rem',
-                                    background: 'var(--bg-primary)',
-                                    padding: '0.2rem 0.4rem',
-                                    borderRadius: '4px',
-                                    border: '2px solid var(--accent-primary)',
-                                    color: 'var(--text-primary)',
-                                    fontWeight: 'bold'
-                                }}>
-                                    {getFrenchNoteName(n.pitch, keySignature)}
-                                </span>
-                            ))}
+                {measure.melody.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {(() => {
+                            const sortedMelody = measure.melody.sort((a, b) => a.startTime - b.startTime);
+                            const firstNote = sortedMelody[0];
+                            const measureStart = Math.floor(firstNote.startTime / 4) * 4;
+                            const halfMeasure = measureStart + 2;
 
-                            {showDetails ? (
-                                // Show all remaining notes when details are enabled
-                                measure.melody.sort((a, b) => a.startTime - b.startTime).slice(1).map((n, i) => (
-                                    <span key={i + 1} style={{
-                                        fontSize: '0.7rem',
-                                        background: 'var(--bg-primary)',
-                                        padding: '0.1rem 0.3rem',
-                                        borderRadius: '3px',
-                                        border: '1px solid var(--accent-primary)',
-                                        color: 'var(--text-primary)'
+                            // Split notes into two groups based on timing
+                            const firstHalf = sortedMelody.filter(n => n.startTime < halfMeasure);
+                            const secondHalf = sortedMelody.filter(n => n.startTime >= halfMeasure);
+
+                            const renderNotes = (notes, showAll) => {
+                                if (notes.length === 0) return null;
+
+                                return (
+                                    <div style={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: '0.25rem',
+                                        alignItems: 'center'
                                     }}>
-                                        {getFrenchNoteName(n.pitch, keySignature)}
-                                    </span>
-                                ))
-                            ) : (
-                                // Show count when details are hidden
-                                measure.melody.length > 1 && (
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                        +{measure.melody.length - 1}
-                                    </span>
-                                )
-                            )}
-                        </>
-                    ) : (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
-                            Aucune
-                        </span>
-                    )}
-                </div>
+                                        {/* First note with emphasis */}
+                                        <span style={{
+                                            fontSize: '0.75rem',
+                                            background: 'var(--bg-primary)',
+                                            padding: '0.2rem 0.4rem',
+                                            borderRadius: '4px',
+                                            border: '2px solid var(--accent-primary)',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            {getFrenchNoteName(notes[0].pitch, keySignature)}
+                                        </span>
+
+                                        {showAll ? (
+                                            // Show all remaining notes
+                                            notes.slice(1).map((n, i) => (
+                                                <span key={i + 1} style={{
+                                                    fontSize: '0.7rem',
+                                                    background: 'var(--bg-primary)',
+                                                    padding: '0.1rem 0.3rem',
+                                                    borderRadius: '3px',
+                                                    border: '1px solid var(--accent-primary)',
+                                                    color: 'var(--text-primary)'
+                                                }}>
+                                                    {getFrenchNoteName(n.pitch, keySignature)}
+                                                </span>
+                                            ))
+                                        ) : (
+                                            // Show count
+                                            notes.length > 1 && (
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                                    +{notes.length - 1}
+                                                </span>
+                                            )
+                                        )}
+                                    </div>
+                                );
+                            };
+
+                            return (
+                                <>
+                                    {renderNotes(firstHalf, showDetails)}
+                                    {secondHalf.length > 0 && renderNotes(secondHalf, showDetails)}
+                                </>
+                            );
+                        })()}
+                    </div>
+                ) : (
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                        Aucune
+                    </span>
+                )}
             </div>
 
             {/* Visual Timeline Bar */}

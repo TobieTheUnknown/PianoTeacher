@@ -94,15 +94,79 @@ export const getEnharmonicNote = (note, keySignature) => {
 
     const { note: tonic, mode } = keySignature;
 
-    // Define which keys use flats vs sharps
-    const flatKeys = {
-        major: ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'],
-        minor: ['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab']
+    // Define the scale notes for each key (with proper sharps/flats)
+    const keySignatures = {
+        // Major keys
+        'C-major': ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+        'G-major': ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+        'D-major': ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+        'A-major': ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
+        'E-major': ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
+        'B-major': ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#'],
+        'F#-major': ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#'],
+        'C#-major': ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#'],
+        'F-major': ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+        'Bb-major': ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
+        'Eb-major': ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
+        'Ab-major': ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
+        'Db-major': ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
+        'Gb-major': ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
+        'Cb-major': ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'],
+
+        // Minor keys (natural minor)
+        'A-minor': ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+        'E-minor': ['E', 'F#', 'G', 'A', 'B', 'C', 'D'],
+        'B-minor': ['B', 'C#', 'D', 'E', 'F#', 'G', 'A'],
+        'F#-minor': ['F#', 'G#', 'A', 'B', 'C#', 'D', 'E'],
+        'C#-minor': ['C#', 'D#', 'E', 'F#', 'G#', 'A', 'B'],
+        'G#-minor': ['G#', 'A#', 'B', 'C#', 'D#', 'E', 'F#'],
+        'D#-minor': ['D#', 'E#', 'F#', 'G#', 'A#', 'B', 'C#'],
+        'A#-minor': ['A#', 'B#', 'C#', 'D#', 'E#', 'F#', 'G#'],
+        'D-minor': ['D', 'E', 'F', 'G', 'A', 'Bb', 'C'],
+        'G-minor': ['G', 'A', 'Bb', 'C', 'D', 'Eb', 'F'],
+        'C-minor': ['C', 'D', 'Eb', 'F', 'G', 'Ab', 'Bb'],
+        'F-minor': ['F', 'G', 'Ab', 'Bb', 'C', 'Db', 'Eb'],
+        'Bb-minor': ['Bb', 'C', 'Db', 'Eb', 'F', 'Gb', 'Ab'],
+        'Eb-minor': ['Eb', 'F', 'Gb', 'Ab', 'Bb', 'Cb', 'Db'],
+        'Ab-minor': ['Ab', 'Bb', 'Cb', 'Db', 'Eb', 'Fb', 'Gb']
     };
 
-    const usesFlats = flatKeys[mode]?.includes(tonic);
+    const keyName = `${tonic}-${mode}`;
+    const scaleNotes = keySignatures[keyName];
 
-    // Enharmonic equivalents mapping
+    if (!scaleNotes) {
+        // Fallback to simple sharp/flat rule
+        const flatKeys = {
+            major: ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'],
+            minor: ['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab']
+        };
+        const usesFlats = flatKeys[mode]?.includes(tonic);
+
+        const enharmonicMap = {
+            'C#': usesFlats ? 'Db' : 'C#',
+            'Db': usesFlats ? 'Db' : 'C#',
+            'D#': usesFlats ? 'Eb' : 'D#',
+            'Eb': usesFlats ? 'Eb' : 'D#',
+            'F#': usesFlats ? 'Gb' : 'F#',
+            'Gb': usesFlats ? 'Gb' : 'F#',
+            'G#': usesFlats ? 'Ab' : 'G#',
+            'Ab': usesFlats ? 'Ab' : 'G#',
+            'A#': usesFlats ? 'Bb' : 'A#',
+            'Bb': usesFlats ? 'Bb' : 'A#'
+        };
+
+        return enharmonicMap[note] || note;
+    }
+
+    // Check if the note is in the scale
+    if (scaleNotes.includes(note)) {
+        return note; // Note is in the scale, use as-is
+    }
+
+    // For chromatic notes, determine preferred enharmonic
+    // Check if this key uses sharps or flats
+    const usesFlats = scaleNotes.some(n => n.includes('b'));
+
     const enharmonicMap = {
         'C#': usesFlats ? 'Db' : 'C#',
         'Db': usesFlats ? 'Db' : 'C#',
