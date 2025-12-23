@@ -227,6 +227,41 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         <div>🎹 <strong>Boutons MG/MD</strong> pour jouer chaque main séparément</div>
                         <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner une mesure</div>
                         <div>👁️ <strong>Activez les détails</strong> pour voir toutes les notes</div>
+                        <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                            <strong>Timeline :</strong>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem', marginLeft: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{
+                                        width: '10px',
+                                        height: '10px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'var(--accent-primary)',
+                                        border: '2px solid var(--bg-elevated)'
+                                    }}></div>
+                                    <span>Main droite (MD)</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{
+                                        width: '10px',
+                                        height: '10px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'var(--accent-secondary)',
+                                        border: '2px solid var(--bg-elevated)'
+                                    }}></div>
+                                    <span>Main gauche (MG)</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{
+                                        width: '10px',
+                                        height: '10px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'rgb(16, 185, 129)',
+                                        border: '2px solid var(--bg-elevated)'
+                                    }}></div>
+                                    <span>2 mains ensemble</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -676,32 +711,77 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 position: 'relative',
                 borderRadius: '2px'
             }}>
-                {/* Melody Dots (Right Hand - Top) */}
-                {measure.melody.map(n => (
-                    <div key={`melody-${n.id}`} style={{
-                        position: 'absolute',
-                        left: `${((n.startTime % 4) / 4) * 100}%`,
-                        top: '-3px',
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent-primary)',
-                        border: '2px solid var(--bg-tertiary)'
-                    }} title={`Main droite: ${displayNoteName(n.pitch, keySignature)}`} />
-                ))}
-                {/* Chord Dots (Left Hand - Bottom) */}
-                {measure.chords.map(n => (
-                    <div key={`chord-${n.id}`} style={{
-                        position: 'absolute',
-                        left: `${((n.startTime % 4) / 4) * 100}%`,
-                        bottom: '-3px',
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent-secondary)',
-                        border: '2px solid var(--bg-tertiary)'
-                    }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
-                ))}
+                {(() => {
+                    // Helper function to check if two notes are simultaneous (within 0.15 beats)
+                    const areSimultaneous = (time1, time2) => Math.abs(time1 - time2) < 0.15;
+
+                    // Find simultaneous notes (both hands playing together)
+                    const simultaneousTimes = new Set();
+                    measure.melody.forEach(melodyNote => {
+                        measure.chords.forEach(chordNote => {
+                            if (areSimultaneous(melodyNote.startTime, chordNote.startTime)) {
+                                simultaneousTimes.add(melodyNote.startTime);
+                            }
+                        });
+                    });
+
+                    // Filter out melody notes that are simultaneous
+                    const soloMelodyNotes = measure.melody.filter(n =>
+                        !Array.from(simultaneousTimes).some(t => areSimultaneous(n.startTime, t))
+                    );
+
+                    // Filter out chord notes that are simultaneous
+                    const soloChordNotes = measure.chords.filter(n =>
+                        !Array.from(simultaneousTimes).some(t => areSimultaneous(n.startTime, t))
+                    );
+
+                    return (
+                        <>
+                            {/* Solo Melody Dots (Right Hand - Top) */}
+                            {soloMelodyNotes.map(n => (
+                                <div key={`melody-${n.id}`} style={{
+                                    position: 'absolute',
+                                    left: `${((n.startTime % 4) / 4) * 100}%`,
+                                    top: '-3px',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'var(--accent-primary)',
+                                    border: '2px solid var(--bg-tertiary)'
+                                }} title={`Main droite: ${displayNoteName(n.pitch, keySignature)}`} />
+                            ))}
+
+                            {/* Solo Chord Dots (Left Hand - Bottom) */}
+                            {soloChordNotes.map(n => (
+                                <div key={`chord-${n.id}`} style={{
+                                    position: 'absolute',
+                                    left: `${((n.startTime % 4) / 4) * 100}%`,
+                                    bottom: '-3px',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'var(--accent-secondary)',
+                                    border: '2px solid var(--bg-tertiary)'
+                                }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
+                            ))}
+
+                            {/* Both Hands Together (Center - Green) */}
+                            {Array.from(simultaneousTimes).map((time, idx) => (
+                                <div key={`both-${idx}`} style={{
+                                    position: 'absolute',
+                                    left: `${((time % 4) / 4) * 100}%`,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'rgb(16, 185, 129)',
+                                    border: '2px solid var(--bg-tertiary)'
+                                }} title="2 mains ensemble" />
+                            ))}
+                        </>
+                    );
+                })()}
             </div>
         </div>
     );
