@@ -46,7 +46,7 @@ export function SynthesiaView({ song }) {
     // State
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+    const [currentBPM, setCurrentBPM] = useState(song?.tempo || 120);
     const [midiAccess, setMidiAccess] = useState(null);
     const [activeNotes, setActiveNotes] = useState(new Set());
 
@@ -84,6 +84,7 @@ export function SynthesiaView({ song }) {
 
     // Timing tolerance for note detection (in seconds)
     const NOTE_TOLERANCE = 0.3; // 300ms window
+    const WAIT_MODE_THRESHOLD = 0.05; // Wait mode triggers when note is within 50ms of hit line
 
     // Initialize Audio & MIDI
     useEffect(() => {
@@ -218,7 +219,14 @@ export function SynthesiaView({ song }) {
 
     // Memoize allNotes to prevent recalculation on every render
     const allNotes = useMemo(() => getAllNotes(), [getAllNotes]);
-    const beatsPerSecond = (song?.tempo || 120) / 60;
+    const defaultBPM = song?.tempo || 120;
+    const playbackSpeed = currentBPM / defaultBPM;
+    const beatsPerSecond = currentBPM / 60;
+
+    // Reset BPM when song changes
+    useEffect(() => {
+        setCurrentBPM(song?.tempo || 120);
+    }, [song?.id, song?.tempo]);
 
     // Calculate total notes for stats
     useEffect(() => {
@@ -315,6 +323,8 @@ export function SynthesiaView({ song }) {
     useEffect(() => {
         if (!isPlaying || !isMetronomeOn || !audioInitialized) {
             audioEngine.stopMetronome();
+            // Reset metronome tracking when stopped so it re-syncs on restart
+            lastMetronomeClickRef.current = -1;
             return;
         }
 
@@ -778,11 +788,29 @@ export function SynthesiaView({ song }) {
             const elapsed = (performance.now() - startTimeRef.current) / 1000 * playbackSpeed;
             setCurrentTime(elapsed);
 
-            // In wait mode, pause if there are expected notes
-            if (waitMode && expectedNotes.size > 0 && pausedAtTimeRef.current === null) {
-                pausedAtTimeRef.current = elapsed;
-                setIsPlaying(false);
-                return;
+            // In wait mode, pause only when notes are at the hit line (not just in the tolerance window)
+            if (waitMode && pausedAtTimeRef.current === null && handMode !== 'watch') {
+                // Determine which hands the user is playing
+                const userHands = new Set();
+                if (handMode === 'both' || handMode === 'left') userHands.add('left');
+                if (handMode === 'both' || handMode === 'right') userHands.add('right');
+
+                // Check if any user note is at or past the hit line
+                const shouldPause = allNotes.some(note => {
+                    const noteTime = note.startTime / beatsPerSecond;
+                    return (
+                        userHands.has(note.hand) &&
+                        expectedNotes.has(note.pitch) &&
+                        !playedNotes.has(note.id) &&
+                        elapsed >= noteTime - WAIT_MODE_THRESHOLD
+                    );
+                });
+
+                if (shouldPause) {
+                    pausedAtTimeRef.current = elapsed;
+                    setIsPlaying(false);
+                    return;
+                }
             }
 
             animationFrameRef.current = requestAnimationFrame(animate);
@@ -795,7 +823,7 @@ export function SynthesiaView({ song }) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [isPlaying, playbackSpeed, waitMode, expectedNotes.size]);
+    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes]);
 
     // Render on state changes
     useEffect(() => {
@@ -876,15 +904,16 @@ export function SynthesiaView({ song }) {
         });
     };
 
-    const handleSpeedChange = (newSpeed) => {
+    const handleBPMChange = (newBPM) => {
         const wasPlaying = isPlaying;
         if (wasPlaying) {
             setIsPlaying(false);
         }
-        setPlaybackSpeed(newSpeed);
+        setCurrentBPM(newBPM);
         if (wasPlaying) {
             setTimeout(() => {
                 setIsPlaying(true);
+                const newSpeed = newBPM / defaultBPM;
                 startTimeRef.current = performance.now() - (currentTime / newSpeed) * 1000;
             }, 50);
         }
@@ -1199,15 +1228,18 @@ export function SynthesiaView({ song }) {
                     {waitMode ? '⏸️ Attente: ON' : '▶️ Attente: OFF'}
                 </button>
 
-                {/* Speed Control */}
+                {/* BPM Control */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem'
                 }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '500' }}>
+                        Tempo:
+                    </span>
                     <select
-                        value={playbackSpeed}
-                        onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                        value={currentBPM}
+                        onChange={(e) => handleBPMChange(parseInt(e.target.value))}
                         style={{
                             padding: '0.5rem 1rem',
                             background: 'var(--bg-tertiary)',
@@ -1215,14 +1247,15 @@ export function SynthesiaView({ song }) {
                             border: '1px solid var(--border-color)',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
-                            fontSize: '0.9rem'
+                            fontSize: '0.9rem',
+                            fontWeight: currentBPM === defaultBPM ? '600' : '400'
                         }}
                     >
-                        <option value="0.5">0.5x</option>
-                        <option value="0.75">0.75x</option>
-                        <option value="1.0">1x</option>
-                        <option value="1.25">1.25x</option>
-                        <option value="1.5">1.5x</option>
+                        <option value={Math.round(defaultBPM * 0.5)}>{Math.round(defaultBPM * 0.5)} BPM (50%)</option>
+                        <option value={Math.round(defaultBPM * 0.75)}>{Math.round(defaultBPM * 0.75)} BPM (75%)</option>
+                        <option value={defaultBPM}>{defaultBPM} BPM (100%)</option>
+                        <option value={Math.round(defaultBPM * 1.25)}>{Math.round(defaultBPM * 1.25)} BPM (125%)</option>
+                        <option value={Math.round(defaultBPM * 1.5)}>{Math.round(defaultBPM * 1.5)} BPM (150%)</option>
                     </select>
                 </div>
 
