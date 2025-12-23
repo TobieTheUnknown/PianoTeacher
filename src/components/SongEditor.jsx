@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
 import { parseMidiFile } from '../services/MidiService';
@@ -10,6 +10,15 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [splitMode, setSplitMode] = useState(null); // { phraseId, splitTime }
     const [splitTime, setSplitTime] = useState('');
     const [isBatchSplit, setIsBatchSplit] = useState(false); // Toggle between single and batch split
+    const [showImportExportModal, setShowImportExportModal] = useState(false);
+    const [exportStringText, setExportStringText] = useState('');
+    const [importStringText, setImportStringText] = useState('');
+    const [importJsonFile, setImportJsonFile] = useState(null);
+    const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'unsaved'
+
+    // Refs for auto-save
+    const isInitialMount = useRef(true);
+    const saveTimeoutRef = useRef(null);
 
     // Pre-initialize MIDI sounds when the editor loads
     useEffect(() => {
@@ -17,6 +26,40 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             console.error('Failed to initialize audio engine:', error);
         });
     }, []);
+
+    // Auto-save with debouncing
+    useEffect(() => {
+        // Skip initial mount to avoid saving on first load
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+
+        // Clear previous timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        // Set status to unsaved
+        setSaveStatus('unsaved');
+
+        // Set timeout for auto-save (1.5 seconds after last change)
+        saveTimeoutRef.current = setTimeout(() => {
+            setSaveStatus('saving');
+            onSaveSong();
+            // Wait a bit before showing "saved" to give visual feedback
+            setTimeout(() => {
+                setSaveStatus('saved');
+            }, 500);
+        }, 1500);
+
+        // Cleanup timeout on unmount
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
+    }, [song, onSaveSong]);
 
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
@@ -96,6 +139,50 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         }
     };
 
+    const handleOpenImportExport = () => {
+        // Generate export string when opening modal
+        const str = StorageService.exportToString(song);
+        if (str) {
+            setExportStringText(str);
+        }
+        setShowImportExportModal(true);
+    };
+
+    const handleImportStringText = () => {
+        try {
+            const importedSong = StorageService.importFromString(importStringText);
+            onImportSong(importedSong);
+            setImportStringText('');
+            setShowImportExportModal(false);
+            alert("Morceau importé avec succès !");
+        } catch (error) {
+            alert(error.message);
+        }
+    };
+
+    const handleCopyExportString = () => {
+        navigator.clipboard.writeText(exportStringText);
+        alert("Chaîne d'export copiée dans le presse-papiers !");
+    };
+
+    const handleImportJson = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const importedSong = JSON.parse(event.target.result);
+                onImportSong(importedSong);
+                setShowImportExportModal(false);
+                alert("Morceau importé avec succès !");
+            } catch (error) {
+                alert("Erreur lors de l'import du fichier JSON.");
+            }
+        };
+        reader.readAsText(file);
+    };
+
     return (
         <div className="song-editor">
             {/* Song Metadata Card */}
@@ -128,62 +215,57 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         </p>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        {/* Save Status Indicator */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem 1rem',
+                            borderRadius: 'var(--radius-lg)',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            backgroundColor: saveStatus === 'saved' ? 'rgba(16, 185, 129, 0.1)' :
+                                           saveStatus === 'saving' ? 'rgba(59, 130, 246, 0.1)' :
+                                           'rgba(251, 191, 36, 0.1)',
+                            color: saveStatus === 'saved' ? 'rgb(16, 185, 129)' :
+                                   saveStatus === 'saving' ? 'rgb(59, 130, 246)' :
+                                   'rgb(251, 191, 36)',
+                            border: `1px solid ${saveStatus === 'saved' ? 'rgba(16, 185, 129, 0.3)' :
+                                                 saveStatus === 'saving' ? 'rgba(59, 130, 246, 0.3)' :
+                                                 'rgba(251, 191, 36, 0.3)'}`,
+                            transition: 'all 0.3s ease'
+                        }}>
+                            <span>{
+                                saveStatus === 'saved' ? '✓' :
+                                saveStatus === 'saving' ? '⏳' :
+                                '✎'
+                            }</span>
+                            <span>{
+                                saveStatus === 'saved' ? 'Sauvegardé' :
+                                saveStatus === 'saving' ? 'Sauvegarde...' :
+                                'Modifications non sauvegardées'
+                            }</span>
+                        </div>
+
                         <button
-                            onClick={onSaveSong}
-                            style={{
-                                background: 'var(--gradient-success)',
-                                color: 'white',
-                                border: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                boxShadow: '0 0 20px rgba(16, 185, 129, 0.3)'
-                            }}
-                        >
-                            <span>💾</span>
-                            <span>Sauvegarder</span>
-                        </button>
-                        <button
-                            onClick={() => StorageService.exportSong(song)}
+                            onClick={handleOpenImportExport}
                             style={{
                                 backgroundColor: 'var(--bg-elevated)',
                                 border: '1px solid var(--border-light)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '0.5rem'
+                                gap: '0.5rem',
+                                padding: '0.75rem 1.5rem',
+                                borderRadius: 'var(--radius-lg)',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                fontSize: '0.9375rem'
                             }}
                         >
-                            <span>📤</span>
-                            <span>Exporter</span>
+                            <span>📁</span>
+                            <span>Import/Export</span>
                         </button>
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type="file"
-                                accept=".mid,.midi"
-                                onChange={handleFileChange}
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    height: '100%',
-                                    opacity: 0,
-                                    cursor: 'pointer',
-                                    zIndex: 10
-                                }}
-                            />
-                            <button style={{
-                                backgroundColor: 'var(--bg-elevated)',
-                                border: '1px solid var(--accent-secondary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}>
-                                <span>📥</span>
-                                <span>{isImporting ? 'Importation...' : 'Importer MIDI'}</span>
-                            </button>
-                        </div>
                     </div>
                 </div>
 
@@ -539,6 +621,276 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     </div>
                 ))}
             </div>
+
+            {/* Comprehensive Import/Export Modal */}
+            {showImportExportModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '2rem'
+                }}
+                onClick={() => setShowImportExportModal(false)}
+                >
+                    <div
+                        className="card"
+                        style={{
+                            maxWidth: '900px',
+                            width: '100%',
+                            maxHeight: '85vh',
+                            overflow: 'auto',
+                            padding: '2rem'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 style={{ marginBottom: '2rem', color: 'var(--accent-primary)', fontSize: '1.75rem' }}>
+                            📁 Import / Export
+                        </h2>
+
+                        {/* MIDI Section */}
+                        <div style={{
+                            marginBottom: '2rem',
+                            padding: '1.5rem',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border-color)'
+                        }}>
+                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                🎹 Import MIDI
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                                Importer un fichier MIDI pour créer un nouveau morceau
+                            </p>
+                            <div style={{ position: 'relative', display: 'inline-block' }}>
+                                <input
+                                    type="file"
+                                    accept=".mid,.midi"
+                                    onChange={handleFileChange}
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        width: '100%',
+                                        height: '100%',
+                                        opacity: 0,
+                                        cursor: 'pointer',
+                                        zIndex: 10
+                                    }}
+                                />
+                                <button style={{
+                                    background: 'var(--gradient-primary)',
+                                    color: 'white',
+                                    border: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}>
+                                    <span>📥</span>
+                                    <span>{isImporting ? 'Importation...' : 'Choisir un fichier MIDI'}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* JSON Section */}
+                        <div style={{
+                            marginBottom: '2rem',
+                            padding: '1.5rem',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border-color)'
+                        }}>
+                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                📄 Export / Import JSON
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                                Format JSON lisible pour sauvegarder ou partager vos morceaux
+                            </p>
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={() => {
+                                        StorageService.exportSong(song);
+                                        alert('Fichier JSON téléchargé !');
+                                    }}
+                                    style={{
+                                        background: 'var(--gradient-success)',
+                                        color: 'white',
+                                        border: 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    <span>📤</span>
+                                    <span>Exporter JSON</span>
+                                </button>
+                                <div style={{ position: 'relative', display: 'inline-block' }}>
+                                    <input
+                                        type="file"
+                                        accept=".json"
+                                        onChange={handleImportJson}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: '100%',
+                                            opacity: 0,
+                                            cursor: 'pointer',
+                                            zIndex: 10
+                                        }}
+                                    />
+                                    <button style={{
+                                        backgroundColor: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border-light)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        fontWeight: '600'
+                                    }}>
+                                        <span>📥</span>
+                                        <span>Importer JSON</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Text Export/Import Section */}
+                        <div style={{
+                            marginBottom: '1rem',
+                            padding: '1.5rem',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border-color)'
+                        }}>
+                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                📋 Export / Import Texte
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                                Format texte compact pour copier/coller facilement
+                            </p>
+
+                            {/* Export */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.95rem' }}>
+                                    Export
+                                </label>
+                                <textarea
+                                    value={exportStringText}
+                                    readOnly
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '100px',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.7rem',
+                                        padding: '1rem',
+                                        backgroundColor: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--text-primary)',
+                                        resize: 'vertical'
+                                    }}
+                                />
+                                <button
+                                    onClick={handleCopyExportString}
+                                    style={{
+                                        marginTop: '0.5rem',
+                                        background: 'var(--gradient-success)',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        fontWeight: '600',
+                                        fontSize: '0.875rem'
+                                    }}
+                                >
+                                    📋 Copier
+                                </button>
+                            </div>
+
+                            {/* Import */}
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.95rem' }}>
+                                    Import
+                                </label>
+                                <textarea
+                                    value={importStringText}
+                                    onChange={(e) => setImportStringText(e.target.value)}
+                                    placeholder="Collez la chaîne d'export ici..."
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '100px',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.7rem',
+                                        padding: '1rem',
+                                        backgroundColor: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--text-primary)',
+                                        resize: 'vertical'
+                                    }}
+                                />
+                                <button
+                                    onClick={handleImportStringText}
+                                    disabled={!importStringText.trim()}
+                                    style={{
+                                        marginTop: '0.5rem',
+                                        background: importStringText.trim() ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: importStringText.trim() ? 'pointer' : 'not-allowed',
+                                        fontWeight: '600',
+                                        fontSize: '0.875rem',
+                                        opacity: importStringText.trim() ? 1 : 0.5
+                                    }}
+                                >
+                                    📥 Importer
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Close Button */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                            <button
+                                onClick={() => {
+                                    setShowImportExportModal(false);
+                                    setImportStringText('');
+                                }}
+                                style={{
+                                    backgroundColor: 'var(--bg-elevated)',
+                                    border: '1px solid var(--border-light)',
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Fermer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

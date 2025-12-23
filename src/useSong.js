@@ -26,7 +26,6 @@ export function useSong() {
 
     const saveSong = useCallback(() => {
         StorageService.saveSong(song);
-        alert('Morceau sauvegardé !');
     }, [song]);
 
     const addPhrase = useCallback(() => {
