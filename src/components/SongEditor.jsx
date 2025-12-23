@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
-import { parseMidiFile, exportToMidi } from '../services/MidiService';
+import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
@@ -675,47 +675,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                     <span>{isImporting ? 'Importation...' : 'Choisir un fichier MIDI'}</span>
                                 </button>
                             </div>
-                        </div>
-
-                        {/* MIDI Export Section */}
-                        <div style={{
-                            marginBottom: '2rem',
-                            padding: '1.5rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                🎵 Export MIDI
-                            </h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                                Exporter votre morceau au format MIDI pour l'utiliser dans d'autres logiciels
-                            </p>
-                            <button
-                                onClick={() => {
-                                    try {
-                                        exportToMidi(song);
-                                        alert('Fichier MIDI téléchargé !');
-                                    } catch (error) {
-                                        alert('Erreur lors de l\'export MIDI: ' + error.message);
-                                    }
-                                }}
-                                style={{
-                                    background: 'var(--gradient-primary)',
-                                    color: 'white',
-                                    border: 'none',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    cursor: 'pointer',
-                                    fontWeight: '600'
-                                }}
-                            >
-                                <span>📤</span>
-                                <span>Exporter MIDI</span>
-                            </button>
                         </div>
 
                         {/* JSON Section */}
