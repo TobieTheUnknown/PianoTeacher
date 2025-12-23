@@ -55,6 +55,11 @@ export function SynthesiaView({ song }) {
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
     const [metronomeDivision, setMetronomeDivision] = useState('measure'); // 'measure', 'half-measure', 'beat'
     const [audioInitialized, setAudioInitialized] = useState(false);
+    const [isLoopEnabled, setIsLoopEnabled] = useState(false);
+    const [loopConfig, setLoopConfig] = useState(null); // { startMeasure, endMeasure, name }
+    const [selectedPhraseIndex, setSelectedPhraseIndex] = useState('');
+    const [customRangeStart, setCustomRangeStart] = useState('');
+    const [customRangeEnd, setCustomRangeEnd] = useState('');
 
     // New scoring and wait mode state
     const [waitMode, setWaitMode] = useState(false);
@@ -223,6 +228,84 @@ export function SynthesiaView({ song }) {
     const defaultBPM = song?.tempo || 120;
     const playbackSpeed = currentBPM / defaultBPM;
     const beatsPerSecond = currentBPM / 60;
+
+    // Calculate phrase measure ranges
+    const phraseMeasureRanges = useMemo(() => {
+        if (!song || !song.phrases) return [];
+
+        let currentMeasure = 1; // 1-indexed
+        return song.phrases.map((phrase, index) => {
+            const startMeasure = currentMeasure;
+            const endMeasure = currentMeasure + phrase.length - 1;
+            currentMeasure = endMeasure + 1;
+            return {
+                phraseIndex: index,
+                name: phrase.name || `Phrase ${index + 1}`,
+                startMeasure,
+                endMeasure,
+                length: phrase.length
+            };
+        });
+    }, [song]);
+
+    // Jump to a specific measure (with 0.5 measure offset for anticipation)
+    const jumpToMeasure = useCallback((measureNumber) => {
+        const beatsPerMeasure = 4;
+        const offsetMeasures = 0.5;
+        const targetMeasure = Math.max(0, measureNumber - 1 - offsetMeasures); // Convert to 0-indexed and add offset
+        const targetTime = (targetMeasure * beatsPerMeasure) / beatsPerSecond;
+
+        setCurrentTime(targetTime);
+        startTimeRef.current = performance.now() - (targetTime / playbackSpeed) * 1000;
+        processedNotesRef.current = new Set();
+        setPlayedNotes(new Map());
+    }, [beatsPerSecond, playbackSpeed]);
+
+    // Set loop for a specific phrase or measure range
+    const setLoopForRange = useCallback((startMeasure, endMeasure, name = '') => {
+        setLoopConfig({ startMeasure, endMeasure, name });
+        setIsLoopEnabled(true);
+        // Jump to the start of the loop
+        jumpToMeasure(startMeasure);
+    }, [jumpToMeasure]);
+
+    // Clear loop
+    const clearLoop = useCallback(() => {
+        setLoopConfig(null);
+        setIsLoopEnabled(false);
+        setSelectedPhraseIndex('');
+        setCustomRangeStart('');
+        setCustomRangeEnd('');
+    }, []);
+
+    // Handle phrase selection from dropdown
+    const handlePhraseSelect = useCallback((event) => {
+        const index = event.target.value;
+        setSelectedPhraseIndex(index);
+        if (index !== '' && index !== 'custom') {
+            const phrase = phraseMeasureRanges[parseInt(index)];
+            if (phrase) {
+                setLoopForRange(phrase.startMeasure, phrase.endMeasure, phrase.name);
+            }
+        }
+    }, [phraseMeasureRanges, setLoopForRange]);
+
+    // Handle custom range loop
+    const handleCustomRangeLoop = useCallback(() => {
+        const start = parseInt(customRangeStart);
+        const end = parseInt(customRangeEnd);
+        if (!isNaN(start) && !isNaN(end) && start > 0 && end >= start) {
+            setLoopForRange(start, end, `Mesures ${start}-${end}`);
+            setSelectedPhraseIndex('custom');
+        }
+    }, [customRangeStart, customRangeEnd, setLoopForRange]);
+
+    // Calculate total measures in the song
+    const totalMeasures = useMemo(() => {
+        return phraseMeasureRanges.length > 0
+            ? phraseMeasureRanges[phraseMeasureRanges.length - 1].endMeasure
+            : 0;
+    }, [phraseMeasureRanges]);
 
     // Reset BPM when song changes
     useEffect(() => {
@@ -517,46 +600,56 @@ export function SynthesiaView({ song }) {
         return isBlack ? COLORS.blackKey : COLORS.whiteKey;
     };
 
-    // Draw highlighted measure zones
-    const drawHighlightedMeasures = (ctx) => {
-        if (!song.highlightedMeasures || song.highlightedMeasures.length === 0) return;
+    // Draw loop zone highlight
+    const drawLoopZone = (ctx) => {
+        if (!isLoopEnabled || !loopConfig) return;
 
-        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
         const lookAheadTime = 4;
         const beatsPerMeasure = 4;
-        const highlightedMeasures = new Set(song.highlightedMeasures);
 
-        // Draw highlighted measure zones
-        ctx.fillStyle = '#60a5fa'; // Blue color
-        ctx.globalAlpha = 0.12;
+        const startMeasure = loopConfig.startMeasure - 1; // Convert to 0-indexed
+        const endMeasure = loopConfig.endMeasure; // End is exclusive for the calculation
 
-        const firstVisibleMeasure = Math.floor((currentTime * beatsPerSecond) / beatsPerMeasure);
-        const lastVisibleMeasure = Math.ceil(((currentTime + lookAheadTime) * beatsPerSecond) / beatsPerMeasure);
+        const loopStartTime = (startMeasure * beatsPerMeasure) / beatsPerSecond;
+        const loopEndTime = (endMeasure * beatsPerMeasure) / beatsPerSecond;
 
-        for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
-            if (highlightedMeasures.has(measure + 1)) { // +1 because measures are 1-indexed in highlightedMeasures
-                const measureStartTime = (measure * beatsPerMeasure) / beatsPerSecond;
-                const measureEndTime = ((measure + 1) * beatsPerMeasure) / beatsPerSecond;
+        // Calculate Y positions for the loop zone
+        const startTimeDiff = loopStartTime - currentTime;
+        const endTimeDiff = loopEndTime - currentTime;
 
-                const startTimeDiff = measureStartTime - currentTime;
-                const endTimeDiff = measureEndTime - currentTime;
+        const startY = NOTE_FALL_HEIGHT * (1 - startTimeDiff / lookAheadTime);
+        const endY = NOTE_FALL_HEIGHT * (1 - endTimeDiff / lookAheadTime);
 
-                const startY = NOTE_FALL_HEIGHT * (1 - startTimeDiff / lookAheadTime);
-                const endY = NOTE_FALL_HEIGHT * (1 - endTimeDiff / lookAheadTime);
+        // Only draw if at least part of the loop zone is visible
+        if (endY >= -50 && startY <= NOTE_FALL_HEIGHT + 50) {
+            const rectStartY = Math.max(-10, endY);
+            const rectEndY = Math.min(NOTE_FALL_HEIGHT + 10, startY);
+            const rectHeight = rectEndY - rectStartY;
 
-                if (endY >= 0 && startY <= NOTE_FALL_HEIGHT) {
-                    const rectStartY = Math.max(0, endY);
-                    const rectEndY = Math.min(NOTE_FALL_HEIGHT, startY);
-                    const rectHeight = rectEndY - rectStartY;
+            if (rectHeight > 0) {
+                // Draw semi-transparent background
+                ctx.fillStyle = '#3b82f6';
+                ctx.globalAlpha = 0.08;
+                ctx.fillRect(0, rectStartY, CANVAS_WIDTH, rectHeight);
 
-                    if (rectHeight > 0) {
-                        ctx.fillRect(0, rectStartY, CANVAS_WIDTH, rectHeight);
-                    }
-                }
+                // Draw left border (more prominent)
+                ctx.fillStyle = '#3b82f6';
+                ctx.globalAlpha = 0.4;
+                ctx.fillRect(0, rectStartY, 4, rectHeight);
+
+                // Draw right border (more prominent)
+                ctx.fillRect(CANVAS_WIDTH - 4, rectStartY, 4, rectHeight);
+
+                // Draw top border with gradient
+                ctx.globalAlpha = 0.6;
+                ctx.fillRect(0, rectStartY, CANVAS_WIDTH, 2);
+
+                // Draw bottom border with gradient
+                ctx.fillRect(0, rectEndY - 2, CANVAS_WIDTH, 2);
+
+                ctx.globalAlpha = 1.0;
             }
         }
-
-        ctx.globalAlpha = 1.0;
     };
 
     // Draw measure numbers
@@ -868,8 +961,8 @@ export function SynthesiaView({ song }) {
         ctx.fillStyle = COLORS.background;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Draw highlighted measure zones first (in background)
-        drawHighlightedMeasures(ctx);
+        // Draw loop zone first (in background)
+        drawLoopZone(ctx);
 
         // Draw measure numbers (in background)
         drawMeasureNumbers(ctx);
@@ -906,6 +999,35 @@ export function SynthesiaView({ song }) {
             }
 
             const elapsed = (performance.now() - startTimeRef.current) / 1000 * playbackSpeed;
+
+            // Handle loop logic for configured loop range
+            if (isLoopEnabled && loopConfig) {
+                const beatsPerMeasure = 4;
+                const firstMeasure = loopConfig.startMeasure - 1; // Convert to 0-indexed
+                const lastMeasure = loopConfig.endMeasure - 1; // Convert to 0-indexed
+
+                const loopStartTime = (firstMeasure * beatsPerMeasure) / beatsPerSecond;
+                const loopEndTime = ((lastMeasure + 1) * beatsPerMeasure) / beatsPerSecond;
+
+                // If elapsed has passed the end of the loop zone, reset to the beginning
+                if (elapsed >= loopEndTime) {
+                    startTimeRef.current = performance.now() - (loopStartTime / playbackSpeed) * 1000;
+                    setCurrentTime(loopStartTime);
+                    // Reset played notes and processed notes for the loop
+                    processedNotesRef.current = new Set();
+                    setPlayedNotes(new Map());
+                    return; // Skip the rest of this frame to prevent double-rendering
+                }
+                // If starting before the loop zone, jump to the beginning of the loop
+                else if (elapsed < loopStartTime) {
+                    startTimeRef.current = performance.now() - (loopStartTime / playbackSpeed) * 1000;
+                    setCurrentTime(loopStartTime);
+                    processedNotesRef.current = new Set();
+                    setPlayedNotes(new Map());
+                    return;
+                }
+            }
+
             setCurrentTime(elapsed);
 
             // In wait mode, pause only when notes are at the hit line (not just in the tolerance window)
@@ -943,7 +1065,7 @@ export function SynthesiaView({ song }) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes]);
+    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig]);
 
     // Render on state changes
     useEffect(() => {
@@ -1439,6 +1561,153 @@ export function SynthesiaView({ song }) {
                         }}>
                             {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
                         </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Navigation & Loop Controls */}
+            <div style={{
+                width: '100%',
+                maxWidth: `${CANVAS_WIDTH}px`,
+                display: 'flex',
+                gap: '1rem',
+                alignItems: 'flex-end',
+                padding: '1rem 1.5rem',
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-color)'
+            }}>
+                {/* Phrase Selector */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                        Phrase / Section
+                    </label>
+                    <select
+                        value={selectedPhraseIndex}
+                        onChange={handlePhraseSelect}
+                        style={{
+                            padding: '0.75rem',
+                            background: 'var(--bg-tertiary)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: '500'
+                        }}
+                    >
+                        <option value="">Sélectionner une phrase...</option>
+                        {phraseMeasureRanges.map((phrase, index) => (
+                            <option key={index} value={index}>
+                                {phrase.name} (mesures {phrase.startMeasure}-{phrase.endMeasure})
+                            </option>
+                        ))}
+                        <option value="custom">--- Range personnalisé ---</option>
+                    </select>
+                </div>
+
+                {/* Custom Range Selector */}
+                {selectedPhraseIndex === 'custom' && (
+                    <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                                De la mesure
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                max={totalMeasures}
+                                value={customRangeStart}
+                                onChange={(e) => setCustomRangeStart(e.target.value)}
+                                placeholder="1"
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-tertiary)',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: '0.9rem',
+                                    width: '100px',
+                                    fontWeight: '500'
+                                }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                                À la mesure
+                            </label>
+                            <input
+                                type="number"
+                                min={customRangeStart || "1"}
+                                max={totalMeasures}
+                                value={customRangeEnd}
+                                onChange={(e) => setCustomRangeEnd(e.target.value)}
+                                placeholder={totalMeasures.toString()}
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-tertiary)',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: '0.9rem',
+                                    width: '100px',
+                                    fontWeight: '500'
+                                }}
+                            />
+                        </div>
+                        <button
+                            onClick={handleCustomRangeLoop}
+                            disabled={!customRangeStart || !customRangeEnd}
+                            style={{
+                                padding: '0.75rem 1.5rem',
+                                background: (!customRangeStart || !customRangeEnd) ? 'var(--bg-tertiary)' : 'var(--gradient-primary)',
+                                color: (!customRangeStart || !customRangeEnd) ? 'var(--text-secondary)' : 'white',
+                                border: 'none',
+                                borderRadius: 'var(--radius-md)',
+                                cursor: (!customRangeStart || !customRangeEnd) ? 'not-allowed' : 'pointer',
+                                fontWeight: '600',
+                                fontSize: '0.9rem',
+                                opacity: (!customRangeStart || !customRangeEnd) ? 0.5 : 1
+                            }}
+                        >
+                            🔁 Loop
+                        </button>
+                    </>
+                )}
+
+                {/* Clear Loop Button */}
+                {isLoopEnabled && (
+                    <button
+                        onClick={clearLoop}
+                        style={{
+                            padding: '0.75rem 1.5rem',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        ❌ Arrêter
+                    </button>
+                )}
+
+                {/* Current Loop Info */}
+                {isLoopEnabled && loopConfig && (
+                    <div style={{
+                        padding: '0.75rem 1.25rem',
+                        background: 'var(--primary-color)',
+                        color: 'white',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}>
+                        🔁 {loopConfig.name || `Mesures ${loopConfig.startMeasure}-${loopConfig.endMeasure}`}
                     </div>
                 )}
             </div>
