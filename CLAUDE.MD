@@ -10,7 +10,7 @@ Piano Teacher is a web-based music education application that helps users learn 
 
 - **Framework**: React 19.2.0
 - **Build Tool**: Vite 7.2.2
-- **Audio Engine**: Tone.js 15.1.22
+- **Audio Engine**: Tone.js 15.1.22 (Unified Single Engine)
 - **MIDI Processing**: @tonejs/midi 2.0.28
 - **Styling**: CSS with CSS Custom Properties (CSS Variables)
 - **Storage**: Browser LocalStorage
@@ -76,7 +76,13 @@ User Input → App Component → useSong Hook → Song Model → StorageService 
 - **Phrase-Based Composition**: Build songs from individual musical phrases
 - **MIDI Import**: Import existing MIDI files
 - **Visual Piano Roll**: Visual representation of notes and timing
-- **Audio Playback**: Play songs and phrases with Tone.js
+- **Unified Audio Engine**: High-quality piano samples (Salamander) with integrated Metronome
+- **Synthesia Mode**: 
+  - Falling notes visualization
+  - **Watch Mode**: Computer plays both hands automatically
+  - **Hand Separation**: Practice Left, Right, or Both hands
+  - **Wait Mode**: Flow pauses until correct note is hit
+- **Performance Tracking**: Score and accuracy stats for practice sessions
 - **LocalStorage Persistence**: Save and load songs locally
 - **Responsive UI**: Modern, gradient-based design with French localization
 
@@ -132,10 +138,11 @@ Styles are primarily inline in components, with global styles in `index.css` and
 ## Services
 
 ### AudioEngine.js
-Manages audio playback using Tone.js:
-- Synth initialization
-- Note playback
-- Phrase and song playback with timing
+Unified audio system managing all sound output:
+- **Tone.Sampler**: Loaded with Salamander Grand Piano samples for realistic sound
+- **Metronome**: MembraneSynth for timing click, with tempo control
+- **Playback**: Phrase and Note playback logic handling specific timings
+- **Cleanup**: Efficient resource management (stop/cancel)
 
 ### MidiService.js
 Handles MIDI file operations:

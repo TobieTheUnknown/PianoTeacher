@@ -183,11 +183,71 @@ export const getEnharmonicNote = (note, keySignature) => {
     return enharmonicMap[note] || note;
 };
 
+// Helper to convert note name to MIDI number
+export const getMidiNumber = (noteName) => {
+    if (typeof noteName === 'number') return noteName;
+    if (!noteName) return null;
+
+    const noteToOffset = {
+        'C': 0, 'C#': 1, 'Db': 1,
+        'D': 2, 'D#': 3, 'Eb': 3,
+        'E': 4,
+        'F': 5, 'F#': 6, 'Gb': 6,
+        'G': 7, 'G#': 8, 'Ab': 8,
+        'A': 9, 'A#': 10, 'Bb': 10,
+        'B': 11
+    };
+
+    try {
+        // Handle "C4" or "C#4"
+        let note, octave;
+        if (isNaN(noteName[1])) {
+            note = noteName.slice(0, 2);
+            octave = parseInt(noteName.slice(2));
+        } else {
+            note = noteName[0];
+            octave = parseInt(noteName.slice(1));
+        }
+
+        if (noteToOffset[note] !== undefined && !isNaN(octave)) {
+            return 12 + (octave * 12) + noteToOffset[note];
+        }
+    } catch (e) {
+        console.warn('Invalid note name:', noteName);
+    }
+    return null;
+};
+
+// Helper to convert MIDI number to note name (e.g., 60 -> "C4")
+export const getNoteNameFromMidi = (midiNumber) => {
+    if (typeof midiNumber !== 'number') return midiNumber;
+
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(midiNumber / 12) - 1;
+    const noteIndex = midiNumber % 12;
+
+    return `${noteNames[noteIndex]}${octave}`;
+};
+
 export const getFrenchNoteName = (pitch, keySignature = null) => {
-    if (!pitch) return '';
-    // pitch is like "C4" or "F#3"
-    const note = pitch.slice(0, -1);
-    const octave = pitch.slice(-1);
+    if (pitch === null || pitch === undefined) return '';
+
+    // Normalize to string format for display logic if it's a number
+    let noteName = typeof pitch === 'number' ? getNoteNameFromMidi(pitch) : pitch;
+
+    // Robustly split note and octave using regex
+    // Matches: Note (A-G, optional # or b) + Octave (integer, optional -)
+    const match = noteName.match(/^([A-Ga-g][#b]?)(-?[0-9]+)$/);
+
+    let note, octave;
+    if (match) {
+        note = match[1];
+        octave = match[2];
+    } else {
+        // Fallback for weird formats, though unlikely with getNoteNameFromMidi
+        note = noteName;
+        octave = '';
+    }
 
     // Get the correct enharmonic spelling
     const correctNote = keySignature ? getEnharmonicNote(note, keySignature) : note;
@@ -196,12 +256,15 @@ export const getFrenchNoteName = (pitch, keySignature = null) => {
 };
 
 // Helper to generate a scale or chromatic list for the Piano Roll Y-axis
+// Now returns MIDI numbers instead of strings
 export const getPianoRollKeys = (startOctave = 3, endOctave = 5) => {
     const keys = [];
-    for (let oct = endOctave; oct >= startOctave; oct--) {
-        for (let i = NOTES.length - 1; i >= 0; i--) {
-            keys.push(`${NOTES[i]}${oct}`);
-        }
+    // Calculate MIDI numbers for the range
+    const startMidi = 12 + (startOctave * 12); // C3 -> 48
+    const endMidi = 12 + (endOctave * 12) + 11; // B5 -> 83
+
+    for (let midi = endMidi; midi >= startMidi; midi--) {
+        keys.push(midi);
     }
     return keys;
 };
