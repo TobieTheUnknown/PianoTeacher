@@ -10,6 +10,9 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [splitMode, setSplitMode] = useState(null); // { phraseId, splitTime }
     const [splitTime, setSplitTime] = useState('');
     const [isBatchSplit, setIsBatchSplit] = useState(false); // Toggle between single and batch split
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportString, setExportString] = useState('');
+    const [importString, setImportString] = useState('');
 
     // Pre-initialize MIDI sounds when the editor loads
     useEffect(() => {
@@ -96,6 +99,33 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         }
     };
 
+    const handleExportString = () => {
+        const str = StorageService.exportToString(song);
+        if (str) {
+            setExportString(str);
+            setShowExportModal(true);
+        } else {
+            alert("Erreur lors de l'export.");
+        }
+    };
+
+    const handleImportString = () => {
+        try {
+            const importedSong = StorageService.importFromString(importString);
+            onImportSong(importedSong);
+            setImportString('');
+            setShowExportModal(false);
+            alert("Morceau importé avec succès !");
+        } catch (error) {
+            alert(error.message);
+        }
+    };
+
+    const handleCopyExportString = () => {
+        navigator.clipboard.writeText(exportString);
+        alert("Chaîne d'export copiée dans le presse-papiers !");
+    };
+
     return (
         <div className="song-editor">
             {/* Song Metadata Card */}
@@ -155,7 +185,20 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             }}
                         >
                             <span>📤</span>
-                            <span>Exporter</span>
+                            <span>Exporter JSON</span>
+                        </button>
+                        <button
+                            onClick={handleExportString}
+                            style={{
+                                backgroundColor: 'var(--bg-elevated)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}
+                        >
+                            <span>📋</span>
+                            <span>Exporter Texte</span>
                         </button>
                         <div style={{ position: 'relative' }}>
                             <input
@@ -539,6 +582,128 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     </div>
                 ))}
             </div>
+
+            {/* Export/Import String Modal */}
+            {showExportModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '2rem'
+                }}
+                onClick={() => setShowExportModal(false)}
+                >
+                    <div
+                        className="card"
+                        style={{
+                            maxWidth: '800px',
+                            width: '100%',
+                            maxHeight: '80vh',
+                            overflow: 'auto',
+                            padding: '2rem'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 style={{ marginBottom: '1.5rem', color: 'var(--accent-primary)' }}>
+                            📋 Export / Import Texte
+                        </h2>
+
+                        {/* Export Section */}
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Export</h3>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                                Copiez cette chaîne pour sauvegarder votre morceau :
+                            </p>
+                            <textarea
+                                value={exportString}
+                                readOnly
+                                style={{
+                                    width: '100%',
+                                    minHeight: '120px',
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.75rem',
+                                    padding: '1rem',
+                                    backgroundColor: 'var(--bg-tertiary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--text-primary)',
+                                    resize: 'vertical'
+                                }}
+                            />
+                            <button
+                                onClick={handleCopyExportString}
+                                style={{
+                                    marginTop: '0.5rem',
+                                    background: 'var(--gradient-primary)',
+                                    color: 'white',
+                                    border: 'none'
+                                }}
+                            >
+                                📋 Copier
+                            </button>
+                        </div>
+
+                        {/* Import Section */}
+                        <div>
+                            <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Import</h3>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                                Collez une chaîne d'export pour importer un morceau :
+                            </p>
+                            <textarea
+                                value={importString}
+                                onChange={(e) => setImportString(e.target.value)}
+                                placeholder="Collez la chaîne d'export ici..."
+                                style={{
+                                    width: '100%',
+                                    minHeight: '120px',
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.75rem',
+                                    padding: '1rem',
+                                    backgroundColor: 'var(--bg-tertiary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--text-primary)',
+                                    resize: 'vertical'
+                                }}
+                            />
+                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                <button
+                                    onClick={handleImportString}
+                                    disabled={!importString.trim()}
+                                    style={{
+                                        background: importString.trim() ? 'var(--gradient-success)' : 'var(--bg-tertiary)',
+                                        color: 'white',
+                                        border: 'none',
+                                        opacity: importString.trim() ? 1 : 0.5,
+                                        cursor: importString.trim() ? 'pointer' : 'not-allowed'
+                                    }}
+                                >
+                                    📥 Importer
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowExportModal(false);
+                                        setImportString('');
+                                    }}
+                                    style={{
+                                        backgroundColor: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border-light)'
+                                    }}
+                                >
+                                    Fermer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

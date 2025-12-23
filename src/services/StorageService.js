@@ -50,6 +50,7 @@ export const StorageService = {
         }
     },
 
+    // Export song as JSON file download
     exportSong: (song) => {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(song));
         const downloadAnchorNode = document.createElement('a');
@@ -58,5 +59,35 @@ export const StorageService = {
         document.body.appendChild(downloadAnchorNode); // required for firefox
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
+    },
+
+    // Convert song to base64 encoded string (compact format for sharing)
+    exportToString: (song) => {
+        try {
+            const jsonString = JSON.stringify(song);
+            // Use btoa for base64 encoding (works in browser)
+            return btoa(unescape(encodeURIComponent(jsonString)));
+        } catch (error) {
+            console.error('Error exporting to string:', error);
+            return null;
+        }
+    },
+
+    // Import song from base64 string or JSON string
+    importFromString: (dataString) => {
+        try {
+            // Try to parse as base64 first
+            try {
+                const jsonString = decodeURIComponent(escape(atob(dataString)));
+                return JSON.parse(jsonString);
+            } catch {
+                // If base64 fails, try parsing directly as JSON
+                return JSON.parse(dataString);
+            }
+        } catch (error) {
+            console.error('Error importing from string:', error);
+            throw new Error('Format de données invalide. Veuillez vérifier la chaîne importée.');
+        }
     }
 };
+
