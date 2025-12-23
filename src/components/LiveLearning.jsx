@@ -89,11 +89,44 @@ export function LiveLearning({ song, onToggleHighlight }) {
         );
     }
 
-    // Group measures by 4
-    const measureGroups = [];
-    for (let i = 0; i < analysis.measures.length; i += 4) {
-        measureGroups.push(analysis.measures.slice(i, i + 4));
-    }
+    // Group measures by phrase, then by 4 within each phrase
+    const phrasesWithGroups = useMemo(() => {
+        const result = [];
+        let currentPhraseIndex = 0;
+
+        song.phrases.forEach((phrase, phraseIdx) => {
+            const phraseMeasures = getMeasuresFromPhrase(phrase);
+
+            // Build measure objects for this phrase
+            const measures = phraseMeasures.map((measure, idx) => {
+                const chordGroups = groupNotesByTime(measure.chords);
+                return {
+                    number: currentPhraseIndex + idx + 1,
+                    chordGroups,
+                    melodyCount: measure.melody.length,
+                    hasChord: chordGroups.length > 0,
+                    melody: measure.melody,
+                    chords: measure.chords
+                };
+            });
+
+            // Group measures by 4
+            const groups = [];
+            for (let i = 0; i < measures.length; i += 4) {
+                groups.push(measures.slice(i, i + 4));
+            }
+
+            result.push({
+                phraseName: phrase.name,
+                phraseIndex: phraseIdx,
+                groups
+            });
+
+            currentPhraseIndex += phraseMeasures.length;
+        });
+
+        return result;
+    }, [song]);
 
     const highlightedMeasures = song.highlightedMeasures || [];
 
@@ -265,58 +298,49 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     </div>
                 </div>
 
-                {/* Measures grouped by 4 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {measureGroups.map((group, groupIdx) => {
-                        // Check if there's a phrase break in this group
-                        const phraseBreaksInGroup = analysis.phraseBreaks.filter(
-                            pb => pb.measureIndex >= group[0].number - 1 && pb.measureIndex <= group[group.length - 1].number
-                        );
-
-                        return (
-                            <div key={groupIdx}>
-                                {/* Group label */}
+                {/* Measures grouped by phrase, then by 4 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+                    {phrasesWithGroups.map((phrase) => (
+                        <div key={phrase.phraseIndex}>
+                            {/* Phrase Header */}
+                            {phrase.phraseIndex > 0 && (
                                 <div style={{
-                                    marginBottom: '0.75rem',
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    fontWeight: 'bold'
+                                    padding: '0.75rem 1.5rem',
+                                    background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
+                                    borderLeft: '4px solid var(--accent-primary)',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: '1.5rem'
                                 }}>
-                                    Mesures {group[0].number} - {group[group.length - 1].number}
+                                    🎵 {phrase.phraseName}
                                 </div>
+                            )}
 
-                                {/* 4 measures per row */}
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(4, 1fr)',
-                                    gap: '1rem'
-                                }}>
-                                    {group.map((measure, idx) => {
-                                        // Check if there's a phrase break right before this measure
-                                        const phraseBreakHere = phraseBreaksInGroup.find(
-                                            pb => pb.measureIndex === measure.number - 1
-                                        );
+                            {/* Groups of 4 measures */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                {phrase.groups.map((group, groupIdx) => (
+                                    <div key={groupIdx}>
+                                        {/* Group label with measure range */}
+                                        <div style={{
+                                            marginBottom: '0.75rem',
+                                            fontSize: '0.9rem',
+                                            color: 'var(--text-secondary)',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            Mesures {group[0].number} - {group[group.length - 1].number}
+                                        </div>
 
-                                        return (
-                                            <React.Fragment key={measure.number}>
-                                                {/* Insert phrase separator before this measure if needed */}
-                                                {phraseBreakHere && (
-                                                    <div style={{
-                                                        gridColumn: '1 / -1',
-                                                        marginTop: idx === 0 ? '0' : '1rem',
-                                                        marginBottom: '1rem',
-                                                        padding: '0.75rem 1.5rem',
-                                                        background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-                                                        borderLeft: '4px solid var(--accent-primary)',
-                                                        borderRadius: 'var(--radius-md)',
-                                                        fontWeight: 'bold',
-                                                        fontSize: '1.1rem',
-                                                        color: 'var(--text-primary)'
-                                                    }}>
-                                                        🎵 {phraseBreakHere.phraseName}
-                                                    </div>
-                                                )}
+                                        {/* 4 measures per row */}
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(4, 1fr)',
+                                            gap: '1rem'
+                                        }}>
+                                            {group.map((measure) => (
                                                 <MeasureCard
+                                                    key={measure.number}
                                                     measure={measure}
                                                     keySignature={song.key}
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
@@ -325,13 +349,13 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     showDetails={showDetails}
                                                     displayNoteName={displayNoteName}
                                                 />
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        );
-                    })}
+                        </div>
+                    ))}
                 </div>
             </div>
 
