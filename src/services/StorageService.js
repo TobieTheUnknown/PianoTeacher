@@ -88,6 +88,83 @@ export const StorageService = {
             console.error('Error importing from string:', error);
             throw new Error('Format de données invalide. Veuillez vérifier la chaîne importée.');
         }
+    },
+
+    // Export entire library as JSON file
+    exportLibrary: () => {
+        const songs = StorageService.getSongs();
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(songs));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `bibliotheque_piano_${new Date().toISOString().split('T')[0]}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    },
+
+    // Export library as base64 string
+    exportLibraryToString: () => {
+        try {
+            const songs = StorageService.getSongs();
+            const jsonString = JSON.stringify(songs);
+            return btoa(unescape(encodeURIComponent(jsonString)));
+        } catch (error) {
+            console.error('Error exporting library to string:', error);
+            return null;
+        }
+    },
+
+    // Import library from JSON file or base64 string
+    importLibrary: (data, merge = false) => {
+        try {
+            let importedSongs;
+
+            // Check if data is a string (base64 or JSON) or already parsed
+            if (typeof data === 'string') {
+                // Try to parse as base64 first
+                try {
+                    const jsonString = decodeURIComponent(escape(atob(data)));
+                    importedSongs = JSON.parse(jsonString);
+                } catch {
+                    // If base64 fails, try parsing directly as JSON
+                    importedSongs = JSON.parse(data);
+                }
+            } else {
+                importedSongs = data;
+            }
+
+            // Validate that importedSongs is an array
+            if (!Array.isArray(importedSongs)) {
+                throw new Error('Les données importées ne sont pas au bon format.');
+            }
+
+            if (merge) {
+                // Merge with existing library
+                const existingSongs = StorageService.getSongs();
+                const mergedSongs = [...existingSongs];
+
+                importedSongs.forEach(importedSong => {
+                    const existingIndex = mergedSongs.findIndex(s => s.id === importedSong.id);
+                    if (existingIndex >= 0) {
+                        // Update existing song
+                        mergedSongs[existingIndex] = { ...importedSong, updatedAt: new Date().toISOString() };
+                    } else {
+                        // Add new song
+                        mergedSongs.push({ ...importedSong, updatedAt: new Date().toISOString() });
+                    }
+                });
+
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedSongs));
+            } else {
+                // Replace entire library
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(importedSongs));
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error importing library:', error);
+            throw new Error('Erreur lors de l\'import de la bibliothèque. Vérifiez le format des données.');
+        }
     }
 };
 
