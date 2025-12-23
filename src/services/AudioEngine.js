@@ -125,9 +125,12 @@ class AudioEngine {
     }
 
     // Metronome Features
-    playClick(time) {
+    playClick(time, isAccent = false) {
         if (!this.metronomeSynth) return;
-        this.metronomeSynth.triggerAttackRelease("C5", "32n", time);
+        // Accent (first beat) is higher pitch and louder
+        const pitch = isAccent ? "C6" : "C5";
+        const duration = "32n";
+        this.metronomeSynth.triggerAttackRelease(pitch, duration, time, isAccent ? 1.0 : 0.6);
     }
 
     startMetronome(tempo = 120) {

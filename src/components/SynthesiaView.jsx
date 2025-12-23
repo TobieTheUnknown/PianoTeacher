@@ -46,13 +46,14 @@ export function SynthesiaView({ song }) {
     // State
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+    const [currentBPM, setCurrentBPM] = useState(song?.tempo || 120);
     const [midiAccess, setMidiAccess] = useState(null);
     const [activeNotes, setActiveNotes] = useState(new Set());
 
     // New features state
     const [handMode, setHandMode] = useState('both'); // 'left', 'right', 'both'
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
+    const [metronomeDivision, setMetronomeDivision] = useState('measure'); // 'measure', 'half-measure', 'beat'
     const [audioInitialized, setAudioInitialized] = useState(false);
 
     // New scoring and wait mode state
@@ -84,6 +85,7 @@ export function SynthesiaView({ song }) {
 
     // Timing tolerance for note detection (in seconds)
     const NOTE_TOLERANCE = 0.3; // 300ms window
+    const WAIT_MODE_THRESHOLD = 0.05; // Wait mode triggers when note is within 50ms of hit line
 
     // Initialize Audio & MIDI
     useEffect(() => {
@@ -218,7 +220,14 @@ export function SynthesiaView({ song }) {
 
     // Memoize allNotes to prevent recalculation on every render
     const allNotes = useMemo(() => getAllNotes(), [getAllNotes]);
-    const beatsPerSecond = (song?.tempo || 120) / 60;
+    const defaultBPM = song?.tempo || 120;
+    const playbackSpeed = currentBPM / defaultBPM;
+    const beatsPerSecond = currentBPM / 60;
+
+    // Reset BPM when song changes
+    useEffect(() => {
+        setCurrentBPM(song?.tempo || 120);
+    }, [song?.id, song?.tempo]);
 
     // Calculate total notes for stats
     useEffect(() => {
@@ -310,31 +319,59 @@ export function SynthesiaView({ song }) {
     }, [currentTime, isPlaying, handMode, allNotes, beatsPerSecond]);
 
     // Metronome Control - Synchronized with measure crossing
-    const lastMetronomeClickRef = useRef(-1); // Track last measure that triggered a click
+    const lastMetronomeClickRef = useRef(-1); // Track last click position
 
     useEffect(() => {
         if (!isPlaying || !isMetronomeOn || !audioInitialized) {
             audioEngine.stopMetronome();
+            // Reset metronome tracking when stopped so it re-syncs on restart
+            lastMetronomeClickRef.current = -1;
             return;
         }
 
-        // Calculate which measure is currently crossing the keyboard line
-        // Measures are typically 4 beats each
+        // Calculate current beat position
         const beatsPerMeasure = 4;
         const currentBeat = currentTime * beatsPerSecond;
-        const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
 
-        // Play click when a new measure crosses the keyboard line
-        if (currentMeasure !== lastMetronomeClickRef.current && currentMeasure >= 0) {
-            lastMetronomeClickRef.current = currentMeasure;
-            // Play click immediately (at current Tone.Transport time)
-            audioEngine.playClick(Tone.now());
+        // Calculate click position based on division
+        let currentClickPosition;
+        let clicksPerMeasure;
+
+        switch (metronomeDivision) {
+            case 'half-measure':
+                // Click twice per measure (1/2)
+                currentClickPosition = Math.floor(currentBeat / 2);
+                clicksPerMeasure = 2;
+                break;
+            case 'beat':
+                // Click on every beat (4 times per measure in 4/4) (1/4)
+                currentClickPosition = Math.floor(currentBeat);
+                clicksPerMeasure = beatsPerMeasure;
+                break;
+            case 'measure':
+            default:
+                // Click on every measure (1)
+                currentClickPosition = Math.floor(currentBeat / beatsPerMeasure);
+                clicksPerMeasure = 1;
+                break;
+        }
+
+        // Play click when position changes
+        if (currentClickPosition !== lastMetronomeClickRef.current && currentClickPosition >= 0) {
+            lastMetronomeClickRef.current = currentClickPosition;
+
+            // Determine if this is an accented beat (first beat of measure)
+            const beatInMeasure = Math.floor(currentBeat % beatsPerMeasure);
+            const isAccent = metronomeDivision === 'measure' || beatInMeasure < 0.1; // Accent first beat of measure
+
+            // Play click with accent if applicable
+            audioEngine.playClick(Tone.now(), isAccent);
         }
 
         // No need for automatic metronome loop anymore
         audioEngine.stopMetronome();
 
-    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond]);
+    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision]);
 
     // MIDI message handler with note detection
     const handleMIDIMessage = (message) => {
@@ -480,8 +517,95 @@ export function SynthesiaView({ song }) {
         return isBlack ? COLORS.blackKey : COLORS.whiteKey;
     };
 
+    // Draw highlighted measure zones
+    const drawHighlightedMeasures = (ctx) => {
+        if (!song.highlightedMeasures || song.highlightedMeasures.length === 0) return;
+
+        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+        const lookAheadTime = 4;
+        const beatsPerMeasure = 4;
+        const highlightedMeasures = new Set(song.highlightedMeasures);
+
+        // Draw highlighted measure zones
+        ctx.fillStyle = '#60a5fa'; // Blue color
+        ctx.globalAlpha = 0.12;
+
+        const firstVisibleMeasure = Math.floor((currentTime * beatsPerSecond) / beatsPerMeasure);
+        const lastVisibleMeasure = Math.ceil(((currentTime + lookAheadTime) * beatsPerSecond) / beatsPerMeasure);
+
+        for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
+            if (highlightedMeasures.has(measure + 1)) { // +1 because measures are 1-indexed in highlightedMeasures
+                const measureStartTime = (measure * beatsPerMeasure) / beatsPerSecond;
+                const measureEndTime = ((measure + 1) * beatsPerMeasure) / beatsPerSecond;
+
+                const startTimeDiff = measureStartTime - currentTime;
+                const endTimeDiff = measureEndTime - currentTime;
+
+                const startY = NOTE_FALL_HEIGHT * (1 - startTimeDiff / lookAheadTime);
+                const endY = NOTE_FALL_HEIGHT * (1 - endTimeDiff / lookAheadTime);
+
+                if (endY >= 0 && startY <= NOTE_FALL_HEIGHT) {
+                    const rectStartY = Math.max(0, endY);
+                    const rectEndY = Math.min(NOTE_FALL_HEIGHT, startY);
+                    const rectHeight = rectEndY - rectStartY;
+
+                    if (rectHeight > 0) {
+                        ctx.fillRect(0, rectStartY, CANVAS_WIDTH, rectHeight);
+                    }
+                }
+            }
+        }
+
+        ctx.globalAlpha = 1.0;
+    };
+
+    // Draw measure numbers
+    const drawMeasureNumbers = (ctx) => {
+        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+        const lookAheadTime = 4;
+        const beatsPerMeasure = 4;
+        const currentBeat = currentTime * beatsPerSecond;
+        const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
+        const highlightedMeasures = new Set(song.highlightedMeasures || []);
+
+        // Draw measure numbers on the left side
+        ctx.textAlign = 'left';
+
+        // Calculate which measures are visible
+        const firstVisibleMeasure = currentMeasure;
+        const lastVisibleMeasure = Math.ceil((currentTime + lookAheadTime) * beatsPerSecond / beatsPerMeasure);
+
+        for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
+            const measureTime = (measure * beatsPerMeasure) / beatsPerSecond;
+            const timeDiff = measureTime - currentTime;
+
+            // Calculate Y position (falling down)
+            const y = NOTE_FALL_HEIGHT * (1 - timeDiff / lookAheadTime);
+
+            if (y >= 0 && y <= NOTE_FALL_HEIGHT) {
+                const measureNumber = measure + 1;
+                const isHighlighted = highlightedMeasures.has(measureNumber);
+
+                // Highlight active measures with different style
+                if (isHighlighted) {
+                    ctx.font = 'bold 24px Arial';
+                    ctx.fillStyle = '#60a5fa';
+                    ctx.globalAlpha = 0.9;
+                } else {
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.globalAlpha = 0.15;
+                }
+
+                ctx.fillText(`${measureNumber}`, 20, y + 7);
+            }
+        }
+
+        ctx.globalAlpha = 1.0;
+    };
+
     // Draw grid lines
-    const drawGrid = (ctx) => {
+    const drawGrid = (ctx, beatsPerSecond) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
         // Vertical lines
@@ -547,8 +671,8 @@ export function SynthesiaView({ song }) {
         const visibleStartTime = currentTime;
         const visibleEndTime = currentTime + lookAheadTime;
 
-        // Calculate beat duration in seconds
-        const secondsPerBeat = 60 / (song?.tempo || 120);
+        // Calculate beat duration in seconds (using current BPM)
+        const secondsPerBeat = 1 / beatsPerSecond;
 
         // Find the first beat that is visible
         const firstVisibleBeat = Math.ceil(visibleStartTime / secondsPerBeat);
@@ -744,8 +868,14 @@ export function SynthesiaView({ song }) {
         ctx.fillStyle = COLORS.background;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Draw Grid
-        drawGrid(ctx);
+        // Draw highlighted measure zones first (in background)
+        drawHighlightedMeasures(ctx);
+
+        // Draw measure numbers (in background)
+        drawMeasureNumbers(ctx);
+
+        // Draw Grid (pass beatsPerSecond for tempo adjustment)
+        drawGrid(ctx, beatsPerSecond);
 
         // Draw falling notes
         drawFallingNotes(ctx, currentTime);
@@ -778,11 +908,29 @@ export function SynthesiaView({ song }) {
             const elapsed = (performance.now() - startTimeRef.current) / 1000 * playbackSpeed;
             setCurrentTime(elapsed);
 
-            // In wait mode, pause if there are expected notes
-            if (waitMode && expectedNotes.size > 0 && pausedAtTimeRef.current === null) {
-                pausedAtTimeRef.current = elapsed;
-                setIsPlaying(false);
-                return;
+            // In wait mode, pause only when notes are at the hit line (not just in the tolerance window)
+            if (waitMode && pausedAtTimeRef.current === null && handMode !== 'watch') {
+                // Determine which hands the user is playing
+                const userHands = new Set();
+                if (handMode === 'both' || handMode === 'left') userHands.add('left');
+                if (handMode === 'both' || handMode === 'right') userHands.add('right');
+
+                // Check if any user note is at or past the hit line
+                const shouldPause = allNotes.some(note => {
+                    const noteTime = note.startTime / beatsPerSecond;
+                    return (
+                        userHands.has(note.hand) &&
+                        expectedNotes.has(note.pitch) &&
+                        !playedNotes.has(note.id) &&
+                        elapsed >= noteTime - WAIT_MODE_THRESHOLD
+                    );
+                });
+
+                if (shouldPause) {
+                    pausedAtTimeRef.current = elapsed;
+                    setIsPlaying(false);
+                    return;
+                }
             }
 
             animationFrameRef.current = requestAnimationFrame(animate);
@@ -795,7 +943,7 @@ export function SynthesiaView({ song }) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [isPlaying, playbackSpeed, waitMode, expectedNotes.size]);
+    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes]);
 
     // Render on state changes
     useEffect(() => {
@@ -876,18 +1024,45 @@ export function SynthesiaView({ song }) {
         });
     };
 
-    const handleSpeedChange = (newSpeed) => {
+    const handleBPMChange = (newBPM) => {
         const wasPlaying = isPlaying;
         if (wasPlaying) {
             setIsPlaying(false);
         }
-        setPlaybackSpeed(newSpeed);
+        setCurrentBPM(newBPM);
         if (wasPlaying) {
             setTimeout(() => {
                 setIsPlaying(true);
+                const newSpeed = newBPM / defaultBPM;
                 startTimeRef.current = performance.now() - (currentTime / newSpeed) * 1000;
             }, 50);
         }
+    };
+
+    // Snap tempo to predefined values
+    const snapTempo = (value) => {
+        const snapPoints = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+        const bpmSnapPoints = snapPoints.map(p => Math.round(defaultBPM * p));
+
+        // Find closest snap point
+        let closest = bpmSnapPoints[0];
+        let minDiff = Math.abs(value - closest);
+
+        for (let snapBPM of bpmSnapPoints) {
+            const diff = Math.abs(value - snapBPM);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = snapBPM;
+            }
+        }
+
+        return closest;
+    };
+
+    const handleTempoSliderChange = (e) => {
+        const value = parseInt(e.target.value);
+        const snapped = snapTempo(value);
+        handleBPMChange(snapped);
     };
 
     const calculateAccuracy = () => {
@@ -987,6 +1162,98 @@ export function SynthesiaView({ song }) {
                 </div>
             )}
 
+            {/* Top Controls - Metronome and Tempo */}
+            <div style={{
+                width: '100%',
+                maxWidth: `${CANVAS_WIDTH}px`,
+                display: 'flex',
+                gap: '2rem',
+                padding: '1rem 1.5rem',
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-color)',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+            }}>
+                {/* Metronome Section */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button
+                        onClick={() => setIsMetronomeOn(!isMetronomeOn)}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: isMetronomeOn ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
+                            color: isMetronomeOn ? '#22c55e' : 'var(--text-secondary)',
+                            border: isMetronomeOn ? '2px solid #22c55e' : '2px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1.1rem'
+                        }}
+                        title="Métronome"
+                    >
+                        ⏰
+                    </button>
+
+                    {isMetronomeOn && (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginRight: '0.25rem' }}>
+                                Division:
+                            </span>
+                            {['measure', 'half-measure', 'beat'].map((division, idx) => {
+                                const labels = ['1', '1/2', '1/4'];
+                                return (
+                                    <button
+                                        key={division}
+                                        onClick={() => setMetronomeDivision(division)}
+                                        style={{
+                                            padding: '0.4rem 0.8rem',
+                                            background: metronomeDivision === division ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                            color: metronomeDivision === division ? 'white' : 'var(--text-primary)',
+                                            border: metronomeDivision === division ? 'none' : '1px solid var(--border-color)',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            fontWeight: '600',
+                                            minWidth: '45px'
+                                        }}
+                                    >
+                                        {labels[idx]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Tempo Section */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, maxWidth: '500px' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        Tempo:
+                    </span>
+                    <input
+                        type="range"
+                        min={Math.round(defaultBPM * 0.25)}
+                        max={Math.round(defaultBPM * 2)}
+                        value={currentBPM}
+                        onChange={handleTempoSliderChange}
+                        style={{
+                            flex: 1,
+                            cursor: 'pointer',
+                            accentColor: 'var(--primary-color)'
+                        }}
+                    />
+                    <span style={{
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        color: 'var(--text-primary)',
+                        minWidth: '100px',
+                        textAlign: 'right'
+                    }}>
+                        {currentBPM} BPM ({Math.round((currentBPM / defaultBPM) * 100)}%)
+                    </span>
+                </div>
+            </div>
+
             {/* Current Session Stats */}
             <div style={{
                 width: '100%',
@@ -1051,190 +1318,129 @@ export function SynthesiaView({ song }) {
                 />
             </div>
 
-            {/* Controls */}
+            {/* Main Controls - Single Line */}
             <div style={{
+                width: '100%',
+                maxWidth: `${CANVAS_WIDTH}px`,
                 display: 'flex',
                 gap: '1rem',
                 alignItems: 'center',
-                padding: '1rem',
+                padding: '1rem 1.5rem',
                 background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-color)',
-                flexWrap: 'wrap',
-                justifyContent: 'center'
+                justifyContent: 'space-between'
             }}>
-                {/* Play/Pause Button */}
-                <button
-                    onClick={handlePlayPause}
-                    style={{
-                        padding: '0.75rem 1.5rem',
-                        background: 'var(--gradient-primary)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}
-                >
-                    {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
-                </button>
-
-                {/* Reset Button */}
-                <button
-                    onClick={handleReset}
-                    style={{
-                        padding: '0.75rem 1.5rem',
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1rem'
-                    }}
-                >
-                    🔄 Recommencer
-                </button>
-
-                <div style={{ width: '1px', height: '30px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
-
-                {/* Hand Selection */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '500' }}>
-                        {handMode === 'watch' ? 'Mode Écoute (Auto)' : 'Votre Main:'}
-                    </span>
-                    <div style={{ display: 'flex', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                        <button
-                            onClick={() => setHandMode(handMode === 'left' ? 'watch' : 'left')}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                background: handMode === 'left' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                color: handMode === 'left' ? 'white' : 'var(--text-primary)',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem',
-                                borderRight: '1px solid var(--border-color)'
-                            }}
-                            title="Vous jouez la main gauche"
-                        >
-                            Gauche
-                        </button>
-                        <button
-                            onClick={() => setHandMode(handMode === 'both' ? 'watch' : 'both')}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                background: handMode === 'both' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                color: handMode === 'both' ? 'white' : 'var(--text-primary)',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem',
-                                borderRight: '1px solid var(--border-color)'
-                            }}
-                            title="Vous jouez les deux mains"
-                        >
-                            Deux mains
-                        </button>
-                        <button
-                            onClick={() => setHandMode(handMode === 'right' ? 'watch' : 'right')}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                background: handMode === 'right' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                color: handMode === 'right' ? 'white' : 'var(--text-primary)',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem'
-                            }}
-                            title="Vous jouez la main droite"
-                        >
-                            Droite
-                        </button>
-                    </div>
-                </div>
-
-                <div style={{ width: '1px', height: '30px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
-
-                {/* Metronome Toggle */}
-                <button
-                    onClick={() => setIsMetronomeOn(!isMetronomeOn)}
-                    style={{
-                        padding: '0.75rem 1rem',
-                        background: isMetronomeOn ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
-                        color: isMetronomeOn ? '#22c55e' : 'var(--text-secondary)',
-                        border: isMetronomeOn ? '1px solid #22c55e' : '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1.2rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '50px'
-                    }}
-                    title="Métronome"
-                >
-                    ⏰
-                </button>
-
-                {/* Wait Mode Toggle */}
-                <button
-                    onClick={() => setWaitMode(!waitMode)}
-                    style={{
-                        padding: '0.75rem 1.5rem',
-                        background: waitMode ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
-                        color: waitMode ? 'white' : 'var(--text-primary)',
-                        border: waitMode ? 'none' : '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}
-                >
-                    {waitMode ? '⏸️ Attente: ON' : '▶️ Attente: OFF'}
-                </button>
-
-                {/* Speed Control */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem'
-                }}>
-                    <select
-                        value={playbackSpeed}
-                        onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                {/* Left Controls */}
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <button
+                        onClick={handlePlayPause}
                         style={{
-                            padding: '0.5rem 1rem',
+                            padding: '0.75rem 1.5rem',
+                            background: 'var(--gradient-primary)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1rem'
+                        }}
+                    >
+                        {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
+                    </button>
+
+                    <button
+                        onClick={handleReset}
+                        style={{
+                            padding: '0.75rem 1.5rem',
                             background: 'var(--bg-tertiary)',
                             color: 'var(--text-primary)',
                             border: '1px solid var(--border-color)',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
-                            fontSize: '0.9rem'
+                            fontWeight: '600',
+                            fontSize: '1rem'
                         }}
                     >
-                        <option value="0.5">0.5x</option>
-                        <option value="0.75">0.75x</option>
-                        <option value="1.0">1x</option>
-                        <option value="1.25">1.25x</option>
-                        <option value="1.5">1.5x</option>
-                    </select>
+                        🔄 Recommencer
+                    </button>
+
+                    <button
+                        onClick={() => setHandMode(handMode === 'watch' ? 'both' : 'watch')}
+                        style={{
+                            padding: '0.75rem 1.5rem',
+                            background: handMode === 'watch' ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
+                            color: handMode === 'watch' ? 'white' : 'var(--text-primary)',
+                            border: handMode === 'watch' ? 'none' : '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1rem'
+                        }}
+                        title="Basculer entre mode écoute et mode pratique"
+                    >
+                        {handMode === 'watch' ? '👀 Mode Écoute' : '🎹 Mode Pratique'}
+                    </button>
+
+                    <button
+                        onClick={() => setWaitMode(!waitMode)}
+                        style={{
+                            padding: '0.75rem 1.5rem',
+                            background: waitMode ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
+                            color: waitMode ? 'white' : 'var(--text-primary)',
+                            border: waitMode ? 'none' : '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1rem'
+                        }}
+                    >
+                        {waitMode ? '⏸️ Attente ON' : '⏸️ Attente OFF'}
+                    </button>
                 </div>
 
-                {/* Time Display */}
-                <div style={{
-                    marginLeft: '1rem',
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.9rem',
-                    fontFamily: 'monospace'
-                }}>
-                    {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
-                </div>
+                {/* Right - Hand Selection (when in practice mode) */}
+                {handMode !== 'watch' && (
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            Main:
+                        </span>
+                        <div style={{ display: 'flex', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                            {['left', 'both', 'right'].map((hand) => {
+                                const labels = { left: 'Gauche', both: 'Les deux', right: 'Droite' };
+                                return (
+                                    <button
+                                        key={hand}
+                                        onClick={() => setHandMode(hand)}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            background: handMode === hand ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                            color: handMode === hand ? 'white' : 'var(--text-primary)',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            borderRight: hand !== 'right' ? '1px solid var(--border-color)' : 'none'
+                                        }}
+                                    >
+                                        {labels[hand]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Time Display */}
+                        <div style={{
+                            marginLeft: '1rem',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.9rem',
+                            fontFamily: 'monospace',
+                            fontWeight: '600'
+                        }}>
+                            {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Legend */}
