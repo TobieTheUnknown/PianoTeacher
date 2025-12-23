@@ -53,7 +53,7 @@ export function SynthesiaView({ song }) {
     // New features state
     const [handMode, setHandMode] = useState('both'); // 'left', 'right', 'both'
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
-    const [metronomeDivision, setMetronomeDivision] = useState('measure'); // 'measure', 'beat', 'half-beat'
+    const [metronomeDivision, setMetronomeDivision] = useState('measure'); // 'measure', 'half-measure', 'beat'
     const [audioInitialized, setAudioInitialized] = useState(false);
 
     // New scoring and wait mode state
@@ -338,19 +338,19 @@ export function SynthesiaView({ song }) {
         let clicksPerMeasure;
 
         switch (metronomeDivision) {
+            case 'half-measure':
+                // Click twice per measure (1/2)
+                currentClickPosition = Math.floor(currentBeat / 2);
+                clicksPerMeasure = 2;
+                break;
             case 'beat':
-                // Click on every beat (4 times per measure in 4/4)
+                // Click on every beat (4 times per measure in 4/4) (1/4)
                 currentClickPosition = Math.floor(currentBeat);
                 clicksPerMeasure = beatsPerMeasure;
                 break;
-            case 'half-beat':
-                // Click on every half beat (8 times per measure in 4/4)
-                currentClickPosition = Math.floor(currentBeat * 2);
-                clicksPerMeasure = beatsPerMeasure * 2;
-                break;
             case 'measure':
             default:
-                // Click on every measure (once per measure)
+                // Click on every measure (1)
                 currentClickPosition = Math.floor(currentBeat / beatsPerMeasure);
                 clicksPerMeasure = 1;
                 break;
@@ -515,6 +515,39 @@ export function SynthesiaView({ song }) {
         */
 
         return isBlack ? COLORS.blackKey : COLORS.whiteKey;
+    };
+
+    // Draw measure numbers
+    const drawMeasureNumbers = (ctx) => {
+        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+        const lookAheadTime = 4;
+        const beatsPerMeasure = 4;
+        const currentBeat = currentTime * beatsPerSecond;
+        const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
+
+        // Draw measure numbers on the left side
+        ctx.font = 'bold 20px Arial';
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.15;
+        ctx.textAlign = 'left';
+
+        // Calculate which measures are visible
+        const firstVisibleMeasure = currentMeasure;
+        const lastVisibleMeasure = Math.ceil((currentTime + lookAheadTime) * beatsPerSecond / beatsPerMeasure);
+
+        for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
+            const measureTime = (measure * beatsPerMeasure) / beatsPerSecond;
+            const timeDiff = measureTime - currentTime;
+
+            // Calculate Y position (falling down)
+            const y = NOTE_FALL_HEIGHT * (1 - timeDiff / lookAheadTime);
+
+            if (y >= 0 && y <= NOTE_FALL_HEIGHT) {
+                ctx.fillText(`${measure + 1}`, 20, y + 7);
+            }
+        }
+
+        ctx.globalAlpha = 1.0;
     };
 
     // Draw grid lines
@@ -781,6 +814,9 @@ export function SynthesiaView({ song }) {
         ctx.fillStyle = COLORS.background;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+        // Draw measure numbers first (in background)
+        drawMeasureNumbers(ctx);
+
         // Draw Grid
         drawGrid(ctx);
 
@@ -946,6 +982,32 @@ export function SynthesiaView({ song }) {
         }
     };
 
+    // Snap tempo to predefined values
+    const snapTempo = (value) => {
+        const snapPoints = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+        const bpmSnapPoints = snapPoints.map(p => Math.round(defaultBPM * p));
+
+        // Find closest snap point
+        let closest = bpmSnapPoints[0];
+        let minDiff = Math.abs(value - closest);
+
+        for (let snapBPM of bpmSnapPoints) {
+            const diff = Math.abs(value - snapBPM);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = snapBPM;
+            }
+        }
+
+        return closest;
+    };
+
+    const handleTempoSliderChange = (e) => {
+        const value = parseInt(e.target.value);
+        const snapped = snapTempo(value);
+        handleBPMChange(snapped);
+    };
+
     const calculateAccuracy = () => {
         if (sessionStats.totalNotes === 0) return 0;
         return ((sessionStats.correctNotes / sessionStats.totalNotes) * 100).toFixed(1);
@@ -1043,6 +1105,98 @@ export function SynthesiaView({ song }) {
                 </div>
             )}
 
+            {/* Top Controls - Metronome and Tempo */}
+            <div style={{
+                width: '100%',
+                maxWidth: `${CANVAS_WIDTH}px`,
+                display: 'flex',
+                gap: '2rem',
+                padding: '1rem 1.5rem',
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-color)',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+            }}>
+                {/* Metronome Section */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button
+                        onClick={() => setIsMetronomeOn(!isMetronomeOn)}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: isMetronomeOn ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
+                            color: isMetronomeOn ? '#22c55e' : 'var(--text-secondary)',
+                            border: isMetronomeOn ? '2px solid #22c55e' : '2px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1.1rem'
+                        }}
+                        title="Métronome"
+                    >
+                        ⏰
+                    </button>
+
+                    {isMetronomeOn && (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginRight: '0.25rem' }}>
+                                Division:
+                            </span>
+                            {['measure', 'half-measure', 'beat'].map((division, idx) => {
+                                const labels = ['1', '1/2', '1/4'];
+                                return (
+                                    <button
+                                        key={division}
+                                        onClick={() => setMetronomeDivision(division)}
+                                        style={{
+                                            padding: '0.4rem 0.8rem',
+                                            background: metronomeDivision === division ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                            color: metronomeDivision === division ? 'white' : 'var(--text-primary)',
+                                            border: metronomeDivision === division ? 'none' : '1px solid var(--border-color)',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            fontWeight: '600',
+                                            minWidth: '45px'
+                                        }}
+                                    >
+                                        {labels[idx]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Tempo Section */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, maxWidth: '500px' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        Tempo:
+                    </span>
+                    <input
+                        type="range"
+                        min={Math.round(defaultBPM * 0.25)}
+                        max={Math.round(defaultBPM * 2)}
+                        value={currentBPM}
+                        onChange={handleTempoSliderChange}
+                        style={{
+                            flex: 1,
+                            cursor: 'pointer',
+                            accentColor: 'var(--primary-color)'
+                        }}
+                    />
+                    <span style={{
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        color: 'var(--text-primary)',
+                        minWidth: '100px',
+                        textAlign: 'right'
+                    }}>
+                        {currentBPM} BPM ({Math.round((currentBPM / defaultBPM) * 100)}%)
+                    </span>
+                </div>
+            </div>
+
             {/* Current Session Stats */}
             <div style={{
                 width: '100%',
@@ -1107,218 +1261,129 @@ export function SynthesiaView({ song }) {
                 />
             </div>
 
-            {/* Controls */}
+            {/* Main Controls - Single Line */}
             <div style={{
+                width: '100%',
+                maxWidth: `${CANVAS_WIDTH}px`,
                 display: 'flex',
                 gap: '1rem',
                 alignItems: 'center',
-                padding: '1rem',
+                padding: '1rem 1.5rem',
                 background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-color)',
-                flexWrap: 'wrap',
-                justifyContent: 'center'
+                justifyContent: 'space-between'
             }}>
-                {/* Play/Pause Button */}
-                <button
-                    onClick={handlePlayPause}
-                    style={{
-                        padding: '0.75rem 1.5rem',
-                        background: 'var(--gradient-primary)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}
-                >
-                    {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
-                </button>
-
-                {/* Reset Button */}
-                <button
-                    onClick={handleReset}
-                    style={{
-                        padding: '0.75rem 1.5rem',
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1rem'
-                    }}
-                >
-                    🔄 Recommencer
-                </button>
-
-                <div style={{ width: '1px', height: '30px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
-
-                {/* Hand Selection */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '500' }}>
-                        {handMode === 'watch' ? 'Mode Écoute (Auto)' : 'Votre Main:'}
-                    </span>
-                    <div style={{ display: 'flex', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                        <button
-                            onClick={() => setHandMode(handMode === 'left' ? 'watch' : 'left')}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                background: handMode === 'left' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                color: handMode === 'left' ? 'white' : 'var(--text-primary)',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem',
-                                borderRight: '1px solid var(--border-color)'
-                            }}
-                            title="Vous jouez la main gauche"
-                        >
-                            Gauche
-                        </button>
-                        <button
-                            onClick={() => setHandMode(handMode === 'both' ? 'watch' : 'both')}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                background: handMode === 'both' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                color: handMode === 'both' ? 'white' : 'var(--text-primary)',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem',
-                                borderRight: '1px solid var(--border-color)'
-                            }}
-                            title="Vous jouez les deux mains"
-                        >
-                            Deux mains
-                        </button>
-                        <button
-                            onClick={() => setHandMode(handMode === 'right' ? 'watch' : 'right')}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                background: handMode === 'right' ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                color: handMode === 'right' ? 'white' : 'var(--text-primary)',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem'
-                            }}
-                            title="Vous jouez la main droite"
-                        >
-                            Droite
-                        </button>
-                    </div>
-                </div>
-
-                <div style={{ width: '1px', height: '30px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
-
-                {/* Metronome Controls */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {/* Left Controls */}
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <button
-                        onClick={() => setIsMetronomeOn(!isMetronomeOn)}
+                        onClick={handlePlayPause}
                         style={{
-                            padding: '0.75rem 1rem',
-                            background: isMetronomeOn ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
-                            color: isMetronomeOn ? '#22c55e' : 'var(--text-secondary)',
-                            border: isMetronomeOn ? '1px solid #22c55e' : '1px solid var(--border-color)',
+                            padding: '0.75rem 1.5rem',
+                            background: 'var(--gradient-primary)',
+                            color: 'white',
+                            border: 'none',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
                             fontWeight: '600',
-                            fontSize: '1.2rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '50px'
+                            fontSize: '1rem'
                         }}
-                        title="Métronome"
                     >
-                        ⏰
+                        {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
                     </button>
 
-                    {/* Metronome Division Selector */}
-                    {isMetronomeOn && (
-                        <select
-                            value={metronomeDivision}
-                            onChange={(e) => setMetronomeDivision(e.target.value)}
-                            style={{
-                                padding: '0.5rem 0.75rem',
-                                background: 'var(--bg-tertiary)',
-                                color: 'var(--text-primary)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: 'var(--radius-md)',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem'
-                            }}
-                            title="Division du métronome"
-                        >
-                            <option value="measure">Par mesure</option>
-                            <option value="beat">Par temps</option>
-                            <option value="half-beat">Demi-temps</option>
-                        </select>
-                    )}
-                </div>
-
-                {/* Wait Mode Toggle */}
-                <button
-                    onClick={() => setWaitMode(!waitMode)}
-                    style={{
-                        padding: '0.75rem 1.5rem',
-                        background: waitMode ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
-                        color: waitMode ? 'white' : 'var(--text-primary)',
-                        border: waitMode ? 'none' : '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}
-                >
-                    {waitMode ? '⏸️ Attente: ON' : '▶️ Attente: OFF'}
-                </button>
-
-                {/* BPM Control */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem'
-                }}>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '500' }}>
-                        Tempo:
-                    </span>
-                    <select
-                        value={currentBPM}
-                        onChange={(e) => handleBPMChange(parseInt(e.target.value))}
+                    <button
+                        onClick={handleReset}
                         style={{
-                            padding: '0.5rem 1rem',
+                            padding: '0.75rem 1.5rem',
                             background: 'var(--bg-tertiary)',
                             color: 'var(--text-primary)',
                             border: '1px solid var(--border-color)',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: currentBPM === defaultBPM ? '600' : '400'
+                            fontWeight: '600',
+                            fontSize: '1rem'
                         }}
                     >
-                        <option value={Math.round(defaultBPM * 0.5)}>{Math.round(defaultBPM * 0.5)} BPM (50%)</option>
-                        <option value={Math.round(defaultBPM * 0.75)}>{Math.round(defaultBPM * 0.75)} BPM (75%)</option>
-                        <option value={defaultBPM}>{defaultBPM} BPM (100%)</option>
-                        <option value={Math.round(defaultBPM * 1.25)}>{Math.round(defaultBPM * 1.25)} BPM (125%)</option>
-                        <option value={Math.round(defaultBPM * 1.5)}>{Math.round(defaultBPM * 1.5)} BPM (150%)</option>
-                    </select>
+                        🔄 Recommencer
+                    </button>
+
+                    <button
+                        onClick={() => setHandMode(handMode === 'watch' ? 'both' : 'watch')}
+                        style={{
+                            padding: '0.75rem 1.5rem',
+                            background: handMode === 'watch' ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
+                            color: handMode === 'watch' ? 'white' : 'var(--text-primary)',
+                            border: handMode === 'watch' ? 'none' : '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1rem'
+                        }}
+                        title="Basculer entre mode écoute et mode pratique"
+                    >
+                        {handMode === 'watch' ? '👀 Mode Écoute' : '🎹 Mode Pratique'}
+                    </button>
+
+                    <button
+                        onClick={() => setWaitMode(!waitMode)}
+                        style={{
+                            padding: '0.75rem 1.5rem',
+                            background: waitMode ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
+                            color: waitMode ? 'white' : 'var(--text-primary)',
+                            border: waitMode ? 'none' : '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1rem'
+                        }}
+                    >
+                        {waitMode ? '⏸️ Attente ON' : '⏸️ Attente OFF'}
+                    </button>
                 </div>
 
-                {/* Time Display */}
-                <div style={{
-                    marginLeft: '1rem',
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.9rem',
-                    fontFamily: 'monospace'
-                }}>
-                    {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
-                </div>
+                {/* Right - Hand Selection (when in practice mode) */}
+                {handMode !== 'watch' && (
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            Main:
+                        </span>
+                        <div style={{ display: 'flex', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                            {['left', 'both', 'right'].map((hand) => {
+                                const labels = { left: 'Gauche', both: 'Les deux', right: 'Droite' };
+                                return (
+                                    <button
+                                        key={hand}
+                                        onClick={() => setHandMode(hand)}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            background: handMode === hand ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                            color: handMode === hand ? 'white' : 'var(--text-primary)',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            borderRight: hand !== 'right' ? '1px solid var(--border-color)' : 'none'
+                                        }}
+                                    >
+                                        {labels[hand]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Time Display */}
+                        <div style={{
+                            marginLeft: '1rem',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.9rem',
+                            fontFamily: 'monospace',
+                            fontWeight: '600'
+                        }}>
+                            {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Legend */}
