@@ -55,6 +55,7 @@ export function SynthesiaView({ song }) {
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
     const [metronomeDivision, setMetronomeDivision] = useState('measure'); // 'measure', 'half-measure', 'beat'
     const [audioInitialized, setAudioInitialized] = useState(false);
+    const [isLoopEnabled, setIsLoopEnabled] = useState(false);
 
     // New scoring and wait mode state
     const [waitMode, setWaitMode] = useState(false);
@@ -526,9 +527,9 @@ export function SynthesiaView({ song }) {
         const beatsPerMeasure = 4;
         const highlightedMeasures = new Set(song.highlightedMeasures);
 
-        // Draw highlighted measure zones
-        ctx.fillStyle = '#60a5fa'; // Blue color
-        ctx.globalAlpha = 0.12;
+        // Draw highlighted measure zones - more visible when loop is enabled
+        ctx.fillStyle = isLoopEnabled ? '#3b82f6' : '#60a5fa'; // Darker blue when loop enabled
+        ctx.globalAlpha = isLoopEnabled ? 0.20 : 0.12; // More opaque when loop enabled
 
         const firstVisibleMeasure = Math.floor((currentTime * beatsPerSecond) / beatsPerMeasure);
         const lastVisibleMeasure = Math.ceil(((currentTime + lookAheadTime) * beatsPerSecond) / beatsPerMeasure);
@@ -551,6 +552,36 @@ export function SynthesiaView({ song }) {
 
                     if (rectHeight > 0) {
                         ctx.fillRect(0, rectStartY, CANVAS_WIDTH, rectHeight);
+                    }
+                }
+            }
+        }
+
+        // Add border/outline for loop zones when loop is enabled
+        if (isLoopEnabled) {
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.5;
+
+            for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
+                if (highlightedMeasures.has(measure + 1)) {
+                    const measureStartTime = (measure * beatsPerMeasure) / beatsPerSecond;
+                    const measureEndTime = ((measure + 1) * beatsPerMeasure) / beatsPerSecond;
+
+                    const startTimeDiff = measureStartTime - currentTime;
+                    const endTimeDiff = measureEndTime - currentTime;
+
+                    const startY = NOTE_FALL_HEIGHT * (1 - startTimeDiff / lookAheadTime);
+                    const endY = NOTE_FALL_HEIGHT * (1 - endTimeDiff / lookAheadTime);
+
+                    if (endY >= 0 && startY <= NOTE_FALL_HEIGHT) {
+                        const rectStartY = Math.max(0, endY);
+                        const rectEndY = Math.min(NOTE_FALL_HEIGHT, startY);
+                        const rectHeight = rectEndY - rectStartY;
+
+                        if (rectHeight > 0) {
+                            ctx.strokeRect(0, rectStartY, CANVAS_WIDTH, rectHeight);
+                        }
                     }
                 }
             }
@@ -906,6 +937,37 @@ export function SynthesiaView({ song }) {
             }
 
             const elapsed = (performance.now() - startTimeRef.current) / 1000 * playbackSpeed;
+
+            // Handle loop logic for highlighted measures
+            if (isLoopEnabled && song.highlightedMeasures && song.highlightedMeasures.length > 0) {
+                const beatsPerMeasure = 4;
+                const sortedMeasures = [...song.highlightedMeasures].sort((a, b) => a - b);
+                const firstMeasure = sortedMeasures[0] - 1; // Convert to 0-indexed
+                const lastMeasure = sortedMeasures[sortedMeasures.length - 1] - 1; // Convert to 0-indexed
+
+                const loopStartTime = (firstMeasure * beatsPerMeasure) / beatsPerSecond;
+                const loopEndTime = ((lastMeasure + 1) * beatsPerMeasure) / beatsPerSecond;
+
+                // If elapsed has passed the end of the loop zone, reset to the beginning
+                if (elapsed >= loopEndTime) {
+                    const loopOffset = elapsed - loopEndTime;
+                    startTimeRef.current = performance.now() - (loopStartTime / playbackSpeed) * 1000;
+                    setCurrentTime(loopStartTime);
+                    // Reset played notes and processed notes for the loop
+                    processedNotesRef.current = new Set();
+                    setPlayedNotes(new Map());
+                    return; // Skip the rest of this frame to prevent double-rendering
+                }
+                // If starting before the loop zone, jump to the beginning of the loop
+                else if (elapsed < loopStartTime) {
+                    startTimeRef.current = performance.now() - (loopStartTime / playbackSpeed) * 1000;
+                    setCurrentTime(loopStartTime);
+                    processedNotesRef.current = new Set();
+                    setPlayedNotes(new Map());
+                    return;
+                }
+            }
+
             setCurrentTime(elapsed);
 
             // In wait mode, pause only when notes are at the hit line (not just in the tolerance window)
@@ -943,7 +1005,7 @@ export function SynthesiaView({ song }) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes]);
+    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, song]);
 
     // Render on state changes
     useEffect(() => {
@@ -1222,6 +1284,33 @@ export function SynthesiaView({ song }) {
                                 );
                             })}
                         </div>
+                    )}
+                </div>
+
+                {/* Loop Section */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                        onClick={() => setIsLoopEnabled(!isLoopEnabled)}
+                        disabled={!song.highlightedMeasures || song.highlightedMeasures.length === 0}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: isLoopEnabled ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
+                            color: isLoopEnabled ? '#3b82f6' : 'var(--text-secondary)',
+                            border: isLoopEnabled ? '2px solid #3b82f6' : '2px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: (!song.highlightedMeasures || song.highlightedMeasures.length === 0) ? 'not-allowed' : 'pointer',
+                            fontWeight: '600',
+                            fontSize: '1.1rem',
+                            opacity: (!song.highlightedMeasures || song.highlightedMeasures.length === 0) ? 0.5 : 1
+                        }}
+                        title={song.highlightedMeasures && song.highlightedMeasures.length > 0 ? "Loop sur les mesures surlignées" : "Aucune mesure surlignée"}
+                    >
+                        🔁
+                    </button>
+                    {isLoopEnabled && song.highlightedMeasures && song.highlightedMeasures.length > 0 && (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            Loop: {Math.min(...song.highlightedMeasures)}-{Math.max(...song.highlightedMeasures)}
+                        </span>
                     )}
                 </div>
 
