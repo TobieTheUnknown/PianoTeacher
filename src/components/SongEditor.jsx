@@ -11,9 +11,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [splitTime, setSplitTime] = useState('');
     const [isBatchSplit, setIsBatchSplit] = useState(false); // Toggle between single and batch split
     const [showImportExportModal, setShowImportExportModal] = useState(false);
-    const [exportStringText, setExportStringText] = useState('');
-    const [importStringText, setImportStringText] = useState('');
-    const [importJsonFile, setImportJsonFile] = useState(null);
     const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'unsaved'
 
     // Refs for auto-save
@@ -140,29 +137,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     };
 
     const handleOpenImportExport = () => {
-        // Generate export string when opening modal
-        const str = StorageService.exportToString(song);
-        if (str) {
-            setExportStringText(str);
-        }
         setShowImportExportModal(true);
-    };
-
-    const handleImportStringText = () => {
-        try {
-            const importedSong = StorageService.importFromString(importStringText);
-            onImportSong(importedSong);
-            setImportStringText('');
-            setShowImportExportModal(false);
-            alert("Morceau importé avec succès !");
-        } catch (error) {
-            alert(error.message);
-        }
-    };
-
-    const handleCopyExportString = () => {
-        navigator.clipboard.writeText(exportStringText);
-        alert("Chaîne d'export copiée dans le presse-papiers !");
     };
 
     const handleImportJson = (e) => {
@@ -772,110 +747,10 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             </div>
                         </div>
 
-                        {/* Text Export/Import Section */}
-                        <div style={{
-                            marginBottom: '1rem',
-                            padding: '1.5rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                📋 Export / Import Texte
-                            </h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                                Format texte compact pour copier/coller facilement
-                            </p>
-
-                            {/* Export */}
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.95rem' }}>
-                                    Export
-                                </label>
-                                <textarea
-                                    value={exportStringText}
-                                    readOnly
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '100px',
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.7rem',
-                                        padding: '1rem',
-                                        backgroundColor: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 'var(--radius-md)',
-                                        color: 'var(--text-primary)',
-                                        resize: 'vertical'
-                                    }}
-                                />
-                                <button
-                                    onClick={handleCopyExportString}
-                                    style={{
-                                        marginTop: '0.5rem',
-                                        background: 'var(--gradient-success)',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        cursor: 'pointer',
-                                        fontWeight: '600',
-                                        fontSize: '0.875rem'
-                                    }}
-                                >
-                                    📋 Copier
-                                </button>
-                            </div>
-
-                            {/* Import */}
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.95rem' }}>
-                                    Import
-                                </label>
-                                <textarea
-                                    value={importStringText}
-                                    onChange={(e) => setImportStringText(e.target.value)}
-                                    placeholder="Collez la chaîne d'export ici..."
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '100px',
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.7rem',
-                                        padding: '1rem',
-                                        backgroundColor: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 'var(--radius-md)',
-                                        color: 'var(--text-primary)',
-                                        resize: 'vertical'
-                                    }}
-                                />
-                                <button
-                                    onClick={handleImportStringText}
-                                    disabled={!importStringText.trim()}
-                                    style={{
-                                        marginTop: '0.5rem',
-                                        background: importStringText.trim() ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        cursor: importStringText.trim() ? 'pointer' : 'not-allowed',
-                                        fontWeight: '600',
-                                        fontSize: '0.875rem',
-                                        opacity: importStringText.trim() ? 1 : 0.5
-                                    }}
-                                >
-                                    📥 Importer
-                                </button>
-                            </div>
-                        </div>
-
                         {/* Close Button */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                             <button
-                                onClick={() => {
-                                    setShowImportExportModal(false);
-                                    setImportStringText('');
-                                }}
+                                onClick={() => setShowImportExportModal(false)}
                                 style={{
                                     backgroundColor: 'var(--bg-elevated)',
                                     border: '1px solid var(--border-light)',

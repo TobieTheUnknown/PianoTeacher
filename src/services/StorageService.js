@@ -115,35 +115,6 @@ export const StorageService = {
         downloadAnchorNode.remove();
     },
 
-    // Convert song to base64 encoded string (compact format for sharing)
-    exportToString: (song) => {
-        try {
-            const jsonString = JSON.stringify(song);
-            // Use btoa for base64 encoding (works in browser)
-            return btoa(unescape(encodeURIComponent(jsonString)));
-        } catch (error) {
-            console.error('Error exporting to string:', error);
-            return null;
-        }
-    },
-
-    // Import song from base64 string or JSON string
-    importFromString: (dataString) => {
-        try {
-            // Try to parse as base64 first
-            try {
-                const jsonString = decodeURIComponent(escape(atob(dataString)));
-                return JSON.parse(jsonString);
-            } catch {
-                // If base64 fails, try parsing directly as JSON
-                return JSON.parse(dataString);
-            }
-        } catch (error) {
-            console.error('Error importing from string:', error);
-            throw new Error('Format de données invalide. Veuillez vérifier la chaîne importée.');
-        }
-    },
-
     // Export entire library as JSON file
     exportLibrary: () => {
         const songs = StorageService.getSongs();
@@ -156,36 +127,11 @@ export const StorageService = {
         downloadAnchorNode.remove();
     },
 
-    // Export library as base64 string
-    exportLibraryToString: () => {
-        try {
-            const songs = StorageService.getSongs();
-            const jsonString = JSON.stringify(songs);
-            return btoa(unescape(encodeURIComponent(jsonString)));
-        } catch (error) {
-            console.error('Error exporting library to string:', error);
-            return null;
-        }
-    },
-
-    // Import library from JSON file or base64 string
+    // Import library from JSON object or array
     importLibrary: (data, merge = false) => {
         try {
-            let importedSongs;
-
-            // Check if data is a string (base64 or JSON) or already parsed
-            if (typeof data === 'string') {
-                // Try to parse as base64 first
-                try {
-                    const jsonString = decodeURIComponent(escape(atob(data)));
-                    importedSongs = JSON.parse(jsonString);
-                } catch {
-                    // If base64 fails, try parsing directly as JSON
-                    importedSongs = JSON.parse(data);
-                }
-            } else {
-                importedSongs = data;
-            }
+            // data should be a parsed JSON object/array
+            const importedSongs = data;
 
             // Validate that importedSongs is an array
             if (!Array.isArray(importedSongs)) {
