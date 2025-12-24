@@ -4,9 +4,9 @@ export function Layout({ children }) {
     return (
         <div className="container">
             <header style={{
-                padding: '4rem 0 3rem',
+                padding: '2.5rem 0 2rem',
                 textAlign: 'center',
-                marginBottom: '3rem',
+                marginBottom: '2rem',
                 position: 'relative'
             }}>
                 {/* Animated background glow effects */}
@@ -30,11 +30,11 @@ export function Layout({ children }) {
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        marginBottom: '1.5rem',
+                        marginBottom: '1rem',
                         animation: 'float 6s ease-in-out infinite'
                     }}>
                         <div style={{
-                            fontSize: '4.5rem',
+                            fontSize: '3rem',
                             background: 'linear-gradient(135deg, #a78bfa 0%, #ec4899 100%)',
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
@@ -47,10 +47,10 @@ export function Layout({ children }) {
 
                     {/* Main title with enhanced gradient */}
                     <h1 style={{
-                        fontSize: '5rem',
+                        fontSize: '3.5rem',
                         fontWeight: '900',
                         letterSpacing: '-0.04em',
-                        margin: '0 0 1.5rem 0',
+                        margin: '0 0 1rem 0',
                         background: 'linear-gradient(135deg, #a78bfa 0%, #818cf8 30%, #6366f1 60%, #ec4899 100%)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
@@ -67,10 +67,10 @@ export function Layout({ children }) {
                     {/* Subtitle with improved styling */}
                     <p style={{
                         color: 'var(--text-secondary)',
-                        fontSize: '1.375rem',
+                        fontSize: '1.125rem',
                         fontWeight: '500',
                         maxWidth: '700px',
-                        margin: '0 auto 2rem',
+                        margin: '0 auto 1.5rem',
                         lineHeight: '1.8',
                         letterSpacing: '0.01em',
                         animation: 'fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s backwards'
@@ -113,11 +113,11 @@ export function Layout({ children }) {
 
             <footer style={{
                 textAlign: 'center',
-                padding: '5rem 0 3rem',
-                marginTop: '6rem',
+                padding: '3rem 0 2rem',
+                marginTop: '4rem',
                 borderTop: '1.5px solid var(--border-light)',
                 color: 'var(--text-tertiary)',
-                fontSize: '0.9375rem',
+                fontSize: '0.875rem',
                 background: 'linear-gradient(180deg, transparent 0%, rgba(167, 139, 250, 0.02) 100%)',
                 position: 'relative'
             }}>
@@ -148,11 +148,11 @@ export function Layout({ children }) {
                         gap: '0.5rem',
                         fontWeight: '500'
                     }}>
-                        <span style={{ fontSize: '1.2rem' }}>©</span>
+                        <span style={{ fontSize: '1rem' }}>©</span>
                         {new Date().getFullYear()} Piano Teacher
                         <span style={{
                             color: 'var(--accent-primary)',
-                            fontSize: '1.2rem',
+                            fontSize: '1rem',
                             animation: 'float 3s ease-in-out infinite'
                         }}>♪</span>
                     </p>

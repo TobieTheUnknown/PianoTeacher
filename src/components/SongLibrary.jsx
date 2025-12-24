@@ -53,8 +53,8 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '3.5rem',
-                paddingBottom: '2rem',
+                marginBottom: '2.5rem',
+                paddingBottom: '1.5rem',
                 borderBottom: '1.5px solid var(--border-light)',
                 position: 'relative'
             }}>
@@ -71,8 +71,8 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
 
                 <div style={{ animation: 'slideInRight 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
                     <h2 style={{
-                        fontSize: '3rem',
-                        marginBottom: '0.75rem',
+                        fontSize: '2rem',
+                        marginBottom: '0.5rem',
                         background: 'var(--gradient-primary)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
@@ -84,7 +84,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                     </h2>
                     <p style={{
                         color: 'var(--text-tertiary)',
-                        fontSize: '1.125rem',
+                        fontSize: '1rem',
                         margin: 0,
                         fontWeight: '500',
                         display: 'flex',
@@ -95,12 +95,12 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: '32px',
-                            height: '32px',
+                            width: '26px',
+                            height: '26px',
                             borderRadius: 'var(--radius-lg)',
                             background: 'var(--gradient-primary)',
                             color: 'white',
-                            fontSize: '0.875rem',
+                            fontSize: '0.8125rem',
                             fontWeight: '700'
                         }}>
                             {songs.length}
@@ -119,16 +119,16 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                     <button
                         onClick={handleOpenLibraryModal}
                         style={{
-                            padding: '1rem 2rem',
+                            padding: '0.75rem 1.5rem',
                             backgroundColor: 'var(--bg-card)',
                             border: '1.5px solid var(--border-light)',
                             borderRadius: 'var(--radius-2xl)',
                             cursor: 'pointer',
                             fontWeight: '600',
-                            fontSize: '1rem',
+                            fontSize: '0.875rem',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.625rem',
+                            gap: '0.5rem',
                             transition: 'all var(--transition-normal)',
                             color: 'var(--text-primary)',
                             boxShadow: 'var(--shadow-md)'
@@ -144,24 +144,24 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             e.currentTarget.style.borderColor = 'var(--border-light)';
                         }}
                     >
-                        <span style={{ fontSize: '1.25rem' }}>📁</span>
+                        <span style={{ fontSize: '1rem' }}>📁</span>
                         <span>Import/Export</span>
                     </button>
 
                     <button
                         onClick={onNewSong}
                         style={{
-                            padding: '1rem 2.5rem',
+                            padding: '0.75rem 2rem',
                             background: 'var(--gradient-primary)',
                             color: 'white',
                             border: 'none',
                             borderRadius: 'var(--radius-2xl)',
                             cursor: 'pointer',
                             fontWeight: '700',
-                            fontSize: '1rem',
+                            fontSize: '0.875rem',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.75rem',
+                            gap: '0.625rem',
                             boxShadow: 'var(--shadow-glow-sm), var(--shadow-lg)',
                             transition: 'all var(--transition-normal)'
                         }}
@@ -174,7 +174,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             e.currentTarget.style.boxShadow = 'var(--shadow-glow-sm), var(--shadow-lg)';
                         }}
                     >
-                        <span style={{ fontSize: '1.5rem', fontWeight: '400' }}>+</span>
+                        <span style={{ fontSize: '1.25rem', fontWeight: '400' }}>+</span>
                         <span>Nouveau Morceau</span>
                     </button>
                 </div>
@@ -184,7 +184,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
             {songs.length === 0 ? (
                 <div className="card" style={{
                     textAlign: 'center',
-                    padding: '5rem 3rem',
+                    padding: '3.5rem 2rem',
                     background: 'var(--glass-bg-strong)',
                     border: '2px dashed var(--border-light)',
                     position: 'relative',
@@ -205,8 +205,8 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
 
                     <div style={{ position: 'relative', zIndex: 1 }}>
                         <div style={{
-                            fontSize: '5rem',
-                            marginBottom: '1.5rem',
+                            fontSize: '3.5rem',
+                            marginBottom: '1rem',
                             animation: 'float 4s ease-in-out infinite',
                             filter: 'drop-shadow(0 10px 30px rgba(167, 139, 250, 0.3))'
                         }}>
@@ -214,17 +214,17 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                         </div>
                         <h3 style={{
                             color: 'var(--text-primary)',
-                            marginBottom: '1rem',
-                            fontSize: '2rem',
+                            marginBottom: '0.75rem',
+                            fontSize: '1.5rem',
                             fontWeight: '700'
                         }}>
                             Votre bibliothèque est vide
                         </h3>
                         <p style={{
                             color: 'var(--text-tertiary)',
-                            fontSize: '1.125rem',
+                            fontSize: '1rem',
                             maxWidth: '500px',
-                            margin: '0 auto 2.5rem',
+                            margin: '0 auto 2rem',
                             lineHeight: '1.8'
                         }}>
                             Créez votre premier morceau et commencez votre voyage musical
@@ -232,14 +232,14 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                         <button
                             onClick={onNewSong}
                             style={{
-                                padding: '1.125rem 3rem',
+                                padding: '0.875rem 2.25rem',
                                 background: 'var(--gradient-primary)',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: 'var(--radius-2xl)',
                                 cursor: 'pointer',
                                 fontWeight: '700',
-                                fontSize: '1.125rem',
+                                fontSize: '1rem',
                                 boxShadow: 'var(--shadow-glow), var(--shadow-xl)',
                                 transition: 'all var(--transition-normal)'
                             }}
@@ -316,8 +316,8 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
 
                             {/* Music note icon with gradient */}
                             <div style={{
-                                fontSize: '3rem',
-                                marginBottom: '1.5rem',
+                                fontSize: '2.25rem',
+                                marginBottom: '1rem',
                                 marginTop: '0.5rem',
                                 background: 'var(--gradient-secondary)',
                                 WebkitBackgroundClip: 'text',
@@ -330,9 +330,9 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
 
                             {/* Song Title */}
                             <h3 style={{
-                                marginBottom: '1.25rem',
+                                marginBottom: '1rem',
                                 color: 'var(--text-primary)',
-                                fontSize: '1.625rem',
+                                fontSize: '1.375rem',
                                 fontWeight: '700',
                                 letterSpacing: '-0.01em',
                                 lineHeight: '1.3',
@@ -481,7 +481,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             width: '100%',
                             maxHeight: '85vh',
                             overflow: 'auto',
-                            padding: '2.5rem',
+                            padding: '2rem',
                             background: 'linear-gradient(145deg, var(--bg-card) 0%, var(--bg-secondary) 100%)',
                             boxShadow: 'var(--shadow-2xl), var(--shadow-glow)',
                             animation: 'fadeInScale 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
@@ -489,25 +489,25 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 style={{
-                            marginBottom: '2.5rem',
+                            marginBottom: '2rem',
                             background: 'var(--gradient-primary)',
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                             backgroundClip: 'text',
-                            fontSize: '2.25rem',
+                            fontSize: '1.75rem',
                             fontWeight: '800',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.75rem'
+                            gap: '0.625rem'
                         }}>
-                            <span>📁</span>
+                            <span style={{ fontSize: '1.5rem' }}>📁</span>
                             <span>Import / Export Bibliothèque</span>
                         </h2>
 
                         {/* Merge Option - Enhanced */}
                         <div style={{
-                            marginBottom: '2.5rem',
-                            padding: '1.5rem',
+                            marginBottom: '2rem',
+                            padding: '1.25rem',
                             background: 'var(--glass-bg-strong)',
                             borderRadius: 'var(--radius-xl)',
                             border: '1.5px solid var(--border-light)',
@@ -529,7 +529,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             />
                             <label htmlFor="merge-library" style={{
                                 cursor: 'pointer',
-                                fontSize: '1rem',
+                                fontSize: '0.9375rem',
                                 color: 'var(--text-primary)',
                                 fontWeight: '600'
                             }}>
@@ -539,27 +539,27 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
 
                         {/* JSON Section - Premium */}
                         <div style={{
-                            marginBottom: '2.5rem',
-                            padding: '2rem',
+                            marginBottom: '2rem',
+                            padding: '1.5rem',
                             background: 'var(--bg-tertiary)',
                             borderRadius: 'var(--radius-xl)',
                             border: '1.5px solid var(--border-light)'
                         }}>
                             <h3 style={{
-                                marginBottom: '1.25rem',
-                                fontSize: '1.375rem',
+                                marginBottom: '1rem',
+                                fontSize: '1.25rem',
                                 fontWeight: '700',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '0.625rem'
+                                gap: '0.5rem'
                             }}>
-                                <span>📄</span>
+                                <span style={{ fontSize: '1.125rem' }}>📄</span>
                                 <span>Export / Import JSON</span>
                             </h3>
                             <p style={{
                                 color: 'var(--text-tertiary)',
-                                marginBottom: '1.5rem',
-                                fontSize: '1rem',
+                                marginBottom: '1.25rem',
+                                fontSize: '0.9375rem',
                                 lineHeight: '1.6'
                             }}>
                                 Format JSON pour sauvegarder toute votre bibliothèque
@@ -576,12 +576,12 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                         border: 'none',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '0.625rem',
-                                        padding: '1rem 2rem',
+                                        gap: '0.5rem',
+                                        padding: '0.75rem 1.5rem',
                                         borderRadius: 'var(--radius-xl)',
                                         cursor: 'pointer',
                                         fontWeight: '700',
-                                        fontSize: '1rem',
+                                        fontSize: '0.875rem',
                                         boxShadow: 'var(--shadow-lg)',
                                         transition: 'all var(--transition-normal)'
                                     }}
@@ -594,7 +594,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                         e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
                                     }}
                                 >
-                                    <span style={{ fontSize: '1.25rem' }}>📤</span>
+                                    <span style={{ fontSize: '1rem' }}>📤</span>
                                     <span>Exporter JSON</span>
                                 </button>
                                 <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -618,17 +618,17 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                         border: '1.5px solid var(--border-light)',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '0.625rem',
-                                        padding: '1rem 2rem',
+                                        gap: '0.5rem',
+                                        padding: '0.75rem 1.5rem',
                                         borderRadius: 'var(--radius-xl)',
                                         cursor: 'pointer',
                                         fontWeight: '700',
-                                        fontSize: '1rem',
+                                        fontSize: '0.875rem',
                                         color: 'var(--text-primary)',
                                         boxShadow: 'var(--shadow-md)',
                                         transition: 'all var(--transition-normal)'
                                     }}>
-                                        <span style={{ fontSize: '1.25rem' }}>📥</span>
+                                        <span style={{ fontSize: '1rem' }}>📥</span>
                                         <span>Importer JSON</span>
                                     </button>
                                 </div>
@@ -636,17 +636,17 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                         </div>
 
                         {/* Close Button - Premium */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                             <button
                                 onClick={() => setShowLibraryModal(false)}
                                 style={{
                                     backgroundColor: 'var(--bg-elevated)',
                                     border: '1.5px solid var(--border-light)',
-                                    padding: '1rem 2.5rem',
+                                    padding: '0.75rem 2rem',
                                     borderRadius: 'var(--radius-xl)',
                                     cursor: 'pointer',
                                     fontWeight: '700',
-                                    fontSize: '1rem',
+                                    fontSize: '0.875rem',
                                     color: 'var(--text-primary)',
                                     boxShadow: 'var(--shadow-md)',
                                     transition: 'all var(--transition-normal)'

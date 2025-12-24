@@ -132,8 +132,8 @@ body {
 button {
   border-radius: var(--radius-lg);
   border: 1px solid transparent;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.9375rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.875rem;
   font-weight: 600;
   font-family: inherit;
   background-color: var(--bg-elevated);
@@ -196,12 +196,12 @@ input[type="email"],
 textarea,
 select {
   font-family: inherit;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   color: var(--text-primary);
   background-color: var(--bg-card);
   border: 1.5px solid var(--border-light);
   border-radius: var(--radius-lg);
-  padding: 0.875rem 1.125rem;
+  padding: 0.65rem 0.875rem;
   transition: all var(--transition-normal);
   width: 100%;
   box-shadow: var(--shadow-inner);
@@ -309,12 +309,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-  font-size: 3rem;
+  font-size: 2.5rem;
   letter-spacing: -0.02em;
 }
 
 h2 {
-  font-size: 2rem;
+  font-size: 1.5rem;
   letter-spacing: -0.01em;
 }
 
