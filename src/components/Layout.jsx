@@ -1,8 +1,10 @@
 import React from 'react';
+import { ThemePicker } from './ThemePicker';
 
 export function Layout({ children }) {
     return (
         <div className="container">
+            <ThemePicker />
             <header style={{
                 padding: '2.5rem 0 2rem',
                 textAlign: 'center',
