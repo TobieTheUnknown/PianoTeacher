@@ -48,116 +48,222 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
 
     return (
         <div className="song-library">
+            {/* Premium Header Section */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '3rem'
+                marginBottom: '3.5rem',
+                paddingBottom: '2rem',
+                borderBottom: '1.5px solid var(--border-light)',
+                position: 'relative'
             }}>
-                <div>
+                {/* Header glow effect */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: '0',
+                    left: '0',
+                    right: '0',
+                    height: '1px',
+                    background: 'linear-gradient(90deg, transparent, var(--accent-primary), transparent)',
+                    opacity: 0.5
+                }} />
+
+                <div style={{ animation: 'slideInRight 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}>
                     <h2 style={{
-                        fontSize: '2.5rem',
-                        marginBottom: '0.5rem',
+                        fontSize: '3rem',
+                        marginBottom: '0.75rem',
                         background: 'var(--gradient-primary)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text'
+                        backgroundClip: 'text',
+                        fontWeight: '800',
+                        letterSpacing: '-0.02em'
                     }}>
                         Ma Bibliothèque
                     </h2>
                     <p style={{
-                        color: 'var(--text-secondary)',
-                        fontSize: '1rem',
-                        margin: 0
+                        color: 'var(--text-tertiary)',
+                        fontSize: '1.125rem',
+                        margin: 0,
+                        fontWeight: '500',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
                     }}>
-                        {songs.length} {songs.length === 1 ? 'morceau' : 'morceaux'}
+                        <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: 'var(--radius-lg)',
+                            background: 'var(--gradient-primary)',
+                            color: 'white',
+                            fontSize: '0.875rem',
+                            fontWeight: '700'
+                        }}>
+                            {songs.length}
+                        </span>
+                        {songs.length === 1 ? 'morceau' : 'morceaux'}
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+
+                {/* Action Buttons */}
+                <div style={{
+                    display: 'flex',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                    animation: 'fadeInScale 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.1s backwards'
+                }}>
                     <button
                         onClick={handleOpenLibraryModal}
                         style={{
-                            padding: '1rem 1.5rem',
-                            backgroundColor: 'var(--bg-elevated)',
-                            border: '1px solid var(--border-light)',
-                            borderRadius: 'var(--radius-full)',
+                            padding: '1rem 2rem',
+                            backgroundColor: 'var(--bg-card)',
+                            border: '1.5px solid var(--border-light)',
+                            borderRadius: 'var(--radius-2xl)',
                             cursor: 'pointer',
                             fontWeight: '600',
                             fontSize: '1rem',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.5rem',
-                            transition: 'all var(--transition-fast)',
-                            color: 'var(--text-primary)'
+                            gap: '0.625rem',
+                            transition: 'all var(--transition-normal)',
+                            color: 'var(--text-primary)',
+                            boxShadow: 'var(--shadow-md)'
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.transform = 'translateY(-3px)';
                             e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
-                            e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                            e.currentTarget.style.borderColor = 'var(--border-accent)';
                         }}
                         onMouseLeave={(e) => {
                             e.currentTarget.style.transform = 'none';
-                            e.currentTarget.style.boxShadow = 'none';
+                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                             e.currentTarget.style.borderColor = 'var(--border-light)';
                         }}
                     >
-                        <span>📁</span>
+                        <span style={{ fontSize: '1.25rem' }}>📁</span>
                         <span>Import/Export</span>
                     </button>
+
                     <button
                         onClick={onNewSong}
                         style={{
-                            padding: '1rem 2rem',
+                            padding: '1rem 2.5rem',
                             background: 'var(--gradient-primary)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: 'var(--radius-full)',
+                            borderRadius: 'var(--radius-2xl)',
                             cursor: 'pointer',
-                            fontWeight: '600',
+                            fontWeight: '700',
                             fontSize: '1rem',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.5rem',
-                            boxShadow: 'var(--shadow-glow)',
-                            transition: 'all var(--transition-fast)'
+                            gap: '0.75rem',
+                            boxShadow: 'var(--shadow-glow-sm), var(--shadow-lg)',
+                            transition: 'all var(--transition-normal)'
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = 'var(--shadow-xl), var(--shadow-glow)';
+                            e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)';
+                            e.currentTarget.style.boxShadow = 'var(--shadow-glow), var(--shadow-xl)';
                         }}
                         onMouseLeave={(e) => {
                             e.currentTarget.style.transform = 'none';
-                            e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
+                            e.currentTarget.style.boxShadow = 'var(--shadow-glow-sm), var(--shadow-lg)';
                         }}
                     >
-                        <span style={{ fontSize: '1.2rem' }}>+</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: '400' }}>+</span>
                         <span>Nouveau Morceau</span>
                     </button>
                 </div>
             </div>
 
+            {/* Empty State - Premium Design */}
             {songs.length === 0 ? (
                 <div className="card" style={{
                     textAlign: 'center',
-                    padding: '4rem 2rem',
-                    background: 'var(--glass-bg)',
-                    border: '2px dashed var(--border-light)'
+                    padding: '5rem 3rem',
+                    background: 'var(--glass-bg-strong)',
+                    border: '2px dashed var(--border-light)',
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}>
-                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎼</div>
-                    <h3 style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                        Aucun morceau sauvegardé
-                    </h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto' }}>
-                        Créez votre premier morceau et commencez votre voyage musical
-                    </p>
+                    {/* Decorative background elements */}
+                    <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: '500px',
+                        height: '500px',
+                        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 70%)',
+                        filter: 'blur(60px)',
+                        pointerEvents: 'none'
+                    }} />
+
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                        <div style={{
+                            fontSize: '5rem',
+                            marginBottom: '1.5rem',
+                            animation: 'float 4s ease-in-out infinite',
+                            filter: 'drop-shadow(0 10px 30px rgba(167, 139, 250, 0.3))'
+                        }}>
+                            🎼
+                        </div>
+                        <h3 style={{
+                            color: 'var(--text-primary)',
+                            marginBottom: '1rem',
+                            fontSize: '2rem',
+                            fontWeight: '700'
+                        }}>
+                            Votre bibliothèque est vide
+                        </h3>
+                        <p style={{
+                            color: 'var(--text-tertiary)',
+                            fontSize: '1.125rem',
+                            maxWidth: '500px',
+                            margin: '0 auto 2.5rem',
+                            lineHeight: '1.8'
+                        }}>
+                            Créez votre premier morceau et commencez votre voyage musical
+                        </p>
+                        <button
+                            onClick={onNewSong}
+                            style={{
+                                padding: '1.125rem 3rem',
+                                background: 'var(--gradient-primary)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 'var(--radius-2xl)',
+                                cursor: 'pointer',
+                                fontWeight: '700',
+                                fontSize: '1.125rem',
+                                boxShadow: 'var(--shadow-glow), var(--shadow-xl)',
+                                transition: 'all var(--transition-normal)'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-3px) scale(1.05)';
+                                e.currentTarget.style.boxShadow = 'var(--shadow-glow-lg)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'none';
+                                e.currentTarget.style.boxShadow = 'var(--shadow-glow), var(--shadow-xl)';
+                            }}
+                        >
+                            Commencer maintenant
+                        </button>
+                    </div>
                 </div>
             ) : (
+                /* Premium Song Cards Grid */
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                     gap: '2rem'
                 }}>
-                    {songs.map(song => (
+                    {songs.map((song, index) => (
                         <div
                             key={song.id}
                             onClick={() => onLoadSong(song.id)}
@@ -166,100 +272,182 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                 cursor: 'pointer',
                                 position: 'relative',
                                 overflow: 'hidden',
-                                background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.8) 100%)',
-                                border: '1px solid var(--border-color)',
-                                transition: 'all var(--transition-normal)'
+                                background: 'linear-gradient(145deg, var(--bg-card) 0%, var(--bg-secondary) 100%)',
+                                border: '1.5px solid var(--border-light)',
+                                transition: 'all var(--transition-normal)',
+                                animation: `fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) ${index * 0.05}s backwards`
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-4px)';
-                                e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                                e.currentTarget.style.boxShadow = 'var(--shadow-xl), 0 0 30px rgba(139, 92, 246, 0.2)';
+                                e.currentTarget.style.transform = 'translateY(-6px)';
+                                e.currentTarget.style.borderColor = 'var(--border-accent-strong)';
+                                e.currentTarget.style.boxShadow = 'var(--shadow-2xl), var(--shadow-glow-sm)';
                             }}
                             onMouseLeave={(e) => {
                                 e.currentTarget.style.transform = 'none';
-                                e.currentTarget.style.borderColor = 'var(--border-color)';
-                                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                e.currentTarget.style.borderColor = 'var(--border-light)';
+                                e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
                             }}
                         >
-                            {/* Gradient accent bar */}
+                            {/* Gradient accent bar - Premium style */}
                             <div style={{
                                 position: 'absolute',
                                 top: 0,
                                 left: 0,
                                 right: 0,
-                                height: '4px',
-                                background: 'var(--gradient-primary)'
+                                height: '5px',
+                                background: 'var(--gradient-primary)',
+                                boxShadow: '0 2px 10px rgba(167, 139, 250, 0.3)'
                             }} />
 
-                            {/* Music note icon */}
+                            {/* Card glow on hover */}
                             <div style={{
-                                fontSize: '2.5rem',
-                                marginBottom: '1rem',
-                                opacity: 0.9
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                width: '120%',
+                                height: '120%',
+                                background: 'radial-gradient(circle, rgba(167, 139, 250, 0.1) 0%, transparent 70%)',
+                                filter: 'blur(40px)',
+                                opacity: 0,
+                                transition: 'opacity var(--transition-normal)',
+                                pointerEvents: 'none'
+                            }} />
+
+                            {/* Music note icon with gradient */}
+                            <div style={{
+                                fontSize: '3rem',
+                                marginBottom: '1.5rem',
+                                marginTop: '0.5rem',
+                                background: 'var(--gradient-secondary)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                                filter: 'drop-shadow(0 0 20px rgba(167, 139, 250, 0.3))'
                             }}>
                                 🎵
                             </div>
 
+                            {/* Song Title */}
                             <h3 style={{
-                                marginBottom: '1rem',
+                                marginBottom: '1.25rem',
                                 color: 'var(--text-primary)',
-                                fontSize: '1.5rem',
-                                fontWeight: '700'
+                                fontSize: '1.625rem',
+                                fontWeight: '700',
+                                letterSpacing: '-0.01em',
+                                lineHeight: '1.3',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
                             }}>
                                 {song.title}
                             </h3>
 
+                            {/* Song Metadata */}
                             <div style={{
                                 fontSize: '0.9375rem',
-                                color: 'var(--text-secondary)',
-                                marginBottom: '1.5rem',
-                                lineHeight: '1.8'
+                                color: 'var(--text-tertiary)',
+                                marginBottom: '2rem',
+                                lineHeight: '2'
                             }}>
-                                <p style={{ margin: '0.25rem 0' }}>
-                                    👤 {song.artist || 'Artiste inconnu'}
+                                <p style={{
+                                    margin: '0.5rem 0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}>
+                                    <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: 'var(--radius-md)',
+                                        background: 'var(--glass-bg-strong)',
+                                        fontSize: '0.875rem'
+                                    }}>👤</span>
+                                    <span style={{ fontWeight: '500' }}>{song.artist || 'Artiste inconnu'}</span>
                                 </p>
-                                <p style={{ margin: '0.25rem 0' }}>
-                                    🎹 {getFrenchKeyName(song.key)} • ⏱️ {song.tempo} BPM
+                                <p style={{
+                                    margin: '0.5rem 0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.75rem'
+                                }}>
+                                    <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.375rem',
+                                        padding: '0.375rem 0.75rem',
+                                        background: 'var(--glass-bg-strong)',
+                                        borderRadius: 'var(--radius-lg)',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600'
+                                    }}>
+                                        🎹 {getFrenchKeyName(song.key)}
+                                    </span>
+                                    <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.375rem',
+                                        padding: '0.375rem 0.75rem',
+                                        background: 'var(--glass-bg-strong)',
+                                        borderRadius: 'var(--radius-lg)',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600'
+                                    }}>
+                                        ⏱️ {song.tempo} BPM
+                                    </span>
                                 </p>
                                 <p style={{
                                     fontSize: '0.8125rem',
-                                    marginTop: '0.75rem',
-                                    color: 'var(--text-tertiary)'
+                                    marginTop: '1rem',
+                                    color: 'var(--text-muted)',
+                                    fontWeight: '500'
                                 }}>
                                     Modifié le {new Date(song.updatedAt || song.createdAt).toLocaleDateString('fr-FR')}
                                 </p>
                             </div>
 
+                            {/* Delete Button - Enhanced */}
                             <div style={{
                                 display: 'flex',
                                 justifyContent: 'flex-end',
-                                paddingTop: '1rem',
-                                borderTop: '1px solid var(--border-color)'
+                                paddingTop: '1.25rem',
+                                borderTop: '1.5px solid var(--border-light)'
                             }}>
                                 <button
                                     onClick={(e) => handleDelete(song.id, e)}
                                     style={{
-                                        padding: '0.5rem 1rem',
+                                        padding: '0.625rem 1.25rem',
                                         background: 'transparent',
                                         color: 'var(--accent-danger)',
-                                        border: '1px solid var(--accent-danger)',
-                                        borderRadius: 'var(--radius-md)',
+                                        border: '1.5px solid var(--accent-danger)',
+                                        borderRadius: 'var(--radius-lg)',
                                         cursor: 'pointer',
                                         fontSize: '0.875rem',
                                         fontWeight: '600',
-                                        transition: 'all var(--transition-fast)'
+                                        transition: 'all var(--transition-normal)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
                                     }}
                                     onMouseEnter={(e) => {
                                         e.stopPropagation();
-                                        e.currentTarget.style.background = 'var(--accent-danger)';
+                                        e.currentTarget.style.background = 'var(--gradient-danger)';
                                         e.currentTarget.style.color = 'white';
+                                        e.currentTarget.style.transform = 'scale(1.05)';
+                                        e.currentTarget.style.boxShadow = '0 0 20px rgba(248, 113, 113, 0.4)';
                                     }}
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.background = 'transparent';
                                         e.currentTarget.style.color = 'var(--accent-danger)';
+                                        e.currentTarget.style.transform = 'none';
+                                        e.currentTarget.style.boxShadow = 'none';
                                     }}
                                 >
-                                    🗑️ Supprimer
+                                    <span>🗑️</span>
+                                    <span>Supprimer</span>
                                 </button>
                             </div>
                         </div>
@@ -267,7 +455,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                 </div>
             )}
 
-            {/* Library Import/Export Modal */}
+            {/* Library Import/Export Modal - Premium Design */}
             {showLibraryModal && (
                 <div style={{
                     position: 'fixed',
@@ -275,40 +463,57 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    backgroundColor: 'rgba(5, 8, 17, 0.85)',
+                    backdropFilter: 'blur(10px)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1000,
-                    padding: '2rem'
+                    padding: '2rem',
+                    animation: 'fadeIn 0.3s ease-out'
                 }}
                 onClick={() => setShowLibraryModal(false)}
                 >
                     <div
                         className="card"
                         style={{
-                            maxWidth: '800px',
+                            maxWidth: '900px',
                             width: '100%',
                             maxHeight: '85vh',
                             overflow: 'auto',
-                            padding: '2rem'
+                            padding: '2.5rem',
+                            background: 'linear-gradient(145deg, var(--bg-card) 0%, var(--bg-secondary) 100%)',
+                            boxShadow: 'var(--shadow-2xl), var(--shadow-glow)',
+                            animation: 'fadeInScale 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h2 style={{ marginBottom: '2rem', color: 'var(--accent-primary)', fontSize: '1.75rem' }}>
-                            📁 Import / Export Bibliothèque
-                        </h2>
-
-                        {/* Merge Option */}
-                        <div style={{
-                            marginBottom: '2rem',
-                            padding: '1rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--border-color)',
+                        <h2 style={{
+                            marginBottom: '2.5rem',
+                            background: 'var(--gradient-primary)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text',
+                            fontSize: '2.25rem',
+                            fontWeight: '800',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.75rem'
+                        }}>
+                            <span>📁</span>
+                            <span>Import / Export Bibliothèque</span>
+                        </h2>
+
+                        {/* Merge Option - Enhanced */}
+                        <div style={{
+                            marginBottom: '2.5rem',
+                            padding: '1.5rem',
+                            background: 'var(--glass-bg-strong)',
+                            borderRadius: 'var(--radius-xl)',
+                            border: '1.5px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '1rem'
                         }}>
                             <input
                                 type="checkbox"
@@ -316,14 +521,15 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                 checked={mergeOnImport}
                                 onChange={(e) => setMergeOnImport(e.target.checked)}
                                 style={{
-                                    width: '20px',
-                                    height: '20px',
-                                    cursor: 'pointer'
+                                    width: '24px',
+                                    height: '24px',
+                                    cursor: 'pointer',
+                                    accentColor: 'var(--accent-primary)'
                                 }}
                             />
                             <label htmlFor="merge-library" style={{
                                 cursor: 'pointer',
-                                fontSize: '0.95rem',
+                                fontSize: '1rem',
                                 color: 'var(--text-primary)',
                                 fontWeight: '600'
                             }}>
@@ -331,21 +537,34 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             </label>
                         </div>
 
-                        {/* JSON Section */}
+                        {/* JSON Section - Premium */}
                         <div style={{
-                            marginBottom: '2rem',
-                            padding: '1.5rem',
+                            marginBottom: '2.5rem',
+                            padding: '2rem',
                             background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
+                            borderRadius: 'var(--radius-xl)',
+                            border: '1.5px solid var(--border-light)'
                         }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                📄 Export / Import JSON
+                            <h3 style={{
+                                marginBottom: '1.25rem',
+                                fontSize: '1.375rem',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.625rem'
+                            }}>
+                                <span>📄</span>
+                                <span>Export / Import JSON</span>
                             </h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                            <p style={{
+                                color: 'var(--text-tertiary)',
+                                marginBottom: '1.5rem',
+                                fontSize: '1rem',
+                                lineHeight: '1.6'
+                            }}>
                                 Format JSON pour sauvegarder toute votre bibliothèque
                             </p>
-                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                                 <button
                                     onClick={() => {
                                         StorageService.exportLibrary();
@@ -357,14 +576,25 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                         border: 'none',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
+                                        gap: '0.625rem',
+                                        padding: '1rem 2rem',
+                                        borderRadius: 'var(--radius-xl)',
                                         cursor: 'pointer',
-                                        fontWeight: '600'
+                                        fontWeight: '700',
+                                        fontSize: '1rem',
+                                        boxShadow: 'var(--shadow-lg)',
+                                        transition: 'all var(--transition-normal)'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                        e.currentTarget.style.boxShadow = 'var(--shadow-xl), 0 0 30px rgba(52, 211, 153, 0.4)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'none';
+                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
                                     }}
                                 >
-                                    <span>📤</span>
+                                    <span style={{ fontSize: '1.25rem' }}>📤</span>
                                     <span>Exporter JSON</span>
                                 </button>
                                 <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -384,34 +614,52 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                                         }}
                                     />
                                     <button style={{
-                                        backgroundColor: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-light)',
+                                        backgroundColor: 'var(--bg-card)',
+                                        border: '1.5px solid var(--border-light)',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
+                                        gap: '0.625rem',
+                                        padding: '1rem 2rem',
+                                        borderRadius: 'var(--radius-xl)',
                                         cursor: 'pointer',
-                                        fontWeight: '600'
+                                        fontWeight: '700',
+                                        fontSize: '1rem',
+                                        color: 'var(--text-primary)',
+                                        boxShadow: 'var(--shadow-md)',
+                                        transition: 'all var(--transition-normal)'
                                     }}>
-                                        <span>📥</span>
+                                        <span style={{ fontSize: '1.25rem' }}>📥</span>
                                         <span>Importer JSON</span>
                                     </button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Close Button */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                        {/* Close Button - Premium */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem' }}>
                             <button
                                 onClick={() => setShowLibraryModal(false)}
                                 style={{
                                     backgroundColor: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border-light)',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: 'var(--radius-md)',
+                                    border: '1.5px solid var(--border-light)',
+                                    padding: '1rem 2.5rem',
+                                    borderRadius: 'var(--radius-xl)',
                                     cursor: 'pointer',
-                                    fontWeight: '600'
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    color: 'var(--text-primary)',
+                                    boxShadow: 'var(--shadow-md)',
+                                    transition: 'all var(--transition-normal)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
+                                    e.currentTarget.style.borderColor = 'var(--border-accent)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                    e.currentTarget.style.borderColor = 'var(--border-light)';
                                 }}
                             >
                                 Fermer
