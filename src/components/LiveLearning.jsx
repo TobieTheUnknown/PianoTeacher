@@ -251,7 +251,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                         width: '10px',
                                         height: '10px',
                                         borderRadius: '50%',
-                                        backgroundColor: 'var(--accent-secondary)',
+                                        backgroundColor: '#3b82f6',
                                         border: '2px solid var(--bg-elevated)'
                                     }}></div>
                                     <span>Main gauche (MG)</span>
@@ -766,7 +766,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                     width: '10px',
                                     height: '10px',
                                     borderRadius: '50%',
-                                    backgroundColor: 'var(--accent-secondary)',
+                                    backgroundColor: '#3b82f6',
                                     border: '2px solid var(--bg-tertiary)'
                                 }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
                             ))}

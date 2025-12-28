@@ -161,7 +161,7 @@ export function SongViewer({ song }) {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                             <span style={{
                                                 width: '8px', height: '8px', borderRadius: '50%',
-                                                backgroundColor: 'var(--accent-secondary)'
+                                                backgroundColor: '#3b82f6'
                                             }} />
                                             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Main Gauche (Accords)</span>
                                             <button
@@ -171,8 +171,8 @@ export function SongViewer({ song }) {
                                                     padding: '0.2rem 0.5rem',
                                                     fontSize: '0.8rem',
                                                     backgroundColor: 'transparent',
-                                                    border: '1px solid var(--accent-secondary)',
-                                                    color: 'var(--accent-secondary)',
+                                                    border: '1px solid #3b82f6',
+                                                    color: '#3b82f6',
                                                     borderRadius: '4px',
                                                     cursor: 'pointer'
                                                 }}
@@ -189,7 +189,7 @@ export function SongViewer({ song }) {
                                                         backgroundColor: 'var(--bg-tertiary)',
                                                         padding: '0.5rem',
                                                         borderRadius: '4px',
-                                                        borderLeft: '3px solid var(--accent-secondary)'
+                                                        borderLeft: '3px solid #3b82f6'
                                                     }}>
                                                         {/* Main Note (Root/Bass) */}
                                                         <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>
@@ -282,7 +282,7 @@ export function SongViewer({ song }) {
                                                 width: '10px',
                                                 height: '10px',
                                                 borderRadius: '50%',
-                                                backgroundColor: 'var(--accent-secondary)',
+                                                backgroundColor: '#3b82f6',
                                                 border: '2px solid var(--bg-secondary)'
                                             }} title={`MG: ${getFrenchNoteName(n.pitch, song.key)}`} />
                                         ))}
