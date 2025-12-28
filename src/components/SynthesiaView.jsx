@@ -835,6 +835,43 @@ export function SynthesiaView({ song }) {
         }
     };
 
+    // Helper function to draw rounded rectangle
+    const drawRoundedRect = (ctx, x, y, width, height, radius) => {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+        ctx.lineTo(x + radius, y + height);
+        ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        ctx.lineTo(x, y + radius);
+        ctx.arcTo(x, y, x + radius, y, radius);
+        ctx.closePath();
+    };
+
+    // Helper function to darken a color (for black keys)
+    const darkenColor = (color, amount = 0.3) => {
+        // Convert hex to RGB
+        let r, g, b;
+        if (color.startsWith('#')) {
+            const hex = color.replace('#', '');
+            r = parseInt(hex.substring(0, 2), 16);
+            g = parseInt(hex.substring(2, 4), 16);
+            b = parseInt(hex.substring(4, 6), 16);
+        } else {
+            return color; // Return as-is if not hex
+        }
+
+        // Darken by reducing RGB values
+        r = Math.floor(r * (1 - amount));
+        g = Math.floor(g * (1 - amount));
+        b = Math.floor(b * (1 - amount));
+
+        // Convert back to hex
+        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    };
+
     // Draw falling notes
     const drawFallingNotes = (ctx, currentTime) => {
         const lookAheadTime = 4; // Show notes 4 seconds ahead
@@ -859,7 +896,7 @@ export function SynthesiaView({ song }) {
 
             if ((playStatus === 'correct' || playStatus === 'auto') && currentTime > noteStartTime + 0.1) {
                 // If it's been hit, maybe don't draw it anymore?
-                // return; 
+                // return;
             }
 
             const x = getNoteX(note.pitch);
@@ -889,6 +926,11 @@ export function SynthesiaView({ song }) {
             const noteWidth = isNoteBlack ? BLACK_KEY_WIDTH : WHITE_KEY_WIDTH - 2;
             const noteX = isNoteBlack ? x : x + 1; // Black key x correction handled in getNoteX
 
+            // Darken color for black keys (sharps and flats)
+            if (isNoteBlack && playStatus !== 'correct' && playStatus !== 'missed') {
+                color = darkenColor(color, 0.35);
+            }
+
             // Special effect for hit notes
             if (playStatus === 'correct' || playStatus === 'auto') {
                 ctx.globalAlpha = 0.3; // Fade out hit notes
@@ -901,16 +943,16 @@ export function SynthesiaView({ song }) {
 
             ctx.fillStyle = color;
 
-            // Draw from Top (endY) to Bottom
-            // Clip to not draw below keyboard line if we want them to disappear 'into' the keyboard?
-            // But they fall *onto* the keyboard.
-
-            ctx.fillRect(noteX, endY, noteWidth, height);
+            // Draw rounded rectangle
+            const radius = 6; // Border radius
+            drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
+            ctx.fill();
 
             // Draw border
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
-            ctx.strokeRect(noteX, endY, noteWidth, height);
+            drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
+            ctx.stroke();
 
             ctx.globalAlpha = 1.0;
             ctx.shadowBlur = 0;
@@ -923,7 +965,7 @@ export function SynthesiaView({ song }) {
                 const label = getMidiNoteName(note.pitch).replace(/[0-9-]/g, '');
                 ctx.save();
                 ctx.beginPath();
-                ctx.rect(noteX, endY, noteWidth, height);
+                drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
                 ctx.clip();
                 ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4);
                 ctx.restore();
