@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
 import { SynthesiaView } from './components/SynthesiaView';
+import { Settings } from './components/Settings';
 import { useSong } from './useSong';
 
 function App() {
@@ -26,6 +27,20 @@ function App() {
   } = useSong();
 
   const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn', 'synthesia'
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Load saved font settings on mount
+  useEffect(() => {
+    const savedFontSize = localStorage.getItem('piano-teacher-font-size');
+    const savedFontFamily = localStorage.getItem('piano-teacher-font-family');
+
+    if (savedFontSize) {
+      document.documentElement.style.fontSize = `${savedFontSize}px`;
+    }
+    if (savedFontFamily) {
+      document.documentElement.style.fontFamily = savedFontFamily;
+    }
+  }, []);
 
   const handleLoadSong = (id) => {
     loadSong(id);
@@ -43,9 +58,11 @@ function App() {
       <nav style={{
         display: 'flex',
         justifyContent: 'center',
+        alignItems: 'center',
         marginBottom: '3rem',
         paddingBottom: '1.5rem',
-        borderBottom: '1px solid var(--border-color)'
+        borderBottom: '1px solid var(--border-color)',
+        gap: '1rem'
       }}>
         <div style={{
           display: 'inline-flex',
@@ -76,6 +93,37 @@ function App() {
             label="Synthesia"
           />
         </div>
+
+        {/* Settings Button */}
+        <button
+          onClick={() => setShowSettings(true)}
+          style={{
+            padding: '0.5rem 1rem',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-lg)',
+            cursor: 'pointer',
+            fontSize: '1.1rem',
+            transition: 'all var(--transition-fast)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--bg-tertiary)';
+            e.currentTarget.style.borderColor = 'var(--accent-primary)';
+            e.currentTarget.style.color = 'var(--text-primary)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--bg-secondary)';
+            e.currentTarget.style.borderColor = 'var(--border-color)';
+            e.currentTarget.style.color = 'var(--text-secondary)';
+          }}
+          title="Paramètres"
+        >
+          ⚙️
+        </button>
       </nav>
 
       <main>
@@ -104,6 +152,9 @@ function App() {
           <SynthesiaView song={song} />
         )}
       </main>
+
+      {/* Settings Modal */}
+      <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </Layout>
   );
 }
