@@ -590,13 +590,6 @@ export function SynthesiaView({ song }) {
             return isBlack ? COLORS.blackKeyPressed : COLORS.whiteKeyPressed;
         }
 
-        // Highlight expected notes on keyboard
-        /*
-        if (isExpectedNote) {
-             return isBlack ? '#444' : '#eee';
-        }
-        */
-
         return isBlack ? COLORS.blackKey : COLORS.whiteKey;
     };
 
@@ -1519,18 +1512,18 @@ export function SynthesiaView({ song }) {
                 justifyContent: 'space-between'
             }}>
                 {/* Left Controls */}
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button
                         onClick={handlePlayPause}
                         style={{
-                            padding: '0.75rem 1.5rem',
+                            padding: '0.5rem 1rem',
                             background: 'var(--gradient-primary)',
                             color: 'white',
                             border: 'none',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
                             fontWeight: '600',
-                            fontSize: '1rem'
+                            fontSize: '0.875rem'
                         }}
                     >
                         {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
@@ -1539,14 +1532,14 @@ export function SynthesiaView({ song }) {
                     <button
                         onClick={handleReset}
                         style={{
-                            padding: '0.75rem 1.5rem',
+                            padding: '0.5rem 1rem',
                             background: 'var(--bg-tertiary)',
                             color: 'var(--text-primary)',
                             border: '1px solid var(--border-color)',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '1rem'
+                            fontWeight: '500',
+                            fontSize: '0.875rem'
                         }}
                     >
                         🔄 Recommencer
@@ -1555,34 +1548,34 @@ export function SynthesiaView({ song }) {
                     <button
                         onClick={() => setHandMode(handMode === 'watch' ? 'both' : 'watch')}
                         style={{
-                            padding: '0.75rem 1.5rem',
+                            padding: '0.5rem 1rem',
                             background: handMode === 'watch' ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
                             color: handMode === 'watch' ? 'white' : 'var(--text-primary)',
                             border: handMode === 'watch' ? 'none' : '1px solid var(--border-color)',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '1rem'
+                            fontWeight: '500',
+                            fontSize: '0.875rem'
                         }}
                         title="Basculer entre mode écoute et mode pratique"
                     >
-                        {handMode === 'watch' ? '👀 Mode Écoute' : '🎹 Mode Pratique'}
+                        {handMode === 'watch' ? '👀 Écoute' : '🎹 Pratique'}
                     </button>
 
                     <button
                         onClick={() => setWaitMode(!waitMode)}
                         style={{
-                            padding: '0.75rem 1.5rem',
+                            padding: '0.5rem 1rem',
                             background: waitMode ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
                             color: waitMode ? 'white' : 'var(--text-primary)',
                             border: waitMode ? 'none' : '1px solid var(--border-color)',
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '1rem'
+                            fontWeight: '500',
+                            fontSize: '0.875rem'
                         }}
                     >
-                        {waitMode ? '⏸️ Attente ON' : '⏸️ Attente OFF'}
+                        {waitMode ? '⏸️ Attente' : '⏸️ Continue'}
                     </button>
                 </div>
 

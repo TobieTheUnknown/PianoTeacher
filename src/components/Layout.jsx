@@ -6,9 +6,9 @@ export function Layout({ children }) {
         <div className="container">
             <ThemePicker />
             <header style={{
-                padding: '3rem 0 2rem',
+                padding: '2rem 0 1.5rem',
                 textAlign: 'center',
-                marginBottom: '3rem',
+                marginBottom: '1.5rem',
                 borderBottom: '1px solid var(--border-color)'
             }}>
                 <h1 style={{

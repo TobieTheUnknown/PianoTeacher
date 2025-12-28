@@ -16,7 +16,6 @@ function App() {
     loadSong,
     saveSong,
     addPhrase,
-    removePhrase,
     splitPhrase,
     addNoteToPhrase,
     removeNoteFromPhrase,
@@ -59,8 +58,8 @@ function App() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: '3rem',
-        paddingBottom: '1.5rem',
+        marginBottom: '1.5rem',
+        paddingBottom: '1rem',
         borderBottom: '1px solid var(--border-color)',
         gap: '1rem'
       }}>
