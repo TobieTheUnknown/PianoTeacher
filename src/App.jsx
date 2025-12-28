@@ -116,7 +116,7 @@ function NavButton({ active, onClick, label }) {
       style={{
         padding: '0.5rem 1.25rem',
         background: active ? 'var(--accent-primary)' : 'transparent',
-        color: active ? 'white' : 'var(--text-secondary)',
+        color: active ? 'var(--bg-primary)' : 'var(--text-secondary)',
         border: 'none',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
