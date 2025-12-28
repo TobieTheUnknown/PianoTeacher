@@ -7,50 +7,41 @@ import { StorageService } from '../services/StorageService';
 
 export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
     const [isImporting, setIsImporting] = useState(false);
-    const [splitMode, setSplitMode] = useState(null); // { phraseId, splitTime }
+    const [splitMode, setSplitMode] = useState(null);
     const [splitTime, setSplitTime] = useState('');
-    const [isBatchSplit, setIsBatchSplit] = useState(false); // Toggle between single and batch split
+    const [isBatchSplit, setIsBatchSplit] = useState(false);
     const [showImportExportModal, setShowImportExportModal] = useState(false);
-    const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'unsaved'
+    const [saveStatus, setSaveStatus] = useState('saved');
 
-    // Refs for auto-save
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
 
-    // Pre-initialize MIDI sounds when the editor loads
     useEffect(() => {
         audioEngine.initialize().catch(error => {
             console.error('Failed to initialize audio engine:', error);
         });
     }, []);
 
-    // Auto-save with debouncing
     useEffect(() => {
-        // Skip initial mount to avoid saving on first load
         if (isInitialMount.current) {
             isInitialMount.current = false;
             return;
         }
 
-        // Clear previous timeout
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
         }
 
-        // Set status to unsaved
         setSaveStatus('unsaved');
 
-        // Set timeout for auto-save (1.5 seconds after last change)
         saveTimeoutRef.current = setTimeout(() => {
             setSaveStatus('saving');
             onSaveSong();
-            // Wait a bit before showing "saved" to give visual feedback
             setTimeout(() => {
                 setSaveStatus('saved');
             }, 500);
         }, 1500);
 
-        // Cleanup timeout on unmount
         return () => {
             if (saveTimeoutRef.current) {
                 clearTimeout(saveTimeoutRef.current);
@@ -88,30 +79,24 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         const beatsPerMeasure = 4;
 
         if (isBatchSplit) {
-            // Batch split: split every X measures
             const phrase = song.phrases.find(p => p.id === splitMode.phraseId);
             if (!phrase) return;
 
             const phraseLengthInMeasures = phrase.length;
             const splitPoints = [];
 
-            // Generate split points at every interval
             for (let measure = interval; measure < phraseLengthInMeasures; measure += interval) {
                 splitPoints.push(measure * beatsPerMeasure);
             }
 
-            // Split from the end to avoid index shifting issues
             splitPoints.reverse().forEach(timeInBeats => {
                 onSplitPhrase(splitMode.phraseId, timeInBeats);
             });
 
-            // After all splits are done, rename all phrases in alphabetical order
-            // Use setTimeout to ensure all state updates have completed
             setTimeout(() => {
                 onRenamePhrasesInOrder();
             }, 100);
         } else {
-            // Single split at specified measure
             const timeInBeats = interval * beatsPerMeasure;
             onSplitPhrase(splitMode.phraseId, timeInBeats);
         }
@@ -159,87 +144,78 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     };
 
     return (
-        <div className="song-editor">
-            {/* Song Metadata Card */}
+        <div>
+            {/* Song Metadata */}
             <div className="card" style={{
-                marginBottom: '3rem',
-                background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.9) 100%)'
+                marginBottom: '2rem'
             }}>
                 <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'start',
-                    marginBottom: '2rem',
-                    paddingBottom: '1.5rem',
+                    marginBottom: '1.5rem',
+                    paddingBottom: '1rem',
                     borderBottom: '1px solid var(--border-color)'
                 }}>
                     <div>
                         <h2 style={{
                             marginTop: 0,
-                            fontSize: '2rem',
-                            background: 'var(--gradient-primary)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text',
+                            fontSize: '1.5rem',
+                            fontWeight: '400',
                             marginBottom: '0.5rem'
                         }}>
                             Détails du Morceau
                         </h2>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                        <p style={{
+                            margin: 0,
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.875rem',
+                            fontWeight: '300'
+                        }}>
                             Configurez les informations de votre composition
                         </p>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-                        {/* Save Status Indicator */}
+                    <div style={{
+                        display: 'flex',
+                        gap: '0.75rem',
+                        flexWrap: 'wrap',
+                        justifyContent: 'flex-end',
+                        alignItems: 'center'
+                    }}>
+                        {/* Save Status */}
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.5rem',
                             padding: '0.5rem 1rem',
                             borderRadius: 'var(--radius-lg)',
-                            fontSize: '0.875rem',
-                            fontWeight: '600',
-                            backgroundColor: saveStatus === 'saved' ? 'rgba(16, 185, 129, 0.1)' :
-                                           saveStatus === 'saving' ? 'rgba(59, 130, 246, 0.1)' :
-                                           'rgba(251, 191, 36, 0.1)',
-                            color: saveStatus === 'saved' ? 'rgb(16, 185, 129)' :
-                                   saveStatus === 'saving' ? 'rgb(59, 130, 246)' :
-                                   'rgb(251, 191, 36)',
-                            border: `1px solid ${saveStatus === 'saved' ? 'rgba(16, 185, 129, 0.3)' :
-                                                 saveStatus === 'saving' ? 'rgba(59, 130, 246, 0.3)' :
-                                                 'rgba(251, 191, 36, 0.3)'}`,
-                            transition: 'all 0.3s ease'
+                            fontSize: '0.8125rem',
+                            fontWeight: '400',
+                            backgroundColor: saveStatus === 'saved' ? 'rgba(22, 163, 74, 0.1)' :
+                                           saveStatus === 'saving' ? 'rgba(37, 99, 235, 0.1)' :
+                                           'rgba(202, 138, 4, 0.1)',
+                            color: saveStatus === 'saved' ? '#16a34a' :
+                                   saveStatus === 'saving' ? '#2563eb' :
+                                   '#ca8a04',
+                            border: `1px solid ${saveStatus === 'saved' ? '#16a34a' :
+                                                 saveStatus === 'saving' ? '#2563eb' :
+                                                 '#ca8a04'}`
                         }}>
-                            <span>{
-                                saveStatus === 'saved' ? '✓' :
-                                saveStatus === 'saving' ? '⏳' :
-                                '✎'
+                            <span style={{ fontSize: '0.75rem' }}>{
+                                saveStatus === 'saved' ? '●' :
+                                saveStatus === 'saving' ? '●' :
+                                '●'
                             }</span>
                             <span>{
                                 saveStatus === 'saved' ? 'Sauvegardé' :
                                 saveStatus === 'saving' ? 'Sauvegarde...' :
-                                'Modifications non sauvegardées'
+                                'Non sauvegardé'
                             }</span>
                         </div>
 
-                        <button
-                            onClick={handleOpenImportExport}
-                            style={{
-                                backgroundColor: 'var(--bg-elevated)',
-                                border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '0.75rem 1.5rem',
-                                borderRadius: 'var(--radius-lg)',
-                                cursor: 'pointer',
-                                fontWeight: '600',
-                                fontSize: '0.9375rem'
-                            }}
-                        >
-                            <span>📁</span>
-                            <span>Import/Export</span>
+                        <button onClick={handleOpenImportExport}>
+                            Import/Export
                         </button>
                     </div>
                 </div>
@@ -247,17 +223,17 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                    gap: '2rem'
+                    gap: '1.5rem'
                 }}>
-                    <div className="form-group">
+                    <div>
                         <label style={{
                             display: 'block',
-                            marginBottom: '0.75rem',
+                            marginBottom: '0.5rem',
                             color: 'var(--text-primary)',
-                            fontWeight: '600',
-                            fontSize: '0.9375rem'
+                            fontWeight: '400',
+                            fontSize: '0.875rem'
                         }}>
-                            🎵 Titre
+                            Titre
                         </label>
                         <input
                             type="text"
@@ -266,15 +242,15 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             placeholder="Entrez le titre du morceau"
                         />
                     </div>
-                    <div className="form-group">
+                    <div>
                         <label style={{
                             display: 'block',
-                            marginBottom: '0.75rem',
+                            marginBottom: '0.5rem',
                             color: 'var(--text-primary)',
-                            fontWeight: '600',
-                            fontSize: '0.9375rem'
+                            fontWeight: '400',
+                            fontSize: '0.875rem'
                         }}>
-                            ⏱️ Tempo (BPM)
+                            Tempo (BPM)
                         </label>
                         <input
                             type="number"
@@ -286,73 +262,39 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 </div>
             </div>
 
-            {/* Piano Roll Section Header */}
+            {/* Piano Roll Header */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '2rem'
+                marginBottom: '1.5rem'
             }}>
                 <h2 style={{
                     margin: 0,
-                    fontSize: '2rem',
-                    background: 'var(--gradient-primary)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
+                    fontSize: '1.5rem',
+                    fontWeight: '300'
                 }}>
                     Piano Roll
                 </h2>
                 <button
                     onClick={onAddPhrase}
-                    style={{
-                        background: 'var(--gradient-primary)',
-                        color: 'white',
-                        border: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: '0.75rem 1.5rem',
-                        borderRadius: 'var(--radius-lg)',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '0.9375rem',
-                        boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)',
-                        transition: 'all var(--transition-fast)'
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 0 30px rgba(59, 130, 246, 0.5)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.3)';
-                    }}
+                    className="btn-primary"
                 >
-                    <span>➕</span>
-                    <span>Ajouter une phrase</span>
+                    Ajouter une phrase
                 </button>
             </div>
 
             {/* Empty State */}
             {song.phrases.length === 0 && (
                 <div className="card" style={{
-                    padding: '4rem 2rem',
-                    textAlign: 'center',
-                    background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.9) 100%)',
-                    border: '2px dashed var(--border-color)'
+                    padding: '3rem 2rem',
+                    textAlign: 'center'
                 }}>
-                    <div style={{
-                        fontSize: '4rem',
-                        marginBottom: '1.5rem',
-                        opacity: 0.5
-                    }}>
-                        🎹
-                    </div>
                     <h3 style={{
                         marginTop: 0,
-                        marginBottom: '1rem',
-                        fontSize: '1.5rem',
+                        marginBottom: '0.75rem',
+                        fontSize: '1.25rem',
+                        fontWeight: '400',
                         color: 'var(--text-primary)'
                     }}>
                         Aucune phrase pour le moment
@@ -360,98 +302,80 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     <p style={{
                         margin: 0,
                         color: 'var(--text-secondary)',
-                        fontSize: '1rem',
-                        marginBottom: '2rem'
+                        fontSize: '0.9375rem',
+                        marginBottom: '1.5rem',
+                        fontWeight: '300'
                     }}>
                         Commencez par créer une nouvelle phrase ou importez un fichier MIDI
                     </p>
-                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <div style={{
+                        display: 'flex',
+                        gap: '0.75rem',
+                        justifyContent: 'center',
+                        flexWrap: 'wrap'
+                    }}>
                         <button
                             onClick={onAddPhrase}
-                            style={{
-                                background: 'var(--gradient-primary)',
-                                color: 'white',
-                                border: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '0.875rem 1.75rem',
-                                fontSize: '1rem'
-                            }}
+                            className="btn-primary"
                         >
-                            <span>➕</span>
-                            <span>Créer une phrase</span>
+                            Créer une phrase
                         </button>
                     </div>
                 </div>
             )}
 
             {/* Phrases List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.5rem'
+            }}>
                 {song.phrases.map((phrase) => (
                     <div
                         key={phrase.id}
                         className="card"
                         style={{
-                            position: 'relative',
-                            overflow: 'hidden',
-                            background: 'linear-gradient(145deg, var(--bg-secondary) 0%, rgba(30, 36, 53, 0.9) 100%)'
+                            padding: '1.5rem'
                         }}
                     >
                         <div style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            marginBottom: '1.5rem',
+                            marginBottom: '1.25rem',
                             paddingBottom: '1rem',
                             borderBottom: '1px solid var(--border-color)'
                         }}>
                             <h3 style={{
                                 margin: 0,
-                                fontSize: '1.5rem',
+                                fontSize: '1.25rem',
+                                fontWeight: '500',
                                 color: 'var(--text-primary)'
                             }}>
                                 {phrase.name}
                             </h3>
-                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                <button
-                                    onClick={() => handlePlayPhrase(phrase)}
-                                    style={{
-                                        background: 'var(--gradient-primary)',
-                                        color: 'white',
-                                        border: 'none',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem'
-                                    }}
-                                >
-                                    <span>▶</span>
-                                    <span>Lecture</span>
+                            <div style={{
+                                display: 'flex',
+                                gap: '0.5rem',
+                                flexWrap: 'wrap'
+                            }}>
+                                <button onClick={() => handlePlayPhrase(phrase)}>
+                                    Lecture
                                 </button>
-                                <button
-                                    onClick={handleStop}
-                                    style={{
-                                        backgroundColor: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-light)'
-                                    }}
-                                >
-                                    ⏹ Stop
+                                <button onClick={handleStop}>
+                                    Stop
                                 </button>
                                 <button
                                     onClick={() => handleStartSplit(phrase.id)}
                                     disabled={splitMode !== null}
                                     style={{
-                                        backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-secondary)' : 'var(--bg-elevated)',
-                                        border: '1px solid var(--accent-secondary)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
+                                        backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                        color: splitMode?.phraseId === phrase.id ? 'white' : 'var(--text-primary)',
                                         opacity: splitMode !== null && splitMode?.phraseId !== phrase.id ? 0.5 : 1,
                                         cursor: splitMode !== null && splitMode?.phraseId !== phrase.id ? 'not-allowed' : 'pointer'
                                     }}
                                 >
-                                    <span>✂️</span>
-                                    <span>Découper</span>
+                                    Découper
                                 </button>
                             </div>
                         </div>
@@ -459,40 +383,37 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         {/* Split Controls */}
                         {splitMode?.phraseId === phrase.id && (
                             <div style={{
-                                padding: '1.5rem',
-                                marginBottom: '1.5rem',
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                border: '2px solid var(--accent-secondary)',
+                                padding: '1.25rem',
+                                marginBottom: '1.25rem',
+                                background: 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-medium)',
                                 borderRadius: 'var(--radius-lg)'
                             }}>
                                 <h4 style={{
-                                    margin: '0 0 1rem 0',
-                                    fontSize: '1rem',
-                                    color: 'var(--text-primary)'
+                                    margin: '0 0 0.75rem 0',
+                                    fontSize: '0.9375rem',
+                                    color: 'var(--text-primary)',
+                                    fontWeight: '500'
                                 }}>
-                                    🎯 Mode Découpage
+                                    Mode Découpage
                                 </h4>
                                 <p style={{
                                     margin: '0 0 1rem 0',
-                                    fontSize: '0.875rem',
-                                    color: 'var(--text-secondary)'
+                                    fontSize: '0.8125rem',
+                                    color: 'var(--text-secondary)',
+                                    fontWeight: '300'
                                 }}>
                                     {isBatchSplit
-                                        ? "Découpez la phrase toutes les X mesures. Chaque segment deviendra une nouvelle phrase."
-                                        : "Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase."
+                                        ? "Découpez la phrase toutes les X mesures."
+                                        : "Entrez la mesure où découper la phrase."
                                     }
                                 </p>
 
-                                {/* Batch Split Toggle */}
                                 <div style={{
                                     marginBottom: '1rem',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0.75rem',
-                                    background: 'var(--bg-elevated)',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: '1px solid var(--border-light)'
+                                    gap: '0.5rem'
                                 }}>
                                     <input
                                         type="checkbox"
@@ -500,8 +421,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                         checked={isBatchSplit}
                                         onChange={(e) => setIsBatchSplit(e.target.checked)}
                                         style={{
-                                            width: '18px',
-                                            height: '18px',
+                                            width: '16px',
+                                            height: '16px',
                                             cursor: 'pointer'
                                         }}
                                     />
@@ -509,22 +430,27 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                         cursor: 'pointer',
                                         fontSize: '0.875rem',
                                         color: 'var(--text-primary)',
-                                        fontWeight: '600'
+                                        fontWeight: '400'
                                     }}>
                                         Découper toutes les X mesures
                                     </label>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    <div style={{ flex: '1', minWidth: '200px' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '0.75rem',
+                                    alignItems: 'flex-end',
+                                    flexWrap: 'wrap'
+                                }}>
+                                    <div style={{ flex: '1', minWidth: '150px' }}>
                                         <label style={{
                                             display: 'block',
                                             marginBottom: '0.5rem',
-                                            fontSize: '0.875rem',
+                                            fontSize: '0.8125rem',
                                             color: 'var(--text-primary)',
-                                            fontWeight: '600'
+                                            fontWeight: '400'
                                         }}>
-                                            {isBatchSplit ? "Intervalle (mesures)" : "Mesure de découpage"}
+                                            {isBatchSplit ? "Intervalle" : "Mesure"}
                                         </label>
                                         <input
                                             type="number"
@@ -534,42 +460,26 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                             step="1"
                                             min="1"
                                             style={{
-                                                width: '100%',
-                                                padding: '0.75rem',
-                                                fontSize: '1rem'
+                                                width: '100%'
                                             }}
                                         />
                                     </div>
-                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        gap: '0.5rem'
+                                    }}>
                                         <button
                                             onClick={handleConfirmSplit}
                                             style={{
-                                                background: 'var(--gradient-success)',
+                                                background: 'var(--accent-success)',
                                                 color: 'white',
-                                                border: 'none',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem',
-                                                padding: '0.75rem 1.5rem',
-                                                fontWeight: '600'
+                                                border: 'none'
                                             }}
                                         >
-                                            <span>✓</span>
-                                            <span>Valider</span>
+                                            Valider
                                         </button>
-                                        <button
-                                            onClick={handleCancelSplit}
-                                            style={{
-                                                backgroundColor: 'var(--bg-elevated)',
-                                                border: '1px solid var(--border-light)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem',
-                                                padding: '0.75rem 1.5rem'
-                                            }}
-                                        >
-                                            <span>✗</span>
-                                            <span>Annuler</span>
+                                        <button onClick={handleCancelSplit}>
+                                            Annuler
                                         </button>
                                     </div>
                                 </div>
@@ -577,7 +487,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         )}
 
                         {/* Piano Roll */}
-                        <div style={{ marginBottom: '1.5rem' }}>
+                        <div style={{ marginBottom: '1rem' }}>
                             <PianoRoll
                                 phrase={phrase}
                                 keySignature={song.key}
@@ -597,7 +507,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 ))}
             </div>
 
-            {/* Comprehensive Import/Export Modal */}
+            {/* Import/Export Modal */}
             {showImportExportModal && (
                 <div style={{
                     position: 'fixed',
@@ -605,7 +515,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -617,7 +527,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     <div
                         className="card"
                         style={{
-                            maxWidth: '900px',
+                            maxWidth: '800px',
                             width: '100%',
                             maxHeight: '85vh',
                             overflow: 'auto',
@@ -625,22 +535,35 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h2 style={{ marginBottom: '2rem', color: 'var(--accent-primary)', fontSize: '1.75rem' }}>
-                            📁 Import / Export
+                        <h2 style={{
+                            marginBottom: '2rem',
+                            fontSize: '1.5rem',
+                            fontWeight: '400'
+                        }}>
+                            Import / Export
                         </h2>
 
                         {/* MIDI Section */}
                         <div style={{
-                            marginBottom: '2rem',
-                            padding: '1.5rem',
+                            marginBottom: '1.5rem',
+                            padding: '1.25rem',
                             background: 'var(--bg-tertiary)',
                             borderRadius: 'var(--radius-lg)',
                             border: '1px solid var(--border-color)'
                         }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                🎹 Import MIDI
+                            <h3 style={{
+                                marginBottom: '0.75rem',
+                                fontSize: '1.125rem',
+                                fontWeight: '500'
+                            }}>
+                                Import MIDI
                             </h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                            <p style={{
+                                color: 'var(--text-secondary)',
+                                marginBottom: '1rem',
+                                fontSize: '0.875rem',
+                                fontWeight: '300'
+                            }}>
                                 Importer un fichier MIDI pour créer un nouveau morceau
                             </p>
                             <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -659,59 +582,52 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                         zIndex: 10
                                     }}
                                 />
-                                <button style={{
-                                    background: 'var(--gradient-primary)',
-                                    color: 'white',
-                                    border: 'none',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    cursor: 'pointer',
-                                    fontWeight: '600'
-                                }}>
-                                    <span>📥</span>
-                                    <span>{isImporting ? 'Importation...' : 'Choisir un fichier MIDI'}</span>
+                                <button className="btn-primary">
+                                    {isImporting ? 'Importation...' : 'Choisir un fichier MIDI'}
                                 </button>
                             </div>
                         </div>
 
                         {/* JSON Section */}
                         <div style={{
-                            marginBottom: '2rem',
-                            padding: '1.5rem',
+                            marginBottom: '1.5rem',
+                            padding: '1.25rem',
                             background: 'var(--bg-tertiary)',
                             borderRadius: 'var(--radius-lg)',
                             border: '1px solid var(--border-color)'
                         }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                📄 Export / Import JSON
+                            <h3 style={{
+                                marginBottom: '0.75rem',
+                                fontSize: '1.125rem',
+                                fontWeight: '500'
+                            }}>
+                                Export / Import JSON
                             </h3>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                                Format JSON lisible pour sauvegarder ou partager vos morceaux
+                            <p style={{
+                                color: 'var(--text-secondary)',
+                                marginBottom: '1rem',
+                                fontSize: '0.875rem',
+                                fontWeight: '300'
+                            }}>
+                                Format JSON pour sauvegarder ou partager
                             </p>
-                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <div style={{
+                                display: 'flex',
+                                gap: '0.75rem',
+                                flexWrap: 'wrap'
+                            }}>
                                 <button
                                     onClick={() => {
                                         StorageService.exportSong(song);
                                         alert('Fichier JSON téléchargé !');
                                     }}
                                     style={{
-                                        background: 'var(--gradient-success)',
+                                        background: 'var(--accent-success)',
                                         color: 'white',
-                                        border: 'none',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        cursor: 'pointer',
-                                        fontWeight: '600'
+                                        border: 'none'
                                     }}
                                 >
-                                    <span>📤</span>
-                                    <span>Exporter JSON</span>
+                                    Exporter JSON
                                 </button>
                                 <div style={{ position: 'relative', display: 'inline-block' }}>
                                     <input
@@ -729,37 +645,20 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                             zIndex: 10
                                         }}
                                     />
-                                    <button style={{
-                                        backgroundColor: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-light)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        cursor: 'pointer',
-                                        fontWeight: '600'
-                                    }}>
-                                        <span>📥</span>
-                                        <span>Importer JSON</span>
+                                    <button>
+                                        Importer JSON
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         {/* Close Button */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-                            <button
-                                onClick={() => setShowImportExportModal(false)}
-                                style={{
-                                    backgroundColor: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border-light)',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    cursor: 'pointer',
-                                    fontWeight: '600'
-                                }}
-                            >
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            marginTop: '1.5rem'
+                        }}>
+                            <button onClick={() => setShowImportExportModal(false)}>
                                 Fermer
                             </button>
                         </div>

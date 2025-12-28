@@ -39,63 +39,40 @@ function App() {
 
   return (
     <Layout>
-      {/* Premium Navigation with Glass Morphism */}
+      {/* Minimal Navigation */}
       <nav style={{
         display: 'flex',
         justifyContent: 'center',
-        marginBottom: '4rem',
-        position: 'sticky',
-        top: '1.5rem',
-        zIndex: 100,
-        animation: 'fadeInScale 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.5s backwards'
+        marginBottom: '3rem',
+        paddingBottom: '1.5rem',
+        borderBottom: '1px solid var(--border-color)'
       }}>
         <div style={{
           display: 'inline-flex',
-          gap: '0.75rem',
-          padding: '0.75rem',
-          background: 'var(--glass-bg-strong)',
-          backdropFilter: 'blur(40px) saturate(180%)',
-          border: '1.5px solid var(--glass-border-strong)',
-          borderRadius: 'var(--radius-3xl)',
-          boxShadow: 'var(--shadow-2xl), inset 0 1px 0 0 rgba(255, 255, 255, 0.05)',
-          position: 'relative'
+          gap: '0.5rem',
+          padding: '0.375rem',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-lg)'
         }}>
-          {/* Glow effect behind nav */}
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '110%',
-            height: '140%',
-            background: 'radial-gradient(ellipse, rgba(167, 139, 250, 0.15) 0%, transparent 70%)',
-            filter: 'blur(30px)',
-            pointerEvents: 'none',
-            zIndex: -1
-          }} />
-
           <NavButton
             active={mode === 'library'}
             onClick={() => setMode('library')}
-            icon="📚"
             label="Bibliothèque"
           />
           <NavButton
             active={mode === 'edit'}
             onClick={() => setMode('edit')}
-            icon="✏️"
             label="Éditeur"
           />
           <NavButton
             active={mode === 'learn'}
             onClick={() => setMode('learn')}
-            icon="📖"
             label="Apprentissage"
           />
           <NavButton
             active={mode === 'synthesia'}
             onClick={() => setMode('synthesia')}
-            icon="🎹"
             label="Synthesia"
           />
         </div>
@@ -131,78 +108,37 @@ function App() {
   );
 }
 
-// Premium Navigation Button Component
-function NavButton({ active, onClick, icon, label }) {
+// Minimal Navigation Button
+function NavButton({ active, onClick, label }) {
   return (
     <button
       onClick={onClick}
       style={{
-        padding: '1rem 1.75rem',
-        background: active ? 'var(--gradient-primary)' : 'transparent',
-        color: active ? 'white' : 'var(--text-tertiary)',
-        border: active ? 'none' : '1px solid transparent',
-        borderRadius: 'var(--radius-2xl)',
+        padding: '0.5rem 1.25rem',
+        background: active ? 'var(--accent-primary)' : 'transparent',
+        color: active ? 'white' : 'var(--text-secondary)',
+        border: 'none',
+        borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
-        fontWeight: '600',
-        fontSize: '0.9375rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.625rem',
+        fontWeight: active ? '500' : '400',
+        fontSize: '0.875rem',
         transition: 'all var(--transition-normal)',
-        boxShadow: active ? 'var(--shadow-glow-sm), var(--shadow-md)' : 'none',
-        transform: active ? 'scale(1)' : 'scale(0.97)',
-        whiteSpace: 'nowrap',
-        position: 'relative',
-        overflow: 'hidden'
+        letterSpacing: '0.01em'
       }}
       onMouseEnter={(e) => {
         if (!active) {
           e.currentTarget.style.color = 'var(--text-primary)';
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.borderColor = 'var(--border-accent)';
-        } else {
-          e.currentTarget.style.transform = 'scale(1.05)';
+          e.currentTarget.style.background = 'var(--bg-hover)';
         }
       }}
       onMouseLeave={(e) => {
         if (!active) {
-          e.currentTarget.style.color = 'var(--text-tertiary)';
+          e.currentTarget.style.color = 'var(--text-secondary)';
           e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.transform = 'scale(0.97)';
-          e.currentTarget.style.borderColor = 'transparent';
-        } else {
-          e.currentTarget.style.transform = 'scale(1)';
         }
       }}
     >
-      <span style={{
-        fontSize: '1.25rem',
-        filter: active ? 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.5))' : 'none'
-      }}>
-        {icon}
-      </span>
-      <span style={{
-        letterSpacing: '0.01em',
-        textShadow: active ? '0 2px 10px rgba(0, 0, 0, 0.3)' : 'none'
-      }}>
-        {label}
-      </span>
-
-      {/* Active indicator glow */}
-      {active && (
-        <div style={{
-          position: 'absolute',
-          bottom: '4px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '60%',
-          height: '3px',
-          background: 'rgba(255, 255, 255, 0.5)',
-          borderRadius: 'var(--radius-full)',
-          boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)'
-        }} />
-      )}
+      {label}
     </button>
   );
 }
