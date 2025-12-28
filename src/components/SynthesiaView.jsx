@@ -805,9 +805,9 @@ export function SynthesiaView({ song }) {
                 ctx.strokeStyle = '#cccccc';
                 ctx.strokeRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
 
-                // Label (French)
+                // Label (French) - without octave numbers
                 ctx.fillStyle = '#555';
-                const label = getMidiNoteName(i);
+                const label = getMidiNoteName(i).replace(/[0-9-]/g, '');
                 ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10);
             }
         }

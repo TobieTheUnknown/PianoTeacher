@@ -241,7 +241,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                         width: '10px',
                                         height: '10px',
                                         borderRadius: '50%',
-                                        backgroundColor: 'var(--accent-primary)',
+                                        backgroundColor: '#f472b6',
                                         border: '2px solid var(--bg-elevated)'
                                     }}></div>
                                     <span>Main droite (MD)</span>
@@ -251,7 +251,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                         width: '10px',
                                         height: '10px',
                                         borderRadius: '50%',
-                                        backgroundColor: '#3b82f6',
+                                        backgroundColor: '#60a5fa',
                                         border: '2px solid var(--bg-elevated)'
                                     }}></div>
                                     <span>Main gauche (MG)</span>
@@ -261,7 +261,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                         width: '10px',
                                         height: '10px',
                                         borderRadius: '50%',
-                                        backgroundColor: 'rgb(16, 185, 129)',
+                                        backgroundColor: '#10b981',
                                         border: '2px solid var(--bg-elevated)'
                                     }}></div>
                                     <span>2 mains ensemble</span>
@@ -752,7 +752,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                     width: '10px',
                                     height: '10px',
                                     borderRadius: '50%',
-                                    backgroundColor: 'var(--accent-primary)',
+                                    backgroundColor: '#f472b6',
                                     border: '2px solid var(--bg-tertiary)'
                                 }} title={`Main droite: ${displayNoteName(n.pitch, keySignature)}`} />
                             ))}
@@ -766,7 +766,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                     width: '10px',
                                     height: '10px',
                                     borderRadius: '50%',
-                                    backgroundColor: '#3b82f6',
+                                    backgroundColor: '#60a5fa',
                                     border: '2px solid var(--bg-tertiary)'
                                 }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
                             ))}
@@ -781,7 +781,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                     width: '10px',
                                     height: '10px',
                                     borderRadius: '50%',
-                                    backgroundColor: 'rgb(16, 185, 129)',
+                                    backgroundColor: '#10b981',
                                     border: '2px solid var(--bg-tertiary)'
                                 }} title="2 mains ensemble" />
                             ))}
