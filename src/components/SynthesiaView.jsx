@@ -76,6 +76,7 @@ export function SynthesiaView({ song }) {
     const [feedbackMessages, setFeedbackMessages] = useState([]); // Visual feedback for correct/wrong
     const [expectedNotes, setExpectedNotes] = useState(new Set()); // Notes that should be played now
     const [songStats, setSongStats] = useState(null);
+    const [particles, setParticles] = useState([]); // Particle system for hit line effect
 
     // Canvas dimensions
     const CANVAS_WIDTH = 1200;
@@ -923,8 +924,9 @@ export function SynthesiaView({ song }) {
 
             // Draw note rectangle
             const isNoteBlack = isBlackKey(note.pitch);
-            const noteWidth = isNoteBlack ? BLACK_KEY_WIDTH : WHITE_KEY_WIDTH - 2;
-            const noteX = isNoteBlack ? x : x + 1; // Black key x correction handled in getNoteX
+            // Make black key notes thinner (50% instead of 65%)
+            const noteWidth = isNoteBlack ? WHITE_KEY_WIDTH * 0.5 : WHITE_KEY_WIDTH - 2;
+            const noteX = isNoteBlack ? x + (BLACK_KEY_WIDTH - noteWidth) / 2 : x + 1; // Center black notes
 
             // Darken color for black keys (sharps and flats)
             if (isNoteBlack && playStatus !== 'correct' && playStatus !== 'missed') {
@@ -970,6 +972,22 @@ export function SynthesiaView({ song }) {
                 ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4);
                 ctx.restore();
             }
+
+            // Generate particles when note is close to hit line
+            const distanceToHitLine = Math.abs(startY - NOTE_FALL_HEIGHT);
+            if (distanceToHitLine < 5 && !playStatus && Math.random() > 0.7) {
+                const newParticle = {
+                    x: noteX + noteWidth / 2,
+                    y: NOTE_FALL_HEIGHT,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: -Math.random() * 2 - 1,
+                    life: 1,
+                    color: color,
+                    size: Math.random() * 3 + 2,
+                    id: Math.random()
+                };
+                setParticles(prev => [...prev, newParticle]);
+            }
         });
     };
 
@@ -990,6 +1008,87 @@ export function SynthesiaView({ song }) {
             ctx.fillText(feedback.message, x + WHITE_KEY_WIDTH / 2, y);
             ctx.globalAlpha = 1.0;
         });
+    };
+
+    // Draw particles
+    const drawParticles = (ctx) => {
+        particles.forEach(particle => {
+            ctx.globalAlpha = particle.life;
+            ctx.fillStyle = particle.color;
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        });
+    };
+
+    // Update particles
+    const updateParticles = () => {
+        setParticles(prev => {
+            return prev
+                .map(p => ({
+                    ...p,
+                    x: p.x + p.vx,
+                    y: p.y + p.vy,
+                    vy: p.vy + 0.1, // Gravity
+                    life: p.life - 0.02
+                }))
+                .filter(p => p.life > 0 && p.y < CANVAS_HEIGHT);
+        });
+    };
+
+    // Draw enhanced hit line with glow effect
+    const drawHitLine = (ctx) => {
+        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+
+        // Draw multiple layers for glow effect
+        // Outer glow (most transparent)
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(0, keyboardY);
+        ctx.lineTo(CANVAS_WIDTH, keyboardY);
+        ctx.stroke();
+
+        // Middle glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(0, keyboardY);
+        ctx.lineTo(CANVAS_WIDTH, keyboardY);
+        ctx.stroke();
+
+        // Core line (brightest)
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ffffff';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, keyboardY);
+        ctx.lineTo(CANVAS_WIDTH, keyboardY);
+        ctx.stroke();
+
+        // Animated shimmer effect
+        const shimmerX = (Date.now() / 3000 % 1) * CANVAS_WIDTH;
+        const gradient = ctx.createLinearGradient(shimmerX - 100, 0, shimmerX + 100, 0);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ffffff';
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(shimmerX - 100, keyboardY);
+        ctx.lineTo(shimmerX + 100, keyboardY);
+        ctx.stroke();
+
+        ctx.shadowBlur = 0; // Reset shadow
     };
 
     // Main render loop
@@ -1018,18 +1117,16 @@ export function SynthesiaView({ song }) {
         // Draw keyboard
         drawKeyboard(ctx);
 
-        // Draw current time indicator (horizontal line at keyboard top)
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(0, CANVAS_HEIGHT - KEYBOARD_HEIGHT);
-        ctx.lineTo(CANVAS_WIDTH, CANVAS_HEIGHT - KEYBOARD_HEIGHT);
-        ctx.stroke();
+        // Draw enhanced hit line with glow effect
+        drawHitLine(ctx);
+
+        // Draw particles
+        drawParticles(ctx);
 
         // Draw feedback messages
         drawFeedback(ctx);
 
-    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes]);
+    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes, particles]);
 
     // Animation loop
     useEffect(() => {
@@ -1072,6 +1169,9 @@ export function SynthesiaView({ song }) {
 
             setCurrentTime(elapsed);
 
+            // Update particles
+            updateParticles();
+
             // In wait mode, pause only when notes are at the hit line (not just in the tolerance window)
             if (waitMode && pausedAtTimeRef.current === null && handMode !== 'watch') {
                 // Determine which hands the user is playing
@@ -1113,6 +1213,15 @@ export function SynthesiaView({ song }) {
     useEffect(() => {
         render();
     }, [render]);
+
+    // Update particles continuously (even when paused)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            updateParticles();
+        }, 1000 / 60); // 60 FPS
+
+        return () => clearInterval(interval);
+    }, []);
 
     // Check if song is completed
     useEffect(() => {
