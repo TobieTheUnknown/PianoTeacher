@@ -12,6 +12,13 @@
     "build:win": "tauri build --target x86_64-pc-windows-msvc",
     "build:mac": "tauri build --target universal-apple-darwin",
     "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:android": "tauri android build",
+    "build:android:apk": "tauri android build --apk",
+    "build:ios": "tauri ios build",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "ios:init": "tauri ios init",
+    "ios:dev": "tauri ios dev",
     "build:all": "npm run build:win && npm run build:mac && npm run build:linux",
     "lint": "eslint .",
     "preview": "vite preview"
