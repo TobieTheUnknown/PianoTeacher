@@ -89,6 +89,9 @@ Les Pull Requests sont les bienvenues ! N'hésitez pas à ouvrir une Issue pour 
 - GitHub : [@TobieTheUnknown](https://github.com/TobieTheUnknown)
 
 ---
+
+## Remerciements
+- **Jotabe** pour ses cours de piano et son enthousiasme : [@Jotabe](https://www.twitch.tv/jotabemusique)
 <p align="center">
   Fait avec ❤️ pour les passionnés de musique. 🎵
 </p>
