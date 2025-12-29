@@ -291,6 +291,11 @@ Merci à tous ceux qui ont contribué et testé cette application !
 - Vérifier que les versions dans `package.json` et `tauri.conf.json` correspondent
 - S'assurer que le code build localement avec `npm run tauri:build`
 
+#### "Erreur bundle_dmg.sh sur macOS"
+- Le workflow installe automatiquement `create-dmg` pour résoudre ce problème
+- Si l'erreur persiste, vérifier que Homebrew est bien installé sur le runner
+- Alternative : builder manuellement sur une machine macOS locale
+
 #### "Les fichiers ne sont pas uploadés vers la release"
 - Vérifier que `GITHUB_TOKEN` a les permissions nécessaires
 - Consulter les logs du workflow pour voir les erreurs d'upload
