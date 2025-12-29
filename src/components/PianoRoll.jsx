@@ -19,7 +19,7 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
 
     // Fullscreen and zoom
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
+    const [zoom, setZoom] = useState(0.5); // 0.5 = 50% (default), 1 = 100%, 1.5 = 150%, etc.
 
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
