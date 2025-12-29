@@ -4,20 +4,110 @@ Ce document explique comment créer une nouvelle release et mettre les exécutab
 
 ---
 
-## 📦 Étape 1 : Construire les Exécutables
+## ⚡ TL;DR - Démarrage Rapide
 
-### Option A : Build sur Machines Natives (Recommandé)
+Pour sortir une nouvelle version avec GitHub Actions (tout est automatisé) :
 
-Pour obtenir les meilleurs résultats, construisez chaque exécutable sur sa plateforme native :
+```bash
+# 1. Mettre à jour les versions
+# Éditer package.json et src-tauri/tauri.conf.json
+# Changer "version": "1.0.0" vers "1.1.0" (par exemple)
 
-#### Sur Windows :
+# 2. Commiter et pusher
+git add .
+git commit -m "Bump version to 1.1.0"
+git push origin main
+
+# 3. Créer et pusher le tag
+git tag -a v1.1.0 -m "Release v1.1.0"
+git push origin v1.1.0
+
+# 4. Attendre 15-20 minutes
+# Aller sur https://github.com/TobieTheUnknown/Piano/actions
+# Le workflow build automatiquement pour Windows, macOS et Linux
+# La release est créée et les fichiers sont uploadés automatiquement !
+```
+
+**C'est tout ! ✨** Continuez à lire pour plus de détails.
+
+---
+
+## ⚡ Méthode Recommandée : GitHub Actions (Automatisé)
+
+**Le projet est maintenant configuré avec GitHub Actions pour automatiser complètement le processus de release !**
+
+### 📋 Processus Simplifié
+
+1. **Mettre à jour les versions** (déjà fait pour v1.0.0)
+   - `package.json` → `"version": "1.0.0"`
+   - `src-tauri/tauri.conf.json` → `"version": "1.0.0"`
+
+2. **Commiter et pusher les changements**
+   ```bash
+   git add .
+   git commit -m "Bump version to 1.0.0"
+   git push origin main
+   ```
+
+3. **Créer et pusher un tag de version**
+   ```bash
+   # Créer un tag annoté
+   git tag -a v1.0.0 -m "Release v1.0.0"
+
+   # Pusher le tag vers GitHub
+   git push origin v1.0.0
+   ```
+
+4. **🎉 C'est tout !**
+   - GitHub Actions détecte automatiquement le tag `v1.0.0`
+   - Les builds pour Windows, macOS et Linux se lancent en parallèle
+   - Une release GitHub est créée automatiquement
+   - Tous les exécutables sont uploadés vers la release
+   - La release est marquée comme "Latest"
+
+### 🔍 Suivre la Progression
+
+Après avoir pushé le tag, suivez le build ici :
+```
+https://github.com/TobieTheUnknown/Piano/actions
+```
+
+Le workflow prend environ **15-20 minutes** pour compléter tous les builds.
+
+### ✅ Fichiers Générés Automatiquement
+
+Le workflow créera automatiquement :
+
+- **Windows** : `Piano Teacher_1.0.0_x64-setup.exe`
+- **macOS** : `Piano Teacher_1.0.0_universal.dmg` (Intel + Apple Silicon)
+- **Linux** :
+  - `piano-teacher_1.0.0_amd64.AppImage`
+  - `piano-teacher_1.0.0_amd64.deb`
+
+### 🔧 Workflow GitHub Actions
+
+Le workflow `.github/workflows/release.yml` :
+
+1. **Se déclenche** sur les tags matchant `v*.*.*`
+2. **Crée la release** GitHub avec une description formatée
+3. **Build en parallèle** sur 3 runners (Windows, macOS, Linux)
+4. **Upload automatiquement** tous les exécutables
+5. **Marque comme latest** la nouvelle release
+
+---
+
+## 🛠️ Méthode Alternative : Build Manuel
+
+Si vous préférez construire manuellement ou tester localement :
+
+### Sur Windows :
 ```bash
 npm install
 npm run build:win
 ```
 **Fichier généré :** `src-tauri/target/release/bundle/nsis/Piano Teacher_1.0.0_x64-setup.exe`
 
-#### Sur macOS :
+### Sur macOS :
 ```bash
 npm install
 npm run build:mac
@@ -26,7 +116,7 @@ npm run build:mac
 - `src-tauri/target/release/bundle/dmg/Piano Teacher_1.0.0_universal.dmg`
 - `src-tauri/target/release/bundle/macos/Piano Teacher.app` (optionnel)
 
-#### Sur Linux (Ubuntu/Debian) :
+### Sur Linux (Ubuntu/Debian) :
 ```bash
 npm install
 npm run build:linux
@@ -35,19 +125,15 @@ npm run build:linux
 - `src-tauri/target/release/bundle/deb/piano-teacher_1.0.0_amd64.deb`
 - `src-tauri/target/release/bundle/appimage/piano-teacher_1.0.0_amd64.AppImage`
 
-### Option B : Utiliser GitHub Actions (Automatisé)
-
-Si vous avez configuré GitHub Actions, vous pouvez construire automatiquement pour toutes les plateformes :
-
-1. Push votre code vers GitHub
-2. Créer un tag de version (voir Étape 2)
-3. Les workflows GitHub Actions construiront automatiquement tous les exécutables
+Ensuite, créez manuellement la release sur GitHub et uploadez les fichiers.
 
 ---
 
-## 🏷️ Étape 2 : Créer un Tag Git
+## 🏷️ Tags Git et Versioning
 
-Avant de créer la release, créez un tag de version :
+### Format des Tags
+
+Utilisez le format **Semantic Versioning** :
 
 ```bash
 # Vérifier que tout est commité
@@ -62,49 +148,24 @@ git push origin v1.0.0
 
 ---
 
-## 🎉 Étape 3 : Créer la Release sur GitHub
+## 📝 Personnaliser la Description de Release (Optionnel)
 
-### Méthode 1 : Interface Web GitHub
+Si vous utilisez GitHub Actions, la description est générée automatiquement. Vous pouvez l'éditer après coup si nécessaire.
 
-1. **Aller sur GitHub** : https://github.com/TobieTheUnknown/Piano/releases
+### Éditer une Release Existante
 
-2. **Cliquer sur "Draft a new release"**
-
-3. **Configurer la release :**
-   - **Tag version** : `v1.0.0` (sélectionner le tag créé précédemment)
-   - **Release title** : `Piano Teacher v1.0.0`
-   - **Description** : Copier-coller le template ci-dessous
-
-4. **Uploader les exécutables :**
-   - Faire glisser les fichiers dans la zone "Attach binaries"
-   - Fichiers à uploader :
-     - ✅ `Piano Teacher_1.0.0_x64-setup.exe` (Windows)
-     - ✅ `Piano Teacher_1.0.0_universal.dmg` (macOS)
-     - ✅ `piano-teacher_1.0.0_amd64.AppImage` (Linux)
-     - ✅ `piano-teacher_1.0.0_amd64.deb` (Linux - optionnel)
-
-5. **Publier :**
-   - Cocher "Set as the latest release" si c'est la version la plus récente
-   - Cliquer sur "Publish release"
-
-### Méthode 2 : GitHub CLI (gh)
-
-```bash
-# Installer GitHub CLI si nécessaire : https://cli.github.com/
-
-# Créer la release avec les fichiers
-gh release create v1.0.0 \
-  --title "Piano Teacher v1.0.0" \
-  --notes-file RELEASE_NOTES.md \
-  src-tauri/target/release/bundle/nsis/*.exe \
-  src-tauri/target/release/bundle/dmg/*.dmg \
-  src-tauri/target/release/bundle/appimage/*.AppImage \
-  src-tauri/target/release/bundle/deb/*.deb
-```
+1. Aller sur : https://github.com/TobieTheUnknown/Piano/releases
+2. Cliquer sur ✏️ "Edit" sur la release
+3. Modifier la description
+4. Sauvegarder
 
 ---
 
 ## 📝 Template de Description de Release
+
+**Note :** Ce template est utilisé automatiquement par le workflow GitHub Actions. Vous pouvez le personnaliser en éditant `.github/workflows/release.yml`.
+
+Pour référence, voici le format de description généré :
 
 ```markdown
 # 🎹 Piano Teacher v1.0.0
@@ -174,17 +235,26 @@ Merci à tous ceux qui ont contribué et testé cette application !
 
 ## 📋 Checklist de Release
 
-Avant de publier :
+### Avec GitHub Actions (Automatisé)
 
 - [ ] Version mise à jour dans `package.json`
 - [ ] Version mise à jour dans `src-tauri/tauri.conf.json`
 - [ ] README.md à jour
 - [ ] CHANGELOG.md mis à jour (si vous en avez un)
+- [ ] Changements committés et pushés vers `main`
+- [ ] Tag Git créé et poussé
+- [ ] ✨ GitHub Actions s'occupe du reste automatiquement !
+
+### Avec Build Manuel (si nécessaire)
+
+- [ ] Version mise à jour dans `package.json`
+- [ ] Version mise à jour dans `src-tauri/tauri.conf.json`
+- [ ] README.md à jour
 - [ ] Tous les tests passent
 - [ ] Builds testés sur chaque plateforme
 - [ ] Tag Git créé et poussé
-- [ ] Release GitHub créée
-- [ ] Exécutables uploadés
+- [ ] Release GitHub créée manuellement
+- [ ] Exécutables uploadés manuellement
 - [ ] Description de release complétée
 - [ ] Release publiée
 
@@ -209,21 +279,39 @@ Avant de publier :
 
 ## 🆘 Problèmes Fréquents
 
-### "Les utilisateurs ne trouvent pas le téléchargement"
-- Vérifier que la release est marquée comme "Latest"
-- Ajouter un lien direct dans le README
+### Workflow GitHub Actions
 
-### "L'exécutable est bloqué par l'antivirus"
+#### "Le workflow ne se déclenche pas"
+- Vérifier que le tag commence par `v` (ex: `v1.0.0`, pas `1.0.0`)
+- Vérifier que le tag a été pushé : `git push origin v1.0.0`
+- Regarder l'onglet Actions : https://github.com/TobieTheUnknown/Piano/actions
+
+#### "Le build échoue"
+- Consulter les logs dans l'onglet Actions
+- Vérifier que les versions dans `package.json` et `tauri.conf.json` correspondent
+- S'assurer que le code build localement avec `npm run tauri:build`
+
+#### "Les fichiers ne sont pas uploadés vers la release"
+- Vérifier que `GITHUB_TOKEN` a les permissions nécessaires
+- Consulter les logs du workflow pour voir les erreurs d'upload
+
+### Utilisateurs Finaux
+
+#### "Les utilisateurs ne trouvent pas le téléchargement"
+- Vérifier que la release est marquée comme "Latest"
+- Le lien `https://github.com/TobieTheUnknown/Piano/releases/latest` devrait fonctionner
+
+#### "L'exécutable est bloqué par l'antivirus"
 - Windows SmartScreen : Normal pour les nouveaux développeurs
 - Les utilisateurs doivent cliquer sur "Plus d'infos" → "Exécuter quand même"
 - Solution long terme : Signer le code avec un certificat de confiance
 
-### "L'app ne s'ouvre pas sur macOS"
+#### "L'app ne s'ouvre pas sur macOS"
 - L'utilisateur doit faire clic droit → "Ouvrir" la première fois
 - Ou exécuter : `xattr -cr /Applications/Piano\ Teacher.app`
 - Solution long terme : Notariser l'app avec Apple
 
-### "Permission denied sur Linux"
+#### "Permission denied sur Linux"
 - Pour AppImage : `chmod +x piano-teacher_1.0.0_amd64.AppImage`
 
 ---
@@ -231,8 +319,23 @@ Avant de publier :
 ## 📖 Ressources
 
 - [GitHub Releases Documentation](https://docs.github.com/en/repositories/releasing-projects-on-github)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Tauri Distribution Guide](https://tauri.app/distribute/)
+- [Tauri Action (GitHub)](https://github.com/tauri-apps/tauri-action)
 - [Semantic Versioning](https://semver.org/)
+
+---
+
+## 🎯 Résumé
+
+**Pour une release complètement automatisée :**
+1. ✏️ Mettre à jour les versions dans `package.json` et `tauri.conf.json`
+2. 📝 Commiter et pusher vers `main`
+3. 🏷️ Créer et pusher un tag `v*.*.*`
+4. ⏳ Attendre que GitHub Actions construise tout
+5. 🎉 Profiter de votre release !
+
+**Temps total :** ~20 minutes (dont 15-20 minutes de build automatique)
 
 ---
 
