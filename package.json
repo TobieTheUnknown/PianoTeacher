@@ -6,6 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "build:win": "tauri build --target x86_64-pc-windows-msvc",
+    "build:mac": "tauri build --target universal-apple-darwin",
+    "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:all": "npm run build:win && npm run build:mac && npm run build:linux",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -17,6 +24,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/cli": "^2.9.6",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
