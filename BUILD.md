@@ -1,6 +1,6 @@
 # Guide de Build - Piano Teacher (Tauri)
 
-Ce projet utilise **Tauri** pour créer des applications exécutables légères et performantes pour Windows, macOS et Linux.
+Ce projet utilise **Tauri** pour créer des applications exécutables légères et performantes pour Windows, macOS, Linux, Android et iOS.
 
 ## Pourquoi Tauri ?
 
@@ -79,7 +79,98 @@ Crée un paquet .deb et une AppImage pour Linux 64-bit.
 
 **Sortie** : `src-tauri/target/release/bundle/deb/` et `src-tauri/target/release/bundle/appimage/`
 
-### Build pour toutes les plateformes
+### Build pour Android (.apk et .aab)
+
+#### Prérequis Android
+1. **Android Studio** installé avec SDK Android
+2. **Java JDK 17+** installé
+3. **Android NDK** installé via Android Studio
+4. Variables d'environnement configurées :
+   ```bash
+   export ANDROID_HOME=$HOME/Android/Sdk
+   export NDK_HOME=$ANDROID_HOME/ndk/[VERSION]
+   ```
+
+#### Initialisation Android (première fois)
+```bash
+npm run tauri android init
+```
+Cette commande génère le projet Android dans `src-tauri/gen/android/`.
+
+#### Développement Android
+```bash
+npm run tauri android dev
+```
+Lance l'application sur un émulateur ou appareil connecté avec hot-reload.
+
+#### Build Android
+```bash
+# Build APK (debug)
+npm run tauri android build
+
+# Build APK (release, signé)
+npm run tauri android build --release
+
+# Build AAB pour Google Play Store
+npm run tauri android build --release --apk --split-per-abi
+```
+
+**Sortie** : `src-tauri/gen/android/app/build/outputs/`
+
+#### Configuration de signature Android
+Pour publier sur le Play Store, créez un keystore :
+```bash
+keytool -genkey -v -keystore piano-teacher.keystore -alias piano-teacher -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Puis configurez dans `src-tauri/gen/android/app/build.gradle.kts`.
+
+### Build pour iOS (.app et .ipa)
+
+#### Prérequis iOS
+1. **macOS** requis
+2. **Xcode 15+** installé
+3. **Compte Apple Developer** (pour déploiement sur appareil et App Store)
+4. **CocoaPods** installé :
+   ```bash
+   sudo gem install cocoapods
+   ```
+
+#### Initialisation iOS (première fois)
+```bash
+npm run tauri ios init
+```
+Cette commande génère le projet Xcode dans `src-tauri/gen/ios/`.
+
+#### Développement iOS
+```bash
+# Lancer sur simulateur
+npm run tauri ios dev
+
+# Lancer sur appareil physique
+npm run tauri ios dev --device
+```
+
+#### Build iOS
+```bash
+# Build pour simulateur
+npm run tauri ios build
+
+# Build pour appareil (release)
+npm run tauri ios build --release
+
+# Build IPA pour TestFlight/App Store
+npm run tauri ios build --release --export-method app-store
+```
+
+**Sortie** : `src-tauri/gen/ios/build/`
+
+#### Publication sur App Store
+1. Ouvrez le projet dans Xcode : `src-tauri/gen/ios/piano_teacher.xcodeproj`
+2. Configurez votre profil de provisioning et certificat
+3. Utilisez Xcode pour archiver et soumettre à App Store Connect
+
+### Build pour toutes les plateformes (Desktop)
 ```bash
 npm run build:all
 ```
@@ -89,7 +180,8 @@ Crée les exécutables pour Windows, macOS et Linux en une seule commande.
 
 ## Localisation des Builds
 
-Tous les exécutables sont créés dans `src-tauri/target/release/bundle/` avec la structure suivante :
+### Desktop
+Tous les exécutables desktop sont créés dans `src-tauri/target/release/bundle/` :
 
 ```
 src-tauri/target/release/bundle/
@@ -107,6 +199,30 @@ src-tauri/target/release/bundle/
     └── piano-teacher_0.0.0_amd64.AppImage      (Linux)
 ```
 
+### Mobile
+Les builds mobiles sont dans leurs dossiers respectifs :
+
+**Android** : `src-tauri/gen/android/app/build/outputs/`
+```
+apk/
+├── debug/
+│   └── app-debug.apk
+└── release/
+    └── app-release.apk
+bundle/
+└── release/
+    └── app-release.aab                          (Google Play Store)
+```
+
+**iOS** : `src-tauri/gen/ios/build/`
+```
+Build/Products/
+├── Debug-iphonesimulator/
+│   └── Piano Teacher.app                        (Simulateur)
+└── Release-iphoneos/
+    └── Piano Teacher.app                        (Appareil)
+```
+
 ## Avantages de Tauri pour Piano Teacher
 
 1. **Performance** : Utilisation des WebViews natives = meilleure fluidité pour les animations MIDI
@@ -117,6 +233,7 @@ src-tauri/target/release/bundle/
 
 ## Commandes Utiles
 
+### Desktop
 ```bash
 # Lancer en mode dev avec console Rust
 npm run tauri:dev
@@ -129,6 +246,30 @@ npm run build
 
 # Lancer le dev server Vite uniquement
 npm run dev
+```
+
+### Mobile
+```bash
+# Android - Initialisation
+npm run tauri android init
+
+# Android - Dev avec hot-reload
+npm run tauri android dev
+
+# Android - Build release
+npm run tauri android build --release
+
+# iOS - Initialisation
+npm run tauri ios init
+
+# iOS - Dev sur simulateur
+npm run tauri ios dev
+
+# iOS - Dev sur appareil
+npm run tauri ios dev --device
+
+# iOS - Build release
+npm run tauri ios build --release
 ```
 
 ## Personnalisation
@@ -147,19 +288,82 @@ Modifiez `src-tauri/tauri.conf.json` pour :
 
 ## Dépannage
 
-### "Command not found: tauri"
+### Desktop
+
+#### "Command not found: tauri"
 ```bash
 npm install
 ```
 
-### Erreurs de compilation Rust
+#### Erreurs de compilation Rust
 Vérifiez que Rust est installé : `rustc --version`
 
-### Build échoue sur macOS
+#### Build échoue sur macOS
 Assurez-vous d'avoir Xcode Command Line Tools : `xcode-select --install`
 
-### Build échoue sur Linux
+#### Build échoue sur Linux
 Installez toutes les dépendances système listées ci-dessus.
+
+### Android
+
+#### "ANDROID_HOME not found"
+Configurez les variables d'environnement :
+```bash
+export ANDROID_HOME=$HOME/Android/Sdk
+export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools
+```
+
+#### "NDK not found"
+Installez NDK via Android Studio :
+1. Ouvrez Android Studio
+2. Settings → Appearance & Behavior → System Settings → Android SDK
+3. SDK Tools → NDK (Side by side)
+4. Apply
+
+#### "No connected devices"
+Pour un émulateur :
+```bash
+# Lister les AVD disponibles
+emulator -list-avds
+
+# Lancer un émulateur
+emulator -avd [NOM_AVD]
+```
+
+Pour un appareil physique :
+1. Activez le mode développeur sur Android
+2. Activez le débogage USB
+3. Connectez via USB et acceptez l'autorisation
+
+#### Erreur de signature
+Pour les builds release, configurez votre keystore dans `src-tauri/gen/android/app/build.gradle.kts`.
+
+### iOS
+
+#### "Xcode is not installed"
+Installez Xcode depuis le Mac App Store (15+ recommandé).
+
+#### "No provisioning profile found"
+1. Ouvrez le projet dans Xcode : `src-tauri/gen/ios/piano_teacher.xcodeproj`
+2. Sélectionnez le target "piano_teacher"
+3. Signing & Capabilities → Cochez "Automatically manage signing"
+4. Sélectionnez votre Apple Developer Team
+
+#### "Could not find simulator"
+Listez les simulateurs disponibles :
+```bash
+xcrun simctl list devices
+```
+
+Créez un nouveau simulateur via Xcode → Window → Devices and Simulators.
+
+#### Erreur CocoaPods
+Réinstallez les dépendances :
+```bash
+cd src-tauri/gen/ios
+pod deintegrate
+pod install
+```
 
 ## Différences avec le navigateur web
 
@@ -170,204 +374,63 @@ L'application Tauri offre :
 - Démarrage comme une vraie application
 - Meilleure performance globale
 
----
+## Notes Importantes pour les Builds Mobiles
 
-## 📱 Builds Mobile (Android & iOS)
+### Android
+- **Première initialisation** : `npm run tauri android init` doit être exécuté une seule fois
+- **Permissions** : Configurez les permissions Android dans `src-tauri/gen/android/app/src/main/AndroidManifest.xml`
+- **API Level** : Tauri supporte Android 7.0+ (API 24+)
+- **Taille APK** : Les APK Tauri sont significativement plus petits que React Native (5-15 MB vs 25-50 MB)
 
-Tauri v2 supporte également Android et iOS ! Vous pouvez créer des APK et des applications iOS.
+### iOS
+- **macOS requis** : Les builds iOS ne peuvent être faits que sur macOS
+- **Certificats** : Compte Apple Developer requis pour tester sur appareil réel (99$/an)
+- **TestFlight** : Gratuit pour tester avec jusqu'à 10,000 utilisateurs externes
+- **Simulateur** : Gratuit et ne nécessite pas de compte développeur
+- **Taille IPA** : Comparable aux apps natives Swift (~10-20 MB)
 
-### Prérequis Android
-
-1. **Installer Android Studio** : [developer.android.com/studio](https://developer.android.com/studio)
-
-2. **Installer le NDK (Native Development Kit)** via Android Studio :
-   - Ouvrir Android Studio
-   - Settings → Appearance & Behavior → System Settings → Android SDK
-   - Onglet "SDK Tools"
-   - Cocher "NDK (Side by side)" et "Android SDK Command-line Tools"
-   - Cliquer "Apply"
-
-3. **Configurer les variables d'environnement** :
-
-   **macOS/Linux** (ajouter à `~/.zshrc` ou `~/.bashrc`) :
-   ```bash
-   export ANDROID_HOME=$HOME/Library/Android/sdk
-   export NDK_HOME=$ANDROID_HOME/ndk/$(ls -1 $ANDROID_HOME/ndk)
-   export PATH=$PATH:$ANDROID_HOME/platform-tools
-   export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-   ```
-
-   **Windows** (PowerShell) :
-   ```powershell
-   $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-   $env:NDK_HOME = "$env:ANDROID_HOME\ndk\<version>"
-   ```
-
-4. **Accepter les licences Android** :
-   ```bash
-   sdkmanager --licenses
-   ```
-
-5. **Installer les cibles Rust Android** :
-   ```bash
-   rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-   ```
-
-### Initialiser Android
-
-**Une seule fois** pour configurer le projet :
-```bash
-npm run android:init
-```
-
-Cela crée le dossier `gen/android/` avec toute la configuration Android.
-
-### Développement Android
-
-```bash
-# Lancer sur un émulateur ou appareil connecté
-npm run android:dev
-```
-
-**Note** : Vous devez avoir un émulateur Android lancé ou un appareil physique connecté en USB avec le débogage USB activé.
-
-### Build Android (APK)
-
-```bash
-# Build APK de debug (pour tester)
-npm run build:android:apk
-
-# Build APK de release (pour distribution)
-npm run build:android
-```
-
-**Sortie** : `src-tauri/gen/android/app/build/outputs/apk/`
-
-Les APK seront dans :
-- `debug/` → APK de test non signé
-- `release/` → APK signé pour distribution (nécessite une clé de signature)
-
-### Prérequis iOS
-
-**Uniquement sur macOS !**
-
-1. **Xcode** (depuis l'App Store)
-
-2. **Simulateur iOS** (inclus avec Xcode)
-
-3. **Compte Apple Developer** (pour déployer sur appareil réel)
-
-4. **Installer les cibles Rust iOS** :
-   ```bash
-   rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
-   ```
-
-### Initialiser iOS
-
-```bash
-npm run ios:init
-```
-
-### Développement iOS
-
-```bash
-# Lancer sur le simulateur iOS
-npm run ios:dev
-```
-
-### Build iOS
-
-```bash
-npm run build:ios
-```
-
-**Sortie** : `src-tauri/gen/ios/build/`
-
-**Note** : Pour distribuer sur l'App Store, vous devez configurer la signature de code avec votre certificat Apple Developer dans Xcode.
-
-### Tester l'APK sur votre téléphone
-
-1. **Activer le mode développeur** sur votre téléphone Android :
-   - Paramètres → À propos du téléphone
-   - Appuyer 7 fois sur "Numéro de build"
-
-2. **Activer le débogage USB** :
-   - Paramètres → Options pour les développeurs
-   - Activer "Débogage USB"
-
-3. **Connecter votre téléphone** en USB
-
-4. **Vérifier la connexion** :
-   ```bash
-   adb devices
-   ```
-
-5. **Installer l'APK** :
-   ```bash
-   adb install src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
-   ```
-
-### Configuration spécifique mobile
-
-Pour adapter l'interface aux mobiles, vous pouvez détecter la plateforme :
-
-```javascript
-import { platform } from '@tauri-apps/plugin-os';
-
-const currentPlatform = await platform();
-// Retourne 'android', 'ios', 'macos', 'windows', 'linux'
-
-if (currentPlatform === 'android' || currentPlatform === 'ios') {
-  // Afficher l'interface mobile
-} else {
-  // Afficher l'interface desktop
-}
-```
-
-### Permissions Android
-
-Pour accéder au microphone, stockage, etc., modifiez `gen/android/app/src/main/AndroidManifest.xml` :
-
-```xml
-<uses-permission android:name="android.permission.RECORD_AUDIO" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-```
-
-### Taille des APK
-
-Les APK Tauri sont très légers :
-- **Debug** : ~15-20 MB
-- **Release** : ~8-12 MB (avec optimisations)
-
-Beaucoup plus léger que React Native ou Flutter !
-
----
-
-## Résumé des commandes
-
-```bash
-# Desktop
-npm run tauri:dev          # Dev desktop
-npm run build:win          # Build Windows
-npm run build:mac          # Build macOS
-npm run build:linux        # Build Linux
-
-# Android
-npm run android:init       # Init Android (1 fois)
-npm run android:dev        # Dev Android
-npm run build:android:apk  # Build APK
-
-# iOS
-npm run ios:init           # Init iOS (1 fois)
-npm run ios:dev            # Dev iOS
-npm run build:ios          # Build iOS
-```
+### Performance Mobile
+- **WebView natif** : Utilise WKWebView (iOS) et WebView2 (Android)
+- **Pas de JS Bridge lourd** : Communication directe avec le code natif
+- **Audio MIDI** : Les capacités audio peuvent varier selon la plateforme mobile
+- **Optimisation** : Testez sur de vrais appareils, pas seulement sur émulateurs
 
 ## Ressources
 
+### Documentation Officielle
 - [Documentation Tauri](https://tauri.app)
-- [Guide de build Tauri](https://tauri.app/v1/guides/building/)
+- [Guide de build Desktop](https://tauri.app/v1/guides/building/)
+- [Guide Mobile (v2)](https://v2.tauri.app/develop/mobile/)
 - [API Tauri](https://tauri.app/v1/api/js/)
-- [Guide Mobile Tauri](https://tauri.app/start/prerequisites/#mobile)
-- [Configuration Android](https://developer.android.com/studio/install)
+
+### Mobile Spécifique
+- [Guide Android](https://v2.tauri.app/develop/mobile/android/)
+- [Guide iOS](https://v2.tauri.app/develop/mobile/ios/)
+- [Configuration Mobile](https://v2.tauri.app/reference/config/)
+
+### Outils de Développement
+- [Android Studio](https://developer.android.com/studio)
+- [Xcode](https://developer.apple.com/xcode/)
+- [Rust](https://rustup.rs/)
+
+## Résumé des Commandes
+
+```bash
+# DESKTOP
+npm run tauri:dev              # Dev mode desktop
+npm run build:win              # Build Windows
+npm run build:mac              # Build macOS
+npm run build:linux            # Build Linux
+npm run build:all              # Build toutes les plateformes desktop
+
+# ANDROID
+npm run tauri android init     # Initialisation (une fois)
+npm run tauri android dev      # Dev mode
+npm run tauri android build --release  # Build production
+
+# iOS
+npm run tauri ios init         # Initialisation (une fois)
+npm run tauri ios dev          # Dev mode (simulateur)
+npm run tauri ios dev --device # Dev mode (appareil)
+npm run tauri ios build --release  # Build production
+```
