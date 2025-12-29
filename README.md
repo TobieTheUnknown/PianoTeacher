@@ -1,7 +1,7 @@
 # 🎹 Piano Teacher
 
 <p align="center">
-  <img src="docs/screenshots/synthesia_v2.png" alt="Piano Teacher Banner" width="800px">
+  <img src="docs/screenshots/banner.png" alt="Piano Teacher Banner" width="800px">
 </p>
 
 **Piano Teacher** est une application web et desktop interactive conçue pour transformer l'apprentissage du piano. En transformant vos fichiers MIDI en outils pédagogiques visuels, elle vous permet de maîtriser vos morceaux préférés mesure par mesure, avec une précision professionnelle.
