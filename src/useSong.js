@@ -186,6 +186,66 @@ export function useSong() {
         }));
     }, []);
 
+    const mergePhraseWithPrevious = useCallback((phraseId) => {
+        setSong(prev => {
+            const phraseIndex = prev.phrases.findIndex(p => p.id === phraseId);
+
+            // Cannot merge if it's the first phrase or not found
+            if (phraseIndex <= 0) return prev;
+
+            const currentPhrase = prev.phrases[phraseIndex];
+            const previousPhrase = prev.phrases[phraseIndex - 1];
+
+            // Calculate offset for current phrase notes (in beats)
+            const beatsPerMeasure = 4;
+            const offset = previousPhrase.length * beatsPerMeasure;
+
+            // Merge notes with offset
+            const mergedMelody = [
+                ...previousPhrase.tracks.melody,
+                ...currentPhrase.tracks.melody.map(n => ({
+                    ...n,
+                    startTime: n.startTime + offset
+                }))
+            ];
+
+            const mergedChords = [
+                ...previousPhrase.tracks.chords,
+                ...currentPhrase.tracks.chords.map(n => ({
+                    ...n,
+                    startTime: n.startTime + offset
+                }))
+            ];
+
+            // Calculate new length
+            const allNotes = [...mergedMelody, ...mergedChords];
+            const maxEndTime = allNotes.length > 0
+                ? Math.max(...allNotes.map(n => n.startTime + n.duration))
+                : beatsPerMeasure;
+            const mergedLength = Math.ceil(maxEndTime / beatsPerMeasure);
+
+            // Create merged phrase
+            const mergedPhrase = {
+                ...previousPhrase,
+                length: mergedLength,
+                tracks: {
+                    melody: mergedMelody,
+                    chords: mergedChords
+                }
+            };
+
+            // Update phrases array
+            const newPhrases = [...prev.phrases];
+            newPhrases[phraseIndex - 1] = mergedPhrase;
+            newPhrases.splice(phraseIndex, 1); // Remove current phrase
+
+            return {
+                ...prev,
+                phrases: newPhrases
+            };
+        });
+    }, []);
+
     return {
         song,
         updateSongMetadata,
@@ -196,6 +256,7 @@ export function useSong() {
         addPhrase,
         removePhrase,
         splitPhrase,
+        mergePhraseWithPrevious,
         addNoteToPhrase,
         removeNoteFromPhrase,
         updateNoteInPhrase,

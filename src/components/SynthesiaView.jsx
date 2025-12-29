@@ -990,18 +990,18 @@ export function SynthesiaView({ song }) {
     const drawHitLine = (ctx) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
-        // Outer glow
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 6;
+        // Outer glow - Extended
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 8;
         ctx.beginPath();
         ctx.moveTo(0, keyboardY);
         ctx.lineTo(CANVAS_WIDTH, keyboardY);
         ctx.stroke();
 
         // Core line (brightest)
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 15;
         ctx.shadowColor = '#ffffff';
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
