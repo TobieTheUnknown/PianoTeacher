@@ -41,20 +41,46 @@ Piano Teacher est une application web interactive d'apprentissage du piano qui t
 
 ## 🚀 Installation
 
-### Prérequis
+### Option 1 : Télécharger l'Application (Recommandé)
 
-#### 1. Installer Node.js & NPM
-Node.js est le moteur qui permet de faire tourner l'application. NPM (installé avec Node.js) gère les bibliothèques nécessaires.
-- **Téléchargement** : Allez sur [nodejs.org](https://nodejs.org/) et téléchargez la version **LTS** (recommandée).
-- **Vérification** : Ouvrez un terminal et tapez `node -v` pour confirmer l'installation.
+**La façon la plus simple d'utiliser Piano Teacher est de télécharger l'application pour votre système d'exploitation.**
 
-#### 2. Installer Git
-Git est nécessaire pour télécharger ("cloner") le code du projet.
-- **Windows** : Téléchargez et installez [git-scm.com](https://git-scm.com/).
-- **macOS** : Tapez `git --version` dans votre terminal. Si non présent, le Launchpad vous proposera de l'installer.
-- **Linux** : Utilisez votre gestionnaire de paquets (ex: `sudo apt install git`).
+👉 **[Télécharger la dernière version](https://github.com/TobieTheUnknown/Piano/releases/latest)**
 
-### Installation locale
+#### Windows
+- Téléchargez `Piano Teacher_1.0.0_x64-setup.exe`
+- Double-cliquez pour installer
+- L'application sera ajoutée à votre menu Démarrer
+
+#### macOS
+- Téléchargez `Piano Teacher_1.0.0_universal.dmg`
+- Double-cliquez pour ouvrir le DMG
+- Glissez Piano Teacher vers le dossier Applications
+- Compatible Intel ET Apple Silicon (M1/M2/M3)
+
+#### Linux
+- **AppImage** (recommandé) : `piano-teacher_1.0.0_amd64.AppImage`
+  ```bash
+  chmod +x piano-teacher_1.0.0_amd64.AppImage
+  ./piano-teacher_1.0.0_amd64.AppImage
+  ```
+- **DEB** (Ubuntu/Debian) : `piano-teacher_1.0.0_amd64.deb`
+  ```bash
+  sudo dpkg -i piano-teacher_1.0.0_amd64.deb
+  ```
+
+---
+
+### Option 2 : Installation depuis le Code Source
+
+Pour les développeurs qui souhaitent modifier ou contribuer au projet.
+
+#### Prérequis
+
+1. **Node.js & NPM** - [Télécharger](https://nodejs.org/) (version LTS recommandée)
+2. **Git** - [Télécharger](https://git-scm.com/)
+
+#### Installation
 
 ```bash
 # Cloner le repository
@@ -64,20 +90,22 @@ cd Piano
 # Installer les dépendances
 npm install
 
-# Lancer le serveur de développement
+# Lancer en mode développement
 npm run dev
 ```
 
 L'application sera accessible sur `http://localhost:5173`
 
-### Build de production
+#### Construire vos Propres Exécutables
+
+Voir [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) pour des instructions détaillées.
 
 ```bash
-# Créer le build
-npm run build
+# Installer Rust (requis pour Tauri)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Prévisualiser le build
-npm run preview
+# Build pour votre plateforme
+npm run tauri:build
 ```
 
 ## 📖 Utilisation
@@ -214,6 +242,10 @@ Les contributions sont les bienvenues ! Pour contribuer :
 - Ajouter des tests pour les nouvelles fonctionnalités
 - Mettre à jour la documentation si nécessaire
 - S'assurer que le build passe (`npm run build`)
+
+### Créer une Release
+
+Pour les mainteneurs souhaitant publier une nouvelle version, consultez [RELEASE.md](RELEASE.md) pour le guide complet de création de releases.
 
 ## 📄 Licence
 
