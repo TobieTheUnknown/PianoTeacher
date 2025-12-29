@@ -113,6 +113,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         try {
             const newSong = await parseMidiFile(file);
             onImportSong(newSong);
+            setShowImportExportModal(false); // Fermer le modal après import réussi
+            alert("Fichier MIDI importé avec succès !");
         } catch (error) {
             console.error("Error importing MIDI:", error);
             alert("Erreur lors de l'import du fichier MIDI.");

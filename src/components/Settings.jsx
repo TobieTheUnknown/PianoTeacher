@@ -26,7 +26,8 @@ export function Settings({ isOpen, onClose }) {
 
     const handleFontFamilyChange = (family) => {
         setFontFamily(family);
-        document.documentElement.style.fontFamily = family;
+        // Mettre à jour la variable CSS --font-family
+        document.documentElement.style.setProperty('--font-family', family);
         localStorage.setItem('piano-teacher-font-family', family);
     };
 
