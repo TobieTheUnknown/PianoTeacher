@@ -17,6 +17,7 @@ function App() {
     saveSong,
     addPhrase,
     splitPhrase,
+    mergePhraseWithPrevious,
     addNoteToPhrase,
     removeNoteFromPhrase,
     updateNoteInPhrase,
@@ -137,6 +138,7 @@ function App() {
             onSaveSong={saveSong}
             onAddPhrase={addPhrase}
             onSplitPhrase={splitPhrase}
+            onMergePhraseWithPrevious={mergePhraseWithPrevious}
             onRenamePhrasesInOrder={renamePhrasesInOrder}
             addNoteToPhrase={addNoteToPhrase}
             removeNoteFromPhrase={removeNoteFromPhrase}

@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null);
     const [splitTime, setSplitTime] = useState('');
@@ -103,6 +103,15 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
         setSplitMode(null);
         setSplitTime('');
+    };
+
+    const handleMergeWithPrevious = (phraseId) => {
+        if (window.confirm('Voulez-vous vraiment fusionner cette phrase avec la précédente ?')) {
+            onMergePhraseWithPrevious(phraseId);
+            setTimeout(() => {
+                onRenamePhrasesInOrder();
+            }, 100);
+        }
     };
 
     const handleFileChange = async (e) => {
@@ -332,7 +341,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 flexDirection: 'column',
                 gap: '1.5rem'
             }}>
-                {song.phrases.map((phrase) => (
+                {song.phrases.map((phrase, phraseIndex) => (
                     <div
                         key={phrase.id}
                         className="card"
@@ -378,6 +387,16 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                     }}
                                 >
                                     Découper
+                                </button>
+                                <button
+                                    onClick={() => handleMergeWithPrevious(phrase.id)}
+                                    disabled={phraseIndex === 0}
+                                    style={{
+                                        opacity: phraseIndex === 0 ? 0.5 : 1,
+                                        cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Recoller
                                 </button>
                             </div>
                         </div>
