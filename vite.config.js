@@ -4,15 +4,15 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  optimizeDeps: {
-    exclude: ['@tauri-apps/api', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-fs']
+
+  // Prevent Vite from obscuring Rust errors
+  clearScreen: false,
+
+  // Tauri expects a fixed port, fail if that port is not available
+  server: {
+    strictPort: true,
   },
-  build: {
-    rollupOptions: {
-      external: (id) => {
-        // Externalize Tauri API imports - they'll be available via window.__TAURI__ in desktop app
-        return id.startsWith('@tauri-apps/')
-      }
-    }
-  }
+
+  // Use TAURI_PLATFORM env variable to detect Tauri context
+  envPrefix: ['VITE_', 'TAURI_PLATFORM', 'TAURI_ARCH', 'TAURI_FAMILY', 'TAURI_PLATFORM_VERSION', 'TAURI_PLATFORM_TYPE', 'TAURI_DEBUG'],
 })
