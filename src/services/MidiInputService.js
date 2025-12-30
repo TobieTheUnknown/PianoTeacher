@@ -136,11 +136,21 @@ class MidiInputService {
 
     handleMidiMessage(event) {
         const [status, note, velocity] = event.data;
+
+        console.log('Raw MIDI message:', { status, note, velocity, raw: event.data });
+
+        // Validate MIDI data
+        if (status === undefined || note === undefined || velocity === undefined) {
+            console.warn('Invalid MIDI message format:', event.data);
+            return;
+        }
+
         const command = status & 0xf0;
         const channel = status & 0x0f;
 
         // Filter by enabled channels
         if (!this.settings.enabledChannels.includes(channel)) {
+            console.log('MIDI message filtered out (channel not enabled):', channel);
             return;
         }
 
@@ -178,8 +188,15 @@ class MidiInputService {
             raw: event.data
         };
 
-        // Notify all registered listeners
-        this.notifyListeners(eventType, midiEvent);
+        console.log('MIDI event created:', midiEvent);
+
+        // Only notify if we have a valid event type
+        if (eventType) {
+            // Notify all registered listeners
+            this.notifyListeners(eventType, midiEvent);
+        } else {
+            console.log('Unknown MIDI message type, not notifying listeners');
+        }
 
         // Notify monitor listeners (for visualization)
         this.notifyMonitors(midiEvent);

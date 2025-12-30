@@ -19,6 +19,14 @@ export function useMidiAudio() {
         const handleNoteOn = async (event) => {
             const { note, velocity } = event;
 
+            console.log('MIDI noteOn event received:', event);
+
+            // Validate note value
+            if (typeof note !== 'number' || isNaN(note) || note < 0 || note > 127) {
+                console.error('Invalid MIDI note value:', note, 'Full event:', event);
+                return;
+            }
+
             // Initialize audio on first MIDI event if needed (requires user interaction)
             if (!audioInitialized.current && !isInitializing.current) {
                 isInitializing.current = true;
