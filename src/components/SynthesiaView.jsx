@@ -24,8 +24,8 @@ const COLORS = {
     background: '#1a1a1a',
     whiteKey: '#ffffff',
     blackKey: '#000000',
-    whiteKeyPressed: '#e6e6e6',
-    blackKeyPressed: '#333333',
+    whiteKeyPressed: '#60a5fa', // blue-400 - matches MIDI visualizer
+    blackKeyPressed: '#3b82f6', // blue-500 - matches MIDI visualizer
     whiteKeyCorrect: '#86efac', // green-300
     blackKeyCorrect: '#22c55e', // green-500
     whiteKeyWrong: '#fca5a5', // red-300
@@ -860,13 +860,26 @@ export function SynthesiaView({ song }) {
         for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
             if (!isBlackKey(i)) {
                 const x = getNoteX(i);
-                ctx.fillStyle = getKeyColor(i, false);
+                const keyColor = getKeyColor(i, false);
+                const isPressed = activeNotes.has(i);
+
+                // Add glow effect for pressed keys (matches MIDI visualizer)
+                if (isPressed) {
+                    ctx.shadowColor = 'rgba(59, 130, 246, 0.6)';
+                    ctx.shadowBlur = 10;
+                }
+
+                ctx.fillStyle = keyColor;
                 ctx.fillRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
+
+                // Reset shadow
+                ctx.shadowBlur = 0;
+
                 ctx.strokeStyle = '#cccccc';
                 ctx.strokeRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
 
                 // Label (French) - without octave numbers
-                ctx.fillStyle = '#555';
+                ctx.fillStyle = isPressed ? '#ffffff' : '#555';
                 const label = getMidiNoteName(i).replace(/[0-9-]/g, '');
                 ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10);
             }
@@ -876,17 +889,28 @@ export function SynthesiaView({ song }) {
         for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
             if (isBlackKey(i)) {
                 const x = getNoteX(i);
-                ctx.fillStyle = getKeyColor(i, true);
+                const keyColor = getKeyColor(i, true);
+                const isPressed = activeNotes.has(i);
                 const blackKeyHeight = KEYBOARD_HEIGHT * 0.65;
 
+                // Add glow effect for pressed keys (matches MIDI visualizer)
+                if (isPressed) {
+                    ctx.shadowColor = 'rgba(59, 130, 246, 0.6)';
+                    ctx.shadowBlur = 10;
+                }
+
+                ctx.fillStyle = keyColor;
                 ctx.fillRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
+
+                // Reset shadow
+                ctx.shadowBlur = 0;
 
                 // Border
                 ctx.strokeStyle = '#333';
                 ctx.strokeRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
 
                 // Label
-                ctx.fillStyle = '#ccc';
+                ctx.fillStyle = isPressed ? '#ffffff' : '#ccc';
                 ctx.font = '10px Arial';
                 const label = getMidiNoteName(i);
                 const shortLabel = label.replace(/[0-9-]/g, '');
