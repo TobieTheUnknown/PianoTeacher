@@ -6,6 +6,7 @@ import { SongLibrary } from './components/SongLibrary';
 import { SynthesiaView } from './components/SynthesiaView';
 import { Settings } from './components/Settings';
 import { useSong } from './useSong';
+import { useMidiAudio } from './hooks/useMidiAudio';
 
 function App() {
   const {
@@ -28,6 +29,9 @@ function App() {
 
   const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn', 'synthesia'
   const [showSettings, setShowSettings] = useState(false);
+
+  // Enable global MIDI audio (works across all pages)
+  useMidiAudio();
 
   // Load saved font settings on mount
   useEffect(() => {

@@ -231,15 +231,8 @@ export function SynthesiaView({ song }) {
             // Add to active notes
             setActiveNotes(prev => new Set([...prev, note]));
 
-            // Play audio with volume from settings
-            const midiSettings = midiInputService.getSettings();
-            const midiVolume = (midiSettings.midiVolume || 70) / 100; // Convert percentage to 0-1
-
-            // Play the note audio
-            if (audioInitialized && audioEngine.sampler) {
-                const noteDuration = 2; // 2 seconds sustain for MIDI input
-                audioEngine.sampler.triggerAttack(getFrenchNoteName(note), Tone.now(), velocity / 127 * midiVolume);
-            }
+            // Note: Audio is now handled globally by useMidiAudio hook in App.jsx
+            // This useEffect only handles game logic (correct/wrong notes, scoring, wait mode)
 
             // Check if this note is expected in the song (only if not in free play mode)
             if (!freePlayMode) {
@@ -318,10 +311,7 @@ export function SynthesiaView({ song }) {
                 return newSet;
             });
 
-            // Release audio
-            if (audioInitialized && audioEngine.sampler) {
-                audioEngine.sampler.triggerRelease(getFrenchNoteName(note), Tone.now());
-            }
+            // Note: Audio release is handled globally by useMidiAudio hook
         };
 
         midiInputService.addEventListener('noteOn', handleNoteOn);
@@ -468,7 +458,34 @@ export function SynthesiaView({ song }) {
         });
 
         setExpectedNotes(currentExpectedNotes);
-    }, [currentTime, allNotes, beatsPerSecond, handMode]);
+
+        // Wait mode: Pause when a note is approaching
+        if (waitMode && isPlaying && currentExpectedNotes.size > 0) {
+            // Check if any expected note is very close (within wait threshold)
+            let shouldPause = false;
+
+            for (const note of allNotes) {
+                // Skip if not user's hand or already played
+                if (!userHands.has(note.hand) || playedNotes.has(note.id)) continue;
+
+                const noteTime = note.startTime / beatsPerSecond;
+                const timeDiff = noteTime - currentTime;
+
+                // Note is approaching (between 0 and WAIT_MODE_THRESHOLD ahead)
+                if (timeDiff >= 0 && timeDiff <= WAIT_MODE_THRESHOLD) {
+                    shouldPause = true;
+                    break;
+                }
+            }
+
+            if (shouldPause && pausedAtTimeRef.current === null) {
+                // Pause the playback
+                pausedAtTimeRef.current = currentTime;
+                setIsPlaying(false);
+                console.log('Wait mode: Paused for expected note');
+            }
+        }
+    }, [currentTime, allNotes, beatsPerSecond, handMode, waitMode, isPlaying, playedNotes]);
 
     // Auto-Play Computer Notes
     useEffect(() => {
