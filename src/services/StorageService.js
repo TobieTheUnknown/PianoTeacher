@@ -1,27 +1,17 @@
 import { getMidiNumber } from '../models/song';
+// Import Tauri plugins statically (they're now npm dependencies, so safe to import)
+// They will be included in the bundle but only used in Tauri environment
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 
 // Detect if running in Tauri environment
 // In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
 const isTauri = () => {
     if (typeof window === 'undefined') return false;
-    // Check for Tauri v2 environment variables
+    // Check for Tauri v2 environment variables or internal object
     return import.meta.env.TAURI_PLATFORM !== undefined ||
            import.meta.env.TAURI_FAMILY !== undefined ||
            window.__TAURI_INTERNALS__ !== undefined;
-};
-
-// Dynamic import helper for Tauri modules
-// Now that packages are installed as npm dependencies, we can use standard dynamic imports
-const importTauriModule = async (moduleName) => {
-    return await import(moduleName);
-};
-
-// Helper to get the correct module paths for Tauri v2 plugins
-const getTauriModulePaths = () => {
-    return {
-        dialog: '@tauri-apps/plugin-dialog',
-        fs: '@tauri-apps/plugin-fs'
-    };
 };
 
 const STORAGE_KEY = 'piano_teacher_songs';
@@ -136,13 +126,6 @@ export const StorageService = {
         // Use Tauri dialog if available (desktop app)
         if (isTauri()) {
             try {
-                // Dynamically import Tauri APIs only in Tauri environment
-                const modulePaths = getTauriModulePaths();
-                const dialogModule = await importTauriModule(modulePaths.dialog);
-                const fsModule = await importTauriModule(modulePaths.fs);
-                const { save } = dialogModule;
-                const { writeTextFile } = fsModule;
-
                 const filePath = await save({
                     defaultPath: defaultFilename,
                     filters: [{
@@ -183,13 +166,6 @@ export const StorageService = {
         // Use Tauri dialog if available (desktop app)
         if (isTauri()) {
             try {
-                // Dynamically import Tauri APIs only in Tauri environment
-                const modulePaths = getTauriModulePaths();
-                const dialogModule = await importTauriModule(modulePaths.dialog);
-                const fsModule = await importTauriModule(modulePaths.fs);
-                const { save } = dialogModule;
-                const { writeTextFile } = fsModule;
-
                 const filePath = await save({
                     defaultPath: defaultFilename,
                     filters: [{

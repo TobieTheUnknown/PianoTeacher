@@ -10,20 +10,19 @@
  * - Native MIDI support for Tauri desktop app
  */
 
+// Import Tauri APIs statically (they're now npm dependencies, so safe to import)
+// They will be included in the bundle but only used in Tauri environment
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
 // Detect if running in Tauri environment
 // In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
 const isTauri = () => {
     if (typeof window === 'undefined') return false;
-    // Check for Tauri v2 environment variables
+    // Check for Tauri v2 environment variables or internal object
     return import.meta.env.TAURI_PLATFORM !== undefined ||
            import.meta.env.TAURI_FAMILY !== undefined ||
            window.__TAURI_INTERNALS__ !== undefined;
-};
-
-// Dynamic import helper for Tauri modules
-// Now that packages are installed as npm dependencies, we can use standard dynamic imports
-const importTauriModule = async (moduleName) => {
-    return await import(moduleName);
 };
 
 class MidiInputService {
@@ -114,10 +113,7 @@ class MidiInputService {
 
     async initTauriMidi() {
         try {
-            console.log('Importing Tauri modules...');
-            const { invoke } = await importTauriModule('@tauri-apps/api/core');
-            const { listen } = await importTauriModule('@tauri-apps/api/event');
-            console.log('Tauri modules imported successfully');
+            console.log('Initializing Tauri MIDI...');
 
             this.useTauriMidi = true;
             this.isSupported = true;
@@ -168,7 +164,6 @@ class MidiInputService {
 
     async refreshDevicesTauri() {
         try {
-            const { invoke } = await importTauriModule('@tauri-apps/api/core');
             const devices = await invoke('get_midi_devices');
 
             this.devices = devices.map(device => ({
@@ -189,8 +184,6 @@ class MidiInputService {
 
     async selectDeviceTauri(deviceId) {
         try {
-            const { invoke } = await importTauriModule('@tauri-apps/api/core');
-
             // Disconnect previous device
             if (this.activeDevice) {
                 await invoke('disconnect_midi_device');
@@ -342,7 +335,6 @@ class MidiInputService {
     async disconnect() {
         if (this.useTauriMidi) {
             try {
-                const { invoke } = await importTauriModule('@tauri-apps/api/core');
                 await invoke('disconnect_midi_device');
                 this.activeDevice = null;
                 this.settings.selectedDeviceId = null;
