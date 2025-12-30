@@ -114,6 +114,114 @@ export function SynthesiaView({ song }) {
         };
     }, []);
 
+    // Helper to convert note name to MIDI number
+    const getMidiNumber = (noteName) => {
+        if (typeof noteName === 'number') return noteName;
+        if (!noteName) return null;
+
+        const noteToOffset = {
+            'C': 0, 'C#': 1, 'Db': 1,
+            'D': 2, 'D#': 3, 'Eb': 3,
+            'E': 4,
+            'F': 5, 'F#': 6, 'Gb': 6,
+            'G': 7, 'G#': 8, 'Ab': 8,
+            'A': 9, 'A#': 10, 'Bb': 10,
+            'B': 11
+        };
+
+        try {
+            // Extract note and octave (e.g., "C#4" -> note="C#", octave="4")
+            // Handle both 2 and 3 character note names
+            let note, octave;
+            if (isNaN(noteName[1])) {
+                note = noteName.slice(0, 2);
+                octave = parseInt(noteName.slice(2));
+            } else {
+                note = noteName[0];
+                octave = parseInt(noteName.slice(1));
+            }
+
+            if (noteToOffset[note] !== undefined && !isNaN(octave)) {
+                return 12 + (octave * 12) + noteToOffset[note];
+            }
+        } catch (e) {
+            console.warn('Invalid note name:', noteName);
+        }
+        return null;
+    };
+
+    // Get all notes from song with timing information
+    const getAllNotes = useCallback(() => {
+        if (!song || !song.phrases || !Array.isArray(song.phrases)) {
+            return [];
+        }
+
+        const notes = [];
+        let currentTime = 0;
+
+        try {
+            for (const phrase of song.phrases) {
+                if (!phrase) continue;
+
+                // Process melody notes (right hand)
+                const melodyNotes = phrase.tracks?.melody || phrase.melody || [];
+                if (Array.isArray(melodyNotes)) {
+                    for (const note of melodyNotes) {
+                        const midiPitch = typeof note.pitch === 'number'
+                            ? note.pitch
+                            : getMidiNumber(note.pitch);
+
+                        if (midiPitch !== null) {
+                            notes.push({
+                                id: `${currentTime}_${midiPitch}_melody_${Math.random()}`,
+                                pitch: midiPitch,
+                                startTime: currentTime + (note.startTime || 0),
+                                duration: note.duration || 0.5,
+                                hand: 'right',
+                                velocity: note.velocity || 64
+                            });
+                        }
+                    }
+                }
+
+                // Process chord notes (left hand)
+                const chordNotes = phrase.tracks?.chords || phrase.chords || [];
+                if (Array.isArray(chordNotes)) {
+                    for (const note of chordNotes) {
+                        const midiPitch = typeof note.pitch === 'number'
+                            ? note.pitch
+                            : getMidiNumber(note.pitch);
+
+                        if (midiPitch !== null) {
+                            notes.push({
+                                id: `${currentTime}_${midiPitch}_chord_${Math.random()}`,
+                                pitch: midiPitch,
+                                startTime: currentTime + (note.startTime || 0),
+                                duration: note.duration || 0.5,
+                                hand: 'left',
+                                velocity: note.velocity || 64
+                            });
+                        }
+                    }
+                }
+
+                // Update time for next phrase
+                currentTime += (phrase.duration || phrase.length * 4 || 4);
+            }
+        } catch (error) {
+            console.error('Error in getAllNotes:', error);
+            return [];
+        }
+
+        return notes.sort((a, b) => a.startTime - b.startTime);
+    }, [song]);
+
+    // Memoize allNotes to prevent recalculation on every render
+    const allNotes = useMemo(() => getAllNotes(), [getAllNotes]);
+    const defaultBPM = song?.tempo || 120;
+    const playbackSpeed = currentBPM / defaultBPM;
+    const beatsPerSecond = currentBPM / 60;
+
     // Setup MIDI Input Service listener
     useEffect(() => {
         // Listen to MIDI note events from MidiInputService
@@ -224,114 +332,6 @@ export function SynthesiaView({ song }) {
             midiInputService.removeEventListener('noteOff', handleNoteOff);
         };
     }, [expectedNotes, playedNotes, currentTime, beatsPerSecond, allNotes, waitMode, handMode, audioInitialized, freePlayMode]);
-
-    // Helper to convert note name to MIDI number
-    const getMidiNumber = (noteName) => {
-        if (typeof noteName === 'number') return noteName;
-        if (!noteName) return null;
-
-        const noteToOffset = {
-            'C': 0, 'C#': 1, 'Db': 1,
-            'D': 2, 'D#': 3, 'Eb': 3,
-            'E': 4,
-            'F': 5, 'F#': 6, 'Gb': 6,
-            'G': 7, 'G#': 8, 'Ab': 8,
-            'A': 9, 'A#': 10, 'Bb': 10,
-            'B': 11
-        };
-
-        try {
-            // Extract note and octave (e.g., "C#4" -> note="C#", octave="4")
-            // Handle both 2 and 3 character note names
-            let note, octave;
-            if (isNaN(noteName[1])) {
-                note = noteName.slice(0, 2);
-                octave = parseInt(noteName.slice(2));
-            } else {
-                note = noteName[0];
-                octave = parseInt(noteName.slice(1));
-            }
-
-            if (noteToOffset[note] !== undefined && !isNaN(octave)) {
-                return 12 + (octave * 12) + noteToOffset[note];
-            }
-        } catch (e) {
-            console.warn('Invalid note name:', noteName);
-        }
-        return null;
-    };
-
-    // Get all notes from song with timing information
-    const getAllNotes = useCallback(() => {
-        if (!song || !song.phrases || !Array.isArray(song.phrases)) {
-            return [];
-        }
-
-        const notes = [];
-        let currentTime = 0;
-
-        try {
-            for (const phrase of song.phrases) {
-                if (!phrase) continue;
-
-                // Process melody notes (right hand)
-                const melodyNotes = phrase.tracks?.melody || phrase.melody || [];
-                if (Array.isArray(melodyNotes)) {
-                    for (const note of melodyNotes) {
-                        const midiPitch = typeof note.pitch === 'number'
-                            ? note.pitch
-                            : getMidiNumber(note.pitch);
-
-                        if (midiPitch !== null) {
-                            notes.push({
-                                id: `${currentTime}_${midiPitch}_melody_${Math.random()}`,
-                                pitch: midiPitch,
-                                startTime: currentTime + (note.startTime || 0),
-                                duration: note.duration || 0.5,
-                                hand: 'right',
-                                velocity: note.velocity || 64
-                            });
-                        }
-                    }
-                }
-
-                // Process chord notes (left hand)
-                const chordNotes = phrase.tracks?.chords || phrase.chords || [];
-                if (Array.isArray(chordNotes)) {
-                    for (const note of chordNotes) {
-                        const midiPitch = typeof note.pitch === 'number'
-                            ? note.pitch
-                            : getMidiNumber(note.pitch);
-
-                        if (midiPitch !== null) {
-                            notes.push({
-                                id: `${currentTime}_${midiPitch}_chord_${Math.random()}`,
-                                pitch: midiPitch,
-                                startTime: currentTime + (note.startTime || 0),
-                                duration: note.duration || 0.5,
-                                hand: 'left',
-                                velocity: note.velocity || 64
-                            });
-                        }
-                    }
-                }
-
-                // Update time for next phrase
-                currentTime += (phrase.duration || phrase.length * 4 || 4);
-            }
-        } catch (error) {
-            console.error('Error in getAllNotes:', error);
-            return [];
-        }
-
-        return notes.sort((a, b) => a.startTime - b.startTime);
-    }, [song]);
-
-    // Memoize allNotes to prevent recalculation on every render
-    const allNotes = useMemo(() => getAllNotes(), [getAllNotes]);
-    const defaultBPM = song?.tempo || 120;
-    const playbackSpeed = currentBPM / defaultBPM;
-    const beatsPerSecond = currentBPM / 60;
 
     // Calculate phrase measure ranges
     const phraseMeasureRanges = useMemo(() => {
