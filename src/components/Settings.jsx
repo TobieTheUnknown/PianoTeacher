@@ -1,6 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import themeEngine from '../services/ThemeEngine';
 import { StorageService } from '../services/StorageService';
+import { midiInputService } from '../services/MidiInputService';
+import { MidiVisualizer } from './MidiVisualizer';
 
 export function Settings({ isOpen, onClose }) {
     const [activeTab, setActiveTab] = useState('theme');
@@ -9,6 +11,46 @@ export function Settings({ isOpen, onClose }) {
     const [fontSize, setFontSize] = useState(localStorage.getItem('piano-teacher-font-size') || '16');
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
     const fileInputRef = useRef(null);
+
+    // MIDI states
+    const [midiDevices, setMidiDevices] = useState([]);
+    const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
+    const [midiSettings, setMidiSettings] = useState(midiInputService.getSettings());
+    const [midiSupported, setMidiSupported] = useState(midiInputService.isSupported);
+
+    // MIDI effects
+    useEffect(() => {
+        if (!isOpen) return;
+
+        // Load MIDI devices and active device
+        const devices = midiInputService.getDevices();
+        setMidiDevices(devices);
+        setSelectedMidiDevice(midiInputService.getActiveDevice());
+        setMidiSupported(midiInputService.isSupported);
+
+        // Listen for device changes
+        const handleDevicesChanged = (devices) => {
+            setMidiDevices(devices);
+        };
+
+        const handleDeviceConnected = (device) => {
+            setSelectedMidiDevice(device);
+        };
+
+        const handleDeviceDisconnected = () => {
+            setSelectedMidiDevice(null);
+        };
+
+        midiInputService.addEventListener('devicesChanged', handleDevicesChanged);
+        midiInputService.addEventListener('deviceConnected', handleDeviceConnected);
+        midiInputService.addEventListener('deviceDisconnected', handleDeviceDisconnected);
+
+        return () => {
+            midiInputService.removeEventListener('devicesChanged', handleDevicesChanged);
+            midiInputService.removeEventListener('deviceConnected', handleDeviceConnected);
+            midiInputService.removeEventListener('deviceDisconnected', handleDeviceDisconnected);
+        };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -66,6 +108,26 @@ export function Settings({ isOpen, onClose }) {
             setAccentSecondary(themeEngine.getVariable('accent-secondary'));
             alert('✅ Thème réinitialisé !');
         }
+    };
+
+    // MIDI handlers
+    const handleMidiDeviceSelect = (deviceId) => {
+        if (deviceId === '') {
+            midiInputService.disconnect();
+        } else {
+            midiInputService.selectDevice(deviceId);
+        }
+    };
+
+    const handleMidiSettingChange = (setting, value) => {
+        const newSettings = { [setting]: value };
+        midiInputService.updateSettings(newSettings);
+        setMidiSettings(midiInputService.getSettings());
+    };
+
+    const handleRefreshMidiDevices = () => {
+        midiInputService.refreshDevices();
+        setMidiDevices(midiInputService.getDevices());
     };
 
     return (
@@ -164,6 +226,11 @@ export function Settings({ isOpen, onClose }) {
                         active={activeTab === 'library'}
                         onClick={() => setActiveTab('library')}
                         label="📚 Bibliothèque"
+                    />
+                    <TabButton
+                        active={activeTab === 'midi'}
+                        onClick={() => setActiveTab('midi')}
+                        label="🎹 MIDI"
                     />
                 </div>
 
@@ -488,6 +555,262 @@ export function Settings({ isOpen, onClose }) {
                                 }}>
                                     <strong style={{ color: 'var(--text-primary)' }}>💡 Astuce :</strong> Exportez régulièrement votre bibliothèque pour sauvegarder vos morceaux. L'import vous permettra de restaurer ou fusionner vos données.
                                 </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'midi' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div>
+                                <h3 style={{
+                                    fontSize: '1.1rem',
+                                    fontWeight: '600',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: '1rem'
+                                }}>
+                                    Clavier MIDI
+                                </h3>
+
+                                {!midiSupported ? (
+                                    <div style={{
+                                        padding: '1rem',
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                                    }}>
+                                        <p style={{
+                                            fontSize: '0.9rem',
+                                            color: 'var(--text-primary)',
+                                            margin: 0
+                                        }}>
+                                            ❌ <strong>Web MIDI API non supportée</strong><br />
+                                            Votre navigateur ne supporte pas les claviers MIDI. Essayez Chrome, Edge ou Opera.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div style={{ marginBottom: '1.5rem' }}>
+                                            <label style={{
+                                                display: 'block',
+                                                fontSize: '0.9rem',
+                                                fontWeight: '500',
+                                                color: 'var(--text-primary)',
+                                                marginBottom: '0.5rem'
+                                            }}>
+                                                Périphérique MIDI
+                                            </label>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                <select
+                                                    value={selectedMidiDevice?.id || ''}
+                                                    onChange={(e) => handleMidiDeviceSelect(e.target.value)}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '0.75rem',
+                                                        background: 'var(--bg-tertiary)',
+                                                        color: 'var(--text-primary)',
+                                                        border: '1px solid var(--border-color)',
+                                                        borderRadius: 'var(--radius-md)',
+                                                        fontSize: '0.9rem',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    <option value="">Aucun périphérique sélectionné</option>
+                                                    {midiDevices.map(device => (
+                                                        <option key={device.id} value={device.id}>
+                                                            {device.name} {device.manufacturer ? `(${device.manufacturer})` : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={handleRefreshMidiDevices}
+                                                    style={{
+                                                        padding: '0.75rem 1rem',
+                                                        background: 'var(--bg-tertiary)',
+                                                        color: 'var(--text-primary)',
+                                                        border: '1px solid var(--border-color)',
+                                                        borderRadius: 'var(--radius-md)',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.9rem',
+                                                        fontWeight: '500'
+                                                    }}
+                                                    title="Actualiser la liste des périphériques"
+                                                >
+                                                    🔄
+                                                </button>
+                                            </div>
+                                            {selectedMidiDevice && (
+                                                <div style={{
+                                                    marginTop: '0.5rem',
+                                                    padding: '0.5rem 0.75rem',
+                                                    background: 'rgba(34, 197, 94, 0.1)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                                                    fontSize: '0.85rem',
+                                                    color: 'var(--text-primary)'
+                                                }}>
+                                                    ✅ Connecté à : <strong>{selectedMidiDevice.name}</strong>
+                                                </div>
+                                            )}
+                                            {midiDevices.length === 0 && (
+                                                <div style={{
+                                                    marginTop: '0.5rem',
+                                                    padding: '0.5rem 0.75rem',
+                                                    background: 'rgba(251, 191, 36, 0.1)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid rgba(251, 191, 36, 0.3)',
+                                                    fontSize: '0.85rem',
+                                                    color: 'var(--text-primary)'
+                                                }}>
+                                                    ⚠️ Aucun clavier MIDI détecté. Branchez votre clavier et cliquez sur 🔄
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div style={{
+                                            padding: '1rem',
+                                            background: 'var(--bg-tertiary)',
+                                            borderRadius: 'var(--radius-md)',
+                                            border: '1px solid var(--border-color)'
+                                        }}>
+                                            <h4 style={{
+                                                fontSize: '0.95rem',
+                                                fontWeight: '600',
+                                                color: 'var(--text-primary)',
+                                                marginBottom: '1rem'
+                                            }}>
+                                                ⚙️ Paramètres avancés
+                                            </h4>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                {/* Velocity Sensitivity */}
+                                                <div>
+                                                    <label style={{
+                                                        display: 'block',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: '500',
+                                                        color: 'var(--text-primary)',
+                                                        marginBottom: '0.5rem'
+                                                    }}>
+                                                        Sensibilité de vélocité : {midiSettings.velocitySensitivity.toFixed(2)}x
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        min="0.5"
+                                                        max="2.0"
+                                                        step="0.1"
+                                                        value={midiSettings.velocitySensitivity}
+                                                        onChange={(e) => handleMidiSettingChange('velocitySensitivity', parseFloat(e.target.value))}
+                                                        style={{
+                                                            width: '100%',
+                                                            cursor: 'pointer',
+                                                            accentColor: 'var(--accent-primary)'
+                                                        }}
+                                                    />
+                                                    <div style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--text-secondary)',
+                                                        marginTop: '0.25rem'
+                                                    }}>
+                                                        <span>0.5x (doux)</span>
+                                                        <span>1.0x (normal)</span>
+                                                        <span>2.0x (fort)</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Latency Compensation */}
+                                                <div>
+                                                    <label style={{
+                                                        display: 'block',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: '500',
+                                                        color: 'var(--text-primary)',
+                                                        marginBottom: '0.5rem'
+                                                    }}>
+                                                        Compensation de latence : {midiSettings.latencyCompensation}ms
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        min="-100"
+                                                        max="100"
+                                                        step="5"
+                                                        value={midiSettings.latencyCompensation}
+                                                        onChange={(e) => handleMidiSettingChange('latencyCompensation', parseInt(e.target.value))}
+                                                        style={{
+                                                            width: '100%',
+                                                            cursor: 'pointer',
+                                                            accentColor: 'var(--accent-primary)'
+                                                        }}
+                                                    />
+                                                    <div style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--text-secondary)',
+                                                        marginTop: '0.25rem'
+                                                    }}>
+                                                        <span>-100ms (plus tôt)</span>
+                                                        <span>0ms</span>
+                                                        <span>+100ms (plus tard)</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Note On Threshold */}
+                                                <div>
+                                                    <label style={{
+                                                        display: 'block',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: '500',
+                                                        color: 'var(--text-primary)',
+                                                        marginBottom: '0.5rem'
+                                                    }}>
+                                                        Seuil de note minimum : {midiSettings.noteOnThreshold}
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        min="1"
+                                                        max="50"
+                                                        step="1"
+                                                        value={midiSettings.noteOnThreshold}
+                                                        onChange={(e) => handleMidiSettingChange('noteOnThreshold', parseInt(e.target.value))}
+                                                        style={{
+                                                            width: '100%',
+                                                            cursor: 'pointer',
+                                                            accentColor: 'var(--accent-primary)'
+                                                        }}
+                                                    />
+                                                    <div style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--text-secondary)',
+                                                        marginTop: '0.25rem'
+                                                    }}>
+                                                        <span>1 (très sensible)</span>
+                                                        <span>10 (normal)</span>
+                                                        <span>50 (peu sensible)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* MIDI Visualizer */}
+                                        {selectedMidiDevice && (
+                                            <div>
+                                                <h4 style={{
+                                                    fontSize: '0.95rem',
+                                                    fontWeight: '600',
+                                                    color: 'var(--text-primary)',
+                                                    marginBottom: '1rem'
+                                                }}>
+                                                    📊 Visualisation en temps réel
+                                                </h4>
+                                                <MidiVisualizer compact={false} />
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
