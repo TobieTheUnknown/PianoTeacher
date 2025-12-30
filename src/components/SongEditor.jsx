@@ -638,9 +638,14 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 flexWrap: 'wrap'
                             }}>
                                 <button
-                                    onClick={() => {
-                                        StorageService.exportSong(song);
-                                        alert('Fichier JSON téléchargé !');
+                                    onClick={async () => {
+                                        const result = await StorageService.exportSong(song);
+                                        if (result.success && !result.cancelled) {
+                                            const message = result.path
+                                                ? `Fichier JSON exporté !\n${result.path}`
+                                                : 'Fichier JSON téléchargé !';
+                                            alert(message);
+                                        }
                                     }}
                                     style={{
                                         background: 'var(--accent-success)',

@@ -1,5 +1,10 @@
 import { getMidiNumber } from '../models/song';
 
+// Detect if running in Tauri environment
+const isTauri = () => {
+    return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+};
+
 const STORAGE_KEY = 'piano_teacher_songs';
 
 // Helper to migrate legacy song data (string pitches) to new format (number pitches)
@@ -105,26 +110,90 @@ export const StorageService = {
     },
 
     // Export song as JSON file download
-    exportSong: (song) => {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(song));
+    exportSong: async (song) => {
+        const songJson = JSON.stringify(song, null, 2);
+        const defaultFilename = `${song.title.replace(/\s+/g, '_')}.json`;
+
+        // Use Tauri dialog if available (desktop app)
+        if (isTauri()) {
+            try {
+                // Dynamically import Tauri APIs only in Tauri environment
+                const { save } = await import('@tauri-apps/api/dialog');
+                const { writeTextFile } = await import('@tauri-apps/api/fs');
+
+                const filePath = await save({
+                    defaultPath: defaultFilename,
+                    filters: [{
+                        name: 'JSON',
+                        extensions: ['json']
+                    }]
+                });
+
+                if (filePath) {
+                    await writeTextFile(filePath, songJson);
+                    console.log('Song exported to:', filePath);
+                    return { success: true, path: filePath };
+                }
+                return { success: false, cancelled: true };
+            } catch (error) {
+                console.error('Error exporting song with Tauri:', error);
+                // Fallback to web method
+            }
+        }
+
+        // Fallback: Web browser download
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(songJson);
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", `${song.title.replace(/\s+/g, '_')}.json`);
+        downloadAnchorNode.setAttribute("download", defaultFilename);
         document.body.appendChild(downloadAnchorNode); // required for firefox
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
+        return { success: true };
     },
 
     // Export entire library as JSON file
-    exportLibrary: () => {
+    exportLibrary: async () => {
         const songs = StorageService.getSongs();
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(songs));
+        const libraryJson = JSON.stringify(songs, null, 2);
+        const defaultFilename = `bibliotheque_piano_${new Date().toISOString().split('T')[0]}.json`;
+
+        // Use Tauri dialog if available (desktop app)
+        if (isTauri()) {
+            try {
+                // Dynamically import Tauri APIs only in Tauri environment
+                const { save } = await import('@tauri-apps/api/dialog');
+                const { writeTextFile } = await import('@tauri-apps/api/fs');
+
+                const filePath = await save({
+                    defaultPath: defaultFilename,
+                    filters: [{
+                        name: 'JSON',
+                        extensions: ['json']
+                    }]
+                });
+
+                if (filePath) {
+                    await writeTextFile(filePath, libraryJson);
+                    console.log('Library exported to:', filePath);
+                    return { success: true, path: filePath };
+                }
+                return { success: false, cancelled: true };
+            } catch (error) {
+                console.error('Error exporting library with Tauri:', error);
+                // Fallback to web method
+            }
+        }
+
+        // Fallback: Web browser download
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(libraryJson);
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", `bibliotheque_piano_${new Date().toISOString().split('T')[0]}.json`);
+        downloadAnchorNode.setAttribute("download", defaultFilename);
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
+        return { success: true };
     },
 
     // Import library from JSON object or array

@@ -73,10 +73,15 @@ export function Settings({ isOpen, onClose }) {
         localStorage.setItem('piano-teacher-font-family', family);
     };
 
-    const handleExportLibrary = () => {
+    const handleExportLibrary = async () => {
         try {
-            StorageService.exportLibrary();
-            alert('✅ Bibliothèque exportée avec succès !');
+            const result = await StorageService.exportLibrary();
+            if (result.success && !result.cancelled) {
+                const message = result.path
+                    ? `✅ Bibliothèque exportée avec succès !\n${result.path}`
+                    : '✅ Bibliothèque exportée avec succès !';
+                alert(message);
+            }
         } catch (error) {
             alert('❌ Erreur lors de l\'export : ' + error.message);
         }
