@@ -1,8 +1,13 @@
 import { getMidiNumber } from '../models/song';
 
 // Detect if running in Tauri environment
+// In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
 const isTauri = () => {
-    return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+    if (typeof window === 'undefined') return false;
+    // Check for Tauri v2 environment variables
+    return import.meta.env.TAURI_PLATFORM !== undefined ||
+           import.meta.env.TAURI_FAMILY !== undefined ||
+           window.__TAURI_INTERNALS__ !== undefined;
 };
 
 // Dynamic import helper to avoid Vite trying to resolve Tauri imports in web mode

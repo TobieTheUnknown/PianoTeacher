@@ -11,8 +11,13 @@
  */
 
 // Detect if running in Tauri environment
+// In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
 const isTauri = () => {
-    return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+    if (typeof window === 'undefined') return false;
+    // Check for Tauri v2 environment variables
+    return import.meta.env.TAURI_PLATFORM !== undefined ||
+           import.meta.env.TAURI_FAMILY !== undefined ||
+           window.__TAURI_INTERNALS__ !== undefined;
 };
 
 // Dynamic import helper for Tauri modules
@@ -43,37 +48,15 @@ class MidiInputService {
             enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
         };
 
-        // Delay initialization to allow Tauri to load
+        // Initialize when DOM is ready (no polling needed for Tauri v2)
         if (typeof window !== 'undefined') {
-            // Wait for DOM to be ready and Tauri to be available
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => this.waitForTauriAndInit());
+                document.addEventListener('DOMContentLoaded', () => this.init());
             } else {
-                // DOM already loaded, wait for Tauri if needed
-                this.waitForTauriAndInit();
+                // DOM already loaded, initialize immediately
+                this.init();
             }
         }
-    }
-
-    // Wait for Tauri to be available before initializing
-    async waitForTauriAndInit() {
-        // Check if Tauri is available, wait up to 2 seconds
-        const maxWaitTime = 2000; // 2 seconds
-        const checkInterval = 50; // Check every 50ms
-        let waitedTime = 0;
-
-        while (waitedTime < maxWaitTime) {
-            if (typeof window.__TAURI__ !== 'undefined') {
-                console.log('Tauri detected after', waitedTime, 'ms');
-                break;
-            }
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            waitedTime += checkInterval;
-        }
-
-        // Initialize regardless of whether Tauri was detected
-        // (will fall back to Web MIDI API if Tauri not available)
-        this.init();
     }
 
     async init() {
@@ -84,7 +67,8 @@ class MidiInputService {
 
         console.log('Initializing MIDI service...');
         console.log('Tauri detected:', isTauri());
-        console.log('window.__TAURI__:', typeof window !== 'undefined' ? typeof window.__TAURI__ : 'undefined');
+        console.log('TAURI_PLATFORM:', import.meta.env.TAURI_PLATFORM);
+        console.log('TAURI_FAMILY:', import.meta.env.TAURI_FAMILY);
 
         // Check if running in Tauri
         if (isTauri()) {
