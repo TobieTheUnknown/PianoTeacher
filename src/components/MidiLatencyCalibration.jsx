@@ -5,6 +5,233 @@ import { audioEngine } from '../services/AudioEngine';
 import { getNoteNameFromMidi } from '../models/song';
 
 /**
+ * Visual Scrolling Track Component
+ *
+ * Guitar Hero / Synthesia style horizontal scrolling track
+ * Shows markers moving towards a hit line for visual calibration
+ */
+function VisualScrollingTrack({ currentBeat, totalBeats, beatInterval }) {
+    const [elapsedTime, setElapsedTime] = useState(0);
+    const startTimeRef = useRef(performance.now());
+    const animationFrameRef = useRef(null);
+
+    // Animation loop to update elapsed time
+    useEffect(() => {
+        startTimeRef.current = performance.now();
+
+        const animate = () => {
+            const now = performance.now();
+            const elapsed = now - startTimeRef.current;
+            setElapsedTime(elapsed);
+            animationFrameRef.current = requestAnimationFrame(animate);
+        };
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+
+        return () => {
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, []);
+
+    const trackWidth = 600; // px
+    const trackHeight = 120; // px
+    const hitLineX = trackWidth * 0.75; // Hit line at 75% from left
+    const anticipationTime = 3000; // 3 seconds ahead visible
+
+    // Generate beat markers
+    const beatMarkers = [];
+    for (let i = 1; i <= totalBeats; i++) {
+        const beatTime = i * beatInterval; // When this beat should hit the line
+        const timeUntilHit = beatTime - elapsedTime;
+
+        // Position: map time to position (right to left scrolling)
+        // When timeUntilHit = 0, marker should be at hitLineX
+        // When timeUntilHit = anticipationTime, marker should be at trackWidth
+        const x = hitLineX + (timeUntilHit / anticipationTime) * (trackWidth - hitLineX);
+
+        // Only show markers that are on screen (ahead of the hit line)
+        if (x > -50 && x < trackWidth + 50) {
+            const isPast = timeUntilHit < -200; // 200ms tolerance
+            const isActive = Math.abs(timeUntilHit) < 200; // ±200ms = active zone
+
+            beatMarkers.push({
+                beatNumber: i,
+                x,
+                isPast,
+                isActive,
+                isDownbeat: i === 1 || i % 4 === 1
+            });
+        }
+    }
+
+    // Generate grid lines (every 500ms)
+    const gridLines = [];
+    for (let t = 0; t <= anticipationTime; t += 500) {
+        const timeUntilHit = t;
+        const x = hitLineX + (timeUntilHit / anticipationTime) * (trackWidth - hitLineX);
+        if (x >= 0 && x <= trackWidth) {
+            gridLines.push({
+                x,
+                time: t,
+                isSecond: t % 1000 === 0
+            });
+        }
+    }
+
+    return (
+        <div style={{
+            margin: '2rem auto',
+            maxWidth: `${trackWidth}px`
+        }}>
+            {/* Beat counter */}
+            <div style={{
+                textAlign: 'center',
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                color: 'var(--text-primary)',
+                marginBottom: '1rem'
+            }}>
+                {currentBeat} / {totalBeats}
+            </div>
+
+            {/* Track container */}
+            <div style={{
+                position: 'relative',
+                width: `${trackWidth}px`,
+                height: `${trackHeight}px`,
+                background: 'linear-gradient(to bottom, #1f2937 0%, #111827 100%)',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                border: '2px solid var(--border-color)',
+                boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
+            }}>
+                {/* Grid lines */}
+                {gridLines.map((line, idx) => (
+                    <div
+                        key={idx}
+                        style={{
+                            position: 'absolute',
+                            left: `${line.x}px`,
+                            top: 0,
+                            bottom: 0,
+                            width: line.isSecond ? '2px' : '1px',
+                            background: line.isSecond
+                                ? 'rgba(255, 255, 255, 0.2)'
+                                : 'rgba(255, 255, 255, 0.05)',
+                            pointerEvents: 'none'
+                        }}
+                    />
+                ))}
+
+                {/* Beat markers */}
+                {beatMarkers.map((marker) => (
+                    <div
+                        key={marker.beatNumber}
+                        style={{
+                            position: 'absolute',
+                            left: `${marker.x - 15}px`,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '30px',
+                            height: marker.isDownbeat ? '80px' : '60px',
+                            background: marker.isPast
+                                ? 'rgba(107, 114, 128, 0.5)'
+                                : marker.isActive
+                                    ? 'linear-gradient(to bottom, #22c55e, #16a34a)'
+                                    : 'linear-gradient(to bottom, #3b82f6, #2563eb)',
+                            borderRadius: '6px',
+                            border: marker.isDownbeat ? '2px solid #fbbf24' : '1px solid rgba(255,255,255,0.3)',
+                            boxShadow: marker.isActive
+                                ? '0 0 20px rgba(34, 197, 94, 0.8)'
+                                : '0 2px 4px rgba(0,0,0,0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.9rem',
+                            fontWeight: 'bold',
+                            color: 'white',
+                            transition: 'none', // No transition for smooth scrolling
+                            pointerEvents: 'none'
+                        }}
+                    >
+                        {marker.beatNumber}
+                    </div>
+                ))}
+
+                {/* Hit line (vertical) */}
+                <div style={{
+                    position: 'absolute',
+                    left: `${hitLineX}px`,
+                    top: 0,
+                    bottom: 0,
+                    width: '4px',
+                    background: 'linear-gradient(to bottom, #ef4444, #dc2626)',
+                    boxShadow: '0 0 15px rgba(239, 68, 68, 0.8)',
+                    pointerEvents: 'none',
+                    zIndex: 10
+                }} />
+
+                {/* Hit zone indicator */}
+                <div style={{
+                    position: 'absolute',
+                    left: `${hitLineX}px`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '60px',
+                    height: '100%',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '2px dashed rgba(239, 68, 68, 0.3)',
+                    pointerEvents: 'none',
+                    zIndex: 1
+                }} />
+            </div>
+
+            {/* Legend */}
+            <div style={{
+                marginTop: '1rem',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '1.5rem',
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{
+                        width: '20px',
+                        height: '20px',
+                        background: 'linear-gradient(to bottom, #3b82f6, #2563eb)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(255,255,255,0.3)'
+                    }} />
+                    <span>Temps à venir</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{
+                        width: '20px',
+                        height: '20px',
+                        background: 'linear-gradient(to bottom, #22c55e, #16a34a)',
+                        borderRadius: '4px',
+                        boxShadow: '0 0 10px rgba(34, 197, 94, 0.5)'
+                    }} />
+                    <span>Zone active - Jouez maintenant !</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{
+                        width: '4px',
+                        height: '20px',
+                        background: 'linear-gradient(to bottom, #ef4444, #dc2626)',
+                        boxShadow: '0 0 5px rgba(239, 68, 68, 0.5)'
+                    }} />
+                    <span>Ligne de jeu</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
  * MIDI Latency Calibration Component
  *
  * Measures the latency between visual/audio cues and MIDI input
@@ -111,7 +338,7 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
 
         setInstructions(
             calibrationType === 'visual'
-                ? '🎵 Jouez UNE NOTE sur chaque flash vert !'
+                ? '🎵 Jouez UNE NOTE quand le marqueur atteint la ligne !'
                 : '🎵 Jouez UNE NOTE sur chaque "bip" !'
         );
 
@@ -129,13 +356,11 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
                 const expectedTime = startTime + (beat * beatInterval);
                 expectedBeatTimes.current.push(expectedTime);
 
-                // Trigger visual/audio cue
-                if (calibrationType === 'visual') {
-                    playVisualPulse();
-                    playMetronomeClick(beat === 1 || beat % 4 === 1); // Accent on downbeat
-                } else {
+                // Trigger audio cue (only for audio mode)
+                if (calibrationType === 'audio') {
                     playMetronomeClick(beat === 1 || beat % 4 === 1);
                 }
+                // Visual mode: no metronome, just visual scrolling
             } else {
                 // Calibration complete
                 clearInterval(metronomeInterval.current);
@@ -258,9 +483,9 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
                             color: 'var(--text-secondary)'
                         }}>
                             <li>Un compte à rebours de 3 secondes va commencer</li>
-                            <li>Ensuite, {calibrationType === 'visual' ? 'un cercle vert flashera' : 'vous entendrez un "bip"'} 8 fois</li>
-                            <li><strong>Jouez N'IMPORTE QUELLE NOTE</strong> sur votre clavier à chaque signal</li>
-                            <li>Suivez le rythme du métronome (1 battement/seconde)</li>
+                            <li>Ensuite, {calibrationType === 'visual' ? 'des marqueurs défileront vers la ligne rouge' : 'vous entendrez un "bip"'} 8 fois</li>
+                            <li><strong>Jouez N'IMPORTE QUELLE NOTE</strong> {calibrationType === 'visual' ? 'quand un marqueur atteint la ligne rouge' : 'à chaque signal'}</li>
+                            <li>{calibrationType === 'visual' ? 'Le quadrillage vous aide à anticiper les battements' : 'Suivez le rythme du métronome (1 battement/seconde)'}</li>
                             <li>Le système calculera automatiquement votre latence</li>
                         </ol>
                         <p style={{
@@ -341,41 +566,50 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
             {/* Calibration phase */}
             {phase === 'calibrating' && (
                 <>
-                    {/* Visual metronome indicator */}
-                    <div style={{
-                        width: '150px',
-                        height: '150px',
-                        borderRadius: '50%',
-                        margin: '2rem auto',
-                        background: currentBeat > 0 && calibrationType === 'visual' ? '#22c55e' : '#374151',
-                        boxShadow: currentBeat > 0 && calibrationType === 'visual' ? '0 0 40px rgba(34, 197, 94, 0.8)' : 'none',
-                        transition: 'all 0.05s ease-out',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '3rem',
-                        position: 'relative'
-                    }}>
-                        {currentBeat > 0 ? '🎵' : '⏸️'}
+                    {calibrationType === 'visual' ? (
+                        /* Visual scrolling mode - Guitar Hero style */
+                        <VisualScrollingTrack
+                            currentBeat={currentBeat}
+                            totalBeats={totalBeats}
+                            beatInterval={beatInterval}
+                        />
+                    ) : (
+                        /* Audio mode - simple metronome indicator */
+                        <>
+                            <div style={{
+                                width: '150px',
+                                height: '150px',
+                                borderRadius: '50%',
+                                margin: '2rem auto',
+                                background: '#374151',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '3rem',
+                                position: 'relative'
+                            }}>
+                                🔊
 
-                        {/* Beat counter */}
-                        <div style={{
-                            position: 'absolute',
-                            bottom: '-3rem',
-                            fontSize: '1.5rem',
-                            fontWeight: 'bold',
-                            color: 'var(--text-primary)'
-                        }}>
-                            {currentBeat} / {totalBeats}
-                        </div>
-                    </div>
+                                {/* Beat counter */}
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: '-3rem',
+                                    fontSize: '1.5rem',
+                                    fontWeight: 'bold',
+                                    color: 'var(--text-primary)'
+                                }}>
+                                    {currentBeat} / {totalBeats}
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     {/* Instructions */}
                     <div style={{
                         background: 'var(--surface-tertiary)',
                         padding: '1rem',
                         borderRadius: '6px',
-                        marginTop: '3rem',
+                        marginTop: calibrationType === 'visual' ? '1.5rem' : '3rem',
                         textAlign: 'center',
                         fontSize: '1.1rem',
                         fontWeight: '500'
