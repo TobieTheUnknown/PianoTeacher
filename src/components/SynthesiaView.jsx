@@ -3,6 +3,7 @@ import * as Tone from 'tone';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
+import { midiInputService } from '../services/MidiInputService';
 
 /**
  * SynthesiaView - Falling notes visualization with scoring and wait mode
@@ -68,14 +69,19 @@ export function SynthesiaView({ song }) {
         correctNotes: 0,
         wrongNotes: 0,
         missedNotes: 0,
+        perfectNotes: 0,
+        goodNotes: 0,
         totalNotes: 0,
         startTime: null,
-        completed: false
+        completed: false,
+        currentCombo: 0,
+        maxCombo: 0
     });
     const [playedNotes, setPlayedNotes] = useState(new Map()); // Track which notes have been played
     const [feedbackMessages, setFeedbackMessages] = useState([]); // Visual feedback for correct/wrong
     const [expectedNotes, setExpectedNotes] = useState(new Set()); // Notes that should be played now
     const [songStats, setSongStats] = useState(null);
+    const [freePlayMode, setFreePlayMode] = useState(false); // Mode "sans fausse note" pour improvisation
 
     // Canvas dimensions
     const CANVAS_WIDTH = 1200;
@@ -88,38 +94,136 @@ export function SynthesiaView({ song }) {
     const LAST_KEY = 108; // MIDI note C8
     const WHITE_KEY_WIDTH = CANVAS_WIDTH / 52; // 52 white keys
 
-    // Timing tolerance for note detection (in seconds)
-    const NOTE_TOLERANCE = 0.3; // 300ms window
+    // Timing tolerance for note detection (in seconds) - Inspired by Synthesia
+    const PERFECT_TOLERANCE = 0.052; // ±52ms for "Perfect" (Synthesia standard + 2ms buffer)
+    const GOOD_TOLERANCE = 0.152; // ±152ms for "Good"
+    const NOTE_TOLERANCE = 0.302; // ±302ms max window for "OK"
     const WAIT_MODE_THRESHOLD = 0.05; // Wait mode triggers when note is within 50ms of hit line
 
     // Initialize Audio & MIDI
     useEffect(() => {
-        // Init Audio Service on mount (requires user interaction technically, but we prepare it)
+        // Init Audio Service on mount
         const initAudio = async () => {
             await audioEngine.initialize();
             setAudioInitialized(true);
         };
         initAudio();
 
-        if (navigator.requestMIDIAccess) {
-            navigator.requestMIDIAccess()
-                .then(access => {
-                    setMidiAccess(access);
-                    setupMIDIInputs(access);
-                })
-                .catch(err => console.warn('MIDI access denied:', err));
-        }
-
         return () => {
             audioEngine.stopAll();
         };
     }, []);
 
-    const setupMIDIInputs = (access) => {
-        access.inputs.forEach(input => {
-            input.onmidimessage = handleMIDIMessage;
-        });
-    };
+    // Setup MIDI Input Service listener
+    useEffect(() => {
+        // Listen to MIDI note events from MidiInputService
+        const handleNoteOn = (event) => {
+            const { note, velocity } = event;
+
+            // Add to active notes
+            setActiveNotes(prev => new Set([...prev, note]));
+
+            // Play audio with volume from settings
+            const midiSettings = midiInputService.getSettings();
+            const midiVolume = (midiSettings.midiVolume || 70) / 100; // Convert percentage to 0-1
+
+            // Play the note audio
+            if (audioInitialized && audioEngine.sampler) {
+                const noteDuration = 2; // 2 seconds sustain for MIDI input
+                audioEngine.sampler.triggerAttack(getFrenchNoteName(note), Tone.now(), velocity / 127 * midiVolume);
+            }
+
+            // Check if this note is expected in the song (only if not in free play mode)
+            if (!freePlayMode) {
+                const isExpected = expectedNotes.has(note);
+
+                if (isExpected) {
+                    // Find the note object
+                    const noteObj = allNotes.find(n =>
+                        n.pitch === note &&
+                        !playedNotes.has(n.id) &&
+                        Math.abs(currentTime - n.startTime / beatsPerSecond) <= NOTE_TOLERANCE
+                    );
+
+                    if (noteObj) {
+                        const timeDiff = Math.abs(currentTime - noteObj.startTime / beatsPerSecond);
+                        let accuracy = 'ok';
+                        let feedbackText = '✓';
+
+                        // Determine accuracy level
+                        if (timeDiff <= PERFECT_TOLERANCE) {
+                            accuracy = 'perfect';
+                            feedbackText = '✨ PARFAIT !';
+                        } else if (timeDiff <= GOOD_TOLERANCE) {
+                            accuracy = 'good';
+                            feedbackText = '✓ Bien';
+                        }
+
+                        // Correct note!
+                        processedNotesRef.current.add(noteObj.id);
+                        setPlayedNotes(prev => new Map(prev).set(noteObj.id, 'correct'));
+
+                        setSessionStats(prev => {
+                            const newCombo = prev.currentCombo + 1;
+                            return {
+                                ...prev,
+                                correctNotes: prev.correctNotes + 1,
+                                perfectNotes: accuracy === 'perfect' ? prev.perfectNotes + 1 : prev.perfectNotes,
+                                goodNotes: accuracy === 'good' ? prev.goodNotes + 1 : prev.goodNotes,
+                                currentCombo: newCombo,
+                                maxCombo: Math.max(prev.maxCombo, newCombo)
+                            };
+                        });
+
+                        addFeedback(`${feedbackText} ${getFrenchNoteName(note)}`, 'correct', note, accuracy);
+
+                        // In wait mode, resume playback after correct note
+                        if (waitMode && pausedAtTimeRef.current !== null) {
+                            resumeAfterWait();
+                        }
+                    }
+                } else {
+                    // Wrong note (not expected)
+                    if (handMode !== 'watch') {
+                        setSessionStats(prev => ({
+                            ...prev,
+                            wrongNotes: prev.wrongNotes + 1,
+                            currentCombo: 0 // Reset combo on wrong note
+                        }));
+
+                        addFeedback(`✗ ${getFrenchNoteName(note)}`, 'wrong', note);
+                    }
+                }
+            } else {
+                // Free play mode - just show the note being played
+                addFeedback(`🎹 ${getFrenchNoteName(note)}`, 'freeplay', note);
+            }
+        };
+
+        const handleNoteOff = (event) => {
+            const { note } = event;
+
+            // Remove from active notes
+            setActiveNotes(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(note);
+                return newSet;
+            });
+
+            // Release audio
+            if (audioInitialized && audioEngine.sampler) {
+                audioEngine.sampler.triggerRelease(getFrenchNoteName(note), Tone.now());
+            }
+        };
+
+        midiInputService.addEventListener('noteOn', handleNoteOn);
+        midiInputService.addEventListener('noteOff', handleNoteOff);
+
+        return () => {
+            midiInputService.removeEventListener('noteOn', handleNoteOn);
+            midiInputService.removeEventListener('noteOff', handleNoteOff);
+        };
+    }, [expectedNotes, playedNotes, currentTime, beatsPerSecond, allNotes, waitMode, handMode, audioInitialized, freePlayMode]);
 
     // Helper to convert note name to MIDI number
     const getMidiNumber = (noteName) => {
@@ -456,62 +560,6 @@ export function SynthesiaView({ song }) {
 
     }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision]);
 
-    // MIDI message handler with note detection
-    const handleMIDIMessage = (message) => {
-        const [command, note, velocity] = message.data;
-
-        if (command === 144 && velocity > 0) {
-            // Note on
-            setActiveNotes(prev => new Set([...prev, note]));
-
-            // Check if this note is expected
-            const isExpected = expectedNotes.has(note);
-
-            if (isExpected) {
-                // Find the note object
-                const noteObj = allNotes.find(n =>
-                    n.pitch === note &&
-                    !playedNotes.has(n.id) &&
-                    Math.abs(currentTime - n.startTime / beatsPerSecond) <= NOTE_TOLERANCE
-                );
-
-                if (noteObj) {
-                    // Correct note!
-                    processedNotesRef.current.add(noteObj.id); // Mark as processed
-                    setPlayedNotes(prev => new Map(prev).set(noteObj.id, 'correct'));
-                    setSessionStats(prev => ({
-                        ...prev,
-                        correctNotes: prev.correctNotes + 1
-                    }));
-
-                    addFeedback(`✓ ${getMidiNoteName(note)}`, 'correct', note);
-
-                    // In wait mode, resume playback after correct note
-                    if (waitMode && pausedAtTimeRef.current !== null) {
-                        resumeAfterWait();
-                    }
-                }
-            } else {
-                // Only count wrong notes if we are supposed to be playing something
-                if (handMode !== 'watch') {
-                    setSessionStats(prev => ({
-                        ...prev,
-                        wrongNotes: prev.wrongNotes + 1
-                    }));
-
-                    addFeedback(`✗ ${getMidiNoteName(note)}`, 'wrong', note);
-                }
-            }
-        } else if (command === 128 || (command === 144 && velocity === 0)) {
-            // Note off
-            setActiveNotes(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(note);
-                return newSet;
-            });
-        }
-    };
-
     // Resume playback after wait mode pause
     const resumeAfterWait = () => {
         if (pausedAtTimeRef.current !== null) {
@@ -522,21 +570,23 @@ export function SynthesiaView({ song }) {
     };
 
     // Add visual feedback
-    const addFeedback = (message, type, noteNum) => {
+    const addFeedback = (message, type, noteNum, accuracy = null) => {
         const feedback = {
-            id: Date.now(),
+            id: Date.now() + Math.random(), // Ensure unique ID
             message,
             type,
             noteNum,
+            accuracy, // 'perfect', 'good', 'ok', or null
             timestamp: Date.now()
         };
 
         setFeedbackMessages(prev => [...prev, feedback]);
 
-        // Remove feedback after 1 second
+        // Remove feedback after duration based on type
+        const duration = accuracy === 'perfect' ? 1500 : 1000; // Perfect notes stay longer
         setTimeout(() => {
             setFeedbackMessages(prev => prev.filter(f => f.id !== feedback.id));
-        }, 1000);
+        }, duration);
     };
 
     // Get note name from MIDI number (French)
@@ -973,17 +1023,82 @@ export function SynthesiaView({ song }) {
             const x = getNoteX(feedback.noteNum);
             if (x === null) return;
 
-            const y = CANVAS_HEIGHT - KEYBOARD_HEIGHT - 60 - (index * 30);
+            const y = CANVAS_HEIGHT - KEYBOARD_HEIGHT - 60 - (index * 35);
             const age = Date.now() - feedback.timestamp;
-            const opacity = Math.max(0, 1 - age / 1000);
+            const duration = feedback.accuracy === 'perfect' ? 1500 : 1000;
+            const opacity = Math.max(0, 1 - age / duration);
 
             ctx.globalAlpha = opacity;
-            ctx.font = 'bold 18px Arial';
-            ctx.fillStyle = feedback.type === 'correct' ? COLORS.playedCorrect : COLORS.playedWrong;
+
+            // Determine color and font size based on accuracy
+            let color = COLORS.playedCorrect;
+            let fontSize = 18;
+            let fontWeight = 'bold';
+
+            if (feedback.type === 'correct') {
+                if (feedback.accuracy === 'perfect') {
+                    color = '#fbbf24'; // Gold for perfect
+                    fontSize = 22;
+                    // Add sparkle effect for perfect notes
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#fbbf24';
+                } else if (feedback.accuracy === 'good') {
+                    color = '#22c55e'; // Green for good
+                    fontSize = 20;
+                }
+            } else if (feedback.type === 'wrong') {
+                color = COLORS.playedWrong;
+            } else if (feedback.type === 'freeplay') {
+                color = '#60a5fa'; // Blue for free play
+                fontSize = 16;
+            }
+
+            ctx.font = `${fontWeight} ${fontSize}px Arial`;
+            ctx.fillStyle = color;
             ctx.textAlign = 'center';
             ctx.fillText(feedback.message, x + WHITE_KEY_WIDTH / 2, y);
+
+            ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
         });
+    };
+
+    // Draw combo counter
+    const drawCombo = (ctx) => {
+        if (sessionStats.currentCombo <= 2) return; // Only show combo after 3+ notes
+
+        const comboX = CANVAS_WIDTH - 150;
+        const comboY = 80;
+
+        // Draw combo background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(comboX - 20, comboY - 50, 140, 70);
+        ctx.strokeStyle = sessionStats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(comboX - 20, comboY - 50, 140, 70);
+
+        // Draw combo text
+        ctx.textAlign = 'center';
+        ctx.fillStyle = sessionStats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
+
+        // Combo number
+        ctx.font = 'bold 32px Arial';
+        ctx.fillText(`${sessionStats.currentCombo}x`, comboX + 50, comboY - 10);
+
+        // "COMBO" label
+        ctx.font = 'bold 14px Arial';
+        ctx.fillText('COMBO', comboX + 50, comboY + 5);
+
+        // Add pulse effect for high combos
+        if (sessionStats.currentCombo >= 10) {
+            const pulse = Math.sin(Date.now() / 100) * 0.2 + 0.8;
+            ctx.globalAlpha = pulse;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#fbbf24';
+            ctx.fillText('🔥', comboX + 50, comboY - 25);
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
+        }
     };
 
     // Draw enhanced hit line with glow effect (optimized)
@@ -1045,7 +1160,10 @@ export function SynthesiaView({ song }) {
         // Draw feedback messages
         drawFeedback(ctx);
 
-    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes]);
+        // Draw combo counter
+        drawCombo(ctx);
+
+    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes, sessionStats.currentCombo]);
 
     // Animation loop
     useEffect(() => {
@@ -1198,9 +1316,13 @@ export function SynthesiaView({ song }) {
             correctNotes: 0,
             wrongNotes: 0,
             missedNotes: 0,
+            perfectNotes: 0,
+            goodNotes: 0,
             totalNotes: allNotes.length,
             startTime: null,
-            completed: false
+            completed: false,
+            currentCombo: 0,
+            maxCombo: 0
         });
     };
 
@@ -1438,14 +1560,15 @@ export function SynthesiaView({ song }) {
             <div style={{
                 width: '100%',
                 maxWidth: `${CANVAS_WIDTH}px`,
-                display: 'flex',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(6, 1fr)',
                 gap: '1rem',
                 padding: '1rem',
                 background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-color)'
             }}>
-                <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
                         Précision
                     </div>
@@ -1453,28 +1576,44 @@ export function SynthesiaView({ song }) {
                         {calculateAccuracy()}%
                     </div>
                 </div>
-                <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                        ✓ Correctes
+                        ✨ Parfait
                     </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#22c55e' }}>
-                        {sessionStats.correctNotes}/{sessionStats.totalNotes}
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#fbbf24' }}>
+                        {sessionStats.perfectNotes}
                     </div>
                 </div>
-                <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                        ✗ Incorrectes
+                        ✓ Bien
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#22c55e' }}>
+                        {sessionStats.goodNotes}
+                    </div>
+                </div>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                        ✗ Fausses
                     </div>
                     <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#ef4444' }}>
                         {sessionStats.wrongNotes}
                     </div>
                 </div>
-                <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
                         ⊘ Manquées
                     </div>
                     <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#f59e0b' }}>
                         {sessionStats.missedNotes}
+                    </div>
+                </div>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                        🔥 Max Combo
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: sessionStats.maxCombo >= 10 ? '#fbbf24' : '#22c55e' }}>
+                        {sessionStats.maxCombo}x
                     </div>
                 </div>
             </div>
@@ -1576,6 +1715,23 @@ export function SynthesiaView({ song }) {
                         }}
                     >
                         {waitMode ? '⏸️ Attente' : '⏸️ Continue'}
+                    </button>
+
+                    <button
+                        onClick={() => setFreePlayMode(!freePlayMode)}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: freePlayMode ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
+                            color: freePlayMode ? 'white' : 'var(--text-primary)',
+                            border: freePlayMode ? 'none' : '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            fontSize: '0.875rem'
+                        }}
+                        title="Mode libre : jouez sans contrainte, pas de notes manquées"
+                    >
+                        {freePlayMode ? '🎵 Libre' : '🎯 Guidé'}
                     </button>
                 </div>
 

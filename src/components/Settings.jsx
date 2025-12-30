@@ -792,6 +792,43 @@ export function Settings({ isOpen, onClose }) {
                                                         <span>50 (peu sensible)</span>
                                                     </div>
                                                 </div>
+
+                                                {/* MIDI Volume */}
+                                                <div>
+                                                    <label style={{
+                                                        display: 'block',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: '500',
+                                                        color: 'var(--text-primary)',
+                                                        marginBottom: '0.5rem'
+                                                    }}>
+                                                        Volume MIDI : {midiSettings.midiVolume}%
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="100"
+                                                        step="5"
+                                                        value={midiSettings.midiVolume}
+                                                        onChange={(e) => handleMidiSettingChange('midiVolume', parseInt(e.target.value))}
+                                                        style={{
+                                                            width: '100%',
+                                                            cursor: 'pointer',
+                                                            accentColor: 'var(--accent-primary)'
+                                                        }}
+                                                    />
+                                                    <div style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--text-secondary)',
+                                                        marginTop: '0.25rem'
+                                                    }}>
+                                                        <span>0% (muet)</span>
+                                                        <span>70% (recommandé)</span>
+                                                        <span>100% (max)</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 

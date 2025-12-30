@@ -24,6 +24,7 @@ class MidiInputService {
             velocitySensitivity: parseFloat(localStorage.getItem('midi-velocity-sensitivity')) || 1.0,
             latencyCompensation: parseInt(localStorage.getItem('midi-latency')) || 0,
             noteOnThreshold: parseInt(localStorage.getItem('midi-note-on-threshold')) || 10,
+            midiVolume: parseInt(localStorage.getItem('midi-volume')) || 70, // Default 70%
             enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
         };
 
@@ -200,6 +201,9 @@ class MidiInputService {
         }
         if (newSettings.noteOnThreshold !== undefined) {
             localStorage.setItem('midi-note-on-threshold', newSettings.noteOnThreshold.toString());
+        }
+        if (newSettings.midiVolume !== undefined) {
+            localStorage.setItem('midi-volume', newSettings.midiVolume.toString());
         }
         if (newSettings.enabledChannels !== undefined) {
             localStorage.setItem('midi-enabled-channels', JSON.stringify(newSettings.enabledChannels));
