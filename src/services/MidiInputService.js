@@ -21,9 +21,9 @@ const isTauri = () => {
 };
 
 // Dynamic import helper for Tauri modules
+// Now that packages are installed as npm dependencies, we can use standard dynamic imports
 const importTauriModule = async (moduleName) => {
-    const importFunc = new Function('moduleName', 'return import(moduleName)');
-    return await importFunc(moduleName);
+    return await import(moduleName);
 };
 
 class MidiInputService {

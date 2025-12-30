@@ -10,11 +10,10 @@ const isTauri = () => {
            window.__TAURI_INTERNALS__ !== undefined;
 };
 
-// Dynamic import helper to avoid Vite trying to resolve Tauri imports in web mode
+// Dynamic import helper for Tauri modules
+// Now that packages are installed as npm dependencies, we can use standard dynamic imports
 const importTauriModule = async (moduleName) => {
-    // Use Function constructor to completely hide the import from Vite static analysis
-    const importFunc = new Function('moduleName', 'return import(moduleName)');
-    return await importFunc(moduleName);
+    return await import(moduleName);
 };
 
 // Helper to get the correct module paths for Tauri v2 plugins
