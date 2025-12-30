@@ -89,14 +89,27 @@ pub async fn connect_midi_device(
         .port_name(port)
         .unwrap_or_else(|_| "Unknown".to_string());
 
+    log::info!("Attempting to connect to port: {} (index {})", port_name, device_idx);
+
     // Clone app handle for the callback
     let app_clone = app.clone();
+
+    // Use a unique connection name with timestamp to avoid conflicts
+    let connection_name = format!("piano-teacher-{}-{}",
+        device_idx,
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    );
+
+    log::info!("Using connection name: {}", connection_name);
 
     // Connect to the MIDI device
     let connection = midi_in
         .connect(
             port,
-            &format!("piano-teacher-{}", device_idx),
+            &connection_name,
             move |_timestamp, message, _| {
                 if message.len() >= 3 {
                     let midi_msg = MidiMessage {
@@ -115,7 +128,10 @@ pub async fn connect_midi_device(
             },
             (),
         )
-        .map_err(|e| format!("Failed to connect to device: {}", e))?;
+        .map_err(|e| {
+            log::error!("Failed to connect to MIDI port '{}': {}", port_name, e);
+            format!("Failed to connect to device '{}': {}", port_name, e)
+        })?;
 
     // Store connection in state
     {
