@@ -78,11 +78,32 @@ jobs:
       - name: Build Tauri app
         run: npm run tauri build -- --target ${{ matrix.target }}
 
-      - name: Upload artifacts
+      - name: Upload artifacts (macOS)
+        if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: piano-teacher-${{ matrix.name }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          retention-days: 7
+
+      - name: Upload artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: piano-teacher-${{ matrix.name }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+          retention-days: 7
+
+      - name: Upload artifacts (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: piano-teacher-${{ matrix.name }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
           retention-days: 7
 
   create-release:
@@ -99,12 +120,24 @@ jobs:
         with:
           path: artifacts/
 
+      - name: Compress web-dist
+        run: |
+          cd artifacts/web-dist
+          zip -r ../piano-teacher-web.zip .
+          cd ../..
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           name: Piano Teacher v1.5.5 - Performance & Architecture
           body_path: .github/RELEASE_NOTES.md
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.exe
+            artifacts/**/*.msi
+            artifacts/**/*.deb
+            artifacts/**/*.AppImage
+            artifacts/piano-teacher-web.zip
           draft: false
           prerelease: false
         env:
