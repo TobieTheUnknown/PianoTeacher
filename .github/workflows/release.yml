@@ -1,4 +1,4 @@
-name: Release v1.5.5
+name: Release
 
 on:
   push:
@@ -126,11 +126,24 @@ jobs:
           zip -r ../piano-teacher-web.zip .
           cd ../..
 
+      - name: Determine release notes file
+        id: release_notes
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          if [ -f ".github/RELEASE_NOTES_${VERSION}.md" ]; then
+            echo "file=.github/RELEASE_NOTES_${VERSION}.md" >> $GITHUB_OUTPUT
+            echo "Using release notes: .github/RELEASE_NOTES_${VERSION}.md"
+          else
+            echo "file=.github/RELEASE_NOTES.md" >> $GITHUB_OUTPUT
+            echo "Using default release notes: .github/RELEASE_NOTES.md"
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: Piano Teacher v1.5.5 - Performance & Architecture
-          body_path: .github/RELEASE_NOTES.md
+          name: Piano Teacher ${{ github.ref_name }}
+          body_path: ${{ steps.release_notes.outputs.file }}
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.exe

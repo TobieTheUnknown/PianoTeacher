@@ -36,15 +36,15 @@
   --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
   --font-mono: 'SF Mono', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
 
-  /* Spacing Scale - Generous Whitespace */
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 1rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 2rem;
-  --spacing-2xl: 3rem;
-  --spacing-3xl: 4rem;
-  --spacing-4xl: 6rem;
+  /* Spacing Scale - Compact */
+  --spacing-xs: 0.2rem;
+  --spacing-sm: 0.4rem;
+  --spacing-md: 0.75rem;
+  --spacing-lg: 1rem;
+  --spacing-xl: 1.25rem;
+  --spacing-2xl: 1.5rem;
+  --spacing-3xl: 2rem;
+  --spacing-4xl: 3rem;
 
   /* Border Radius Scale - Subtle Roundness */
   --radius-xs: 0.125rem;
@@ -67,6 +67,9 @@
   --transition-fast: 0.1s ease;
   --transition-normal: 0.15s ease;
   --transition-slow: 0.2s ease;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
 }
 
 * {
@@ -76,6 +79,7 @@
 body {
   margin: 0;
   font-family: var(--font-family);
+  font-size: 15px;
   background: var(--bg-primary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;

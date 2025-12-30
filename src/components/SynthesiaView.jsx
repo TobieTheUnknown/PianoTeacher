@@ -1431,8 +1431,8 @@ export function SynthesiaView({ song }) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '1.5rem',
-            padding: '2rem'
+            gap: '0.75rem',
+            padding: '1rem'
         }}>
             <div style={{
                 display: 'flex',
@@ -1510,8 +1510,8 @@ export function SynthesiaView({ song }) {
                 width: '100%',
                 maxWidth: `${CANVAS_WIDTH}px`,
                 display: 'flex',
-                gap: '2rem',
-                padding: '1rem 1.5rem',
+                gap: '1rem',
+                padding: '0.5rem 0.75rem',
                 background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-color)',
@@ -1550,7 +1550,7 @@ export function SynthesiaView({ song }) {
                                         onClick={() => setMetronomeDivision(division)}
                                         style={{
                                             padding: '0.4rem 0.8rem',
-                                            background: metronomeDivision === division ? 'var(--primary-color)' : 'var(--bg-tertiary)',
+                                            background: metronomeDivision === division ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
                                             color: metronomeDivision === division ? 'white' : 'var(--text-primary)',
                                             border: metronomeDivision === division ? 'none' : '1px solid var(--border-color)',
                                             borderRadius: 'var(--radius-md)',
@@ -1582,7 +1582,7 @@ export function SynthesiaView({ song }) {
                         style={{
                             flex: 1,
                             cursor: 'pointer',
-                            accentColor: 'var(--primary-color)'
+                            accentColor: 'var(--accent-primary)'
                         }}
                     />
                     <span style={{
@@ -1602,59 +1602,43 @@ export function SynthesiaView({ song }) {
                 width: '100%',
                 maxWidth: `${CANVAS_WIDTH}px`,
                 display: 'grid',
-                gridTemplateColumns: 'repeat(6, 1fr)',
-                gap: '1rem',
-                padding: '1rem',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '0.5rem',
+                padding: '0.5rem 0.75rem',
                 background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-color)'
             }}>
                 <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>
                         Précision
                     </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)' }}>
                         {calculateAccuracy()}%
                     </div>
                 </div>
-                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                        ✨ Parfait
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '0.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>
+                        ✓ Correctes
                     </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#fbbf24' }}>
-                        {sessionStats.perfectNotes}
-                    </div>
-                </div>
-                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                        ✓ Bien
-                    </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#22c55e' }}>
-                        {sessionStats.goodNotes}
+                    <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#22c55e' }}>
+                        {sessionStats.correctNotes}/{sessionStats.totalNotes}
                     </div>
                 </div>
-                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                        ✗ Fausses
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '0.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>
+                        ✗ Incorrectes
                     </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#ef4444' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#ef4444' }}>
                         {sessionStats.wrongNotes}
                     </div>
                 </div>
-                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '0.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>
                         ⊘ Manquées
                     </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#f59e0b' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#f59e0b' }}>
                         {sessionStats.missedNotes}
-                    </div>
-                </div>
-                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                        🔥 Max Combo
-                    </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: sessionStats.maxCombo >= 10 ? '#fbbf24' : '#22c55e' }}>
-                        {sessionStats.maxCombo}x
                     </div>
                 </div>
             </div>
@@ -1791,8 +1775,8 @@ export function SynthesiaView({ song }) {
                                         onClick={() => setHandMode(hand)}
                                         style={{
                                             padding: '0.5rem 1rem',
-                                            background: handMode === hand ? 'var(--primary-color)' : 'var(--bg-tertiary)',
-                                            color: handMode === hand ? 'white' : 'var(--text-primary)',
+                                            background: handMode === hand ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                                            color: handMode === hand ? 'var(--bg-primary)' : 'var(--text-primary)',
                                             border: 'none',
                                             cursor: 'pointer',
                                             fontSize: '0.85rem',
@@ -1953,8 +1937,8 @@ export function SynthesiaView({ song }) {
                 {isLoopEnabled && loopConfig && (
                     <div style={{
                         padding: '0.75rem 1.25rem',
-                        background: 'var(--primary-color)',
-                        color: 'white',
+                        background: 'var(--accent-primary)',
+                        color: 'var(--bg-primary)',
                         borderRadius: 'var(--radius-md)',
                         fontSize: '0.9rem',
                         fontWeight: '600',
