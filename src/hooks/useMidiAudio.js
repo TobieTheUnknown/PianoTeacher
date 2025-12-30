@@ -12,32 +12,61 @@ import { audioEngine } from '../services/AudioEngine';
  */
 export function useMidiAudio() {
     const audioInitialized = useRef(false);
+    const isInitializing = useRef(false);
 
     useEffect(() => {
-        // Initialize audio engine
-        const initAudio = async () => {
-            if (!audioInitialized.current) {
-                await audioEngine.initialize();
-                audioInitialized.current = true;
-                console.log('Global MIDI Audio initialized');
-            }
-        };
-        initAudio();
-
         // MIDI event handlers
-        const handleNoteOn = (event) => {
+        const handleNoteOn = async (event) => {
             const { note, velocity } = event;
+
+            // Initialize audio on first MIDI event if needed (requires user interaction)
+            if (!audioInitialized.current && !isInitializing.current) {
+                isInitializing.current = true;
+                try {
+                    console.log('Initializing MIDI audio on first MIDI event...');
+                    await audioEngine.initialize();
+                    audioInitialized.current = true;
+                    console.log('Global MIDI Audio initialized successfully');
+                } catch (error) {
+                    console.error('Failed to initialize MIDI audio:', error);
+                    isInitializing.current = false;
+                    return;
+                }
+            }
+
+            // Wait for initialization to complete if in progress
+            if (isInitializing.current && !audioInitialized.current) {
+                // Skip this event, will work on next one
+                return;
+            }
 
             // Play audio with volume from settings
             if (audioInitialized.current && audioEngine.sampler) {
+                // Ensure audio context is running
+                if (Tone.context.state !== 'running') {
+                    console.log('Starting Tone audio context...');
+                    await Tone.start();
+                }
+
                 const midiSettings = midiInputService.getSettings();
                 const midiVolume = (midiSettings.midiVolume || 70) / 100;
 
-                audioEngine.sampler.triggerAttack(
-                    getFrenchNoteName(note),
-                    Tone.now(),
-                    velocity / 127 * midiVolume
-                );
+                console.log(`Playing MIDI note ${note} (${getFrenchNoteName(note)}) at volume ${midiVolume}, context state: ${Tone.context.state}`);
+
+                try {
+                    audioEngine.sampler.triggerAttack(
+                        getFrenchNoteName(note),
+                        Tone.now(),
+                        velocity / 127 * midiVolume
+                    );
+                } catch (error) {
+                    console.error('Error playing MIDI note:', error);
+                }
+            } else {
+                console.warn('Cannot play MIDI note: audio not initialized or sampler not loaded', {
+                    audioInitialized: audioInitialized.current,
+                    samplerExists: !!audioEngine.sampler
+                });
             }
         };
 
