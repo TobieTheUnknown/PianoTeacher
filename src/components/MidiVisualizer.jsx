@@ -149,7 +149,7 @@ export function MidiVisualizer({ compact = false }) {
         return (
             <div style={{
                 display: 'flex',
-                alignItems: 'flex-end',
+                alignItems: 'flex-start',
                 justifyContent: 'center',
                 padding: '1rem',
                 background: 'var(--bg-tertiary)',
