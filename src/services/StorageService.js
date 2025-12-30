@@ -5,6 +5,13 @@ const isTauri = () => {
     return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
 };
 
+// Dynamic import helper to avoid Vite trying to resolve Tauri imports in web mode
+const importTauriModule = async (moduleName) => {
+    // Use Function constructor to completely hide the import from Vite static analysis
+    const importFunc = new Function('moduleName', 'return import(moduleName)');
+    return await importFunc(moduleName);
+};
+
 const STORAGE_KEY = 'piano_teacher_songs';
 
 // Helper to migrate legacy song data (string pitches) to new format (number pitches)
@@ -118,9 +125,10 @@ export const StorageService = {
         if (isTauri()) {
             try {
                 // Dynamically import Tauri APIs only in Tauri environment
-                // @vite-ignore - These imports are only available in Tauri desktop app
-                const { save } = await import(/* @vite-ignore */ '@tauri-apps/api/dialog');
-                const { writeTextFile } = await import(/* @vite-ignore */ '@tauri-apps/api/fs');
+                const dialogModule = await importTauriModule('@tauri-apps/api/dialog');
+                const fsModule = await importTauriModule('@tauri-apps/api/fs');
+                const { save } = dialogModule;
+                const { writeTextFile } = fsModule;
 
                 const filePath = await save({
                     defaultPath: defaultFilename,
@@ -163,9 +171,10 @@ export const StorageService = {
         if (isTauri()) {
             try {
                 // Dynamically import Tauri APIs only in Tauri environment
-                // @vite-ignore - These imports are only available in Tauri desktop app
-                const { save } = await import(/* @vite-ignore */ '@tauri-apps/api/dialog');
-                const { writeTextFile } = await import(/* @vite-ignore */ '@tauri-apps/api/fs');
+                const dialogModule = await importTauriModule('@tauri-apps/api/dialog');
+                const fsModule = await importTauriModule('@tauri-apps/api/fs');
+                const { save } = dialogModule;
+                const { writeTextFile } = fsModule;
 
                 const filePath = await save({
                     defaultPath: defaultFilename,
