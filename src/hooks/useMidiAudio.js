@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as Tone from 'tone';
-import { getFrenchNoteName } from '../models/song';
+import { getNoteNameFromMidi } from '../models/song';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
 
@@ -59,11 +59,12 @@ export function useMidiAudio() {
                 const midiSettings = midiInputService.getSettings();
                 const midiVolume = (midiSettings.midiVolume || 70) / 100;
 
-                console.log(`Playing MIDI note ${note} (${getFrenchNoteName(note)}) at volume ${midiVolume}, context state: ${Tone.context.state}`);
+                const noteName = getNoteNameFromMidi(note);
+                console.log(`Playing MIDI note ${note} (${noteName}) at volume ${midiVolume}, context state: ${Tone.context.state}`);
 
                 try {
                     audioEngine.sampler.triggerAttack(
-                        getFrenchNoteName(note),
+                        noteName,
                         Tone.now(),
                         velocity / 127 * midiVolume
                     );
@@ -83,7 +84,8 @@ export function useMidiAudio() {
 
             // Release audio
             if (audioInitialized.current && audioEngine.sampler) {
-                audioEngine.sampler.triggerRelease(getFrenchNoteName(note), Tone.now());
+                const noteName = getNoteNameFromMidi(note);
+                audioEngine.sampler.triggerRelease(noteName, Tone.now());
             }
         };
 
