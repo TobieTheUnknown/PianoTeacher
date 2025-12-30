@@ -47,12 +47,33 @@ class MidiInputService {
         if (typeof window !== 'undefined') {
             // Wait for DOM to be ready and Tauri to be available
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => this.init());
+                document.addEventListener('DOMContentLoaded', () => this.waitForTauriAndInit());
             } else {
-                // DOM already loaded, init after a short delay to ensure Tauri is ready
-                setTimeout(() => this.init(), 100);
+                // DOM already loaded, wait for Tauri if needed
+                this.waitForTauriAndInit();
             }
         }
+    }
+
+    // Wait for Tauri to be available before initializing
+    async waitForTauriAndInit() {
+        // Check if Tauri is available, wait up to 2 seconds
+        const maxWaitTime = 2000; // 2 seconds
+        const checkInterval = 50; // Check every 50ms
+        let waitedTime = 0;
+
+        while (waitedTime < maxWaitTime) {
+            if (typeof window.__TAURI__ !== 'undefined') {
+                console.log('Tauri detected after', waitedTime, 'ms');
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            waitedTime += checkInterval;
+        }
+
+        // Initialize regardless of whether Tauri was detected
+        // (will fall back to Web MIDI API if Tauri not available)
+        this.init();
     }
 
     async init() {
