@@ -332,9 +332,14 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             </p>
                             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                                 <button
-                                    onClick={() => {
-                                        StorageService.exportLibrary();
-                                        alert('Bibliothèque exportée !');
+                                    onClick={async () => {
+                                        const result = await StorageService.exportLibrary();
+                                        if (result.success && !result.cancelled) {
+                                            const message = result.path
+                                                ? `Bibliothèque exportée !\n${result.path}`
+                                                : 'Bibliothèque exportée !';
+                                            alert(message);
+                                        }
                                     }}
                                     style={{
                                         background: 'var(--accent-success)',
