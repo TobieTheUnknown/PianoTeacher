@@ -74,7 +74,6 @@ L'application sera disponible sur `http://localhost:5173`.
 ## 🗺️ Roadmap v2.0
 - [ ] Support des claviers MIDI USB (Web MIDI API).
 - [ ] Export de partitions en format PDF.
-- [ ] Mode "Challenge" avec score mondial.
 - [ ] Import direct depuis YouTube (Audio-to-MIDI).
 
 ---
