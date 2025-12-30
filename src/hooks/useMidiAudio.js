@@ -19,11 +19,9 @@ export function useMidiAudio() {
         const handleNoteOn = async (event) => {
             const { note, velocity } = event;
 
-            console.log('MIDI noteOn event received:', event);
-
             // Validate note value
             if (typeof note !== 'number' || isNaN(note) || note < 0 || note > 127) {
-                console.error('Invalid MIDI note value:', note, 'Full event:', event);
+                console.error('Invalid MIDI note value:', note);
                 return;
             }
 
@@ -31,10 +29,8 @@ export function useMidiAudio() {
             if (!audioInitialized.current && !isInitializing.current) {
                 isInitializing.current = true;
                 try {
-                    console.log('Initializing MIDI audio on first MIDI event...');
                     await audioEngine.initialize();
                     audioInitialized.current = true;
-                    console.log('Global MIDI Audio initialized successfully');
                 } catch (error) {
                     console.error('Failed to initialize MIDI audio:', error);
                     isInitializing.current = false;
@@ -52,15 +48,12 @@ export function useMidiAudio() {
             if (audioInitialized.current && audioEngine.sampler) {
                 // Ensure audio context is running
                 if (Tone.context.state !== 'running') {
-                    console.log('Starting Tone audio context...');
                     await Tone.start();
                 }
 
                 const midiSettings = midiInputService.getSettings();
                 const midiVolume = (midiSettings.midiVolume || 70) / 100;
-
                 const noteName = getNoteNameFromMidi(note);
-                console.log(`Playing MIDI note ${note} (${noteName}) at volume ${midiVolume}, context state: ${Tone.context.state}`);
 
                 try {
                     audioEngine.sampler.triggerAttack(
@@ -71,11 +64,6 @@ export function useMidiAudio() {
                 } catch (error) {
                     console.error('Error playing MIDI note:', error);
                 }
-            } else {
-                console.warn('Cannot play MIDI note: audio not initialized or sampler not loaded', {
-                    audioInitialized: audioInitialized.current,
-                    samplerExists: !!audioEngine.sampler
-                });
             }
         };
 

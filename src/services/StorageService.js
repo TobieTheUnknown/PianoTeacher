@@ -118,8 +118,9 @@ export const StorageService = {
         if (isTauri()) {
             try {
                 // Dynamically import Tauri APIs only in Tauri environment
-                const { save } = await import('@tauri-apps/api/dialog');
-                const { writeTextFile } = await import('@tauri-apps/api/fs');
+                // @vite-ignore - These imports are only available in Tauri desktop app
+                const { save } = await import(/* @vite-ignore */ '@tauri-apps/api/dialog');
+                const { writeTextFile } = await import(/* @vite-ignore */ '@tauri-apps/api/fs');
 
                 const filePath = await save({
                     defaultPath: defaultFilename,
@@ -162,8 +163,9 @@ export const StorageService = {
         if (isTauri()) {
             try {
                 // Dynamically import Tauri APIs only in Tauri environment
-                const { save } = await import('@tauri-apps/api/dialog');
-                const { writeTextFile } = await import('@tauri-apps/api/fs');
+                // @vite-ignore - These imports are only available in Tauri desktop app
+                const { save } = await import(/* @vite-ignore */ '@tauri-apps/api/dialog');
+                const { writeTextFile } = await import(/* @vite-ignore */ '@tauri-apps/api/fs');
 
                 const filePath = await save({
                     defaultPath: defaultFilename,
