@@ -31,6 +31,7 @@ class MidiInputService {
         this.isSupported = false;
         this.useTauriMidi = false; // Flag to use native MIDI in Tauri
         this.tauriEventUnlisten = null; // Cleanup function for Tauri event listener
+        this.initialized = false; // Track initialization state
 
         // Settings (stored in localStorage)
         this.settings = {
@@ -42,14 +43,33 @@ class MidiInputService {
             enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
         };
 
-        this.init();
+        // Delay initialization to allow Tauri to load
+        if (typeof window !== 'undefined') {
+            // Wait for DOM to be ready and Tauri to be available
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => this.init());
+            } else {
+                // DOM already loaded, init after a short delay to ensure Tauri is ready
+                setTimeout(() => this.init(), 100);
+            }
+        }
     }
 
     async init() {
+        if (this.initialized) {
+            console.log('MIDI service already initialized');
+            return;
+        }
+
+        console.log('Initializing MIDI service...');
+        console.log('Tauri detected:', isTauri());
+        console.log('window.__TAURI__:', typeof window !== 'undefined' ? typeof window.__TAURI__ : 'undefined');
+
         // Check if running in Tauri
         if (isTauri()) {
             console.log('Detected Tauri environment, using native MIDI');
             await this.initTauriMidi();
+            this.initialized = true;
             return;
         }
 
@@ -57,6 +77,7 @@ class MidiInputService {
         if (!navigator.requestMIDIAccess) {
             console.warn('Web MIDI API not supported in this browser');
             this.isSupported = false;
+            this.initialized = true;
             return;
         }
 
@@ -64,7 +85,7 @@ class MidiInputService {
 
         try {
             this.midiAccess = await navigator.requestMIDIAccess();
-            console.log('MIDI Access granted');
+            console.log('MIDI Access granted via Web MIDI API');
 
             // Listen for device connection/disconnection
             this.midiAccess.onstatechange = (e) => this.handleStateChange(e);
@@ -77,38 +98,66 @@ class MidiInputService {
                 this.selectDevice(this.settings.selectedDeviceId);
             }
 
+            this.initialized = true;
+
         } catch (error) {
             console.error('Failed to get MIDI access:', error);
             this.isSupported = false;
+            this.initialized = true;
         }
     }
 
     async initTauriMidi() {
         try {
+            console.log('Importing Tauri modules...');
             const { invoke } = await importTauriModule('@tauri-apps/api/core');
             const { listen } = await importTauriModule('@tauri-apps/api/event');
+            console.log('Tauri modules imported successfully');
 
             this.useTauriMidi = true;
             this.isSupported = true;
 
             // Listen for MIDI messages from Tauri backend
+            console.log('Setting up MIDI message listener...');
             this.tauriEventUnlisten = await listen('midi-message', (event) => {
+                console.log('Received MIDI message from Tauri:', event.payload);
                 this.handleTauriMidiMessage(event.payload);
             });
 
-            console.log('Tauri MIDI initialized');
+            console.log('Tauri MIDI initialized successfully');
 
             // Initial scan of devices
+            console.log('Scanning for MIDI devices...');
             await this.refreshDevicesTauri();
 
             // Auto-connect to previously selected device
             if (this.settings.selectedDeviceId) {
+                console.log('Auto-connecting to previously selected device:', this.settings.selectedDeviceId);
                 await this.selectDeviceTauri(this.settings.selectedDeviceId);
             }
 
         } catch (error) {
             console.error('Failed to initialize Tauri MIDI:', error);
+            console.error('Error details:', error.message, error.stack);
             this.isSupported = false;
+
+            // Fallback to Web MIDI if Tauri MIDI fails
+            console.log('Attempting fallback to Web MIDI API...');
+            this.useTauriMidi = false;
+            if (navigator.requestMIDIAccess) {
+                try {
+                    this.midiAccess = await navigator.requestMIDIAccess();
+                    this.isSupported = true;
+                    this.midiAccess.onstatechange = (e) => this.handleStateChange(e);
+                    this.refreshDevices();
+                    if (this.settings.selectedDeviceId) {
+                        this.selectDevice(this.settings.selectedDeviceId);
+                    }
+                    console.log('Fallback to Web MIDI API successful');
+                } catch (fallbackError) {
+                    console.error('Web MIDI API fallback also failed:', fallbackError);
+                }
+            }
         }
     }
 
