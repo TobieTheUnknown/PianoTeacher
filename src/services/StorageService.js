@@ -12,6 +12,14 @@ const importTauriModule = async (moduleName) => {
     return await importFunc(moduleName);
 };
 
+// Helper to get the correct module paths for Tauri v2 plugins
+const getTauriModulePaths = () => {
+    return {
+        dialog: '@tauri-apps/plugin-dialog',
+        fs: '@tauri-apps/plugin-fs'
+    };
+};
+
 const STORAGE_KEY = 'piano_teacher_songs';
 
 // Helper to migrate legacy song data (string pitches) to new format (number pitches)
@@ -125,8 +133,9 @@ export const StorageService = {
         if (isTauri()) {
             try {
                 // Dynamically import Tauri APIs only in Tauri environment
-                const dialogModule = await importTauriModule('@tauri-apps/api/dialog');
-                const fsModule = await importTauriModule('@tauri-apps/api/fs');
+                const modulePaths = getTauriModulePaths();
+                const dialogModule = await importTauriModule(modulePaths.dialog);
+                const fsModule = await importTauriModule(modulePaths.fs);
                 const { save } = dialogModule;
                 const { writeTextFile } = fsModule;
 
@@ -171,8 +180,9 @@ export const StorageService = {
         if (isTauri()) {
             try {
                 // Dynamically import Tauri APIs only in Tauri environment
-                const dialogModule = await importTauriModule('@tauri-apps/api/dialog');
-                const fsModule = await importTauriModule('@tauri-apps/api/fs');
+                const modulePaths = getTauriModulePaths();
+                const dialogModule = await importTauriModule(modulePaths.dialog);
+                const fsModule = await importTauriModule(modulePaths.fs);
                 const { save } = dialogModule;
                 const { writeTextFile } = fsModule;
 
