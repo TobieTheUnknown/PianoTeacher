@@ -126,6 +126,19 @@ jobs:
           zip -r ../piano-teacher-web.zip .
           cd ../..
 
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          # Find and copy only the final installers
+          find artifacts -name "*.dmg" -exec cp {} release-files/ \;
+          find artifacts -name "*.exe" -exec cp {} release-files/ \;
+          find artifacts -name "*.msi" -exec cp {} release-files/ \;
+          find artifacts -name "*.deb" -exec cp {} release-files/ \;
+          find artifacts -name "*.AppImage" -exec cp {} release-files/ \;
+          cp artifacts/piano-teacher-web.zip release-files/
+          echo "Release files:"
+          ls -lh release-files/
+
       - name: Determine release notes file
         id: release_notes
         run: |
@@ -144,13 +157,7 @@ jobs:
         with:
           name: Piano Teacher ${{ github.ref_name }}
           body_path: ${{ steps.release_notes.outputs.file }}
-          files: |
-            artifacts/**/*.dmg
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.deb
-            artifacts/**/*.AppImage
-            artifacts/piano-teacher-web.zip
+          files: release-files/*
           draft: false
           prerelease: false
         env:
