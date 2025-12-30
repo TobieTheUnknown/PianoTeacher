@@ -3,6 +3,7 @@ import themeEngine from '../services/ThemeEngine';
 import { StorageService } from '../services/StorageService';
 import { midiInputService } from '../services/MidiInputService';
 import { MidiVisualizer } from './MidiVisualizer';
+import { MidiLatencyCalibration } from './MidiLatencyCalibration';
 
 export function Settings({ isOpen, onClose }) {
     const [activeTab, setActiveTab] = useState('theme');
@@ -17,6 +18,7 @@ export function Settings({ isOpen, onClose }) {
     const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
     const [midiSettings, setMidiSettings] = useState(midiInputService.getSettings());
     const [midiSupported, setMidiSupported] = useState(midiInputService.isSupported);
+    const [showLatencyCalibration, setShowLatencyCalibration] = useState(false);
 
     // MIDI effects
     useEffect(() => {
@@ -133,6 +135,12 @@ export function Settings({ isOpen, onClose }) {
     const handleRefreshMidiDevices = () => {
         midiInputService.refreshDevices();
         setMidiDevices(midiInputService.getDevices());
+    };
+
+    const handleLatencyCalibrationComplete = (compensation) => {
+        // Apply the calibrated latency compensation
+        handleMidiSettingChange('latencyCompensation', compensation);
+        setShowLatencyCalibration(false);
     };
 
     return (
@@ -759,6 +767,38 @@ export function Settings({ isOpen, onClose }) {
                                                         <span>0ms</span>
                                                         <span>+100ms (plus tard)</span>
                                                     </div>
+                                                    {!showLatencyCalibration && (
+                                                        <button
+                                                            onClick={() => setShowLatencyCalibration(true)}
+                                                            style={{
+                                                                marginTop: '0.75rem',
+                                                                width: '100%',
+                                                                padding: '0.5rem',
+                                                                background: 'var(--accent-primary)',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: 'var(--radius-md)',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: '500',
+                                                                transition: 'all 0.2s ease'
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                e.currentTarget.style.opacity = '0.9';
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                e.currentTarget.style.opacity = '1';
+                                                            }}
+                                                        >
+                                                            🎯 Calibration automatique
+                                                        </button>
+                                                    )}
+                                                    {showLatencyCalibration && (
+                                                        <MidiLatencyCalibration
+                                                            onCalibrationComplete={handleLatencyCalibrationComplete}
+                                                            onCancel={() => setShowLatencyCalibration(false)}
+                                                        />
+                                                    )}
                                                 </div>
 
                                                 {/* Note On Threshold */}
