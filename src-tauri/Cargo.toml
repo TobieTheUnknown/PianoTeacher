@@ -25,3 +25,5 @@ tauri = { version = "2.9.5", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+midir = "0.9"
+parking_lot = "0.12"

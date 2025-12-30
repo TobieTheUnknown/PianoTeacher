@@ -7,7 +7,19 @@
  * - Event handling with velocity sensitivity
  * - Latency compensation
  * - Real-time monitoring
+ * - Native MIDI support for Tauri desktop app
  */
+
+// Detect if running in Tauri environment
+const isTauri = () => {
+    return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+};
+
+// Dynamic import helper for Tauri modules
+const importTauriModule = async (moduleName) => {
+    const importFunc = new Function('moduleName', 'return import(moduleName)');
+    return await importFunc(moduleName);
+};
 
 class MidiInputService {
     constructor() {
@@ -17,6 +29,8 @@ class MidiInputService {
         this.monitorListeners = new Set(); // For real-time visualization
         this.devices = [];
         this.isSupported = false;
+        this.useTauriMidi = false; // Flag to use native MIDI in Tauri
+        this.tauriEventUnlisten = null; // Cleanup function for Tauri event listener
 
         // Settings (stored in localStorage)
         this.settings = {
@@ -32,6 +46,14 @@ class MidiInputService {
     }
 
     async init() {
+        // Check if running in Tauri
+        if (isTauri()) {
+            console.log('Detected Tauri environment, using native MIDI');
+            await this.initTauriMidi();
+            return;
+        }
+
+        // Fallback to Web MIDI API
         if (!navigator.requestMIDIAccess) {
             console.warn('Web MIDI API not supported in this browser');
             this.isSupported = false;
@@ -61,7 +83,152 @@ class MidiInputService {
         }
     }
 
+    async initTauriMidi() {
+        try {
+            const { invoke } = await importTauriModule('@tauri-apps/api/core');
+            const { listen } = await importTauriModule('@tauri-apps/api/event');
+
+            this.useTauriMidi = true;
+            this.isSupported = true;
+
+            // Listen for MIDI messages from Tauri backend
+            this.tauriEventUnlisten = await listen('midi-message', (event) => {
+                this.handleTauriMidiMessage(event.payload);
+            });
+
+            console.log('Tauri MIDI initialized');
+
+            // Initial scan of devices
+            await this.refreshDevicesTauri();
+
+            // Auto-connect to previously selected device
+            if (this.settings.selectedDeviceId) {
+                await this.selectDeviceTauri(this.settings.selectedDeviceId);
+            }
+
+        } catch (error) {
+            console.error('Failed to initialize Tauri MIDI:', error);
+            this.isSupported = false;
+        }
+    }
+
+    async refreshDevicesTauri() {
+        try {
+            const { invoke } = await importTauriModule('@tauri-apps/api/core');
+            const devices = await invoke('get_midi_devices');
+
+            this.devices = devices.map(device => ({
+                id: device.id,
+                name: device.name,
+                manufacturer: device.manufacturer,
+                state: 'connected',
+                connection: 'closed',
+                type: 'input'
+            }));
+
+            console.log('MIDI Devices detected (Tauri):', this.devices);
+            this.notifyListeners('devicesChanged', this.devices);
+        } catch (error) {
+            console.error('Failed to get MIDI devices from Tauri:', error);
+        }
+    }
+
+    async selectDeviceTauri(deviceId) {
+        try {
+            const { invoke } = await importTauriModule('@tauri-apps/api/core');
+
+            // Disconnect previous device
+            if (this.activeDevice) {
+                await invoke('disconnect_midi_device');
+            }
+
+            // Connect to new device
+            await invoke('connect_midi_device', { deviceId });
+
+            const device = this.devices.find(d => d.id === deviceId);
+
+            this.activeDevice = { id: deviceId, name: device?.name || 'Unknown' };
+            this.settings.selectedDeviceId = deviceId;
+            localStorage.setItem('midi-selected-device', deviceId);
+
+            console.log('Connected to MIDI device (Tauri):', device?.name);
+            this.notifyListeners('deviceConnected', {
+                id: deviceId,
+                name: device?.name || 'Unknown',
+                manufacturer: device?.manufacturer || 'Unknown'
+            });
+
+            return true;
+        } catch (error) {
+            console.error('Failed to connect to MIDI device (Tauri):', error);
+            return false;
+        }
+    }
+
+    handleTauriMidiMessage(message) {
+        const { status, note, velocity, timestamp } = message;
+
+        // Validate MIDI data
+        if (status === undefined || note === undefined || velocity === undefined) {
+            return;
+        }
+
+        const command = status & 0xf0;
+        const channel = status & 0x0f;
+
+        // Filter by enabled channels
+        if (!this.settings.enabledChannels.includes(channel)) {
+            return;
+        }
+
+        const adjustedTimestamp = timestamp + this.settings.latencyCompensation;
+
+        let eventType = null;
+        let processedVelocity = velocity;
+
+        // Parse MIDI command
+        if (command === 144 && velocity > 0) {
+            // Note On
+            if (velocity < this.settings.noteOnThreshold) {
+                return;
+            }
+            eventType = 'noteOn';
+            processedVelocity = Math.min(127, Math.round(velocity * this.settings.velocitySensitivity));
+        } else if (command === 128 || (command === 144 && velocity === 0)) {
+            // Note Off
+            eventType = 'noteOff';
+        } else if (command === 176) {
+            // Control Change
+            eventType = 'controlChange';
+        } else if (command === 224) {
+            // Pitch Bend
+            eventType = 'pitchBend';
+        }
+
+        const midiEvent = {
+            type: eventType,
+            note,
+            velocity: processedVelocity,
+            channel,
+            timestamp: adjustedTimestamp,
+            raw: [status, note, velocity]
+        };
+
+        // Notify listeners
+        if (eventType) {
+            this.notifyListeners(eventType, midiEvent);
+        }
+
+        // Notify monitors
+        this.notifyMonitors(midiEvent);
+    }
+
     refreshDevices() {
+        if (this.useTauriMidi) {
+            this.refreshDevicesTauri();
+            return;
+        }
+
         if (!this.midiAccess) return;
 
         this.devices = [];
@@ -83,6 +250,10 @@ class MidiInputService {
     }
 
     selectDevice(deviceId) {
+        if (this.useTauriMidi) {
+            return this.selectDeviceTauri(deviceId);
+        }
+
         if (!this.midiAccess) return false;
 
         // Disconnect previous device
@@ -114,7 +285,21 @@ class MidiInputService {
         return true;
     }
 
-    disconnect() {
+    async disconnect() {
+        if (this.useTauriMidi) {
+            try {
+                const { invoke } = await importTauriModule('@tauri-apps/api/core');
+                await invoke('disconnect_midi_device');
+                this.activeDevice = null;
+                this.settings.selectedDeviceId = null;
+                localStorage.removeItem('midi-selected-device');
+                this.notifyListeners('deviceDisconnected', null);
+            } catch (error) {
+                console.error('Failed to disconnect MIDI device (Tauri):', error);
+            }
+            return;
+        }
+
         if (this.activeDevice) {
             this.activeDevice.onmidimessage = null;
             this.activeDevice = null;
