@@ -649,6 +649,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             <PianoRoll
                                 phrase={phrase}
                                 keySignature={song.key}
+                                tempo={song.tempo}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}

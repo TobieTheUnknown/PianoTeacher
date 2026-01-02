@@ -1,12 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { getPianoRollKeys, getFrenchNoteName, getNoteNameFromMidi, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 
+// Lazy load the advanced piano roll
+const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(module => ({ default: module.AdvancedPianoRoll })));
+
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
+export function PianoRoll({ phrase, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
     // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
     const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
@@ -681,26 +684,10 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
         </div>
     );
 
-    // Render fullscreen modal using portal
+    // Render advanced piano roll in fullscreen mode (lazy loaded)
     if (isFullscreen) {
-        return createPortal(
-            <>
-                {/* Backdrop */}
-                <div
-                    onClick={() => setIsFullscreen(false)}
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: '100vw',
-                        height: '100vh',
-                        zIndex: 9998,
-                        background: 'rgba(0, 0, 0, 0.8)',
-                        backdropFilter: 'blur(4px)'
-                    }}
-                />
-
-                {/* Modal */}
+        return (
+            <Suspense fallback={
                 <div style={{
                     position: 'fixed',
                     top: 0,
@@ -710,185 +697,25 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
                     zIndex: 9999,
                     background: 'var(--bg-primary)',
                     display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.25rem',
+                    color: 'var(--text-secondary)'
                 }}>
-                    {/* Modal Header with close button */}
-                    <div style={{
-                        padding: '1rem 1.5rem',
-                        borderBottom: '1px solid var(--border-light)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexShrink: 0,
-                        background: 'var(--bg-secondary)'
-                    }}>
-                        <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
-                            🎹 Piano Roll - Mode Plein Écran
-                        </h3>
-                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                            {/* Split Button in Fullscreen */}
-                            {onSplit && (
-                                <button
-                                    onClick={onSplit}
-                                    style={{
-                                        backgroundColor: isSplitMode ? 'var(--accent-secondary)' : 'var(--bg-elevated)',
-                                        border: '1px solid var(--accent-secondary)',
-                                        color: isSplitMode ? 'white' : 'var(--text-primary)',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontSize: '0.9375rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <span>✂️</span>
-                                    <span>Découper</span>
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setIsFullscreen(false)}
-                                style={{
-                                    background: 'var(--gradient-primary)',
-                                    color: 'white',
-                                    border: 'none',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    fontSize: '0.9375rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                }}
-                            >
-                                <span style={{ fontSize: '1.2rem' }}>✕</span>
-                                <span>Fermer</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Modal Content */}
-                    <div style={{
-                        flex: 1,
-                        padding: '1.5rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        minHeight: 0,
-                        overflow: 'hidden'
-                    }}>
-                        {/* Split Controls in Fullscreen */}
-                        {isSplitMode && (
-                            <div style={{
-                                padding: '1.5rem',
-                                marginBottom: '1.5rem',
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                border: '2px solid var(--accent-secondary)',
-                                borderRadius: 'var(--radius-lg)',
-                                flexShrink: 0
-                            }}>
-                                <h4 style={{
-                                    margin: '0 0 1rem 0',
-                                    fontSize: '1rem',
-                                    color: 'var(--text-primary)'
-                                }}>
-                                    🎯 Mode Découpage
-                                </h4>
-                                <p style={{
-                                    margin: '0 0 1rem 0',
-                                    fontSize: '0.875rem',
-                                    color: 'var(--text-secondary)'
-                                }}>
-                                    Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase.
-                                </p>
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    <div style={{ flex: '1', minWidth: '200px' }}>
-                                        <label style={{
-                                            display: 'block',
-                                            marginBottom: '0.5rem',
-                                            fontSize: '0.875rem',
-                                            color: 'var(--text-primary)',
-                                            fontWeight: '600'
-                                        }}>
-                                            Mesure de découpage
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={splitTime}
-                                            onChange={(e) => onSplitTimeChange(e.target.value)}
-                                            placeholder="Ex: 2"
-                                            step="1"
-                                            min="1"
-                                            style={{
-                                                width: '100%',
-                                                padding: '0.75rem',
-                                                fontSize: '1rem',
-                                                background: 'var(--bg-elevated)',
-                                                border: '1px solid var(--border-light)',
-                                                borderRadius: 'var(--radius-md)',
-                                                color: 'var(--text-primary)'
-                                            }}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                        <button
-                                            onClick={onConfirmSplit}
-                                            style={{
-                                                background: 'var(--gradient-success)',
-                                                color: 'white',
-                                                border: 'none',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem',
-                                                padding: '0.75rem 1.5rem',
-                                                fontWeight: '600',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.9375rem'
-                                            }}
-                                        >
-                                            <span>✓</span>
-                                            <span>Valider</span>
-                                        </button>
-                                        <button
-                                            onClick={onCancelSplit}
-                                            style={{
-                                                backgroundColor: 'var(--bg-elevated)',
-                                                border: '1px solid var(--border-light)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem',
-                                                padding: '0.75rem 1.5rem',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.9375rem',
-                                                color: 'var(--text-primary)'
-                                            }}
-                                        >
-                                            <span>✗</span>
-                                            <span>Annuler</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {pianoRollContent}
-                    </div>
+                    Chargement de l'éditeur avancé...
                 </div>
-            </>,
-            document.body
+            }>
+                <AdvancedPianoRoll
+                    phrase={phrase}
+                    keySignature={keySignature}
+                    tempo={tempo}
+                    onAddNote={onAddNote}
+                    onRemoveNote={onRemoveNote}
+                    onUpdateNote={onUpdateNote}
+                    onUpdateHandSeparators={onUpdateHandSeparators}
+                    onClose={() => setIsFullscreen(false)}
+                />
+            </Suspense>
         );
     }
 
