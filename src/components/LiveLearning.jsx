@@ -583,66 +583,118 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 </button>
             </div>
 
-            {/* Chord info - show ALL chords in measure */}
+{/* Chord info - show ALL chords in measure or arpeggio */}
             <div style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
-                <div style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--text-secondary)',
-                    marginBottom: '0.25rem'
-                }}>
-                    Accords {measure.chordGroups.length > 1 && `(${measure.chordGroups.length})`}
-                </div>
+                {(() => {
+                    // Détection d'arpège: tous les groupes ont une seule note
+                    const isArpeggio = measure.chordGroups.length >= 2 &&
+                                      measure.chordGroups.every(g => g.notes.length === 1);
 
-                {measure.hasChord ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {measure.chordGroups.map((chordGroup, idx) => {
-                            const chordName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
+                    return (
+                        <>
+                            <div style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)',
+                                marginBottom: '0.25rem'
+                            }}>
+                                {isArpeggio ? (
+                                    <>Arpège ({measure.chordGroups.length} notes)</>
+                                ) : (
+                                    <>Accords {measure.chordGroups.length > 1 && `(${measure.chordGroups.length})`}</>
+                                )}
+                            </div>
 
-                            return (
-                                <div key={idx}>
+                            {measure.hasChord ? (
+                                isArpeggio ? (
+                                    // Affichage en séquence pour les arpèges
                                     <div style={{
-                                        fontSize: '1rem',
-                                        fontWeight: 'bold',
-                                        color: 'var(--text-primary)'
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: '0.25rem',
+                                        alignItems: 'center'
                                     }}>
-                                        {chordName}
-                                    </div>
+                                        {measure.chordGroups.map((chordGroup, idx) => {
+                                            const noteName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
+                                            const isFirst = idx === 0;
 
-                                    {/* Show chord notes when details are enabled */}
-                                    {showDetails && (
-                                        <div style={{
-                                            fontSize: '0.65rem',
-                                            color: 'var(--text-secondary)',
-                                            marginTop: '0.15rem',
-                                            display: 'flex',
-                                            flexWrap: 'wrap',
-                                            gap: '0.2rem'
-                                        }}>
-                                            {chordGroup.notes.map((n, i) => (
-                                                <span key={i} style={{
-                                                    background: 'var(--bg-primary)',
-                                                    padding: '0.1rem 0.25rem',
-                                                    borderRadius: '3px',
-                                                    border: '1px solid var(--border-color)'
-                                                }}>
-                                                    {displayNoteName(n.pitch, keySignature)}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
+                                            return (
+                                                <React.Fragment key={idx}>
+                                                    <span style={{
+                                                        fontSize: isFirst ? '0.85rem' : '0.75rem',
+                                                        background: 'var(--bg-primary)',
+                                                        padding: '0.2rem 0.4rem',
+                                                        borderRadius: '4px',
+                                                        border: isFirst ? '2px solid var(--accent-secondary)' : '1px solid var(--accent-secondary)',
+                                                        color: 'var(--text-primary)',
+                                                        fontWeight: isFirst ? 'bold' : 'normal'
+                                                    }}>
+                                                        {noteName}
+                                                    </span>
+                                                    {idx < measure.chordGroups.length - 1 && (
+                                                        <span style={{
+                                                            fontSize: '0.7rem',
+                                                            color: 'var(--text-secondary)'
+                                                        }}>→</span>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    // Affichage normal pour les accords
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        {measure.chordGroups.map((chordGroup, idx) => {
+                                            const chordName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
+
+                                            return (
+                                                <div key={idx}>
+                                                    <div style={{
+                                                        fontSize: '1rem',
+                                                        fontWeight: 'bold',
+                                                        color: 'var(--text-primary)'
+                                                    }}>
+                                                        {chordName}
+                                                    </div>
+
+                                                    {/* Show chord notes when details are enabled */}
+                                                    {showDetails && (
+                                                        <div style={{
+                                                            fontSize: '0.65rem',
+                                                            color: 'var(--text-secondary)',
+                                                            marginTop: '0.15rem',
+                                                            display: 'flex',
+                                                            flexWrap: 'wrap',
+                                                            gap: '0.2rem'
+                                                        }}>
+                                                            {chordGroup.notes.map((n, i) => (
+                                                                <span key={i} style={{
+                                                                    background: 'var(--bg-primary)',
+                                                                    padding: '0.1rem 0.25rem',
+                                                                    borderRadius: '3px',
+                                                                    border: '1px solid var(--border-color)'
+                                                                }}>
+                                                                    {displayNoteName(n.pitch, keySignature)}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )
+                            ) : (
+                                <div style={{
+                                    fontSize: '1.1rem',
+                                    fontWeight: 'bold',
+                                    color: 'var(--text-tertiary)'
+                                }}>
+                                    -
                                 </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div style={{
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold',
-                        color: 'var(--text-tertiary)'
-                    }}>
-                        -
-                    </div>
-                )}
+                            )}
+                        </>
+                    );
+                })()}
             </div>
 
             {/* Melody info */}
