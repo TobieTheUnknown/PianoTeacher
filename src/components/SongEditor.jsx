@@ -12,7 +12,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [isBatchSplit, setIsBatchSplit] = useState(false);
     const [showImportExportModal, setShowImportExportModal] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved');
-    const [draggedPhraseIndex, setDraggedPhraseIndex] = useState(null);
     const [editingPhraseId, setEditingPhraseId] = useState(null);
     const [editingPhraseName, setEditingPhraseName] = useState('');
 
@@ -61,34 +60,17 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         audioEngine.stop();
     };
 
-    // Drag-and-drop handlers for phrase reordering
-    const handleDragStart = (e, phraseIndex) => {
-        setDraggedPhraseIndex(phraseIndex);
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-    };
-
-    const handleDrop = (e, targetPhraseIndex) => {
-        e.preventDefault();
-
-        if (draggedPhraseIndex === null || draggedPhraseIndex === targetPhraseIndex) {
-            setDraggedPhraseIndex(null);
-            return;
+    // Move phrase up/down
+    const handleMovePhraseUp = (phraseIndex) => {
+        if (phraseIndex > 0 && onReorderPhrases) {
+            onReorderPhrases(phraseIndex, phraseIndex - 1);
         }
-
-        if (onReorderPhrases) {
-            onReorderPhrases(draggedPhraseIndex, targetPhraseIndex);
-        }
-
-        setDraggedPhraseIndex(null);
     };
 
-    const handleDragEnd = () => {
-        setDraggedPhraseIndex(null);
+    const handleMovePhraseDown = (phraseIndex) => {
+        if (phraseIndex < song.phrases.length - 1 && onReorderPhrases) {
+            onReorderPhrases(phraseIndex, phraseIndex + 1);
+        }
     };
 
     // Rename phrase handlers
@@ -408,173 +390,153 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     <div
                         key={phrase.id}
                         className="card"
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, phraseIndex)}
                         style={{
-                            padding: '1.5rem',
-                            display: 'flex',
-                            gap: '1rem',
-                            opacity: draggedPhraseIndex === phraseIndex ? 0.5 : 1,
-                            transition: 'opacity 0.2s',
-                            border: draggedPhraseIndex === phraseIndex ? '2px dashed var(--accent-primary)' : undefined
+                            padding: '1.5rem'
                         }}
                     >
-                        {/* Drag Handle */}
-                        <div
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, phraseIndex)}
-                            onDragEnd={handleDragEnd}
-                            style={{
-                                width: '32px',
-                                minHeight: '100%',
-                                background: 'repeating-linear-gradient(90deg, var(--border-color) 0px, var(--border-color) 2px, transparent 2px, transparent 6px)',
-                                borderRadius: 'var(--radius-md)',
-                                cursor: 'grab',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--text-tertiary)',
-                                fontSize: '1.2rem',
-                                userSelect: 'none',
-                                flexShrink: 0
-                            }}
-                            title="Glisser pour réorganiser"
-                        >
-                            ⋮⋮
-                        </div>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '1.25rem',
+                            paddingBottom: '1rem',
+                            borderBottom: '1px solid var(--border-color)'
+                        }}>
+                            {/* Title with edit mode */}
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                {/* Move buttons */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <button
+                                        onClick={() => handleMovePhraseUp(phraseIndex)}
+                                        disabled={phraseIndex === 0}
+                                        style={{
+                                            padding: '0',
+                                            width: '20px',
+                                            height: '16px',
+                                            fontSize: '0.7rem',
+                                            backgroundColor: phraseIndex === 0 ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                            color: phraseIndex === 0 ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '3px',
+                                            cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer',
+                                            lineHeight: '1',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        title="Monter"
+                                    >
+                                        ▲
+                                    </button>
+                                    <button
+                                        onClick={() => handleMovePhraseDown(phraseIndex)}
+                                        disabled={phraseIndex === song.phrases.length - 1}
+                                        style={{
+                                            padding: '0',
+                                            width: '20px',
+                                            height: '16px',
+                                            fontSize: '0.7rem',
+                                            backgroundColor: phraseIndex === song.phrases.length - 1 ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                            color: phraseIndex === song.phrases.length - 1 ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '3px',
+                                            cursor: phraseIndex === song.phrases.length - 1 ? 'not-allowed' : 'pointer',
+                                            lineHeight: '1',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        title="Descendre"
+                                    >
+                                        ▼
+                                    </button>
+                                </div>
 
-                        {/* Content */}
-                        <div style={{ flex: 1 }}>
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: '1.25rem',
-                                paddingBottom: '1rem',
-                                borderBottom: '1px solid var(--border-color)'
-                            }}>
-                                {/* Title with edit mode */}
                                 {editingPhraseId === phrase.id ? (
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: 1 }}>
-                                        <input
-                                            type="text"
-                                            value={editingPhraseName}
-                                            onChange={(e) => setEditingPhraseName(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') handleSaveRename(phrase.id);
-                                                if (e.key === 'Escape') handleCancelRename();
-                                            }}
-                                            autoFocus
-                                            style={{
-                                                flex: 1,
-                                                padding: '0.5rem',
-                                                fontSize: '1.15rem',
-                                                fontWeight: '500',
-                                                border: '2px solid var(--accent-primary)',
-                                                borderRadius: 'var(--radius-md)',
-                                                backgroundColor: 'var(--bg-primary)',
-                                                color: 'var(--text-primary)'
-                                            }}
-                                        />
-                                        <button
-                                            onClick={() => handleSaveRename(phrase.id)}
-                                            style={{
-                                                padding: '0.5rem 1rem',
-                                                backgroundColor: 'var(--accent-primary)',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.875rem'
-                                            }}
-                                        >
-                                            OK
-                                        </button>
-                                        <button
-                                            onClick={handleCancelRename}
-                                            style={{
-                                                padding: '0.5rem 1rem',
-                                                backgroundColor: 'var(--bg-tertiary)',
-                                                color: 'var(--text-primary)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.875rem'
-                                            }}
-                                        >
-                                            Annuler
-                                        </button>
-                                    </div>
+                                    <input
+                                        type="text"
+                                        value={editingPhraseName}
+                                        onChange={(e) => setEditingPhraseName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSaveRename(phrase.id);
+                                            if (e.key === 'Escape') handleCancelRename();
+                                        }}
+                                        onBlur={() => handleSaveRename(phrase.id)}
+                                        autoFocus
+                                        style={{
+                                            padding: '0.4rem 0.6rem',
+                                            fontSize: '1.15rem',
+                                            fontWeight: '500',
+                                            border: '2px solid var(--accent-primary)',
+                                            borderRadius: 'var(--radius-md)',
+                                            backgroundColor: 'var(--bg-primary)',
+                                            color: 'var(--text-primary)',
+                                            minWidth: '200px'
+                                        }}
+                                    />
                                 ) : (
-                                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                                        <h3 style={{
+                                    <h3
+                                        onClick={() => handleStartRename(phrase)}
+                                        style={{
                                             margin: 0,
                                             fontSize: '1.25rem',
                                             fontWeight: '500',
-                                            color: 'var(--text-primary)'
-                                        }}>
-                                            {phrase.name}
-                                        </h3>
-                                        <button
-                                            onClick={() => handleStartRename(phrase)}
-                                            style={{
-                                                padding: '0.25rem 0.75rem',
-                                                fontSize: '0.75rem',
-                                                backgroundColor: 'transparent',
-                                                color: 'var(--text-secondary)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s'
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.color = 'var(--accent-primary)';
-                                                e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.color = 'var(--text-secondary)';
-                                                e.currentTarget.style.borderColor = 'var(--border-color)';
-                                            }}
-                                        >
-                                            Renommer
-                                        </button>
-                                    </div>
+                                            color: 'var(--text-primary)',
+                                            cursor: 'pointer',
+                                            padding: '0.4rem 0.6rem',
+                                            borderRadius: 'var(--radius-md)',
+                                            transition: 'background-color 0.2s',
+                                            border: '2px solid transparent'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                            e.currentTarget.style.borderColor = 'transparent';
+                                        }}
+                                        title="Cliquer pour renommer"
+                                    >
+                                        {phrase.name}
+                                    </h3>
                                 )}
-                                <div style={{
-                                    display: 'flex',
-                                    gap: '0.5rem',
-                                    flexWrap: 'wrap'
-                                }}>
-                                    <button onClick={() => handlePlayPhrase(phrase)}>
-                                        Lecture
-                                    </button>
-                                    <button onClick={handleStop}>
-                                        Stop
-                                    </button>
-                                    <button
-                                        onClick={() => handleStartSplit(phrase.id)}
-                                        disabled={splitMode !== null}
-                                        style={{
-                                            backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                            color: splitMode?.phraseId === phrase.id ? 'white' : 'var(--text-primary)',
-                                            opacity: splitMode !== null && splitMode?.phraseId !== phrase.id ? 0.5 : 1,
-                                            cursor: splitMode !== null && splitMode?.phraseId !== phrase.id ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        Découper
-                                    </button>
-                                    <button
-                                        onClick={() => handleMergeWithPrevious(phrase.id)}
-                                        disabled={phraseIndex === 0}
-                                        style={{
-                                            opacity: phraseIndex === 0 ? 0.5 : 1,
-                                            cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        Recoller
-                                    </button>
-                                </div>
                             </div>
+                            <div style={{
+                                display: 'flex',
+                                gap: '0.5rem',
+                                flexWrap: 'wrap'
+                            }}>
+                                <button onClick={() => handlePlayPhrase(phrase)}>
+                                    Lecture
+                                </button>
+                                <button onClick={handleStop}>
+                                    Stop
+                                </button>
+                                <button
+                                    onClick={() => handleStartSplit(phrase.id)}
+                                    disabled={splitMode !== null}
+                                    style={{
+                                        backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                        color: splitMode?.phraseId === phrase.id ? 'white' : 'var(--text-primary)',
+                                        opacity: splitMode !== null && splitMode?.phraseId !== phrase.id ? 0.5 : 1,
+                                        cursor: splitMode !== null && splitMode?.phraseId !== phrase.id ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Découper
+                                </button>
+                                <button
+                                    onClick={() => handleMergeWithPrevious(phrase.id)}
+                                    disabled={phraseIndex === 0}
+                                    style={{
+                                        opacity: phraseIndex === 0 ? 0.5 : 1,
+                                        cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Recoller
+                                </button>
+                            </div>
+                        </div>
 
                         {/* Split Controls */}
                         {splitMode?.phraseId === phrase.id && (
@@ -682,23 +644,22 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             </div>
                         )}
 
-                            {/* Piano Roll */}
-                            <div style={{ marginBottom: '1rem' }}>
-                                <PianoRoll
-                                    phrase={phrase}
-                                    keySignature={song.key}
-                                    onAddNote={addNoteToPhrase}
-                                    onRemoveNote={removeNoteFromPhrase}
-                                    onUpdateNote={onUpdateNote}
-                                    onUpdateHandSeparators={(separators) => onUpdateHandSeparators(phrase.id, separators)}
-                                    onSplit={() => handleStartSplit(phrase.id)}
-                                    isSplitMode={splitMode?.phraseId === phrase.id}
-                                    splitTime={splitTime}
-                                    onSplitTimeChange={setSplitTime}
-                                    onConfirmSplit={handleConfirmSplit}
-                                    onCancelSplit={handleCancelSplit}
-                                />
-                            </div>
+                        {/* Piano Roll */}
+                        <div style={{ marginBottom: '1rem' }}>
+                            <PianoRoll
+                                phrase={phrase}
+                                keySignature={song.key}
+                                onAddNote={addNoteToPhrase}
+                                onRemoveNote={removeNoteFromPhrase}
+                                onUpdateNote={onUpdateNote}
+                                onUpdateHandSeparators={(separators) => onUpdateHandSeparators(phrase.id, separators)}
+                                onSplit={() => handleStartSplit(phrase.id)}
+                                isSplitMode={splitMode?.phraseId === phrase.id}
+                                splitTime={splitTime}
+                                onSplitTimeChange={setSplitTime}
+                                onConfirmSplit={handleConfirmSplit}
+                                onCancelSplit={handleCancelSplit}
+                            />
                         </div>
                     </div>
                 ))}
