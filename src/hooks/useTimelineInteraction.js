@@ -32,17 +32,6 @@ export function useTimelineInteraction({
         return ratio * width;
     }, [totalDuration]);
 
-    // Convertir temps en mesure (approximatif)
-    const timeToMeasure = useCallback((time, beatsPerSecond) => {
-        const beats = time * beatsPerSecond;
-        return Math.floor(beats / 4) + 1; // +1 car les mesures commencent à 1
-    }, []);
-
-    // Convertir mesure en temps
-    const measureToTime = useCallback((measure, beatsPerSecond) => {
-        return ((measure - 1) * 4) / beatsPerSecond;
-    }, []);
-
     // Gérer le click sur la timeline
     const handleTimelineClick = useCallback((e) => {
         if (!timelineRef.current || isDraggingLoopHandle) return;
@@ -144,8 +133,6 @@ export function useTimelineInteraction({
         handleMouseDown,
         handleWheel,
         xToTime,
-        timeToX,
-        timeToMeasure,
-        measureToTime
+        timeToX
     };
 }

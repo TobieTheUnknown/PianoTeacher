@@ -26,6 +26,20 @@ export function TimelineNavigator({
     isPlaying,
     tempo
 }) {
+    // Helper functions pour conversion (définis avant le hook)
+    const measureToTime = useCallback((measure, bps) => {
+        return ((measure - 1) * 4) / bps;
+    }, []);
+
+    const timeToMeasure = useCallback((time, bps) => {
+        const beats = time * bps;
+        return Math.floor(beats / 4) + 1;
+    }, []);
+
+    // Calculer loopStart et loopEnd
+    const loopStart = loopConfig ? measureToTime(loopConfig.startMeasure, beatsPerSecond) : null;
+    const loopEnd = loopConfig ? measureToTime(loopConfig.endMeasure, beatsPerSecond) : null;
+
     const {
         timelineRef,
         isDragging,
@@ -33,14 +47,12 @@ export function TimelineNavigator({
         handleTimelineClick,
         handleMouseDown,
         handleWheel,
-        timeToX,
-        measureToTime,
-        timeToMeasure
+        timeToX
     } = useTimelineInteraction({
         totalDuration,
         currentTime,
-        loopStart: loopConfig ? measureToTime(loopConfig.startMeasure, beatsPerSecond) : null,
-        loopEnd: loopConfig ? measureToTime(loopConfig.endMeasure, beatsPerSecond) : null,
+        loopStart,
+        loopEnd,
         onSeek,
         onLoopChange: useCallback(({ start, end }) => {
             if (onLoopChange) {
