@@ -39,6 +39,12 @@ export function TimelineNavigator({
         return Math.floor(adjustedBeats / 4) + 1;
     }, []);
 
+    // Version sans epsilon pour la conversion exacte des handles de loop
+    const timeToMeasureExact = useCallback((time, bps) => {
+        const beats = time * bps;
+        return Math.floor(beats / 4) + 1;
+    }, []);
+
     // Calculer loopStart et loopEnd
     const loopStart = loopConfig ? measureToTime(loopConfig.startMeasure, beatsPerSecond) : null;
     // loopEnd doit être à la FIN de endMeasure (qui correspond au début de la mesure endMeasure)
@@ -61,10 +67,13 @@ export function TimelineNavigator({
         onLoopChange: useCallback(({ start, end }) => {
             if (onLoopChange) {
                 const startMeasure = timeToMeasure(start, beatsPerSecond);
-                const endMeasure = timeToMeasure(end, beatsPerSecond);
+                // Pour le handle de fin, utiliser la conversion exacte (sans epsilon)
+                // Le handle de droite est EXCLUSIF: si positionné au début de la mesure 5,
+                // on loope les mesures 1-4 (la mesure 5 n'est pas jouée)
+                const endMeasure = timeToMeasureExact(end, beatsPerSecond);
                 onLoopChange(startMeasure, endMeasure);
             }
-        }, [onLoopChange, timeToMeasure, beatsPerSecond]),
+        }, [onLoopChange, timeToMeasure, timeToMeasureExact, beatsPerSecond]),
         isPlaying
     });
 
@@ -110,7 +119,6 @@ export function TimelineNavigator({
                 ref={timelineRef}
                 className="timeline-track"
                 onClick={handleTimelineClick}
-                onWheel={(e) => handleWheel(e, beatsPerSecond)}
                 style={{
                     position: 'relative',
                     width: `${timelineWidth}px`,
@@ -366,7 +374,7 @@ export function TimelineNavigator({
 
             {/* Tooltip d'aide */}
             <div style={{ marginTop: '15px', fontSize: '11px', color: '#666', textAlign: 'center' }}>
-                💡 Cliquez pour naviguer • Scroll pour avancer/reculer • Glissez les poignées pour ajuster la loop
+                💡 Cliquez pour naviguer • Glissez les poignées pour ajuster la loop
             </div>
         </div>
     );
