@@ -5,13 +5,15 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators, onReorderPhrases }) {
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null);
     const [splitTime, setSplitTime] = useState('');
     const [isBatchSplit, setIsBatchSplit] = useState(false);
     const [showImportExportModal, setShowImportExportModal] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved');
+    const [editingPhraseId, setEditingPhraseId] = useState(null);
+    const [editingPhraseName, setEditingPhraseName] = useState('');
 
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
@@ -56,6 +58,49 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     const handleStop = () => {
         audioEngine.stop();
+    };
+
+    // Move phrase up/down
+    const handleMovePhraseUp = (phraseIndex) => {
+        if (phraseIndex > 0 && onReorderPhrases) {
+            onReorderPhrases(phraseIndex, phraseIndex - 1);
+        }
+    };
+
+    const handleMovePhraseDown = (phraseIndex) => {
+        if (phraseIndex < song.phrases.length - 1 && onReorderPhrases) {
+            onReorderPhrases(phraseIndex, phraseIndex + 1);
+        }
+    };
+
+    // Rename phrase handlers
+    const handleStartRename = (phrase) => {
+        setEditingPhraseId(phrase.id);
+        setEditingPhraseName(phrase.name);
+    };
+
+    const handleSaveRename = (phraseId) => {
+        if (editingPhraseName.trim()) {
+            const phraseIndex = song.phrases.findIndex(p => p.id === phraseId);
+            if (phraseIndex !== -1) {
+                const updatedPhrase = {
+                    ...song.phrases[phraseIndex],
+                    name: editingPhraseName.trim()
+                };
+
+                // Update via onUpdateMetadata to trigger save
+                const newPhrases = [...song.phrases];
+                newPhrases[phraseIndex] = updatedPhrase;
+                onUpdateMetadata({ ...song, phrases: newPhrases });
+            }
+        }
+        setEditingPhraseId(null);
+        setEditingPhraseName('');
+    };
+
+    const handleCancelRename = () => {
+        setEditingPhraseId(null);
+        setEditingPhraseName('');
     };
 
     const handleStartSplit = (phraseId) => {
@@ -357,14 +402,106 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             paddingBottom: '1rem',
                             borderBottom: '1px solid var(--border-color)'
                         }}>
-                            <h3 style={{
-                                margin: 0,
-                                fontSize: '1.25rem',
-                                fontWeight: '500',
-                                color: 'var(--text-primary)'
-                            }}>
-                                {phrase.name}
-                            </h3>
+                            {/* Title with edit mode */}
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                {/* Move buttons */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <button
+                                        onClick={() => handleMovePhraseUp(phraseIndex)}
+                                        disabled={phraseIndex === 0}
+                                        style={{
+                                            padding: '0',
+                                            width: '20px',
+                                            height: '16px',
+                                            fontSize: '0.7rem',
+                                            backgroundColor: phraseIndex === 0 ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                            color: phraseIndex === 0 ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '3px',
+                                            cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer',
+                                            lineHeight: '1',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        title="Monter"
+                                    >
+                                        ▲
+                                    </button>
+                                    <button
+                                        onClick={() => handleMovePhraseDown(phraseIndex)}
+                                        disabled={phraseIndex === song.phrases.length - 1}
+                                        style={{
+                                            padding: '0',
+                                            width: '20px',
+                                            height: '16px',
+                                            fontSize: '0.7rem',
+                                            backgroundColor: phraseIndex === song.phrases.length - 1 ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                            color: phraseIndex === song.phrases.length - 1 ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '3px',
+                                            cursor: phraseIndex === song.phrases.length - 1 ? 'not-allowed' : 'pointer',
+                                            lineHeight: '1',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        title="Descendre"
+                                    >
+                                        ▼
+                                    </button>
+                                </div>
+
+                                {editingPhraseId === phrase.id ? (
+                                    <input
+                                        type="text"
+                                        value={editingPhraseName}
+                                        onChange={(e) => setEditingPhraseName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSaveRename(phrase.id);
+                                            if (e.key === 'Escape') handleCancelRename();
+                                        }}
+                                        onBlur={() => handleSaveRename(phrase.id)}
+                                        autoFocus
+                                        style={{
+                                            padding: '0.4rem 0.6rem',
+                                            fontSize: '1.15rem',
+                                            fontWeight: '500',
+                                            border: '2px solid var(--accent-primary)',
+                                            borderRadius: 'var(--radius-md)',
+                                            backgroundColor: 'var(--bg-primary)',
+                                            color: 'var(--text-primary)',
+                                            minWidth: '200px'
+                                        }}
+                                    />
+                                ) : (
+                                    <h3
+                                        onClick={() => handleStartRename(phrase)}
+                                        style={{
+                                            margin: 0,
+                                            fontSize: '1.25rem',
+                                            fontWeight: '500',
+                                            color: 'var(--text-primary)',
+                                            cursor: 'pointer',
+                                            padding: '0.4rem 0.6rem',
+                                            borderRadius: 'var(--radius-md)',
+                                            transition: 'background-color 0.2s',
+                                            border: '2px solid transparent'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                            e.currentTarget.style.borderColor = 'transparent';
+                                        }}
+                                        title="Cliquer pour renommer"
+                                    >
+                                        {phrase.name}
+                                    </h3>
+                                )}
+                            </div>
                             <div style={{
                                 display: 'flex',
                                 gap: '0.5rem',

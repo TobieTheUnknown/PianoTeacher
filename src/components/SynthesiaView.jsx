@@ -4,6 +4,7 @@ import { ScoreService } from '../services/ScoreService';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { midiInputService } from '../services/MidiInputService';
+import { TimelineNavigator } from './TimelineNavigator';
 
 /**
  * SynthesiaView - Falling notes visualization with scoring and wait mode
@@ -43,6 +44,7 @@ export function SynthesiaView({ song }) {
     const startTimeRef = useRef(null);
     const pausedAtTimeRef = useRef(null);
     const processedNotesRef = useRef(new Set()); // Track notes already marked as missed
+    const preRollEndTimeRef = useRef(0); // Temps où le pré-roll doit se terminer
 
     // State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -82,6 +84,22 @@ export function SynthesiaView({ song }) {
     const [expectedNotes, setExpectedNotes] = useState(new Set()); // Notes that should be played now
     const [songStats, setSongStats] = useState(null);
     const [freePlayMode, setFreePlayMode] = useState(false); // Mode "sans fausse note" pour improvisation
+
+    // Count-in state (mesure de préparation)
+    const [isInPreRoll, setIsInPreRoll] = useState(false);
+    const [metronomeWasOn, setMetronomeWasOn] = useState(false); // État du métronome avant le pré-roll
+    const [preRollEnabled, setPreRollEnabled] = useState(true); // Activer/désactiver le pré-roll
+
+    // Loop intelligent state (activation automatique quand on rentre dans la loop)
+    const [loopActivationPending, setLoopActivationPending] = useState(false);
+    const [loopWillActivateAt, setLoopWillActivateAt] = useState(null);
+
+    // Active keys state (pour l'allumage visuel des touches)
+    const [activeKeys, setActiveKeys] = useState({
+        student: new Set(),      // Notes pressées par l'élève
+        computer: new Set(),     // Notes jouées par le logiciel
+        expected: new Set()      // Notes attendues (wait mode uniquement)
+    });
 
     // Canvas dimensions
     const CANVAS_WIDTH = 1200;
@@ -228,8 +246,14 @@ export function SynthesiaView({ song }) {
         const handleNoteOn = (event) => {
             const { note, velocity } = event;
 
-            // Add to active notes
+            // Add to active notes (ancienne méthode, conservée pour compatibilité)
             setActiveNotes(prev => new Set([...prev, note]));
+
+            // Add to activeKeys.student pour l'allumage visuel des touches
+            setActiveKeys(prev => ({
+                ...prev,
+                student: new Set([...prev.student, note])
+            }));
 
             // Note: Audio is now handled globally by useMidiAudio hook in App.jsx
             // This useEffect only handles game logic (correct/wrong notes, scoring, wait mode)
@@ -304,11 +328,21 @@ export function SynthesiaView({ song }) {
         const handleNoteOff = (event) => {
             const { note } = event;
 
-            // Remove from active notes
+            // Remove from active notes (ancienne méthode, conservée pour compatibilité)
             setActiveNotes(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(note);
                 return newSet;
+            });
+
+            // Remove from activeKeys.student pour l'allumage visuel des touches
+            setActiveKeys(prev => {
+                const newStudent = new Set(prev.student);
+                newStudent.delete(note);
+                return {
+                    ...prev,
+                    student: newStudent
+                };
             });
 
             // Note: Audio release is handled globally by useMidiAudio hook
@@ -355,6 +389,43 @@ export function SynthesiaView({ song }) {
         setPlayedNotes(new Map());
     }, [beatsPerSecond, playbackSpeed]);
 
+    // Jump to a specific time in seconds (for timeline navigation)
+    const jumpToTime = useCallback((targetTime) => {
+        const wasPlaying = isPlaying;
+        if (wasPlaying) setIsPlaying(false);
+
+        // Clamp to valid range
+        const clampedTime = Math.max(0, Math.min(totalDuration, targetTime));
+
+        setCurrentTime(clampedTime);
+        startTimeRef.current = performance.now() - (clampedTime / playbackSpeed) * 1000;
+
+        // Reset notes processing
+        processedNotesRef.current = new Set();
+        setPlayedNotes(new Map());
+        setFeedbackMessages([]);
+
+        // Détection: si on se positionne avant le début du loop et que le loop est actif
+        if (isLoopEnabled && loopConfig) {
+            const loopStartTime = ((loopConfig.startMeasure - 1) * 4) / beatsPerSecond;
+
+            if (clampedTime < loopStartTime) {
+                // On est avant la loop, activer le mode "pending"
+                setLoopActivationPending(true);
+                setLoopWillActivateAt(loopStartTime);
+            } else {
+                // On est dans ou après la loop, désactiver le pending
+                setLoopActivationPending(false);
+                setLoopWillActivateAt(null);
+            }
+        }
+
+        // Reprendre la lecture si elle était active
+        if (wasPlaying) {
+            setTimeout(() => setIsPlaying(true), 100);
+        }
+    }, [isPlaying, playbackSpeed, isLoopEnabled, loopConfig, beatsPerSecond]);
+
     // Set loop for a specific phrase or measure range
     const setLoopForRange = useCallback((startMeasure, endMeasure, name = '') => {
         setLoopConfig({ startMeasure, endMeasure, name });
@@ -394,12 +465,43 @@ export function SynthesiaView({ song }) {
         }
     }, [customRangeStart, customRangeEnd, setLoopForRange]);
 
+    // Handle loop change from timeline (drag handles)
+    const handleLoopChange = useCallback((startMeasure, endMeasure) => {
+        if (loopConfig) {
+            setLoopConfig({
+                startMeasure,
+                endMeasure,
+                name: loopConfig.name || `Mesures ${startMeasure}-${endMeasure}`
+            });
+        }
+    }, [loopConfig]);
+
+    // Toggle loop on/off
+    const handleLoopToggle = useCallback(() => {
+        if (isLoopEnabled) {
+            // Désactiver la loop
+            clearLoop();
+        } else {
+            // Créer une loop d'une mesure à la position actuelle
+            const beatsPerMeasure = 4;
+            const currentMeasure = Math.floor((currentTime * beatsPerSecond) / beatsPerMeasure) + 1;
+            const loopMeasure = Math.max(1, currentMeasure); // Au moins mesure 1
+
+            setLoopForRange(loopMeasure, loopMeasure, `Mesure ${loopMeasure}`);
+        }
+    }, [isLoopEnabled, currentTime, beatsPerSecond, clearLoop, setLoopForRange]);
+
     // Calculate total measures in the song
     const totalMeasures = useMemo(() => {
         return phraseMeasureRanges.length > 0
             ? phraseMeasureRanges[phraseMeasureRanges.length - 1].endMeasure
             : 0;
     }, [phraseMeasureRanges]);
+
+    // Calculate total duration in seconds
+    const totalDuration = useMemo(() => {
+        return (totalMeasures * 4) / beatsPerSecond;
+    }, [totalMeasures, beatsPerSecond]);
 
     // Reset BPM when song changes
     useEffect(() => {
@@ -487,6 +589,67 @@ export function SynthesiaView({ song }) {
         }
     }, [currentTime, allNotes, beatsPerSecond, handMode, waitMode, isPlaying, playedNotes]);
 
+    // Update activeKeys (expected and computer notes) based on current time
+    useEffect(() => {
+        if (!isPlaying) {
+            // Clear expected and computer keys when not playing
+            setActiveKeys(prev => ({
+                ...prev,
+                expected: new Set(),
+                computer: new Set()
+            }));
+            return;
+        }
+
+        const computerHands = new Set();
+        const userHands = new Set();
+
+        if (handMode === 'left') {
+            userHands.add('left');
+            computerHands.add('right');
+        } else if (handMode === 'right') {
+            userHands.add('right');
+            computerHands.add('left');
+        } else if (handMode === 'both') {
+            userHands.add('left');
+            userHands.add('right');
+        } else if (handMode === 'watch') {
+            computerHands.add('left');
+            computerHands.add('right');
+        }
+
+        const newExpectedNotes = new Set();
+        const newComputerNotes = new Set();
+
+        allNotes.forEach(note => {
+            const noteTime = note.startTime / beatsPerSecond;
+            const noteEndTime = noteTime + (note.duration / beatsPerSecond);
+
+            // Check if note is currently active (being played)
+            const isNoteActive = currentTime >= noteTime && currentTime < noteEndTime;
+
+            // Expected notes (for user hands, in all modes)
+            // Ne pas afficher les notes que l'ordinateur va jouer
+            if (userHands.has(note.hand) && !playedNotes.has(note.id)) {
+                // Show expected notes slightly before they should be played (0.5 secondes d'avance)
+                if (currentTime >= noteTime - 0.5 && currentTime < noteTime + NOTE_TOLERANCE) {
+                    newExpectedNotes.add(note.pitch);
+                }
+            }
+
+            // Computer notes (currently being played by computer)
+            if (computerHands.has(note.hand) && isNoteActive) {
+                newComputerNotes.add(note.pitch);
+            }
+        });
+
+        setActiveKeys(prev => ({
+            ...prev,
+            expected: newExpectedNotes,
+            computer: newComputerNotes
+        }));
+    }, [currentTime, isPlaying, handMode, allNotes, beatsPerSecond, waitMode, playedNotes]);
+
     // Auto-Play Computer Notes
     useEffect(() => {
         if (!isPlaying) return;
@@ -537,11 +700,14 @@ export function SynthesiaView({ song }) {
         const beatsPerMeasure = 4;
         const currentBeat = currentTime * beatsPerSecond;
 
+        // Pendant le pré-roll, forcer le métronome en mode beat (1/4)
+        const effectiveDivision = isInPreRoll ? 'beat' : metronomeDivision;
+
         // Calculate click position based on division
         let currentClickPosition;
         let clicksPerMeasure;
 
-        switch (metronomeDivision) {
+        switch (effectiveDivision) {
             case 'half-measure':
                 // Click twice per measure (1/2)
                 currentClickPosition = Math.floor(currentBeat / 2);
@@ -560,13 +726,13 @@ export function SynthesiaView({ song }) {
                 break;
         }
 
-        // Play click when position changes
-        if (currentClickPosition !== lastMetronomeClickRef.current && currentClickPosition >= 0) {
+        // Play click when position changes (allow negative positions for pre-roll)
+        if (currentClickPosition !== lastMetronomeClickRef.current) {
             lastMetronomeClickRef.current = currentClickPosition;
 
             // Determine if this is an accented beat (first beat of measure)
             const beatInMeasure = Math.floor(currentBeat % beatsPerMeasure);
-            const isAccent = metronomeDivision === 'measure' || beatInMeasure < 0.1; // Accent first beat of measure
+            const isAccent = effectiveDivision === 'measure' || beatInMeasure < 0.1; // Accent first beat of measure
 
             // Play click with accent if applicable
             audioEngine.playClick(Tone.now(), isAccent);
@@ -575,7 +741,7 @@ export function SynthesiaView({ song }) {
         // No need for automatic metronome loop anymore
         audioEngine.stopMetronome();
 
-    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision]);
+    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision, isInPreRoll]);
 
     // Resume playback after wait mode pause
     const resumeAfterWait = () => {
@@ -668,7 +834,7 @@ export function SynthesiaView({ song }) {
         const beatsPerMeasure = 4;
 
         const startMeasure = loopConfig.startMeasure - 1; // Convert to 0-indexed
-        const endMeasure = loopConfig.endMeasure; // End is exclusive for the calculation
+        const endMeasure = loopConfig.endMeasure - 1; // Convert to 0-indexed (endMeasure is exclusive)
 
         const loopStartTime = (startMeasure * beatsPerMeasure) / beatsPerSecond;
         const loopEndTime = (endMeasure * beatsPerMeasure) / beatsPerSecond;
@@ -848,7 +1014,7 @@ export function SynthesiaView({ song }) {
         ctx.globalAlpha = 1.0;
     };
 
-    // Draw piano keyboard
+    // Draw piano keyboard (avec états: expected, computer, student)
     const drawKeyboard = (ctx) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
         const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
@@ -860,26 +1026,79 @@ export function SynthesiaView({ song }) {
         for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
             if (!isBlackKey(i)) {
                 const x = getNoteX(i);
-                const keyColor = getKeyColor(i, false);
                 const isPressed = activeNotes.has(i);
 
-                // Add glow effect for pressed keys (matches MIDI visualizer)
-                if (isPressed) {
-                    ctx.shadowColor = 'rgba(59, 130, 246, 0.6)';
+                // Déterminer l'état de la touche (ordre de priorité)
+                const isStudentKey = activeKeys.student.has(i);
+                const isComputerKey = activeKeys.computer.has(i);
+                const isExpectedKey = activeKeys.expected.has(i);
+
+                // Couleur de base
+                let keyColor = COLORS.whiteKey;
+                let glowColor = null;
+                let outlineColor = null;
+
+                // Ordre de rendu: expected < computer < student
+                if (isExpectedKey) {
+                    // Note attendue: outline jaune pulsant
+                    outlineColor = '#fbbf24';
+                    glowColor = 'rgba(251, 191, 36, 0.3)';
+                }
+
+                if (isComputerKey) {
+                    // Note jouée par l'ordinateur: remplissage bleu clair
+                    keyColor = '#93c5fd';
+                    glowColor = 'rgba(147, 197, 253, 0.4)';
+                }
+
+                if (isStudentKey) {
+                    // Note pressée par l'élève: couleur selon précision
+                    const recentFeedback = feedbackMessages.find(f => f.noteNum === i);
+                    if (recentFeedback) {
+                        if (recentFeedback.type === 'correct') {
+                            keyColor = COLORS.whiteKeyCorrect;
+                            glowColor = 'rgba(34, 197, 94, 0.6)';
+                        } else if (recentFeedback.type === 'wrong') {
+                            keyColor = COLORS.whiteKeyWrong;
+                            glowColor = 'rgba(239, 68, 68, 0.6)';
+                        }
+                    } else {
+                        keyColor = COLORS.whiteKeyPressed;
+                        glowColor = 'rgba(59, 130, 246, 0.6)';
+                    }
+                }
+
+                // Appliquer le glow si nécessaire
+                if (glowColor) {
+                    ctx.shadowColor = glowColor;
                     ctx.shadowBlur = 10;
                 }
 
+                // Dessiner la touche
                 ctx.fillStyle = keyColor;
                 ctx.fillRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
 
                 // Reset shadow
                 ctx.shadowBlur = 0;
 
+                // Border normale
                 ctx.strokeStyle = '#cccccc';
+                ctx.lineWidth = 1;
                 ctx.strokeRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
 
+                // Outline pour expected notes (pulsant)
+                if (isExpectedKey && outlineColor) {
+                    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+                    ctx.strokeStyle = outlineColor;
+                    ctx.lineWidth = 3;
+                    ctx.globalAlpha = pulse;
+                    ctx.strokeRect(x + 2, keyboardY + 2, WHITE_KEY_WIDTH - 5, KEYBOARD_HEIGHT - 4);
+                    ctx.globalAlpha = 1.0;
+                    ctx.lineWidth = 1;
+                }
+
                 // Label (French) - without octave numbers
-                ctx.fillStyle = isPressed ? '#ffffff' : '#555';
+                ctx.fillStyle = (isStudentKey || isComputerKey) ? '#ffffff' : '#555';
                 const label = getMidiNoteName(i).replace(/[0-9-]/g, '');
                 ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10);
             }
@@ -889,28 +1108,80 @@ export function SynthesiaView({ song }) {
         for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
             if (isBlackKey(i)) {
                 const x = getNoteX(i);
-                const keyColor = getKeyColor(i, true);
                 const isPressed = activeNotes.has(i);
                 const blackKeyHeight = KEYBOARD_HEIGHT * 0.65;
 
-                // Add glow effect for pressed keys (matches MIDI visualizer)
-                if (isPressed) {
-                    ctx.shadowColor = 'rgba(59, 130, 246, 0.6)';
+                // Déterminer l'état de la touche (ordre de priorité)
+                const isStudentKey = activeKeys.student.has(i);
+                const isComputerKey = activeKeys.computer.has(i);
+                const isExpectedKey = activeKeys.expected.has(i);
+
+                // Couleur de base
+                let keyColor = COLORS.blackKey;
+                let glowColor = null;
+                let outlineColor = null;
+
+                // Ordre de rendu: expected < computer < student
+                if (isExpectedKey) {
+                    // Note attendue: outline jaune pulsant
+                    outlineColor = '#fbbf24';
+                    glowColor = 'rgba(251, 191, 36, 0.3)';
+                }
+
+                if (isComputerKey) {
+                    // Note jouée par l'ordinateur: remplissage bleu clair (plus foncé pour touche noire)
+                    keyColor = '#60a5fa';
+                    glowColor = 'rgba(96, 165, 250, 0.4)';
+                }
+
+                if (isStudentKey) {
+                    // Note pressée par l'élève: couleur selon précision
+                    const recentFeedback = feedbackMessages.find(f => f.noteNum === i);
+                    if (recentFeedback) {
+                        if (recentFeedback.type === 'correct') {
+                            keyColor = COLORS.blackKeyCorrect;
+                            glowColor = 'rgba(34, 197, 94, 0.6)';
+                        } else if (recentFeedback.type === 'wrong') {
+                            keyColor = COLORS.blackKeyWrong;
+                            glowColor = 'rgba(239, 68, 68, 0.6)';
+                        }
+                    } else {
+                        keyColor = COLORS.blackKeyPressed;
+                        glowColor = 'rgba(59, 130, 246, 0.6)';
+                    }
+                }
+
+                // Appliquer le glow si nécessaire
+                if (glowColor) {
+                    ctx.shadowColor = glowColor;
                     ctx.shadowBlur = 10;
                 }
 
+                // Dessiner la touche
                 ctx.fillStyle = keyColor;
                 ctx.fillRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
 
                 // Reset shadow
                 ctx.shadowBlur = 0;
 
-                // Border
+                // Border normale
                 ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
                 ctx.strokeRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
 
+                // Outline pour expected notes (pulsant)
+                if (isExpectedKey && outlineColor) {
+                    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+                    ctx.strokeStyle = outlineColor;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = pulse;
+                    ctx.strokeRect(x + 1, keyboardY + 1, BLACK_KEY_WIDTH - 2, blackKeyHeight - 2);
+                    ctx.globalAlpha = 1.0;
+                    ctx.lineWidth = 1;
+                }
+
                 // Label
-                ctx.fillStyle = isPressed ? '#ffffff' : '#ccc';
+                ctx.fillStyle = (isStudentKey || isComputerKey) ? '#ffffff' : '#ccc';
                 ctx.font = '10px Arial';
                 const label = getMidiNoteName(i);
                 const shortLabel = label.replace(/[0-9-]/g, '');
@@ -1204,7 +1475,7 @@ export function SynthesiaView({ song }) {
         // Draw combo counter
         drawCombo(ctx);
 
-    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes, sessionStats.currentCombo]);
+    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes, sessionStats.currentCombo, activeKeys]);
 
     // Animation loop
     useEffect(() => {
@@ -1217,31 +1488,39 @@ export function SynthesiaView({ song }) {
 
             const elapsed = (performance.now() - startTimeRef.current) / 1000 * playbackSpeed;
 
-            // Handle loop logic for configured loop range
-            if (isLoopEnabled && loopConfig) {
+            // Gestion du pré-roll (mesure de préparation)
+            if (isInPreRoll && elapsed >= preRollEndTimeRef.current) {
+                // Le pré-roll se termine quand on atteint le temps cible
+                setIsInPreRoll(false);
+                // Restaurer l'état du métronome
+                setIsMetronomeOn(metronomeWasOn);
+            }
+
+            // Gestion du loop intelligent (activation automatique)
+            if (loopActivationPending && loopWillActivateAt !== null && elapsed >= loopWillActivateAt) {
+                setLoopActivationPending(false);
+                setLoopWillActivateAt(null);
+                // La loop s'active maintenant automatiquement
+            }
+
+            // Handle loop logic for configured loop range (seulement si pas en mode pending)
+            if (isLoopEnabled && loopConfig && !loopActivationPending) {
                 const beatsPerMeasure = 4;
                 const firstMeasure = loopConfig.startMeasure - 1; // Convert to 0-indexed
-                const lastMeasure = loopConfig.endMeasure - 1; // Convert to 0-indexed
+                const lastMeasure = loopConfig.endMeasure - 1; // Convert to 0-indexed (endMeasure is exclusive)
 
                 const loopStartTime = (firstMeasure * beatsPerMeasure) / beatsPerSecond;
-                const loopEndTime = ((lastMeasure + 1) * beatsPerMeasure) / beatsPerSecond;
+                const loopEndTime = (lastMeasure * beatsPerMeasure) / beatsPerSecond;
 
                 // If elapsed has passed the end of the loop zone, reset to the beginning
                 if (elapsed >= loopEndTime) {
+                    // Retour direct au début de la loop (pas de pré-roll entre les itérations)
                     startTimeRef.current = performance.now() - (loopStartTime / playbackSpeed) * 1000;
                     setCurrentTime(loopStartTime);
                     // Reset played notes and processed notes for the loop
                     processedNotesRef.current = new Set();
                     setPlayedNotes(new Map());
                     return; // Skip the rest of this frame to prevent double-rendering
-                }
-                // If starting before the loop zone, jump to the beginning of the loop
-                else if (elapsed < loopStartTime) {
-                    startTimeRef.current = performance.now() - (loopStartTime / playbackSpeed) * 1000;
-                    setCurrentTime(loopStartTime);
-                    processedNotesRef.current = new Set();
-                    setPlayedNotes(new Map());
-                    return;
                 }
             }
 
@@ -1282,7 +1561,7 @@ export function SynthesiaView({ song }) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig]);
+    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, isInPreRoll, metronomeWasOn, loopActivationPending, loopWillActivateAt, handMode]);
 
     // Render on state changes
     useEffect(() => {
@@ -1330,17 +1609,54 @@ export function SynthesiaView({ song }) {
         alert(`Bravo ! Morceau terminé !\nPrécision: ${accuracy}%\nNotes correctes: ${sessionStats.correctNotes}/${sessionStats.totalNotes}`);
     };
 
-    // Play/Pause controls
+    // Play/Pause controls (avec pré-roll optionnel de 1 mesure)
     const handlePlayPause = () => {
         if (isPlaying) {
+            // Pause
             setIsPlaying(false);
             startTimeRef.current = null;
+            setIsInPreRoll(false);
         } else {
+            // Play avec pré-roll optionnel de 1 mesure
             if (!sessionStats.startTime) {
                 setSessionStats(prev => ({ ...prev, startTime: new Date().toISOString() }));
             }
-            setIsPlaying(true);
-            startTimeRef.current = performance.now() - (currentTime / playbackSpeed) * 1000;
+
+            const beatsPerMeasure = 4;
+            let targetStartTime;
+
+            if (isLoopEnabled && loopConfig) {
+                // Si loop actif, démarrer au début du loop
+                targetStartTime = ((loopConfig.startMeasure - 1) * beatsPerMeasure) / beatsPerSecond;
+            } else {
+                // Sinon, démarrer à la position actuelle (ou au début)
+                targetStartTime = currentTime === 0 ? 0 : currentTime;
+            }
+
+            if (preRollEnabled) {
+                // Avec pré-roll: sauvegarder l'état du métronome et le forcer à ON
+                setMetronomeWasOn(isMetronomeOn);
+                setIsMetronomeOn(true);
+
+                const preparationTime = beatsPerMeasure / beatsPerSecond; // 1 mesure en secondes
+
+                // Stocker le temps où le pré-roll doit se terminer
+                preRollEndTimeRef.current = targetStartTime;
+
+                // Démarrer -1 mesure avant (peut être négatif)
+                const preRollStartTime = targetStartTime - preparationTime;
+
+                setCurrentTime(preRollStartTime);
+                startTimeRef.current = performance.now() - (preRollStartTime / playbackSpeed) * 1000;
+                setIsPlaying(true);
+                setIsInPreRoll(true);
+            } else {
+                // Sans pré-roll: démarrer directement
+                setCurrentTime(targetStartTime);
+                startTimeRef.current = performance.now() - (targetStartTime / playbackSpeed) * 1000;
+                setIsPlaying(true);
+                setIsInPreRoll(false);
+            }
         }
     };
 
@@ -1465,7 +1781,7 @@ export function SynthesiaView({ song }) {
                         gap: '0.5rem'
                     }}
                 >
-                    📊 {showScores ? 'Masquer' : 'Voir'} Statistiques
+                    {showScores ? 'Masquer' : 'Voir'} Statistiques
                 </button>
             </div>
 
@@ -1485,7 +1801,7 @@ export function SynthesiaView({ song }) {
                         marginBottom: '1.5rem',
                         color: 'var(--text-primary)'
                     }}>
-                        📊 Statistiques - {song.title}
+                        Statistiques - {song.title}
                     </h3>
 
                     <div style={{
@@ -1530,11 +1846,12 @@ export function SynthesiaView({ song }) {
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
                             fontWeight: '600',
-                            fontSize: '1.1rem'
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
                         }}
                         title="Métronome"
                     >
-                        ⏰
+                        Métronome
                     </button>
 
                     {isMetronomeOn && (
@@ -1566,6 +1883,27 @@ export function SynthesiaView({ song }) {
                             })}
                         </div>
                     )}
+                </div>
+
+                {/* Pre-roll Section */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                        onClick={() => setPreRollEnabled(!preRollEnabled)}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: preRollEnabled ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
+                            color: preRollEnabled ? '#3b82f6' : 'var(--text-secondary)',
+                            border: preRollEnabled ? '2px solid #3b82f6' : '2px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                        }}
+                        title="Activer/désactiver le pré-roll d'une mesure avant le démarrage"
+                    >
+                        Pré-roll
+                    </button>
                 </div>
 
                 {/* Tempo Section */}
@@ -1690,7 +2028,7 @@ export function SynthesiaView({ song }) {
                             fontSize: '0.875rem'
                         }}
                     >
-                        {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
+                        {isPlaying ? 'Pause' : 'Jouer'}
                     </button>
 
                     <button
@@ -1706,7 +2044,7 @@ export function SynthesiaView({ song }) {
                             fontSize: '0.875rem'
                         }}
                     >
-                        🔄 Recommencer
+                        Recommencer
                     </button>
 
                     <button
@@ -1723,7 +2061,7 @@ export function SynthesiaView({ song }) {
                         }}
                         title="Basculer entre mode écoute et mode pratique"
                     >
-                        {handMode === 'watch' ? '👀 Écoute' : '🎹 Pratique'}
+                        {handMode === 'watch' ? 'Écoute' : 'Pratique'}
                     </button>
 
                     <button
@@ -1739,7 +2077,7 @@ export function SynthesiaView({ song }) {
                             fontSize: '0.875rem'
                         }}
                     >
-                        {waitMode ? '⏸️ Attente' : '⏸️ Continue'}
+                        {waitMode ? 'Attente' : 'Continue'}
                     </button>
 
                     <button
@@ -1756,7 +2094,7 @@ export function SynthesiaView({ song }) {
                         }}
                         title="Mode libre : jouez sans contrainte, pas de notes manquées"
                     >
-                        {freePlayMode ? '🎵 Libre' : '🎯 Guidé'}
+                        {freePlayMode ? 'Libre' : 'Guidé'}
                     </button>
                 </div>
 
@@ -1804,151 +2142,25 @@ export function SynthesiaView({ song }) {
                 )}
             </div>
 
-            {/* Navigation & Loop Controls */}
+            {/* Timeline Navigator - Navigation & Loop Controls */}
             <div style={{
                 width: '100%',
-                maxWidth: `${CANVAS_WIDTH}px`,
-                display: 'flex',
-                gap: '1rem',
-                alignItems: 'flex-end',
-                padding: '1rem 1.5rem',
-                background: 'var(--bg-elevated)',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-color)'
+                maxWidth: `${CANVAS_WIDTH}px`
             }}>
-                {/* Phrase Selector */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                        Phrase / Section
-                    </label>
-                    <select
-                        value={selectedPhraseIndex}
-                        onChange={handlePhraseSelect}
-                        style={{
-                            padding: '0.75rem',
-                            background: 'var(--bg-tertiary)',
-                            color: 'var(--text-primary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: '500'
-                        }}
-                    >
-                        <option value="">Sélectionner une phrase...</option>
-                        {phraseMeasureRanges.map((phrase, index) => (
-                            <option key={index} value={index}>
-                                {phrase.name} (mesures {phrase.startMeasure}-{phrase.endMeasure})
-                            </option>
-                        ))}
-                        <option value="custom">--- Range personnalisé ---</option>
-                    </select>
-                </div>
-
-                {/* Custom Range Selector */}
-                {selectedPhraseIndex === 'custom' && (
-                    <>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                                De la mesure
-                            </label>
-                            <input
-                                type="number"
-                                min="1"
-                                max={totalMeasures}
-                                value={customRangeStart}
-                                onChange={(e) => setCustomRangeStart(e.target.value)}
-                                placeholder="1"
-                                style={{
-                                    padding: '0.75rem',
-                                    background: 'var(--bg-tertiary)',
-                                    color: 'var(--text-primary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-md)',
-                                    fontSize: '0.9rem',
-                                    width: '100px',
-                                    fontWeight: '500'
-                                }}
-                            />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                                À la mesure
-                            </label>
-                            <input
-                                type="number"
-                                min={customRangeStart || "1"}
-                                max={totalMeasures}
-                                value={customRangeEnd}
-                                onChange={(e) => setCustomRangeEnd(e.target.value)}
-                                placeholder={totalMeasures.toString()}
-                                style={{
-                                    padding: '0.75rem',
-                                    background: 'var(--bg-tertiary)',
-                                    color: 'var(--text-primary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-md)',
-                                    fontSize: '0.9rem',
-                                    width: '100px',
-                                    fontWeight: '500'
-                                }}
-                            />
-                        </div>
-                        <button
-                            onClick={handleCustomRangeLoop}
-                            disabled={!customRangeStart || !customRangeEnd}
-                            style={{
-                                padding: '0.75rem 1.5rem',
-                                background: (!customRangeStart || !customRangeEnd) ? 'var(--bg-tertiary)' : 'var(--gradient-primary)',
-                                color: (!customRangeStart || !customRangeEnd) ? 'var(--text-secondary)' : 'white',
-                                border: 'none',
-                                borderRadius: 'var(--radius-md)',
-                                cursor: (!customRangeStart || !customRangeEnd) ? 'not-allowed' : 'pointer',
-                                fontWeight: '600',
-                                fontSize: '0.9rem',
-                                opacity: (!customRangeStart || !customRangeEnd) ? 0.5 : 1
-                            }}
-                        >
-                            🔁 Loop
-                        </button>
-                    </>
-                )}
-
-                {/* Clear Loop Button */}
-                {isLoopEnabled && (
-                    <button
-                        onClick={clearLoop}
-                        style={{
-                            padding: '0.75rem 1.5rem',
-                            background: '#ef4444',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 'var(--radius-md)',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '0.9rem'
-                        }}
-                    >
-                        ❌ Arrêter
-                    </button>
-                )}
-
-                {/* Current Loop Info */}
-                {isLoopEnabled && loopConfig && (
-                    <div style={{
-                        padding: '0.75rem 1.25rem',
-                        background: 'var(--accent-primary)',
-                        color: 'var(--bg-primary)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.9rem',
-                        fontWeight: '600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        🔁 {loopConfig.name || `Mesures ${loopConfig.startMeasure}-${loopConfig.endMeasure}`}
-                    </div>
-                )}
+                <TimelineNavigator
+                    totalDuration={totalDuration}
+                    currentTime={currentTime}
+                    loopConfig={loopConfig}
+                    isLoopEnabled={isLoopEnabled}
+                    phrases={song.phrases}
+                    beatsPerSecond={beatsPerSecond}
+                    onSeek={jumpToTime}
+                    onLoopChange={handleLoopChange}
+                    onLoopToggle={handleLoopToggle}
+                    onPhraseLoopSelect={setLoopForRange}
+                    isPlaying={isPlaying}
+                    tempo={currentBPM}
+                />
             </div>
 
             {/* Legend */}
