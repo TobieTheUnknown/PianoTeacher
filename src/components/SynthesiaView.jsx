@@ -44,6 +44,7 @@ export function SynthesiaView({ song }) {
     const startTimeRef = useRef(null);
     const pausedAtTimeRef = useRef(null);
     const processedNotesRef = useRef(new Set()); // Track notes already marked as missed
+    const preRollEndTimeRef = useRef(0); // Temps où le pré-roll doit se terminer
 
     // State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -85,8 +86,8 @@ export function SynthesiaView({ song }) {
     const [freePlayMode, setFreePlayMode] = useState(false); // Mode "sans fausse note" pour improvisation
 
     // Count-in state (mesure de préparation)
-    const [isCountingIn, setIsCountingIn] = useState(false);
-    const [countInValue, setCountInValue] = useState(null); // 4, 3, 2, 1
+    const [isInPreRoll, setIsInPreRoll] = useState(false);
+    const [metronomeStateBeforePreRoll, setMetronomeStateBeforePreRoll] = useState(false);
 
     // Loop intelligent state (activation automatique quand on rentre dans la loop)
     const [loopActivationPending, setLoopActivationPending] = useState(false);
@@ -620,9 +621,10 @@ export function SynthesiaView({ song }) {
             // Check if note is currently active (being played)
             const isNoteActive = currentTime >= noteTime && currentTime < noteEndTime;
 
-            // Expected notes (wait mode only, for user hands)
-            if (waitMode && userHands.has(note.hand) && !playedNotes.has(note.id)) {
-                // Show expected notes slightly before they should be played
+            // Expected notes (for user hands, in all modes)
+            // Ne pas afficher les notes que l'ordinateur va jouer
+            if (userHands.has(note.hand) && !playedNotes.has(note.id)) {
+                // Show expected notes slightly before they should be played (0.5 secondes d'avance)
                 if (currentTime >= noteTime - 0.5 && currentTime < noteTime + NOTE_TOLERANCE) {
                     newExpectedNotes.add(note.pitch);
                 }
@@ -1401,42 +1403,6 @@ export function SynthesiaView({ song }) {
         }
     };
 
-    // Draw count-in (compte à rebours)
-    const drawCountIn = (ctx, value) => {
-        const centerX = CANVAS_WIDTH / 2;
-        const centerY = CANVAS_HEIGHT / 2;
-
-        // Background semi-transparent
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-        // Effet pulse
-        const pulse = Math.sin(Date.now() / 150) * 0.15 + 0.85;
-
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.scale(pulse, pulse);
-
-        // Ombre et glow
-        ctx.shadowBlur = 40;
-        ctx.shadowColor = '#fbbf24';
-
-        // Texte du compte à rebours
-        ctx.font = 'bold 180px Arial';
-        ctx.fillStyle = '#fbbf24';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(value.toString(), 0, 0);
-
-        // Label "Préparez-vous..."
-        ctx.shadowBlur = 0;
-        ctx.font = 'bold 32px Arial';
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
-        ctx.fillText('Préparez-vous...', 0, -120);
-
-        ctx.restore();
-    };
-
     // Draw enhanced hit line with glow effect (optimized)
     const drawHitLine = (ctx) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
@@ -1499,12 +1465,7 @@ export function SynthesiaView({ song }) {
         // Draw combo counter
         drawCombo(ctx);
 
-        // Draw count-in (compte à rebours)
-        if (isCountingIn && countInValue) {
-            drawCountIn(ctx, countInValue);
-        }
-
-    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes, sessionStats.currentCombo, isCountingIn, countInValue, activeKeys]);
+    }, [currentTime, activeNotes, playedNotes, feedbackMessages, expectedNotes, sessionStats.currentCombo, activeKeys]);
 
     // Animation loop
     useEffect(() => {
@@ -1517,30 +1478,12 @@ export function SynthesiaView({ song }) {
 
             const elapsed = (performance.now() - startTimeRef.current) / 1000 * playbackSpeed;
 
-            // Gestion du count-in (compte à rebours)
-            if (isCountingIn) {
-                const beatsPerMeasure = 4;
-                let targetStartTime;
-
-                if (isLoopEnabled && loopConfig) {
-                    targetStartTime = ((loopConfig.startMeasure - 1) * beatsPerMeasure) / beatsPerSecond;
-                } else {
-                    // Pour un démarrage normal, on considère que le count-in démarre 1 mesure avant la position actuelle
-                    targetStartTime = elapsed + (beatsPerMeasure / beatsPerSecond);
-                }
-
-                const beatsUntilStart = (targetStartTime - elapsed) * beatsPerSecond;
-                const newCountValue = Math.ceil(beatsUntilStart);
-
-                if (newCountValue !== countInValue && newCountValue >= 1 && newCountValue <= 4) {
-                    setCountInValue(newCountValue);
-                }
-
-                // Fin du count-in
-                if (elapsed >= targetStartTime) {
-                    setIsCountingIn(false);
-                    setCountInValue(null);
-                }
+            // Gestion du pré-roll (mesure de préparation)
+            if (isInPreRoll && elapsed >= preRollEndTimeRef.current) {
+                // Le pré-roll se termine quand on atteint le temps cible
+                setIsInPreRoll(false);
+                // Restaurer l'état du métronome
+                setIsMetronomeOn(metronomeStateBeforePreRoll);
             }
 
             // Gestion du loop intelligent (activation automatique)
@@ -1561,17 +1504,23 @@ export function SynthesiaView({ song }) {
 
                 // If elapsed has passed the end of the loop zone, reset to the beginning
                 if (elapsed >= loopEndTime) {
-                    // Retour au début de la loop avec count-in
+                    // Retour au début de la loop avec pré-roll
                     const preparationTime = beatsPerMeasure / beatsPerSecond; // 1 mesure
-                    const countInStartTime = Math.max(0, loopStartTime - preparationTime);
+                    const preRollStartTime = loopStartTime - preparationTime; // Peut être négatif
 
-                    startTimeRef.current = performance.now() - (countInStartTime / playbackSpeed) * 1000;
-                    setCurrentTime(countInStartTime);
+                    // Stocker le temps où le pré-roll doit se terminer
+                    preRollEndTimeRef.current = loopStartTime;
+
+                    // Sauvegarder et activer le métronome pour le pré-roll
+                    setMetronomeStateBeforePreRoll(isMetronomeOn);
+                    setIsMetronomeOn(true);
+
+                    startTimeRef.current = performance.now() - (preRollStartTime / playbackSpeed) * 1000;
+                    setCurrentTime(preRollStartTime);
                     // Reset played notes and processed notes for the loop
                     processedNotesRef.current = new Set();
                     setPlayedNotes(new Map());
-                    setIsCountingIn(true);
-                    setCountInValue(4);
+                    setIsInPreRoll(true);
                     return; // Skip the rest of this frame to prevent double-rendering
                 }
             }
@@ -1613,7 +1562,7 @@ export function SynthesiaView({ song }) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, isCountingIn, countInValue, loopActivationPending, loopWillActivateAt, handMode]);
+    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, isInPreRoll, metronomeStateBeforePreRoll, loopActivationPending, loopWillActivateAt, handMode, isMetronomeOn]);
 
     // Render on state changes
     useEffect(() => {
@@ -1661,21 +1610,30 @@ export function SynthesiaView({ song }) {
         alert(`Bravo ! Morceau terminé !\nPrécision: ${accuracy}%\nNotes correctes: ${sessionStats.correctNotes}/${sessionStats.totalNotes}`);
     };
 
-    // Play/Pause controls (avec count-in de 1 mesure)
+    // Play/Pause controls (avec pré-roll de 1 mesure)
     const handlePlayPause = () => {
         if (isPlaying) {
             // Pause
             setIsPlaying(false);
             startTimeRef.current = null;
-            setIsCountingIn(false);
-            setCountInValue(null);
+            setIsInPreRoll(false);
+            // Restaurer l'état du métronome
+            if (isInPreRoll) {
+                setIsMetronomeOn(metronomeStateBeforePreRoll);
+            }
         } else {
-            // Play avec mesure de préparation
+            // Play avec pré-roll de 1 mesure
             if (!sessionStats.startTime) {
                 setSessionStats(prev => ({ ...prev, startTime: new Date().toISOString() }));
             }
 
-            // Calculer le point de départ avec -1 mesure pour le count-in
+            // Sauvegarder l'état actuel du métronome
+            setMetronomeStateBeforePreRoll(isMetronomeOn);
+
+            // Activer le métronome pour le pré-roll
+            setIsMetronomeOn(true);
+
+            // Calculer le point de départ avec -1 mesure pour le pré-roll
             const beatsPerMeasure = 4;
             const preparationTime = beatsPerMeasure / beatsPerSecond; // 1 mesure en secondes
 
@@ -1688,14 +1646,16 @@ export function SynthesiaView({ song }) {
                 targetStartTime = currentTime === 0 ? 0 : currentTime;
             }
 
-            // Démarrer -1 mesure avant
-            const countInStartTime = Math.max(0, targetStartTime - preparationTime);
+            // Stocker le temps où le pré-roll doit se terminer
+            preRollEndTimeRef.current = targetStartTime;
 
-            setCurrentTime(countInStartTime);
-            startTimeRef.current = performance.now() - (countInStartTime / playbackSpeed) * 1000;
+            // Démarrer -1 mesure avant (peut être négatif)
+            const preRollStartTime = targetStartTime - preparationTime;
+
+            setCurrentTime(preRollStartTime);
+            startTimeRef.current = performance.now() - (preRollStartTime / playbackSpeed) * 1000;
             setIsPlaying(true);
-            setIsCountingIn(true);
-            setCountInValue(4);
+            setIsInPreRoll(true);
         }
     };
 
