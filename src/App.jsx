@@ -24,7 +24,8 @@ function App() {
     updateNoteInPhrase,
     toggleHighlightedMeasure,
     updateHandSeparators,
-    renamePhrasesInOrder
+    renamePhrasesInOrder,
+    reorderPhrases
   } = useSong();
 
   const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn', 'synthesia'
@@ -148,6 +149,7 @@ function App() {
             removeNoteFromPhrase={removeNoteFromPhrase}
             onUpdateNote={updateNoteInPhrase}
             onUpdateHandSeparators={updateHandSeparators}
+            onReorderPhrases={reorderPhrases}
           />
         )}
         {mode === 'learn' && (

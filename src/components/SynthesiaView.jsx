@@ -88,6 +88,7 @@ export function SynthesiaView({ song }) {
     // Count-in state (mesure de préparation)
     const [isInPreRoll, setIsInPreRoll] = useState(false);
     const [metronomeWasOn, setMetronomeWasOn] = useState(false); // État du métronome avant le pré-roll
+    const [preRollEnabled, setPreRollEnabled] = useState(true); // Activer/désactiver le pré-roll
 
     // Loop intelligent state (activation automatique quand on rentre dans la loop)
     const [loopActivationPending, setLoopActivationPending] = useState(false);
@@ -1608,7 +1609,7 @@ export function SynthesiaView({ song }) {
         alert(`Bravo ! Morceau terminé !\nPrécision: ${accuracy}%\nNotes correctes: ${sessionStats.correctNotes}/${sessionStats.totalNotes}`);
     };
 
-    // Play/Pause controls (avec pré-roll de 1 mesure)
+    // Play/Pause controls (avec pré-roll optionnel de 1 mesure)
     const handlePlayPause = () => {
         if (isPlaying) {
             // Pause
@@ -1616,38 +1617,46 @@ export function SynthesiaView({ song }) {
             startTimeRef.current = null;
             setIsInPreRoll(false);
         } else {
-            // Play avec pré-roll de 1 mesure
+            // Play avec pré-roll optionnel de 1 mesure
             if (!sessionStats.startTime) {
                 setSessionStats(prev => ({ ...prev, startTime: new Date().toISOString() }));
             }
 
-            // Sauvegarder l'état actuel du métronome et le forcer à ON pour le pré-roll
-            setMetronomeWasOn(isMetronomeOn);
-            setIsMetronomeOn(true);
-
-            // Calculer le point de départ avec -1 mesure pour le pré-roll
             const beatsPerMeasure = 4;
-            const preparationTime = beatsPerMeasure / beatsPerSecond; // 1 mesure en secondes
-
             let targetStartTime;
+
             if (isLoopEnabled && loopConfig) {
-                // Si loop actif, démarrer 1 mesure avant le début du loop
+                // Si loop actif, démarrer au début du loop
                 targetStartTime = ((loopConfig.startMeasure - 1) * beatsPerMeasure) / beatsPerSecond;
             } else {
-                // Sinon, démarrer 1 mesure avant la position actuelle (ou au début)
+                // Sinon, démarrer à la position actuelle (ou au début)
                 targetStartTime = currentTime === 0 ? 0 : currentTime;
             }
 
-            // Stocker le temps où le pré-roll doit se terminer
-            preRollEndTimeRef.current = targetStartTime;
+            if (preRollEnabled) {
+                // Avec pré-roll: sauvegarder l'état du métronome et le forcer à ON
+                setMetronomeWasOn(isMetronomeOn);
+                setIsMetronomeOn(true);
 
-            // Démarrer -1 mesure avant (peut être négatif)
-            const preRollStartTime = targetStartTime - preparationTime;
+                const preparationTime = beatsPerMeasure / beatsPerSecond; // 1 mesure en secondes
 
-            setCurrentTime(preRollStartTime);
-            startTimeRef.current = performance.now() - (preRollStartTime / playbackSpeed) * 1000;
-            setIsPlaying(true);
-            setIsInPreRoll(true);
+                // Stocker le temps où le pré-roll doit se terminer
+                preRollEndTimeRef.current = targetStartTime;
+
+                // Démarrer -1 mesure avant (peut être négatif)
+                const preRollStartTime = targetStartTime - preparationTime;
+
+                setCurrentTime(preRollStartTime);
+                startTimeRef.current = performance.now() - (preRollStartTime / playbackSpeed) * 1000;
+                setIsPlaying(true);
+                setIsInPreRoll(true);
+            } else {
+                // Sans pré-roll: démarrer directement
+                setCurrentTime(targetStartTime);
+                startTimeRef.current = performance.now() - (targetStartTime / playbackSpeed) * 1000;
+                setIsPlaying(true);
+                setIsInPreRoll(false);
+            }
         }
     };
 
@@ -1772,7 +1781,7 @@ export function SynthesiaView({ song }) {
                         gap: '0.5rem'
                     }}
                 >
-                    📊 {showScores ? 'Masquer' : 'Voir'} Statistiques
+                    {showScores ? 'Masquer' : 'Voir'} Statistiques
                 </button>
             </div>
 
@@ -1792,7 +1801,7 @@ export function SynthesiaView({ song }) {
                         marginBottom: '1.5rem',
                         color: 'var(--text-primary)'
                     }}>
-                        📊 Statistiques - {song.title}
+                        Statistiques - {song.title}
                     </h3>
 
                     <div style={{
@@ -1837,11 +1846,12 @@ export function SynthesiaView({ song }) {
                             borderRadius: 'var(--radius-md)',
                             cursor: 'pointer',
                             fontWeight: '600',
-                            fontSize: '1.1rem'
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
                         }}
                         title="Métronome"
                     >
-                        ⏰
+                        Métronome
                     </button>
 
                     {isMetronomeOn && (
@@ -1873,6 +1883,27 @@ export function SynthesiaView({ song }) {
                             })}
                         </div>
                     )}
+                </div>
+
+                {/* Pre-roll Section */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                        onClick={() => setPreRollEnabled(!preRollEnabled)}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: preRollEnabled ? 'var(--bg-elevated)' : 'var(--bg-tertiary)',
+                            color: preRollEnabled ? '#3b82f6' : 'var(--text-secondary)',
+                            border: preRollEnabled ? '2px solid #3b82f6' : '2px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                        }}
+                        title="Activer/désactiver le pré-roll d'une mesure avant le démarrage"
+                    >
+                        Pré-roll
+                    </button>
                 </div>
 
                 {/* Tempo Section */}
@@ -1997,7 +2028,7 @@ export function SynthesiaView({ song }) {
                             fontSize: '0.875rem'
                         }}
                     >
-                        {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
+                        {isPlaying ? 'Pause' : 'Jouer'}
                     </button>
 
                     <button
@@ -2013,7 +2044,7 @@ export function SynthesiaView({ song }) {
                             fontSize: '0.875rem'
                         }}
                     >
-                        🔄 Recommencer
+                        Recommencer
                     </button>
 
                     <button
@@ -2030,7 +2061,7 @@ export function SynthesiaView({ song }) {
                         }}
                         title="Basculer entre mode écoute et mode pratique"
                     >
-                        {handMode === 'watch' ? '👀 Écoute' : '🎹 Pratique'}
+                        {handMode === 'watch' ? 'Écoute' : 'Pratique'}
                     </button>
 
                     <button
@@ -2046,7 +2077,7 @@ export function SynthesiaView({ song }) {
                             fontSize: '0.875rem'
                         }}
                     >
-                        {waitMode ? '⏸️ Attente' : '⏸️ Continue'}
+                        {waitMode ? 'Attente' : 'Continue'}
                     </button>
 
                     <button
@@ -2063,7 +2094,7 @@ export function SynthesiaView({ song }) {
                         }}
                         title="Mode libre : jouez sans contrainte, pas de notes manquées"
                     >
-                        {freePlayMode ? '🎵 Libre' : '🎯 Guidé'}
+                        {freePlayMode ? 'Libre' : 'Guidé'}
                     </button>
                 </div>
 

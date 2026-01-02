@@ -5,13 +5,14 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators, onReorderPhrases }) {
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null);
     const [splitTime, setSplitTime] = useState('');
     const [isBatchSplit, setIsBatchSplit] = useState(false);
     const [showImportExportModal, setShowImportExportModal] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved');
+    const [draggedPhraseIndex, setDraggedPhraseIndex] = useState(null);
 
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
@@ -56,6 +57,36 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     const handleStop = () => {
         audioEngine.stop();
+    };
+
+    // Drag-and-drop handlers for phrase reordering
+    const handleDragStart = (e, phraseIndex) => {
+        setDraggedPhraseIndex(phraseIndex);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = (e, targetPhraseIndex) => {
+        e.preventDefault();
+
+        if (draggedPhraseIndex === null || draggedPhraseIndex === targetPhraseIndex) {
+            setDraggedPhraseIndex(null);
+            return;
+        }
+
+        if (onReorderPhrases) {
+            onReorderPhrases(draggedPhraseIndex, targetPhraseIndex);
+        }
+
+        setDraggedPhraseIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedPhraseIndex(null);
     };
 
     const handleStartSplit = (phraseId) => {
@@ -345,8 +376,17 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     <div
                         key={phrase.id}
                         className="card"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, phraseIndex)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, phraseIndex)}
+                        onDragEnd={handleDragEnd}
                         style={{
-                            padding: '1.5rem'
+                            padding: '1.5rem',
+                            cursor: 'move',
+                            opacity: draggedPhraseIndex === phraseIndex ? 0.5 : 1,
+                            transition: 'opacity 0.2s',
+                            border: draggedPhraseIndex === phraseIndex ? '2px dashed var(--accent-primary)' : undefined
                         }}
                     >
                         <div style={{

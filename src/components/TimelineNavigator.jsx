@@ -66,14 +66,15 @@ export function TimelineNavigator({
         onSeek,
         onLoopChange: useCallback(({ start, end }) => {
             if (onLoopChange) {
-                const startMeasure = timeToMeasure(start, beatsPerSecond);
-                // Pour le handle de fin, utiliser la conversion exacte (sans epsilon)
+                // Utiliser la conversion exacte (sans epsilon) pour les deux handles
+                // pour éviter que le drag d'un handle affecte l'autre handle
+                const startMeasure = timeToMeasureExact(start, beatsPerSecond);
                 // Le handle de droite est EXCLUSIF: si positionné au début de la mesure 5,
                 // on loope les mesures 1-4 (la mesure 5 n'est pas jouée)
                 const endMeasure = timeToMeasureExact(end, beatsPerSecond);
                 onLoopChange(startMeasure, endMeasure);
             }
-        }, [onLoopChange, timeToMeasure, timeToMeasureExact, beatsPerSecond]),
+        }, [onLoopChange, timeToMeasureExact, beatsPerSecond]),
         isPlaying
     });
 

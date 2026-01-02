@@ -606,7 +606,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
 
                             {measure.hasChord ? (
                                 isArpeggio ? (
-                                    // Affichage en séquence pour les arpèges
+                                    // Affichage en séquence pour les arpèges (sans flèches)
                                     <div style={{
                                         display: 'flex',
                                         flexWrap: 'wrap',
@@ -618,25 +618,17 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                             const isFirst = idx === 0;
 
                                             return (
-                                                <React.Fragment key={idx}>
-                                                    <span style={{
-                                                        fontSize: isFirst ? '0.85rem' : '0.75rem',
-                                                        background: 'var(--bg-primary)',
-                                                        padding: '0.2rem 0.4rem',
-                                                        borderRadius: '4px',
-                                                        border: isFirst ? '2px solid var(--accent-secondary)' : '1px solid var(--accent-secondary)',
-                                                        color: 'var(--text-primary)',
-                                                        fontWeight: isFirst ? 'bold' : 'normal'
-                                                    }}>
-                                                        {noteName}
-                                                    </span>
-                                                    {idx < measure.chordGroups.length - 1 && (
-                                                        <span style={{
-                                                            fontSize: '0.7rem',
-                                                            color: 'var(--text-secondary)'
-                                                        }}>→</span>
-                                                    )}
-                                                </React.Fragment>
+                                                <span key={idx} style={{
+                                                    fontSize: '0.75rem',
+                                                    background: 'var(--bg-primary)',
+                                                    padding: '0.2rem 0.4rem',
+                                                    borderRadius: '4px',
+                                                    border: isFirst ? '2px solid var(--accent-secondary)' : '1px solid var(--accent-secondary)',
+                                                    color: 'var(--text-primary)',
+                                                    fontWeight: isFirst ? 'bold' : 'normal'
+                                                }}>
+                                                    {noteName}
+                                                </span>
                                             );
                                         })}
                                     </div>

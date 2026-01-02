@@ -246,6 +246,19 @@ export function useSong() {
         });
     }, []);
 
+    const reorderPhrases = useCallback((fromIndex, toIndex) => {
+        setSong(prev => {
+            const newPhrases = [...prev.phrases];
+            const [movedPhrase] = newPhrases.splice(fromIndex, 1);
+            newPhrases.splice(toIndex, 0, movedPhrase);
+
+            return {
+                ...prev,
+                phrases: newPhrases
+            };
+        });
+    }, []);
+
     return {
         song,
         updateSongMetadata,
@@ -262,6 +275,7 @@ export function useSong() {
         updateNoteInPhrase,
         toggleHighlightedMeasure,
         updateHandSeparators,
-        renamePhrasesInOrder
+        renamePhrasesInOrder,
+        reorderPhrases
     };
 }
