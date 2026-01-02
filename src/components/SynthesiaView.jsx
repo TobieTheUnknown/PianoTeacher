@@ -699,11 +699,14 @@ export function SynthesiaView({ song }) {
         const beatsPerMeasure = 4;
         const currentBeat = currentTime * beatsPerSecond;
 
+        // Pendant le pré-roll, forcer le métronome en mode beat (1/4)
+        const effectiveDivision = isInPreRoll ? 'beat' : metronomeDivision;
+
         // Calculate click position based on division
         let currentClickPosition;
         let clicksPerMeasure;
 
-        switch (metronomeDivision) {
+        switch (effectiveDivision) {
             case 'half-measure':
                 // Click twice per measure (1/2)
                 currentClickPosition = Math.floor(currentBeat / 2);
@@ -722,13 +725,13 @@ export function SynthesiaView({ song }) {
                 break;
         }
 
-        // Play click when position changes
-        if (currentClickPosition !== lastMetronomeClickRef.current && currentClickPosition >= 0) {
+        // Play click when position changes (allow negative positions for pre-roll)
+        if (currentClickPosition !== lastMetronomeClickRef.current) {
             lastMetronomeClickRef.current = currentClickPosition;
 
             // Determine if this is an accented beat (first beat of measure)
             const beatInMeasure = Math.floor(currentBeat % beatsPerMeasure);
-            const isAccent = metronomeDivision === 'measure' || beatInMeasure < 0.1; // Accent first beat of measure
+            const isAccent = effectiveDivision === 'measure' || beatInMeasure < 0.1; // Accent first beat of measure
 
             // Play click with accent if applicable
             audioEngine.playClick(Tone.now(), isAccent);
@@ -737,7 +740,7 @@ export function SynthesiaView({ song }) {
         // No need for automatic metronome loop anymore
         audioEngine.stopMetronome();
 
-    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision]);
+    }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision, isInPreRoll]);
 
     // Resume playback after wait mode pause
     const resumeAfterWait = () => {
@@ -830,7 +833,7 @@ export function SynthesiaView({ song }) {
         const beatsPerMeasure = 4;
 
         const startMeasure = loopConfig.startMeasure - 1; // Convert to 0-indexed
-        const endMeasure = loopConfig.endMeasure; // End is exclusive for the calculation
+        const endMeasure = loopConfig.endMeasure - 1; // Convert to 0-indexed (endMeasure is exclusive)
 
         const loopStartTime = (startMeasure * beatsPerMeasure) / beatsPerSecond;
         const loopEndTime = (endMeasure * beatsPerMeasure) / beatsPerSecond;
@@ -1503,10 +1506,10 @@ export function SynthesiaView({ song }) {
             if (isLoopEnabled && loopConfig && !loopActivationPending) {
                 const beatsPerMeasure = 4;
                 const firstMeasure = loopConfig.startMeasure - 1; // Convert to 0-indexed
-                const lastMeasure = loopConfig.endMeasure - 1; // Convert to 0-indexed
+                const lastMeasure = loopConfig.endMeasure - 1; // Convert to 0-indexed (endMeasure is exclusive)
 
                 const loopStartTime = (firstMeasure * beatsPerMeasure) / beatsPerSecond;
-                const loopEndTime = ((lastMeasure + 1) * beatsPerMeasure) / beatsPerSecond;
+                const loopEndTime = (lastMeasure * beatsPerMeasure) / beatsPerSecond;
 
                 // If elapsed has passed the end of the loop zone, reset to the beginning
                 if (elapsed >= loopEndTime) {

@@ -41,8 +41,8 @@ export function TimelineNavigator({
 
     // Calculer loopStart et loopEnd
     const loopStart = loopConfig ? measureToTime(loopConfig.startMeasure, beatsPerSecond) : null;
-    // loopEnd doit être à la FIN de endMeasure, donc au début de la mesure suivante
-    const loopEnd = loopConfig ? measureToTime(loopConfig.endMeasure + 1, beatsPerSecond) : null;
+    // loopEnd doit être à la FIN de endMeasure (qui correspond au début de la mesure endMeasure)
+    const loopEnd = loopConfig ? measureToTime(loopConfig.endMeasure, beatsPerSecond) : null;
 
     const {
         timelineRef,
