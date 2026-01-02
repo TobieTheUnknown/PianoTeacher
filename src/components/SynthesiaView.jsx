@@ -87,6 +87,7 @@ export function SynthesiaView({ song }) {
 
     // Count-in state (mesure de préparation)
     const [isInPreRoll, setIsInPreRoll] = useState(false);
+    const [metronomeWasOn, setMetronomeWasOn] = useState(false); // État du métronome avant le pré-roll
 
     // Loop intelligent state (activation automatique quand on rentre dans la loop)
     const [loopActivationPending, setLoopActivationPending] = useState(false);
@@ -1487,6 +1488,8 @@ export function SynthesiaView({ song }) {
             if (isInPreRoll && elapsed >= preRollEndTimeRef.current) {
                 // Le pré-roll se termine quand on atteint le temps cible
                 setIsInPreRoll(false);
+                // Restaurer l'état du métronome
+                setIsMetronomeOn(metronomeWasOn);
             }
 
             // Gestion du loop intelligent (activation automatique)
@@ -1554,7 +1557,7 @@ export function SynthesiaView({ song }) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, isInPreRoll, loopActivationPending, loopWillActivateAt, handMode]);
+    }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, isInPreRoll, metronomeWasOn, loopActivationPending, loopWillActivateAt, handMode]);
 
     // Render on state changes
     useEffect(() => {
@@ -1614,6 +1617,10 @@ export function SynthesiaView({ song }) {
             if (!sessionStats.startTime) {
                 setSessionStats(prev => ({ ...prev, startTime: new Date().toISOString() }));
             }
+
+            // Sauvegarder l'état actuel du métronome et le forcer à ON pour le pré-roll
+            setMetronomeWasOn(isMetronomeOn);
+            setIsMetronomeOn(true);
 
             // Calculer le point de départ avec -1 mesure pour le pré-roll
             const beatsPerMeasure = 4;
