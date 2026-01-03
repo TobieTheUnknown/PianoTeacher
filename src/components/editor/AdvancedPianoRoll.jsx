@@ -67,7 +67,7 @@ export function AdvancedPianoRoll({
         hasClipboard
     } = useNoteClipboard();
 
-    const { isInScale } = useScaleContext(keySignature);
+    const { isInScale, keySignature: normalizedKeySignature } = useScaleContext(keySignature);
 
     // Hand separation
     const handSeparators = phrase.handSeparators || [];
@@ -578,7 +578,7 @@ export function AdvancedPianoRoll({
                                 cursor: 'pointer'
                             }}
                         >
-                            {showScaleHighlight ? '✓' : '○'} Gamme {keySignature}
+                            {showScaleHighlight ? '✓' : '○'} Gamme {normalizedKeySignature}
                         </button>
 
                         {/* Clear Selection */}
