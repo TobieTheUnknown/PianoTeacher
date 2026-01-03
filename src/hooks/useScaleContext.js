@@ -21,21 +21,24 @@ const KEY_TO_ROOT = {
     'Dm': 2, 'Gm': 7, 'Cm': 0, 'Fm': 5, 'Bbm': 10, 'Ebm': 3, 'Abm': 8
 };
 
-export function useScaleContext(keySignature = 'C') {
+export function useScaleContext(keySignature) {
+    // Normalize keySignature (handle null/undefined)
+    const normalizedKey = keySignature || 'C';
+
     // Get root note from key signature
     const rootNote = useMemo(() => {
-        return KEY_TO_ROOT[keySignature] ?? 0; // Default to C if unknown
-    }, [keySignature]);
+        return KEY_TO_ROOT[normalizedKey] ?? 0; // Default to C if unknown
+    }, [normalizedKey]);
 
     // Get scale notes (as MIDI note numbers modulo 12)
     const scaleNotes = useMemo(() => {
-        const isMinor = keySignature.includes('m');
+        const isMinor = normalizedKey.includes('m');
         const intervals = isMinor
             ? [0, 2, 3, 5, 7, 8, 10] // Natural minor: W-H-W-W-H-W-W
             : MAJOR_SCALE_INTERVALS;
 
         return intervals.map(interval => (rootNote + interval) % 12);
-    }, [rootNote, keySignature]);
+    }, [rootNote, normalizedKey]);
 
     // Check if a MIDI pitch is in the scale
     const isInScale = useMemo(() => {
@@ -68,7 +71,7 @@ export function useScaleContext(keySignature = 'C') {
     }, [isInScale]);
 
     return {
-        keySignature,
+        keySignature: normalizedKey,
         rootNote,
         scaleNotes,
         isInScale,
