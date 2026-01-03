@@ -4,6 +4,7 @@ import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../../models
 import { audioEngine } from '../../services/AudioEngine';
 import { useNoteSelection, useNoteClipboard } from '../../hooks/useNoteSelection';
 import { useScaleContext } from '../../hooks/useScaleContext';
+import { usePlaybackPosition } from '../../hooks/usePlaybackPosition';
 import { MidiRecorder } from './MidiRecorder';
 
 const CELL_WIDTH = 40; // px per beat
@@ -147,6 +148,9 @@ export function AdvancedPianoRoll({
     } = useNoteClipboard();
 
     const { isInScale, keySignature: normalizedKeySignature } = useScaleContext(keySignature);
+
+    // Track playback position for playhead visualization
+    const { playbackPosition, isPlaying } = usePlaybackPosition();
 
     // Get selected notes
     const selectedNotes = allNotesGlobal.filter(note => isSelected(note.id));
@@ -1021,6 +1025,34 @@ export function AdvancedPianoRoll({
                                                 />
                                             ))
                                         ))}
+
+                                        {/* Playback head */}
+                                        {isPlaying && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                left: `${playbackPosition * cellWidth}px`,
+                                                top: 0,
+                                                bottom: 0,
+                                                width: '3px',
+                                                background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.9) 0%, rgba(239, 68, 68, 0.7) 100%)',
+                                                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6), 0 0 16px rgba(239, 68, 68, 0.3)',
+                                                pointerEvents: 'none',
+                                                zIndex: 150
+                                            }}>
+                                                {/* Playhead top marker */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    left: '-6px',
+                                                    width: 0,
+                                                    height: 0,
+                                                    borderLeft: '6px solid transparent',
+                                                    borderRight: '6px solid transparent',
+                                                    borderTop: '8px solid rgba(239, 68, 68, 0.95)',
+                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
+                                                }} />
+                                            </div>
+                                        )}
 
                                         {/* Selection rectangle */}
                                         {selectionRect && (
