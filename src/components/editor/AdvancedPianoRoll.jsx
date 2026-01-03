@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../../models/song';
 import { audioEngine } from '../../services/AudioEngine';
@@ -10,18 +10,11 @@ const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
 /**
- * Advanced Piano Roll Component
- *
- * Features:
- * - Note selection (rectangle, multi-select)
- * - Copy/Cut/Paste/Duplicate
- * - Scale highlighting
- * - MIDI recording
- * - Improved zoom/scroll
- * - Keyboard shortcuts
+ * Advanced Piano Roll Component with Multi-Phrase Continuous View
  */
 export function AdvancedPianoRoll({
     phrase,
+    allPhrases,
     keySignature,
     tempo = 120,
     onAddNote,
@@ -44,12 +37,91 @@ export function AdvancedPianoRoll({
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
+    // Use allPhrases if provided, otherwise fallback to single phrase
+    const phrases = useMemo(() => allPhrases || [phrase], [allPhrases, phrase]);
+
     // Helper to get note name without octave (French notation)
     const getNoteName = useCallback((pitch) => {
         const fullName = getFrenchNoteName(pitch, keySignature);
-        // Remove octave number (e.g., "Do4" -> "Do", "Ré#3" -> "Ré#")
         return fullName.replace(/[0-9-]+$/, '');
     }, [keySignature]);
+
+    // Calculate phrase layouts (cumulative offsets)
+    const phraseLayouts = useMemo(() => {
+        const layouts = [];
+        let cumulativeBeats = 0;
+        let cumulativeMeasures = 0;
+
+        phrases.forEach((p, index) => {
+            const phraseLengthBeats = p.length * 4;
+
+            layouts.push({
+                phraseId: p.id,
+                phraseIndex: index,
+                phraseName: p.name,
+                startBeat: cumulativeBeats,
+                endBeat: cumulativeBeats + phraseLengthBeats,
+                lengthBeats: phraseLengthBeats,
+                startMeasure: cumulativeMeasures,
+                endMeasure: cumulativeMeasures + p.length,
+                lengthMeasures: p.length,
+                startX: cumulativeBeats * cellWidth,
+                endX: (cumulativeBeats + phraseLengthBeats) * cellWidth,
+                widthX: phraseLengthBeats * cellWidth
+            });
+
+            cumulativeBeats += phraseLengthBeats;
+            cumulativeMeasures += p.length;
+        });
+
+        return {
+            layouts,
+            totalBeats: cumulativeBeats,
+            totalMeasures: cumulativeMeasures,
+            totalWidth: cumulativeBeats * cellWidth + 90
+        };
+    }, [phrases, cellWidth]);
+
+    // Transform notes to global coordinates
+    const allNotesGlobal = useMemo(() => {
+        const notes = [];
+
+        phraseLayouts.layouts.forEach(layout => {
+            const p = phrases.find(ph => ph.id === layout.phraseId);
+
+            ['melody', 'chords'].forEach(trackName => {
+                p.tracks[trackName].forEach(note => {
+                    notes.push({
+                        ...note,
+                        phraseId: layout.phraseId,
+                        phraseName: layout.phraseName,
+                        trackName,
+                        localStartTime: note.startTime,
+                        globalStartTime: layout.startBeat + note.startTime,
+                        globalEndTime: layout.startBeat + note.startTime + note.duration,
+                        globalX: (layout.startBeat + note.startTime) * cellWidth
+                    });
+                });
+            });
+        });
+
+        return notes;
+    }, [phrases, phraseLayouts, cellWidth]);
+
+    // Get phrase at global beat position
+    const getPhraseAtBeat = useCallback((globalBeat) => {
+        const layout = phraseLayouts.layouts.find(
+            l => globalBeat >= l.startBeat && globalBeat < l.endBeat
+        );
+
+        if (!layout) return null;
+
+        return {
+            layout,
+            phrase: phrases.find(p => p.id === layout.phraseId),
+            localBeat: globalBeat - layout.startBeat
+        };
+    }, [phraseLayouts, phrases]);
 
     // Hooks
     const {
@@ -76,18 +148,8 @@ export function AdvancedPianoRoll({
 
     const { isInScale, keySignature: normalizedKeySignature } = useScaleContext(keySignature);
 
-    // Hand separation
-    const handSeparators = phrase.handSeparators || [];
-    const [separatorEnabled, setSeparatorEnabled] = useState(handSeparators.length > 0);
-
-    // Combine notes from both tracks
-    const allNotes = [
-        ...phrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
-        ...phrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' }))
-    ];
-
     // Get selected notes
-    const selectedNotes = allNotes.filter(note => isSelected(note.id));
+    const selectedNotes = allNotesGlobal.filter(note => isSelected(note.id));
 
     // Snap value to grid
     const snapValue = useCallback((value) => {
@@ -96,50 +158,40 @@ export function AdvancedPianoRoll({
     }, [snapToGrid, gridSize]);
 
     // Handle grid click
-    const handleGridClick = useCallback((pitch, beatIndex) => {
-        // Check if note exists at this position
-        let existingNote = null;
-        let trackName = null;
+    const handleGridClick = useCallback((pitch, globalBeatIndex) => {
+        const phraseInfo = getPhraseAtBeat(globalBeatIndex);
+        if (!phraseInfo) return;
 
-        for (const track of ['melody', 'chords']) {
-            const found = phrase.tracks[track].find(
-                n => n.pitch === pitch && Math.abs(n.startTime - beatIndex) < 0.1
-            );
-            if (found) {
-                existingNote = found;
-                trackName = track;
-                break;
-            }
-        }
+        const localBeat = globalBeatIndex - phraseInfo.layout.startBeat;
+        const snappedLocalBeat = snapValue(localBeat);
+
+        // Check for existing note
+        const existingNote = allNotesGlobal.find(
+            n => n.pitch === pitch && Math.abs(n.globalStartTime - globalBeatIndex) < 0.1
+        );
 
         if (existingNote) {
-            onRemoveNote(phrase.id, trackName, existingNote.id);
+            onRemoveNote(existingNote.phraseId, existingNote.trackName, existingNote.id);
         } else {
             const autoTrack = pitch >= 60 ? 'melody' : 'chords';
-            const snappedBeat = snapValue(beatIndex);
-            onAddNote(phrase.id, autoTrack, pitch, snappedBeat, gridSize);
+            onAddNote(phraseInfo.phrase.id, autoTrack, pitch, snappedLocalBeat, gridSize);
             audioEngine.playNote(pitch);
         }
-    }, [phrase, onAddNote, onRemoveNote, snapValue, gridSize]);
+    }, [getPhraseAtBeat, allNotesGlobal, onAddNote, onRemoveNote, snapValue, gridSize]);
 
     // Handle note mouse down
     const handleNoteMouseDown = useCallback((e, note, type) => {
         e.stopPropagation();
         e.preventDefault();
 
-        // Check if note is already selected
         const noteIsSelected = isSelected(note.id);
 
-        // Multi-select with Ctrl/Cmd
         if (e.ctrlKey || e.metaKey) {
             selectNote(note.id, true);
         } else if (!noteIsSelected) {
-            // If clicking on unselected note, select only this one
             selectNote(note.id, false);
         }
-        // If clicking on selected note, keep selection
 
-        // Convert to grid-space coordinates (accounting for scroll)
         if (!scrollRef.current) return;
         const rect = scrollRef.current.getBoundingClientRect();
         const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
@@ -150,7 +202,8 @@ export function AdvancedPianoRoll({
             type,
             noteId: note.id,
             trackName: note.trackName,
-            startX: gridX,  // Grid-space coordinates
+            phraseId: note.phraseId,
+            startX: gridX,
             startY: gridY,
             originalNote: { ...note },
             hasMoved: false,
@@ -162,7 +215,6 @@ export function AdvancedPianoRoll({
     const handleMouseMove = useCallback((e) => {
         if (!dragState || !scrollRef.current) return;
 
-        // Convert to grid-space coordinates (accounting for scroll)
         const rect = scrollRef.current.getBoundingClientRect();
         const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
         const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
@@ -183,47 +235,45 @@ export function AdvancedPianoRoll({
             const snappedDuration = snapValue(newDuration);
 
             if (dragState.isMultiDrag) {
-                // Resize all selected notes by applying the DELTA duration
                 const deltaDuration = snappedDuration - dragState.originalNote.duration;
                 selectedNotes.forEach(note => {
                     const noteNewDuration = Math.max(gridSize, note.duration + deltaDuration);
                     const noteSnappedDuration = snapValue(noteNewDuration);
 
                     if (noteSnappedDuration !== note.duration) {
-                        onUpdateNote(phrase.id, note.trackName, note.id, {
+                        onUpdateNote(note.phraseId, note.trackName, note.id, {
                             duration: noteSnappedDuration
                         });
                     }
                 });
             } else {
                 if (snappedDuration !== dragState.originalNote.duration) {
-                    onUpdateNote(phrase.id, dragState.trackName, dragState.noteId, {
+                    onUpdateNote(dragState.phraseId, dragState.trackName, dragState.noteId, {
                         duration: snappedDuration
                     });
                 }
             }
         } else if (dragState.type === 'move') {
-            const newStartTime = Math.max(0, dragState.originalNote.startTime + deltaBeats);
-            const snappedStartTime = snapValue(newStartTime);
+            const newLocalStartTime = Math.max(0, dragState.originalNote.localStartTime + deltaBeats);
+            const snappedLocalStartTime = snapValue(newLocalStartTime);
 
             const originalKeyIndex = keys.indexOf(dragState.originalNote.pitch);
             const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
             const newPitch = keys[newKeyIndex];
 
             if (dragState.isMultiDrag) {
-                // Move all selected notes
                 selectedNotes.forEach(note => {
-                    const noteDeltaBeats = snappedStartTime - dragState.originalNote.startTime;
-                    const noteNewStartTime = Math.max(0, note.startTime + noteDeltaBeats);
-                    const noteSnappedStartTime = snapValue(noteNewStartTime);
+                    const noteDelta = snappedLocalStartTime - dragState.originalNote.localStartTime;
+                    const noteNewLocalTime = Math.max(0, note.localStartTime + noteDelta);
+                    const noteSnappedLocalTime = snapValue(noteNewLocalTime);
 
                     const noteOriginalKeyIndex = keys.indexOf(note.pitch);
                     const noteNewKeyIndex = Math.max(0, Math.min(keys.length - 1, noteOriginalKeyIndex + deltaPitch));
                     const noteNewPitch = keys[noteNewKeyIndex];
 
-                    if (noteSnappedStartTime !== note.startTime || noteNewPitch !== note.pitch) {
-                        onUpdateNote(phrase.id, note.trackName, note.id, {
-                            startTime: noteSnappedStartTime,
+                    if (noteSnappedLocalTime !== note.localStartTime || noteNewPitch !== note.pitch) {
+                        onUpdateNote(note.phraseId, note.trackName, note.id, {
+                            startTime: noteSnappedLocalTime,
                             pitch: noteNewPitch
                         });
                     }
@@ -234,9 +284,9 @@ export function AdvancedPianoRoll({
                     lastPlayedPitchRef.current = newPitch;
                 }
             } else {
-                if (snappedStartTime !== dragState.originalNote.startTime || newPitch !== dragState.originalNote.pitch) {
-                    onUpdateNote(phrase.id, dragState.trackName, dragState.noteId, {
-                        startTime: snappedStartTime,
+                if (snappedLocalStartTime !== dragState.originalNote.localStartTime || newPitch !== dragState.originalNote.pitch) {
+                    onUpdateNote(dragState.phraseId, dragState.trackName, dragState.noteId, {
+                        startTime: snappedLocalStartTime,
                         pitch: newPitch
                     });
 
@@ -247,21 +297,17 @@ export function AdvancedPianoRoll({
                 }
             }
         }
-    }, [dragState, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, phrase, onUpdateNote]);
+    }, [dragState, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote]);
 
     // Handle mouse up
     const handleMouseUp = useCallback(() => {
-        if (dragState && !dragState.hasMoved && dragState.type !== 'separator') {
-            // Click without drag - handled by selection already
-        }
         setDragState(null);
-    }, [dragState]);
+    }, []);
 
     // Handle background mouse down (start rect selection)
     const handleBackgroundMouseDown = useCallback((e) => {
         if (e.target.dataset.clickarea && scrollRef.current) {
             const rect = scrollRef.current.getBoundingClientRect();
-            // Include scroll offset for grid-space coordinates
             const x = e.clientX - rect.left + scrollRef.current.scrollLeft;
             const y = e.clientY - rect.top + scrollRef.current.scrollTop;
 
@@ -285,7 +331,26 @@ export function AdvancedPianoRoll({
             };
 
             const handleMouseUp = (e) => {
-                endRectSelection(allNotes, cellWidth, cellHeight, keys, e.ctrlKey || e.metaKey);
+                if (!selectionRect) return;
+
+                const { x, y, width, height } = selectionRect;
+
+                const selectedIds = allNotesGlobal.filter(note => {
+                    const noteX = note.globalX;
+                    const noteY = keys.indexOf(note.pitch) * cellHeight;
+                    const noteWidth = note.duration * cellWidth;
+                    const noteHeight = cellHeight;
+
+                    return !(
+                        noteX + noteWidth < x ||
+                        noteX > x + width ||
+                        noteY + noteHeight < y ||
+                        noteY > y + height
+                    );
+                }).map(note => note.id);
+
+                selectNotes(selectedIds, e.ctrlKey || e.metaKey);
+                cancelRectSelection();
             };
 
             window.addEventListener('mousemove', handleMouseMove);
@@ -296,7 +361,7 @@ export function AdvancedPianoRoll({
                 window.removeEventListener('mouseup', handleMouseUp);
             };
         }
-    }, [selectionRect, allNotes, cellWidth, cellHeight, keys, updateRectSelection, endRectSelection]);
+    }, [selectionRect, allNotesGlobal, cellWidth, cellHeight, keys, updateRectSelection, selectNotes, cancelRectSelection]);
 
     // Handle drag state
     useEffect(() => {
@@ -313,24 +378,21 @@ export function AdvancedPianoRoll({
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // Delete selected notes
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
                     selectedNotes.forEach(note => {
-                        onRemoveNote(phrase.id, note.trackName, note.id);
+                        onRemoveNote(note.phraseId, note.trackName, note.id);
                     });
                     clearSelection();
                 }
             }
 
-            // Select all
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
                 e.preventDefault();
-                selectAll(allNotes.map(n => n.id));
+                selectAll(allNotesGlobal.map(n => n.id));
             }
 
-            // Copy
             if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
@@ -338,48 +400,48 @@ export function AdvancedPianoRoll({
                 }
             }
 
-            // Cut
             if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
                     const { clipboardData, noteIdsToDelete } = cut(selectedNotes);
                     noteIdsToDelete.forEach(id => {
-                        const note = allNotes.find(n => n.id === id);
+                        const note = allNotesGlobal.find(n => n.id === id);
                         if (note) {
-                            onRemoveNote(phrase.id, note.trackName, id);
+                            onRemoveNote(note.phraseId, note.trackName, id);
                         }
                     });
                     clearSelection();
                 }
             }
 
-            // Paste
             if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
                 if (hasClipboard()) {
                     e.preventDefault();
-                    const pastedNotes = paste(0); // Paste at start
-                    pastedNotes.forEach(note => {
-                        onAddNote(phrase.id, note.trackName, note.pitch, note.startTime, note.duration);
-                    });
+                    const pastedNotes = paste(0);
+                    if (pastedNotes.length > 0 && phrases.length > 0) {
+                        pastedNotes.forEach(note => {
+                            onAddNote(phrases[0].id, note.trackName, note.pitch, note.startTime, note.duration);
+                        });
+                    }
                 }
             }
 
-            // Duplicate
             if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
-                    // Find max end time of selected notes
-                    const maxEndTime = Math.max(...selectedNotes.map(n => n.startTime + n.duration));
-                    const offset = Math.ceil(maxEndTime / 4) * 4; // Round up to next measure
+                    const maxEndTime = Math.max(...selectedNotes.map(n => n.localStartTime + n.duration));
+                    const offset = Math.ceil(maxEndTime / 4) * 4;
 
                     const duplicatedNotes = duplicate(selectedNotes, offset);
                     duplicatedNotes.forEach(note => {
-                        onAddNote(phrase.id, note.trackName, note.pitch, note.startTime, note.duration);
+                        const original = selectedNotes.find(n => n.id === note.id);
+                        if (original) {
+                            onAddNote(original.phraseId, note.trackName, note.pitch, note.startTime, note.duration);
+                        }
                     });
                 }
             }
 
-            // Escape to close
             if (e.key === 'Escape') {
                 if (selectedNotes.length > 0) {
                     clearSelection();
@@ -391,16 +453,17 @@ export function AdvancedPianoRoll({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedNotes, allNotes, phrase, onAddNote, onRemoveNote, clearSelection, selectAll, copy, cut, paste, duplicate, hasClipboard, onClose]);
+    }, [selectedNotes, allNotesGlobal, phrases, onAddNote, onRemoveNote, clearSelection, selectAll, copy, cut, paste, duplicate, hasClipboard, onClose]);
 
     // Handle MIDI recording complete
     const handleRecordingComplete = useCallback((recordedNotes) => {
+        if (phrases.length === 0) return;
+
         recordedNotes.forEach(note => {
-            // Auto-assign track based on pitch
             const trackName = note.pitch >= 60 ? 'melody' : 'chords';
-            onAddNote(phrase.id, trackName, note.pitch, note.startTime, note.duration);
+            onAddNote(phrases[0].id, trackName, note.pitch, note.startTime, note.duration);
         });
-    }, [phrase, onAddNote]);
+    }, [phrases, onAddNote]);
 
     return createPortal(
         <>
@@ -443,7 +506,7 @@ export function AdvancedPianoRoll({
                     background: 'var(--bg-secondary)'
                 }}>
                     <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
-                        🎹 Éditeur Avancé - {phrase.name}
+                        🎹 Éditeur Avancé ({phrases.length} phrase{phrases.length > 1 ? 's' : ''}, {phraseLayouts.totalMeasures} mesures)
                     </h3>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                         {selectedNotes.length > 0 && (
@@ -496,7 +559,7 @@ export function AdvancedPianoRoll({
                     {/* MIDI Recorder */}
                     <MidiRecorder
                         tempo={tempo}
-                        phraseLength={phrase.length}
+                        phraseLength={phrases[0]?.length || 4}
                         onRecordingComplete={handleRecordingComplete}
                     />
 
@@ -646,7 +709,7 @@ export function AdvancedPianoRoll({
                             onMouseDown={handleBackgroundMouseDown}
                         >
                             <div style={{
-                                width: `${90 + phrase.length * 4 * cellWidth}px`,
+                                width: `${phraseLayouts.totalWidth}px`,
                                 minHeight: '100%',
                                 position: 'relative',
                                 display: 'flex'
@@ -721,20 +784,34 @@ export function AdvancedPianoRoll({
                                         zIndex: 50,
                                         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
                                     }}>
-                                        {Array.from({ length: phrase.length }).map((_, measureIndex) => (
-                                            <div key={`measure-${measureIndex}`} style={{
-                                                width: `${4 * cellWidth}px`,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontWeight: '700',
-                                                fontSize: '1rem',
-                                                color: 'var(--text-primary)',
-                                                borderRight: measureIndex < phrase.length - 1 ? '1px solid rgba(139, 92, 246, 0.3)' : 'none',
-                                                background: measureIndex % 2 === 0 ? 'rgba(139, 92, 246, 0.15)' : 'transparent'
-                                            }}>
-                                                {measureIndex + 1}
-                                            </div>
+                                        {phraseLayouts.layouts.map((layout) => (
+                                            Array.from({ length: layout.lengthMeasures }).map((_, measureOffset) => {
+                                                const globalMeasureNum = layout.startMeasure + measureOffset;
+                                                const isPhraseBoundary = measureOffset === 0;
+
+                                                return (
+                                                    <div
+                                                        key={`measure-${layout.phraseId}-${measureOffset}`}
+                                                        style={{
+                                                            width: `${4 * cellWidth}px`,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            fontWeight: isPhraseBoundary ? '900' : '700',
+                                                            fontSize: isPhraseBoundary ? '1.1rem' : '1rem',
+                                                            color: isPhraseBoundary ? 'var(--accent-primary)' : 'var(--text-primary)',
+                                                            borderRight: '1px solid rgba(139, 92, 246, 0.3)',
+                                                            background: isPhraseBoundary
+                                                                ? 'rgba(139, 92, 246, 0.3)'
+                                                                : globalMeasureNum % 2 === 0
+                                                                ? 'rgba(139, 92, 246, 0.15)'
+                                                                : 'transparent'
+                                                        }}
+                                                    >
+                                                        {globalMeasureNum + 1}
+                                                    </div>
+                                                );
+                                            })
                                         ))}
                                     </div>
 
@@ -744,18 +821,82 @@ export function AdvancedPianoRoll({
                                         height: `${keys.length * cellHeight}px`,
                                         position: 'relative'
                                     }}>
+                                        {/* Phrase backgrounds (alternating) */}
+                                        {phraseLayouts.layouts.map((layout, idx) => (
+                                            <div
+                                                key={`bg-${layout.phraseId}`}
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: `${layout.startX}px`,
+                                                    top: 0,
+                                                    bottom: 0,
+                                                    width: `${layout.widthX}px`,
+                                                    background: idx % 2 === 0 ? 'rgba(139, 92, 246, 0.03)' : 'transparent',
+                                                    pointerEvents: 'none',
+                                                    zIndex: 1
+                                                }}
+                                            />
+                                        ))}
+
+                                        {/* Phrase boundary separators */}
+                                        {phraseLayouts.layouts.map((layout, idx) => {
+                                            if (idx === 0) return null;
+
+                                            return (
+                                                <div
+                                                    key={`separator-${layout.phraseId}`}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${layout.startX}px`,
+                                                        top: 0,
+                                                        bottom: 0,
+                                                        width: '3px',
+                                                        background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.8) 0%, rgba(249, 115, 22, 0.8) 100%)',
+                                                        zIndex: 40,
+                                                        boxShadow: '0 0 12px rgba(245, 158, 11, 0.6)',
+                                                        pointerEvents: 'none'
+                                                    }}
+                                                />
+                                            );
+                                        })}
+
+                                        {/* Phrase labels */}
+                                        {phraseLayouts.layouts.map((layout) => (
+                                            <div
+                                                key={`label-${layout.phraseId}`}
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: `${layout.startX + 8}px`,
+                                                    top: '40px',
+                                                    padding: '0.5rem 1rem',
+                                                    background: 'rgba(139, 92, 246, 0.9)',
+                                                    color: 'white',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    fontSize: '0.875rem',
+                                                    fontWeight: '700',
+                                                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.6)',
+                                                    zIndex: 45,
+                                                    pointerEvents: 'none',
+                                                    backdropFilter: 'blur(4px)'
+                                                }}
+                                            >
+                                                {layout.phraseName}
+                                            </div>
+                                        ))}
+
                                         {/* Vertical grid lines */}
-                                        {Array.from({ length: phrase.length * 4 }).map((_, i) => (
-                                            <div key={`v-${i}`} style={{
+                                        {Array.from({ length: phraseLayouts.totalBeats }).map((_, beatIndex) => (
+                                            <div key={`v-${beatIndex}`} style={{
                                                 position: 'absolute',
-                                                left: `${i * cellWidth}px`,
+                                                left: `${beatIndex * cellWidth}px`,
                                                 top: 0,
                                                 bottom: 0,
-                                                width: i % 4 === 0 ? '2px' : '1px',
-                                                background: i % 4 === 0
+                                                width: beatIndex % 4 === 0 ? '2px' : '1px',
+                                                background: beatIndex % 4 === 0
                                                     ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
                                                     : 'rgba(255, 255, 255, 0.05)',
-                                                pointerEvents: 'none'
+                                                pointerEvents: 'none',
+                                                zIndex: beatIndex % 4 === 0 ? 3 : 2
                                             }} />
                                         ))}
 
@@ -778,13 +919,14 @@ export function AdvancedPianoRoll({
                                                         : 'transparent',
                                                     borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
                                                     boxSizing: 'border-box',
-                                                    pointerEvents: 'none'
+                                                    pointerEvents: 'none',
+                                                    zIndex: 1
                                                 }} />
                                             );
                                         })}
 
                                         {/* Notes */}
-                                        {allNotes.map(note => {
+                                        {allNotesGlobal.map(note => {
                                             const notePitch = typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch;
                                             const keyIndex = keys.indexOf(notePitch);
                                             if (keyIndex === -1) return null;
@@ -794,10 +936,10 @@ export function AdvancedPianoRoll({
 
                                             return (
                                                 <div
-                                                    key={`${note.trackName}-${note.id}`}
+                                                    key={`${note.phraseId}-${note.trackName}-${note.id}`}
                                                     style={{
                                                         position: 'absolute',
-                                                        left: `${note.startTime * cellWidth}px`,
+                                                        left: `${note.globalX}px`,
                                                         top: `${keyIndex * cellHeight + 1}px`,
                                                         width: `${note.duration * cellWidth - 2}px`,
                                                         height: `${cellHeight - 2}px`,
@@ -837,7 +979,8 @@ export function AdvancedPianoRoll({
                                                             background: 'rgba(255, 255, 255, 0.1)',
                                                             borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
                                                             opacity: isDragging && dragState.type === 'resize' ? 1 : 0,
-                                                            transition: 'opacity 0.2s'
+                                                            transition: 'opacity 0.2s',
+                                                            zIndex: 1
                                                         }}
                                                         onMouseDown={(e) => {
                                                             e.stopPropagation();
@@ -858,17 +1001,17 @@ export function AdvancedPianoRoll({
 
                                         {/* Click areas */}
                                         {!dragState && keys.map((pitch, yIndex) => (
-                                            Array.from({ length: phrase.length * 4 }).map((_, xIndex) => (
+                                            Array.from({ length: phraseLayouts.totalBeats }).map((_, beatIndex) => (
                                                 <div
-                                                    key={`${pitch}-${xIndex}`}
+                                                    key={`${pitch}-${beatIndex}`}
                                                     data-clickarea="true"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleGridClick(pitch, xIndex);
+                                                        handleGridClick(pitch, beatIndex);
                                                     }}
                                                     style={{
                                                         position: 'absolute',
-                                                        left: `${xIndex * cellWidth}px`,
+                                                        left: `${beatIndex * cellWidth}px`,
                                                         top: `${yIndex * cellHeight}px`,
                                                         width: `${cellWidth}px`,
                                                         height: `${cellHeight}px`,
