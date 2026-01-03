@@ -22,8 +22,25 @@ const KEY_TO_ROOT = {
 };
 
 export function useScaleContext(keySignature) {
-    // Normalize keySignature (handle null/undefined)
-    const normalizedKey = keySignature || 'C';
+    // Normalize keySignature (handle null/undefined/object/string values)
+    const normalizedKey = useMemo(() => {
+        if (!keySignature) return 'C';
+
+        // If it's an object like { note: 'C', mode: 'major' }
+        if (typeof keySignature === 'object' && keySignature.note) {
+            const note = keySignature.note;
+            const isMinor = keySignature.mode === 'minor';
+            return isMinor ? `${note}m` : note;
+        }
+
+        // If it's already a string
+        if (typeof keySignature === 'string') {
+            return KEY_TO_ROOT[keySignature] !== undefined ? keySignature : 'C';
+        }
+
+        // Fallback
+        return 'C';
+    }, [keySignature]);
 
     // Get root note from key signature
     const rootNote = useMemo(() => {
