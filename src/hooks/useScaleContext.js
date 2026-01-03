@@ -21,6 +21,24 @@ const KEY_TO_ROOT = {
     'Dm': 2, 'Gm': 7, 'Cm': 0, 'Fm': 5, 'Bbm': 10, 'Ebm': 3, 'Abm': 8
 };
 
+// Map English note names to French note names
+const ENGLISH_TO_FRENCH = {
+    'C': 'Do', 'D': 'Ré', 'E': 'Mi', 'F': 'Fa', 'G': 'Sol', 'A': 'La', 'B': 'Si',
+    'C#': 'Do#', 'D#': 'Ré#', 'F#': 'Fa#', 'G#': 'Sol#', 'A#': 'La#',
+    'Db': 'Réb', 'Eb': 'Mib', 'Gb': 'Solb', 'Ab': 'Lab', 'Bb': 'Sib', 'Cb': 'Dob'
+};
+
+// Convert key signature to French notation
+function toFrenchNotation(key) {
+    if (!key) return 'Do';
+
+    const isMinor = key.endsWith('m');
+    const baseKey = isMinor ? key.slice(0, -1) : key;
+    const frenchNote = ENGLISH_TO_FRENCH[baseKey] || baseKey;
+
+    return isMinor ? `${frenchNote}m` : frenchNote;
+}
+
 export function useScaleContext(keySignature) {
     // Normalize keySignature (handle null/undefined/object/string values)
     const normalizedKey = useMemo(() => {
@@ -87,8 +105,14 @@ export function useScaleContext(keySignature) {
         };
     }, [isInScale]);
 
+    // Get French notation for display
+    const frenchKeySignature = useMemo(() => {
+        return toFrenchNotation(normalizedKey);
+    }, [normalizedKey]);
+
     return {
-        keySignature: normalizedKey,
+        keySignature: frenchKeySignature, // French notation for display
+        normalizedKey, // Original normalized key for internal use
         rootNote,
         scaleNotes,
         isInScale,

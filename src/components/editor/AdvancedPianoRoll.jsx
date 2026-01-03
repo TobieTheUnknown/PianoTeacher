@@ -28,6 +28,7 @@ export function AdvancedPianoRoll({
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null);
     const lastPlayedPitchRef = useRef(null);
+    const originalSelectedNotesRef = useRef(new Map()); // Store original positions for multi-drag
 
     // Advanced features
     const [zoom, setZoom] = useState(0.75);
@@ -202,6 +203,23 @@ export function AdvancedPianoRoll({
         const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
 
         lastPlayedPitchRef.current = note.pitch;
+
+        // Store original positions for ALL selected notes when starting multi-drag
+        const isMultiDrag = noteIsSelected && selectedNoteIdsSet.size > 1;
+        if (isMultiDrag) {
+            const originalPositions = new Map();
+            selectedNotes.forEach(n => {
+                originalPositions.set(n.id, {
+                    localStartTime: n.localStartTime,
+                    pitch: n.pitch,
+                    duration: n.duration,
+                    phraseId: n.phraseId,
+                    trackName: n.trackName
+                });
+            });
+            originalSelectedNotesRef.current = originalPositions;
+        }
+
         setDragState({
             type,
             noteId: note.id,
@@ -211,7 +229,7 @@ export function AdvancedPianoRoll({
             startY: gridY,
             originalNote: { ...note },
             hasMoved: false,
-            isMultiDrag: noteIsSelected && selectedNoteIdsSet.size > 1
+            isMultiDrag
         });
     }, [isSelected, selectNote, selectedNoteIdsSet]);
 
@@ -241,7 +259,10 @@ export function AdvancedPianoRoll({
             if (dragState.isMultiDrag) {
                 const deltaDuration = snappedDuration - dragState.originalNote.duration;
                 selectedNotes.forEach(note => {
-                    const noteNewDuration = Math.max(gridSize, note.duration + deltaDuration);
+                    const originalNote = originalSelectedNotesRef.current.get(note.id);
+                    if (!originalNote) return;
+
+                    const noteNewDuration = Math.max(gridSize, originalNote.duration + deltaDuration);
                     const noteSnappedDuration = snapValue(noteNewDuration);
 
                     if (noteSnappedDuration !== note.duration) {
@@ -266,12 +287,17 @@ export function AdvancedPianoRoll({
             const newPitch = keys[newKeyIndex];
 
             if (dragState.isMultiDrag) {
+                const timeDelta = snappedLocalStartTime - dragState.originalNote.localStartTime;
+
                 selectedNotes.forEach(note => {
-                    const noteDelta = snappedLocalStartTime - dragState.originalNote.localStartTime;
-                    const noteNewLocalTime = Math.max(0, note.localStartTime + noteDelta);
+                    const originalNote = originalSelectedNotesRef.current.get(note.id);
+                    if (!originalNote) return;
+
+                    // Apply delta to ORIGINAL position, not current position
+                    const noteNewLocalTime = Math.max(0, originalNote.localStartTime + timeDelta);
                     const noteSnappedLocalTime = snapValue(noteNewLocalTime);
 
-                    const noteOriginalKeyIndex = keys.indexOf(note.pitch);
+                    const noteOriginalKeyIndex = keys.indexOf(originalNote.pitch);
                     const noteNewKeyIndex = Math.max(0, Math.min(keys.length - 1, noteOriginalKeyIndex + deltaPitch));
                     const noteNewPitch = keys[noteNewKeyIndex];
 
