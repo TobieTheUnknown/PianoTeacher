@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
 import { createNoteEvent } from '../models/song';
@@ -21,100 +21,135 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
 
     const startTimeRef = useRef(null);
     const activeNotesRef = useRef(new Map()); // pitch -> { startTime, velocity }
-    const metronomeSoundRef = useRef(null);
     const preRollIntervalRef = useRef(null);
     const metronomeIntervalRef = useRef(null);
+    const isRecordingRef = useRef(false); // Ref to avoid stale closures
+    const isPreRollRef = useRef(false);
 
-    // Calculate beat duration in milliseconds
-    const beatDuration = (60 / tempo) * 1000;
-    const phraseLengthBeats = phraseLength * 4; // Assume 4 beats per measure
+    // Memoize calculated values to prevent unnecessary callback recreations
+    const beatDuration = useMemo(() => (60 / tempo) * 1000, [tempo]);
+    const phraseLengthBeats = useMemo(() => phraseLength * 4, [phraseLength]);
 
-    // Quantize time to nearest grid point
+    // Keep refs in sync with state
+    useEffect(() => {
+        isRecordingRef.current = isRecording;
+    }, [isRecording]);
+
+    useEffect(() => {
+        isPreRollRef.current = isPreRoll;
+    }, [isPreRoll]);
+
+    // Quantize time to nearest grid point (stable reference)
     const quantize = useCallback((timeInBeats) => {
         return Math.round(timeInBeats / quantization) * quantization;
     }, [quantization]);
 
-    // Play metronome click
+    // Play metronome click (stable reference)
     const playMetronomeClick = useCallback((isDownbeat = false) => {
-        // Use audio engine to play a simple metronome sound
-        // Higher pitch for downbeat, lower for other beats
         const pitch = isDownbeat ? 76 : 72; // E5 for downbeat, C5 for others
         audioEngine.playNote(pitch, 0.1, 0.05); // Short duration, low velocity
     }, []);
 
-    // Handle MIDI note on
-    const handleNoteOn = useCallback((event) => {
-        if (!isRecording || isPreRoll) return;
+    // Create stable event handlers using refs
+    const handleNoteOnRef = useRef();
+    const handleNoteOffRef = useRef();
 
-        const currentTime = performance.now();
-        const elapsedTime = (currentTime - startTimeRef.current) / 1000; // seconds
-        const timeInBeats = (elapsedTime * tempo) / 60;
+    // Update handler implementations
+    useEffect(() => {
+        handleNoteOnRef.current = (event) => {
+            if (!isRecordingRef.current || isPreRollRef.current) return;
 
-        // Don't record notes beyond phrase length
-        if (timeInBeats >= phraseLengthBeats) {
-            return;
+            const currentTime = performance.now();
+            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
+            const timeInBeats = (elapsedTime * tempo) / 60;
+
+            if (timeInBeats >= phraseLengthBeats) {
+                return;
+            }
+
+            activeNotesRef.current.set(event.note, {
+                startTime: timeInBeats,
+                velocity: event.velocity
+            });
+
+            audioEngine.playNote(event.note, event.velocity / 127);
+        };
+
+        handleNoteOffRef.current = (event) => {
+            if (!isRecordingRef.current || isPreRollRef.current) return;
+
+            const noteData = activeNotesRef.current.get(event.note);
+            if (!noteData) return;
+
+            const currentTime = performance.now();
+            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
+            const timeInBeats = (elapsedTime * tempo) / 60;
+
+            const duration = timeInBeats - noteData.startTime;
+
+            const quantizedStartTime = quantize(noteData.startTime);
+            const quantizedDuration = Math.max(quantization, quantize(duration));
+
+            const note = createNoteEvent(event.note, quantizedStartTime, quantizedDuration);
+
+            setRecordedNotes(prev => [...prev, note]);
+            activeNotesRef.current.delete(event.note);
+        };
+    }, [tempo, phraseLengthBeats, quantize, quantization]);
+
+    // Stable wrapper functions for event listeners
+    const handleNoteOnWrapper = useCallback((event) => {
+        handleNoteOnRef.current?.(event);
+    }, []);
+
+    const handleNoteOffWrapper = useCallback((event) => {
+        handleNoteOffRef.current?.(event);
+    }, []);
+
+    // Stop recording (stable reference using refs)
+    const stopRecording = useCallback(() => {
+        setIsRecording(false);
+        setIsPreRoll(false);
+
+        // Clear intervals
+        if (preRollIntervalRef.current) {
+            clearInterval(preRollIntervalRef.current);
+            preRollIntervalRef.current = null;
+        }
+        if (metronomeIntervalRef.current) {
+            clearInterval(metronomeIntervalRef.current);
+            metronomeIntervalRef.current = null;
         }
 
-        activeNotesRef.current.set(event.note, {
-            startTime: timeInBeats,
-            velocity: event.velocity
-        });
+        // Remove MIDI listeners (stable references)
+        midiInputService.removeEventListener('noteOn', handleNoteOnWrapper);
+        midiInputService.removeEventListener('noteOff', handleNoteOffWrapper);
 
-        // Play the note for audio feedback
-        audioEngine.playNote(event.note, event.velocity / 127);
-    }, [isRecording, isPreRoll, tempo, phraseLengthBeats]);
+        // Finalize any active notes
+        if (startTimeRef.current) {
+            const currentTime = performance.now();
+            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
+            const timeInBeats = (elapsedTime * tempo) / 60;
 
-    // Handle MIDI note off
-    const handleNoteOff = useCallback((event) => {
-        if (!isRecording || isPreRoll) return;
+            const finalizedNotes = [];
+            activeNotesRef.current.forEach((noteData, pitch) => {
+                const duration = timeInBeats - noteData.startTime;
+                const quantizedStartTime = quantize(noteData.startTime);
+                const quantizedDuration = Math.max(quantization, quantize(duration));
 
-        const noteData = activeNotesRef.current.get(event.note);
-        if (!noteData) return;
+                const note = createNoteEvent(pitch, quantizedStartTime, quantizedDuration);
+                finalizedNotes.push(note);
+            });
 
-        const currentTime = performance.now();
-        const elapsedTime = (currentTime - startTimeRef.current) / 1000; // seconds
-        const timeInBeats = (elapsedTime * tempo) / 60;
-
-        const duration = timeInBeats - noteData.startTime;
-
-        // Quantize start time and duration
-        const quantizedStartTime = quantize(noteData.startTime);
-        const quantizedDuration = Math.max(quantization, quantize(duration));
-
-        // Create note event
-        const note = createNoteEvent(event.note, quantizedStartTime, quantizedDuration);
-
-        // Add to recorded notes
-        setRecordedNotes(prev => [...prev, note]);
-
-        // Remove from active notes
-        activeNotesRef.current.delete(event.note);
-    }, [isRecording, isPreRoll, tempo, quantize, quantization]);
-
-    // Start pre-roll countdown
-    const startPreRoll = useCallback((preRollBars = 1) => {
-        setIsPreRoll(true);
-        setPreRollCount(preRollBars * 4); // 4 beats per bar
-
-        let count = preRollBars * 4;
-
-        preRollIntervalRef.current = setInterval(() => {
-            // Play metronome for pre-roll
-            playMetronomeClick(count % 4 === 0);
-
-            count--;
-            setPreRollCount(count);
-
-            if (count <= 0) {
-                clearInterval(preRollIntervalRef.current);
-                setIsPreRoll(false);
-                // Start actual recording
-                actuallyStartRecording();
+            if (finalizedNotes.length > 0) {
+                setRecordedNotes(prev => [...prev, ...finalizedNotes]);
             }
-        }, beatDuration);
-    }, [beatDuration, playMetronomeClick]);
+        }
 
-    // Actually start recording (after pre-roll)
+        activeNotesRef.current.clear();
+    }, [tempo, quantize, quantization, handleNoteOnWrapper, handleNoteOffWrapper]);
+
+    // Actually start recording (stable reference using refs)
     const actuallyStartRecording = useCallback(() => {
         startTimeRef.current = performance.now();
         setIsRecording(true);
@@ -133,10 +168,33 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
             }
         }, beatDuration);
 
-        // Add MIDI listeners
-        midiInputService.addEventListener('noteOn', handleNoteOn);
-        midiInputService.addEventListener('noteOff', handleNoteOff);
-    }, [beatDuration, phraseLengthBeats, playMetronomeClick, handleNoteOn, handleNoteOff]);
+        // Add MIDI listeners (stable references)
+        midiInputService.addEventListener('noteOn', handleNoteOnWrapper);
+        midiInputService.addEventListener('noteOff', handleNoteOffWrapper);
+    }, [beatDuration, phraseLengthBeats, playMetronomeClick, handleNoteOnWrapper, handleNoteOffWrapper, stopRecording]);
+
+    // Start pre-roll countdown (stable reference)
+    const startPreRoll = useCallback((preRollBars = 1) => {
+        setIsPreRoll(true);
+        setPreRollCount(preRollBars * 4);
+
+        let count = preRollBars * 4;
+
+        preRollIntervalRef.current = setInterval(() => {
+            playMetronomeClick(count % 4 === 0);
+
+            count--;
+            setPreRollCount(count);
+
+            if (count <= 0) {
+                clearInterval(preRollIntervalRef.current);
+                preRollIntervalRef.current = null;
+                setIsPreRoll(false);
+                // Start actual recording
+                actuallyStartRecording();
+            }
+        }, beatDuration);
+    }, [beatDuration, playMetronomeClick, actuallyStartRecording]);
 
     // Start recording with pre-roll
     const startRecording = useCallback((withPreRoll = true, preRollBars = 1) => {
@@ -147,58 +205,26 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         }
     }, [startPreRoll, actuallyStartRecording]);
 
-    // Stop recording
-    const stopRecording = useCallback(() => {
-        setIsRecording(false);
-        setIsPreRoll(false);
-
-        // Clear intervals
-        if (preRollIntervalRef.current) {
-            clearInterval(preRollIntervalRef.current);
-        }
-        if (metronomeIntervalRef.current) {
-            clearInterval(metronomeIntervalRef.current);
-        }
-
-        // Remove MIDI listeners
-        midiInputService.removeEventListener('noteOn', handleNoteOn);
-        midiInputService.removeEventListener('noteOff', handleNoteOff);
-
-        // Finalize any active notes (in case user didn't release them)
-        const currentTime = performance.now();
-        const elapsedTime = (currentTime - startTimeRef.current) / 1000;
-        const timeInBeats = (elapsedTime * tempo) / 60;
-
-        const finalizedNotes = [];
-        activeNotesRef.current.forEach((noteData, pitch) => {
-            const duration = timeInBeats - noteData.startTime;
-            const quantizedStartTime = quantize(noteData.startTime);
-            const quantizedDuration = Math.max(quantization, quantize(duration));
-
-            const note = createNoteEvent(pitch, quantizedStartTime, quantizedDuration);
-            finalizedNotes.push(note);
-        });
-
-        if (finalizedNotes.length > 0) {
-            setRecordedNotes(prev => [...prev, ...finalizedNotes]);
-        }
-
-        activeNotesRef.current.clear();
-    }, [tempo, quantize, quantization, handleNoteOn, handleNoteOff]);
-
     // Clear recorded notes
     const clearRecordedNotes = useCallback(() => {
         setRecordedNotes([]);
     }, []);
 
-    // Cleanup on unmount
+    // Cleanup on unmount ONLY
     useEffect(() => {
         return () => {
-            if (isRecording) {
-                stopRecording();
+            // Clear intervals
+            if (preRollIntervalRef.current) {
+                clearInterval(preRollIntervalRef.current);
             }
+            if (metronomeIntervalRef.current) {
+                clearInterval(metronomeIntervalRef.current);
+            }
+            // Remove listeners
+            midiInputService.removeEventListener('noteOn', handleNoteOnWrapper);
+            midiInputService.removeEventListener('noteOff', handleNoteOffWrapper);
         };
-    }, [isRecording, stopRecording]);
+    }, [handleNoteOnWrapper, handleNoteOffWrapper]);
 
     return {
         isRecording,

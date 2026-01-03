@@ -44,6 +44,13 @@ export function AdvancedPianoRoll({
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
+    // Helper to get note name without octave (French notation)
+    const getNoteName = useCallback((pitch) => {
+        const fullName = getFrenchNoteName(pitch, keySignature);
+        // Remove octave number (e.g., "Do4" -> "Do", "Ré#3" -> "Ré#")
+        return fullName.replace(/[0-9-]+$/, '');
+    }, [keySignature]);
+
     // Hooks
     const {
         selectedNoteIdsSet,
@@ -132,13 +139,19 @@ export function AdvancedPianoRoll({
         }
         // If clicking on selected note, keep selection
 
+        // Convert to grid-space coordinates (accounting for scroll)
+        if (!scrollRef.current) return;
+        const rect = scrollRef.current.getBoundingClientRect();
+        const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
+        const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
+
         lastPlayedPitchRef.current = note.pitch;
         setDragState({
             type,
             noteId: note.id,
             trackName: note.trackName,
-            startX: e.clientX,
-            startY: e.clientY,
+            startX: gridX,  // Grid-space coordinates
+            startY: gridY,
             originalNote: { ...note },
             hasMoved: false,
             isMultiDrag: noteIsSelected && selectedNoteIdsSet.size > 1
@@ -147,10 +160,15 @@ export function AdvancedPianoRoll({
 
     // Handle mouse move (drag)
     const handleMouseMove = useCallback((e) => {
-        if (!dragState) return;
+        if (!dragState || !scrollRef.current) return;
 
-        const deltaX = e.clientX - dragState.startX;
-        const deltaY = e.clientY - dragState.startY;
+        // Convert to grid-space coordinates (accounting for scroll)
+        const rect = scrollRef.current.getBoundingClientRect();
+        const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
+        const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
+
+        const deltaX = gridX - dragState.startX;
+        const deltaY = gridY - dragState.startY;
 
         const hasMoved = Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3;
         if (hasMoved && !dragState.hasMoved) {
@@ -165,11 +183,15 @@ export function AdvancedPianoRoll({
             const snappedDuration = snapValue(newDuration);
 
             if (dragState.isMultiDrag) {
-                // Resize all selected notes
+                // Resize all selected notes by applying the DELTA duration
+                const deltaDuration = snappedDuration - dragState.originalNote.duration;
                 selectedNotes.forEach(note => {
-                    if (snappedDuration !== note.duration) {
+                    const noteNewDuration = Math.max(gridSize, note.duration + deltaDuration);
+                    const noteSnappedDuration = snapValue(noteNewDuration);
+
+                    if (noteSnappedDuration !== note.duration) {
                         onUpdateNote(phrase.id, note.trackName, note.id, {
-                            duration: snappedDuration
+                            duration: noteSnappedDuration
                         });
                     }
                 });
@@ -237,10 +259,11 @@ export function AdvancedPianoRoll({
 
     // Handle background mouse down (start rect selection)
     const handleBackgroundMouseDown = useCallback((e) => {
-        if (e.target.dataset.clickarea) {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+        if (e.target.dataset.clickarea && scrollRef.current) {
+            const rect = scrollRef.current.getBoundingClientRect();
+            // Include scroll offset for grid-space coordinates
+            const x = e.clientX - rect.left + scrollRef.current.scrollLeft;
+            const y = e.clientY - rect.top + scrollRef.current.scrollTop;
 
             if (!e.ctrlKey && !e.metaKey) {
                 clearSelection();
@@ -664,7 +687,7 @@ export function AdvancedPianoRoll({
                                                 cursor: 'pointer',
                                                 position: 'relative'
                                             }}>
-                                                {getFrenchNoteName(pitch, keySignature)}
+                                                {getNoteName(pitch)}
                                                 {inScale && (
                                                     <span style={{
                                                         position: 'absolute',
