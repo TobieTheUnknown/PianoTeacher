@@ -29,6 +29,7 @@ export function AdvancedPianoRoll({
     const [dragState, setDragState] = useState(null);
     const lastPlayedPitchRef = useRef(null);
     const originalSelectedNotesRef = useRef(new Map()); // Store original positions for multi-drag
+    const dragThrottleRef = useRef(null); // Throttle drag updates to 60fps
 
     // Advanced features
     const [zoom, setZoom] = useState(0.75);
@@ -233,24 +234,32 @@ export function AdvancedPianoRoll({
         });
     }, [isSelected, selectNote, selectedNoteIdsSet]);
 
-    // Handle mouse move (drag)
+    // Handle mouse move (drag) with throttling for performance
     const handleMouseMove = useCallback((e) => {
         if (!dragState || !scrollRef.current) return;
 
-        const rect = scrollRef.current.getBoundingClientRect();
-        const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
-        const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
+        // Throttle updates to 60fps using requestAnimationFrame
+        if (dragThrottleRef.current) return;
 
-        const deltaX = gridX - dragState.startX;
-        const deltaY = gridY - dragState.startY;
+        dragThrottleRef.current = requestAnimationFrame(() => {
+            dragThrottleRef.current = null;
 
-        const hasMoved = Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3;
-        if (hasMoved && !dragState.hasMoved) {
-            setDragState(prev => ({ ...prev, hasMoved: true }));
-        }
+            if (!scrollRef.current) return;
 
-        const deltaBeats = deltaX / cellWidth;
-        const deltaPitch = Math.round(deltaY / cellHeight);
+            const rect = scrollRef.current.getBoundingClientRect();
+            const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
+            const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
+
+            const deltaX = gridX - dragState.startX;
+            const deltaY = gridY - dragState.startY;
+
+            const hasMoved = Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3;
+            if (hasMoved && !dragState.hasMoved) {
+                setDragState(prev => ({ ...prev, hasMoved: true }));
+            }
+
+            const deltaBeats = deltaX / cellWidth;
+            const deltaPitch = Math.round(deltaY / cellHeight);
 
         if (dragState.type === 'resize') {
             const newDuration = Math.max(gridSize, dragState.originalNote.duration + deltaBeats);
@@ -326,7 +335,7 @@ export function AdvancedPianoRoll({
                     }
                 }
             }
-        }
+        });
     }, [dragState, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote]);
 
     // Handle mouse up
@@ -1029,28 +1038,36 @@ export function AdvancedPianoRoll({
                                             );
                                         })}
 
-                                        {/* Click areas */}
-                                        {!dragState && keys.map((pitch, yIndex) => (
-                                            Array.from({ length: phraseLayouts.totalBeats }).map((_, beatIndex) => (
-                                                <div
-                                                    key={`${pitch}-${beatIndex}`}
-                                                    data-clickarea="true"
-                                                    onClick={(e) => {
+                                        {/* Click overlay - Single div instead of thousands of individual click areas */}
+                                        {!dragState && (
+                                            <div
+                                                data-clickarea="true"
+                                                onClick={(e) => {
+                                                    if (!scrollRef.current) return;
+                                                    const rect = scrollRef.current.getBoundingClientRect();
+                                                    const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
+                                                    const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
+
+                                                    const beatIndex = Math.floor(gridX / cellWidth);
+                                                    const pitchIndex = Math.floor(gridY / cellHeight);
+
+                                                    if (beatIndex >= 0 && beatIndex < phraseLayouts.totalBeats &&
+                                                        pitchIndex >= 0 && pitchIndex < keys.length) {
                                                         e.stopPropagation();
-                                                        handleGridClick(pitch, beatIndex);
-                                                    }}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: `${beatIndex * cellWidth}px`,
-                                                        top: `${yIndex * cellHeight}px`,
-                                                        width: `${cellWidth}px`,
-                                                        height: `${cellHeight}px`,
-                                                        zIndex: 5,
-                                                        cursor: 'crosshair'
-                                                    }}
-                                                />
-                                            ))
-                                        ))}
+                                                        handleGridClick(keys[pitchIndex], beatIndex);
+                                                    }
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: 0,
+                                                    top: 0,
+                                                    width: `${phraseLayouts.totalWidth}px`,
+                                                    height: `${keys.length * cellHeight}px`,
+                                                    zIndex: 5,
+                                                    cursor: 'crosshair'
+                                                }}
+                                            />
+                                        )}
 
                                         {/* Playback head */}
                                         {isPlaying && (
