@@ -753,6 +753,47 @@ export function AdvancedPianoRoll({
         };
     }, [metronomeEnabled, tempo, metronomeSubdivision]);
 
+    // Combine all phrases into a single continuous phrase for playback
+    const combinePhrases = useCallback(() => {
+        if (phrases.length === 0) return null;
+        if (phrases.length === 1) return phrases[0];
+
+        // Create a combined phrase with all notes from all phrases
+        let totalBeats = 0;
+        const combinedMelody = [];
+        const combinedChords = [];
+
+        phrases.forEach((phrase) => {
+            // Add melody notes with time offset
+            phrase.tracks.melody.forEach(note => {
+                combinedMelody.push({
+                    ...note,
+                    startTime: note.startTime + totalBeats
+                });
+            });
+
+            // Add chord notes with time offset
+            phrase.tracks.chords.forEach(note => {
+                combinedChords.push({
+                    ...note,
+                    startTime: note.startTime + totalBeats
+                });
+            });
+
+            // Accumulate total beats (phrase length * 4 beats per measure)
+            totalBeats += phrase.length * 4;
+        });
+
+        return {
+            id: 'combined',
+            length: totalBeats / 4, // Convert back to measures
+            tracks: {
+                melody: combinedMelody,
+                chords: combinedChords
+            }
+        };
+    }, [phrases]);
+
     // Handle play/pause
     const handlePlayPause = useCallback(() => {
         if (isPlaying) {
@@ -762,9 +803,14 @@ export function AdvancedPianoRoll({
             if (loopEnabled && loopRegion) {
                 seek(loopRegion.start);
             }
-            audioEngine.playPhrase(phrases[0], tempo);
+
+            // Combine all phrases for continuous playback
+            const combinedPhrase = combinePhrases();
+            if (combinedPhrase) {
+                audioEngine.playPhrase(combinedPhrase, tempo);
+            }
         }
-    }, [isPlaying, phrases, tempo, loopEnabled, loopRegion, seek]);
+    }, [isPlaying, phrases, tempo, loopEnabled, loopRegion, seek, combinePhrases]);
 
     // Handle real-time note recorded (during recording)
     const handleNoteRecorded = useCallback((note) => {
@@ -802,11 +848,12 @@ export function AdvancedPianoRoll({
 
     // Handle pre-roll complete (wrapped in useCallback)
     const handlePreRollComplete = useCallback(() => {
-        // Start playback after pre-roll completes
-        if (phrases.length > 0) {
-            audioEngine.playPhrase(phrases[0], tempo);
+        // Start playback after pre-roll completes with all phrases combined
+        const combinedPhrase = combinePhrases();
+        if (combinedPhrase) {
+            audioEngine.playPhrase(combinedPhrase, tempo);
         }
-    }, [phrases, tempo]);
+    }, [combinePhrases, tempo]);
 
     return createPortal(
         <>

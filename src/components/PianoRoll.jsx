@@ -496,8 +496,8 @@ export function PianoRoll({ phrase, allPhrases, keySignature, tempo = 120, onAdd
                                     ))
                                 ))}
 
-                                {/* Playback head */}
-                                {isPlaying && (
+                                {/* Playback head - only show if position is within this phrase's bounds */}
+                                {isPlaying && playbackPosition >= 0 && playbackPosition <= phrase.length * 4 && (
                                     <div style={{
                                         position: 'absolute',
                                         left: `${playbackPosition * cellWidth}px`,

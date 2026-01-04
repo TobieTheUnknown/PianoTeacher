@@ -7,7 +7,7 @@ import * as Tone from 'tone';
  * Features:
  * - Real-time playback position tracking
  * - Converts Tone.Transport position to beats
- * - Updates smoothly using requestAnimationFrame
+ * - Updates at reduced framerate (20fps) for better performance
  * - Automatically detects playback start/stop
  * - Playhead always visible, can be moved even when not playing
  */
@@ -17,33 +17,43 @@ export function usePlaybackPosition() {
     const animationFrameRef = useRef(null);
     const lastUpdateRef = useRef(0);
 
+    // Throttle to 20fps instead of 60fps for better performance
+    const UPDATE_INTERVAL = 1000 / 20; // 50ms between updates
+
     useEffect(() => {
         let mounted = true;
 
         const updatePosition = () => {
             if (!mounted) return;
 
-            // Check if transport is actually playing
-            const transportPlaying = Tone.Transport.state === 'started';
-            setIsPlaying(transportPlaying);
+            const now = performance.now();
+            const timeSinceLastUpdate = now - lastUpdateRef.current;
 
-            if (transportPlaying) {
-                // Get current position in seconds
-                const seconds = Tone.Transport.seconds;
+            // Only update if enough time has passed (throttle to 20fps)
+            if (timeSinceLastUpdate >= UPDATE_INTERVAL) {
+                // Check if transport is actually playing
+                const transportPlaying = Tone.Transport.state === 'started';
+                setIsPlaying(transportPlaying);
 
-                // Convert to beats based on current BPM
-                const bpm = Tone.Transport.bpm.value;
-                const beats = (seconds * bpm) / 60;
+                if (transportPlaying) {
+                    // Get current position in seconds
+                    const seconds = Tone.Transport.seconds;
 
-                setPlaybackPosition(beats);
-                lastUpdateRef.current = performance.now();
-            } else {
-                // Keep position when stopped (don't reset to 0)
-                // This allows the playhead to remain visible
-                const seconds = Tone.Transport.seconds;
-                const bpm = Tone.Transport.bpm.value || 120;
-                const beats = (seconds * bpm) / 60;
-                setPlaybackPosition(beats);
+                    // Convert to beats based on current BPM
+                    const bpm = Tone.Transport.bpm.value;
+                    const beats = (seconds * bpm) / 60;
+
+                    setPlaybackPosition(beats);
+                } else {
+                    // Keep position when stopped (don't reset to 0)
+                    // This allows the playhead to remain visible
+                    const seconds = Tone.Transport.seconds;
+                    const bpm = Tone.Transport.bpm.value || 120;
+                    const beats = (seconds * bpm) / 60;
+                    setPlaybackPosition(beats);
+                }
+
+                lastUpdateRef.current = now;
             }
 
             // Continue animation loop
@@ -59,7 +69,7 @@ export function usePlaybackPosition() {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, []);
+    }, [UPDATE_INTERVAL]);
 
     // Seek to a specific position in beats
     const seek = useCallback((beats) => {
