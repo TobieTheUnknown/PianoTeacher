@@ -261,77 +261,78 @@ export function AdvancedPianoRoll({
             const deltaBeats = deltaX / cellWidth;
             const deltaPitch = Math.round(deltaY / cellHeight);
 
-        if (dragState.type === 'resize') {
-            const newDuration = Math.max(gridSize, dragState.originalNote.duration + deltaBeats);
-            const snappedDuration = snapValue(newDuration);
+            if (dragState.type === 'resize') {
+                const newDuration = Math.max(gridSize, dragState.originalNote.duration + deltaBeats);
+                const snappedDuration = snapValue(newDuration);
 
-            if (dragState.isMultiDrag) {
-                const deltaDuration = snappedDuration - dragState.originalNote.duration;
-                selectedNotes.forEach(note => {
-                    const originalNote = originalSelectedNotesRef.current.get(note.id);
-                    if (!originalNote) return;
+                if (dragState.isMultiDrag) {
+                    const deltaDuration = snappedDuration - dragState.originalNote.duration;
+                    selectedNotes.forEach(note => {
+                        const originalNote = originalSelectedNotesRef.current.get(note.id);
+                        if (!originalNote) return;
 
-                    const noteNewDuration = Math.max(gridSize, originalNote.duration + deltaDuration);
-                    const noteSnappedDuration = snapValue(noteNewDuration);
+                        const noteNewDuration = Math.max(gridSize, originalNote.duration + deltaDuration);
+                        const noteSnappedDuration = snapValue(noteNewDuration);
 
-                    if (noteSnappedDuration !== note.duration) {
-                        onUpdateNote(note.phraseId, note.trackName, note.id, {
-                            duration: noteSnappedDuration
-                        });
-                    }
-                });
-            } else {
-                if (snappedDuration !== dragState.originalNote.duration) {
-                    onUpdateNote(dragState.phraseId, dragState.trackName, dragState.noteId, {
-                        duration: snappedDuration
+                        if (noteSnappedDuration !== note.duration) {
+                            onUpdateNote(note.phraseId, note.trackName, note.id, {
+                                duration: noteSnappedDuration
+                            });
+                        }
                     });
-                }
-            }
-        } else if (dragState.type === 'move') {
-            const newLocalStartTime = Math.max(0, dragState.originalNote.localStartTime + deltaBeats);
-            const snappedLocalStartTime = snapValue(newLocalStartTime);
-
-            const originalKeyIndex = keys.indexOf(dragState.originalNote.pitch);
-            const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
-            const newPitch = keys[newKeyIndex];
-
-            if (dragState.isMultiDrag) {
-                const timeDelta = snappedLocalStartTime - dragState.originalNote.localStartTime;
-
-                selectedNotes.forEach(note => {
-                    const originalNote = originalSelectedNotesRef.current.get(note.id);
-                    if (!originalNote) return;
-
-                    // Apply delta to ORIGINAL position, not current position
-                    const noteNewLocalTime = Math.max(0, originalNote.localStartTime + timeDelta);
-                    const noteSnappedLocalTime = snapValue(noteNewLocalTime);
-
-                    const noteOriginalKeyIndex = keys.indexOf(originalNote.pitch);
-                    const noteNewKeyIndex = Math.max(0, Math.min(keys.length - 1, noteOriginalKeyIndex + deltaPitch));
-                    const noteNewPitch = keys[noteNewKeyIndex];
-
-                    if (noteSnappedLocalTime !== note.localStartTime || noteNewPitch !== note.pitch) {
-                        onUpdateNote(note.phraseId, note.trackName, note.id, {
-                            startTime: noteSnappedLocalTime,
-                            pitch: noteNewPitch
+                } else {
+                    if (snappedDuration !== dragState.originalNote.duration) {
+                        onUpdateNote(dragState.phraseId, dragState.trackName, dragState.noteId, {
+                            duration: snappedDuration
                         });
                     }
-                });
-
-                if (newPitch !== lastPlayedPitchRef.current) {
-                    audioEngine.playNote(newPitch);
-                    lastPlayedPitchRef.current = newPitch;
                 }
-            } else {
-                if (snappedLocalStartTime !== dragState.originalNote.localStartTime || newPitch !== dragState.originalNote.pitch) {
-                    onUpdateNote(dragState.phraseId, dragState.trackName, dragState.noteId, {
-                        startTime: snappedLocalStartTime,
-                        pitch: newPitch
+            } else if (dragState.type === 'move') {
+                const newLocalStartTime = Math.max(0, dragState.originalNote.localStartTime + deltaBeats);
+                const snappedLocalStartTime = snapValue(newLocalStartTime);
+
+                const originalKeyIndex = keys.indexOf(dragState.originalNote.pitch);
+                const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
+                const newPitch = keys[newKeyIndex];
+
+                if (dragState.isMultiDrag) {
+                    const timeDelta = snappedLocalStartTime - dragState.originalNote.localStartTime;
+
+                    selectedNotes.forEach(note => {
+                        const originalNote = originalSelectedNotesRef.current.get(note.id);
+                        if (!originalNote) return;
+
+                        // Apply delta to ORIGINAL position, not current position
+                        const noteNewLocalTime = Math.max(0, originalNote.localStartTime + timeDelta);
+                        const noteSnappedLocalTime = snapValue(noteNewLocalTime);
+
+                        const noteOriginalKeyIndex = keys.indexOf(originalNote.pitch);
+                        const noteNewKeyIndex = Math.max(0, Math.min(keys.length - 1, noteOriginalKeyIndex + deltaPitch));
+                        const noteNewPitch = keys[noteNewKeyIndex];
+
+                        if (noteSnappedLocalTime !== note.localStartTime || noteNewPitch !== note.pitch) {
+                            onUpdateNote(note.phraseId, note.trackName, note.id, {
+                                startTime: noteSnappedLocalTime,
+                                pitch: noteNewPitch
+                            });
+                        }
                     });
 
                     if (newPitch !== lastPlayedPitchRef.current) {
                         audioEngine.playNote(newPitch);
                         lastPlayedPitchRef.current = newPitch;
+                    }
+                } else {
+                    if (snappedLocalStartTime !== dragState.originalNote.localStartTime || newPitch !== dragState.originalNote.pitch) {
+                        onUpdateNote(dragState.phraseId, dragState.trackName, dragState.noteId, {
+                            startTime: snappedLocalStartTime,
+                            pitch: newPitch
+                        });
+
+                        if (newPitch !== lastPlayedPitchRef.current) {
+                            audioEngine.playNote(newPitch);
+                            lastPlayedPitchRef.current = newPitch;
+                        }
                     }
                 }
             }
