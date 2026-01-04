@@ -10,7 +10,7 @@ const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(m
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
+export function PianoRoll({ phrase, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
     // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
     const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
@@ -746,6 +746,7 @@ export function PianoRoll({ phrase, allPhrases, keySignature, tempo = 120, onAdd
                     onRemoveNote={onRemoveNote}
                     onUpdateNote={onUpdateNote}
                     onUpdateHandSeparators={onUpdateHandSeparators}
+                    onUpdatePhraseLength={onUpdatePhraseLength}
                     onClose={() => setIsFullscreen(false)}
                 />
             </Suspense>

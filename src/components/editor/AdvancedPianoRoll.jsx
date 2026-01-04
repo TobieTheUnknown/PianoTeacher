@@ -22,6 +22,7 @@ export function AdvancedPianoRoll({
     onRemoveNote,
     onUpdateNote,
     onUpdateHandSeparators,
+    onUpdatePhraseLength,
     onClose
 }) {
     const [keys] = useState(() => getPianoRollKeys(1, 5));
@@ -717,6 +718,34 @@ export function AdvancedPianoRoll({
                                 <option value={0.125}>1/32</option>
                             </select>
                         </div>
+
+                        {/* Phrase Size */}
+                        {onUpdatePhraseLength && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                                    Taille:
+                                </label>
+                                <select
+                                    value={phrases[0]?.length || 4}
+                                    onChange={(e) => onUpdatePhraseLength(parseInt(e.target.value))}
+                                    style={{
+                                        padding: '0.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'var(--bg-elevated)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.875rem',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value={1}>1 mesure</option>
+                                    <option value={2}>2 mesures</option>
+                                    <option value={3}>3 mesures</option>
+                                    <option value={4}>4 mesures</option>
+                                    <option value={8}>8 mesures</option>
+                                </select>
+                            </div>
+                        )}
 
                         {/* Snap to Grid */}
                         <button
