@@ -142,6 +142,7 @@ export function AdvancedPianoRoll({
     const {
         selectedNoteIdsSet,
         selectionRect,
+        justEndedSelectionRef,
         selectNote,
         selectNotes,
         clearSelection,
@@ -305,6 +306,9 @@ export function AdvancedPianoRoll({
 
     // Handle grid click
     const handleGridClick = useCallback((pitch, globalBeatIndex) => {
+        // Prevent click if we just ended a drag selection
+        if (justEndedSelectionRef.current) return;
+
         const phraseInfo = getPhraseAtBeat(globalBeatIndex);
         if (!phraseInfo) return;
 
@@ -323,7 +327,7 @@ export function AdvancedPianoRoll({
             onAddNote(phraseInfo.phrase.id, autoTrack, pitch, snappedLocalBeat, gridSize);
             audioEngine.playNote(pitch);
         }
-    }, [getPhraseAtBeat, allNotesGlobal, onAddNote, onRemoveNote, snapValue, gridSize]);
+    }, [getPhraseAtBeat, allNotesGlobal, onAddNote, onRemoveNote, snapValue, gridSize, justEndedSelectionRef]);
 
     // Handle note mouse down
     const handleNoteMouseDown = useCallback((e, note, type) => {
@@ -905,9 +909,19 @@ export function AdvancedPianoRoll({
                             if (recording && !metronomeEnabled) {
                                 setMetronomeEnabled(true);
                             }
+                            // Reset playhead to start when pre-roll begins
+                            if (recording) {
+                                seek(0);
+                            }
                             // Clear active notes when recording stops
                             if (!recording) {
                                 setActiveRecordingNotes([]);
+                            }
+                        }}
+                        onPreRollComplete={() => {
+                            // Start playback after pre-roll completes
+                            if (phrases.length > 0) {
+                                audioEngine.playPhrase(phrases[0], tempo);
                             }
                         }}
                     />

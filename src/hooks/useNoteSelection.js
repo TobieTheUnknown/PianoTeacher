@@ -15,6 +15,7 @@ export function useNoteSelection() {
     const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
     const [selectionRect, setSelectionRect] = useState(null); // { x, y, width, height }
     const selectionStartRef = useRef(null);
+    const justEndedSelectionRef = useRef(false); // Flag to prevent click after drag selection
 
     // Select a single note
     const selectNote = useCallback((noteId, additive = false) => {
@@ -114,18 +115,31 @@ export function useNoteSelection() {
         // Clear rectangle
         setSelectionRect(null);
         selectionStartRef.current = null;
+
+        // Mark that we just ended a selection to prevent immediate click handler
+        justEndedSelectionRef.current = true;
+        setTimeout(() => {
+            justEndedSelectionRef.current = false;
+        }, 50);
     }, [selectionRect, selectNotes]);
 
     // Cancel rectangle selection
     const cancelRectSelection = useCallback(() => {
         setSelectionRect(null);
         selectionStartRef.current = null;
+
+        // Mark that we just ended a selection to prevent immediate click handler
+        justEndedSelectionRef.current = true;
+        setTimeout(() => {
+            justEndedSelectionRef.current = false;
+        }, 50);
     }, []);
 
     return {
         selectedNoteIds: Array.from(selectedNoteIds),
         selectedNoteIdsSet: selectedNoteIds,
         selectionRect,
+        justEndedSelectionRef,
         selectNote,
         selectNotes,
         deselectNote,

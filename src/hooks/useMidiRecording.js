@@ -14,7 +14,7 @@ import { createNoteEvent } from '../models/song';
  * - Pre-roll countdown
  * - Auto-stop on phrase length
  */
-export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25, snapToGrid = true, onNoteRecorded = null, onActiveNotesChange = null) {
+export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25, snapToGrid = true, onNoteRecorded = null, onActiveNotesChange = null, onPreRollComplete = null) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPreRoll, setIsPreRoll] = useState(false);
     const [preRollCount, setPreRollCount] = useState(0);
@@ -82,6 +82,19 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
                 velocity: event.velocity
             });
 
+            // Update active notes display for real-time stretching
+            const activeNotesArray = Array.from(activeNotesRef.current.entries()).map(([pitch, data]) => ({
+                pitch,
+                startTime: data.startTime,
+                velocity: data.velocity,
+                id: `active-${pitch}`
+            }));
+            setActiveNotes(activeNotesArray);
+
+            if (onActiveNotesChange) {
+                onActiveNotesChange(activeNotesArray);
+            }
+
             audioEngine.playNote(event.note, event.velocity / 127);
         };
 
@@ -105,12 +118,25 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
             setRecordedNotes(prev => [...prev, note]);
             activeNotesRef.current.delete(event.note);
 
+            // Update active notes display after removing note
+            const activeNotesArray = Array.from(activeNotesRef.current.entries()).map(([pitch, data]) => ({
+                pitch,
+                startTime: data.startTime,
+                velocity: data.velocity,
+                id: `active-${pitch}`
+            }));
+            setActiveNotes(activeNotesArray);
+
+            if (onActiveNotesChange) {
+                onActiveNotesChange(activeNotesArray);
+            }
+
             // Call real-time callback if provided
             if (onNoteRecorded) {
                 onNoteRecorded(note);
             }
         };
-    }, [tempo, phraseLengthBeats, quantize, quantization, onNoteRecorded]);
+    }, [tempo, phraseLengthBeats, quantize, quantization, onNoteRecorded, onActiveNotesChange]);
 
     // Stable wrapper functions for event listeners
     const handleNoteOnWrapper = useCallback((event) => {
@@ -171,6 +197,11 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         setRecordedNotes([]);
         activeNotesRef.current.clear();
 
+        // Notify that pre-roll is complete and recording is starting
+        if (onPreRollComplete) {
+            onPreRollComplete();
+        }
+
         // Start metronome
         let beatCount = 0;
         metronomeIntervalRef.current = setInterval(() => {
@@ -186,7 +217,7 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         // Add MIDI listeners (stable references)
         midiInputService.addEventListener('noteOn', handleNoteOnWrapper);
         midiInputService.addEventListener('noteOff', handleNoteOffWrapper);
-    }, [beatDuration, phraseLengthBeats, playMetronomeClick, handleNoteOnWrapper, handleNoteOffWrapper, stopRecording]);
+    }, [beatDuration, phraseLengthBeats, playMetronomeClick, handleNoteOnWrapper, handleNoteOffWrapper, stopRecording, onPreRollComplete]);
 
     // Start pre-roll countdown (stable reference)
     const startPreRoll = useCallback((preRollBars = 1) => {

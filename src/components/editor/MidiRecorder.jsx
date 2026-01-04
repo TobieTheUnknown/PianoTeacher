@@ -18,6 +18,7 @@ export function MidiRecorder({
     onNoteRecorded,
     onActiveNotesChange,
     onRecordingStateChange,
+    onPreRollComplete,
     disabled = false,
     snapToGrid = true
 }) {
@@ -34,7 +35,7 @@ export function MidiRecorder({
         startRecording,
         stopRecording,
         clearRecordedNotes
-    } = useMidiRecording(tempo, phraseLength, quantization, snapToGrid, onNoteRecorded, onActiveNotesChange);
+    } = useMidiRecording(tempo, phraseLength, quantization, snapToGrid, onNoteRecorded, onActiveNotesChange, onPreRollComplete);
 
     // Handle start recording
     const handleStartRecording = () => {
