@@ -1121,21 +1121,82 @@ export function AdvancedPianoRoll({
 
                         {/* Clear Selection */}
                         {selectedNotes.length > 0 && (
-                            <button
-                                onClick={clearSelection}
-                                style={{
-                                    background: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border-light)',
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    fontSize: '0.875rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    color: 'var(--text-secondary)'
-                                }}
-                            >
-                                Désélectionner
-                            </button>
+                            <>
+                                <button
+                                    onClick={clearSelection}
+                                    style={{
+                                        background: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border-light)',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-secondary)'
+                                    }}
+                                >
+                                    Désélectionner
+                                </button>
+
+                                {/* Hand Labeling */}
+                                <button
+                                    onClick={() => {
+                                        // Move selected notes to left hand (chords track)
+                                        saveStateToHistory();
+                                        selectedNotes.forEach(note => {
+                                            if (note.trackName !== 'chords') {
+                                                // Remove from current track
+                                                onRemoveNote(note.phraseId, note.trackName, note.id);
+                                                // Add to chords track
+                                                onAddNote(note.phraseId, 'chords', note.pitch, note.localStartTime, note.duration);
+                                            }
+                                        });
+                                        clearSelection();
+                                    }}
+                                    style={{
+                                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)'
+                                    }}
+                                >
+                                    👈 Main Gauche
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        // Move selected notes to right hand (melody track)
+                                        saveStateToHistory();
+                                        selectedNotes.forEach(note => {
+                                            if (note.trackName !== 'melody') {
+                                                // Remove from current track
+                                                onRemoveNote(note.phraseId, note.trackName, note.id);
+                                                // Add to melody track
+                                                onAddNote(note.phraseId, 'melody', note.pitch, note.localStartTime, note.duration);
+                                            }
+                                        });
+                                        clearSelection();
+                                    }}
+                                    style={{
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
+                                    }}
+                                >
+                                    👉 Main Droite
+                                </button>
+                            </>
                         )}
                     </div>
 
