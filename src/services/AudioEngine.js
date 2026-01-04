@@ -5,6 +5,7 @@ class AudioEngine {
     constructor() {
         this.sampler = null;
         this.isPlaying = false;
+        this.metronomeEnabled = false; // Track if metronome should stay active
     }
 
     async initialize() {
@@ -75,7 +76,13 @@ class AudioEngine {
 
     // Simple playback of a phrase
     playPhrase(phrase, tempo = 120) {
-        this.stop();
+        // Stop playback but keep metronome if it's enabled
+        Tone.Transport.stop();
+        Tone.Transport.cancel(); // Clear scheduled events
+        if (this.sampler) {
+            this.sampler.releaseAll();
+        }
+
         Tone.Transport.bpm.value = tempo;
 
         // Combine tracks for playback
@@ -95,13 +102,24 @@ class AudioEngine {
 
         part.start(0);
 
+        // Restart metronome if it was enabled
+        if (this.metronomeEnabled && this.metronomeLoop) {
+            this.metronomeLoop.start(0);
+        }
+
         Tone.Transport.start();
         this.isPlaying = true;
     }
 
     // Play a specific list of notes (e.g. for a measure)
     playNotes(notes, tempo = 120) {
-        this.stop();
+        // Stop playback but keep metronome if it's enabled
+        Tone.Transport.stop();
+        Tone.Transport.cancel(); // Clear scheduled events
+        if (this.sampler) {
+            this.sampler.releaseAll();
+        }
+
         if (notes.length === 0) return;
 
         Tone.Transport.bpm.value = tempo;
@@ -120,6 +138,11 @@ class AudioEngine {
 
         part.start(0);
 
+        // Restart metronome if it was enabled
+        if (this.metronomeEnabled && this.metronomeLoop) {
+            this.metronomeLoop.start(0);
+        }
+
         Tone.Transport.start();
         this.isPlaying = true;
     }
@@ -137,6 +160,7 @@ class AudioEngine {
         // Stop any existing metronome loop to avoid duplicates
         this.stopMetronome();
 
+        this.metronomeEnabled = true;
         Tone.Transport.bpm.value = tempo;
 
         // Schedule click every quarter note
@@ -150,6 +174,7 @@ class AudioEngine {
     }
 
     stopMetronome() {
+        this.metronomeEnabled = false;
         if (this.metronomeLoop) {
             this.metronomeLoop.stop();
             this.metronomeLoop.dispose();
@@ -164,8 +189,12 @@ class AudioEngine {
     stop() {
         Tone.Transport.stop();
         Tone.Transport.cancel(); // Clear scheduled events
-        this.stopMetronome();
         this.isPlaying = false;
+
+        // Only stop metronome if explicitly disabled
+        if (!this.metronomeEnabled) {
+            this.stopMetronome();
+        }
 
         if (this.sampler) {
             this.sampler.releaseAll();

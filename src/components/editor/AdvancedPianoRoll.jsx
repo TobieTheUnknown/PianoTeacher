@@ -160,7 +160,7 @@ export function AdvancedPianoRoll({
     const { isInScale, keySignature: normalizedKeySignature } = useScaleContext(keySignature);
 
     // Track playback position for playhead visualization
-    const { playbackPosition, isPlaying } = usePlaybackPosition();
+    const { playbackPosition, isPlaying, seek } = usePlaybackPosition();
 
     // Get selected notes
     const selectedNotes = allNotesGlobal.filter(note => isSelected(note.id));
@@ -689,6 +689,15 @@ export function AdvancedPianoRoll({
         };
     }, [metronomeEnabled, tempo]);
 
+    // Handle play/pause
+    const handlePlayPause = useCallback(() => {
+        if (isPlaying) {
+            audioEngine.stop();
+        } else if (phrases.length > 0) {
+            audioEngine.playPhrase(phrases[0], tempo);
+        }
+    }, [isPlaying, phrases, tempo]);
+
     // Handle real-time note recorded (during recording)
     const handleNoteRecorded = useCallback((note) => {
         setRecordingPreviewNotes(prev => [...prev, note]);
@@ -764,6 +773,32 @@ export function AdvancedPianoRoll({
                                 {selectedNotes.length} note{selectedNotes.length > 1 ? 's' : ''} sélectionnée{selectedNotes.length > 1 ? 's' : ''}
                             </div>
                         )}
+                        {/* Play/Pause Button */}
+                        <button
+                            onClick={handlePlayPause}
+                            style={{
+                                background: isPlaying
+                                    ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                                    : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.75rem 1.5rem',
+                                borderRadius: 'var(--radius-md)',
+                                fontSize: '0.9375rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                boxShadow: isPlaying
+                                    ? '0 2px 8px rgba(239, 68, 68, 0.3)'
+                                    : '0 2px 8px rgba(16, 185, 129, 0.3)',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <span>{isPlaying ? '⏸' : '▶'}</span>
+                            <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                        </button>
                         <button
                             onClick={onClose}
                             style={{
@@ -1061,18 +1096,27 @@ export function AdvancedPianoRoll({
                                     position: 'relative'
                                 }}>
                                     {/* Measure Counter */}
-                                    <div style={{
-                                        position: 'sticky',
-                                        top: 0,
-                                        left: 0,
-                                        height: '32px',
-                                        background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
-                                        backdropFilter: 'blur(8px)',
-                                        borderBottom: '2px solid var(--accent-primary)',
-                                        display: 'flex',
-                                        zIndex: 50,
-                                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
-                                    }}>
+                                    <div
+                                        onClick={(e) => {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const clickX = e.clientX - rect.left;
+                                            const beatPosition = clickX / cellWidth;
+                                            seek(beatPosition);
+                                        }}
+                                        style={{
+                                            position: 'sticky',
+                                            top: 0,
+                                            left: 0,
+                                            height: '32px',
+                                            background: 'linear-gradient(180deg, rgba(30, 36, 53, 0.95) 0%, rgba(30, 36, 53, 0.9) 100%)',
+                                            backdropFilter: 'blur(8px)',
+                                            borderBottom: '2px solid var(--accent-primary)',
+                                            display: 'flex',
+                                            zIndex: 50,
+                                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
                                         {phraseLayouts.layouts.map((layout) => (
                                             Array.from({ length: layout.lengthMeasures }).map((_, measureOffset) => {
                                                 const globalMeasureNum = layout.startMeasure + measureOffset;
@@ -1352,33 +1396,37 @@ export function AdvancedPianoRoll({
                                             />
                                         )}
 
-                                        {/* Playback head */}
-                                        {isPlaying && (
+                                        {/* Playback head - Always visible */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: `${playbackPosition * cellWidth}px`,
+                                            top: 0,
+                                            bottom: 0,
+                                            width: '3px',
+                                            background: isPlaying
+                                                ? 'linear-gradient(180deg, rgba(239, 68, 68, 0.9) 0%, rgba(239, 68, 68, 0.7) 100%)'
+                                                : 'linear-gradient(180deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.6) 100%)',
+                                            boxShadow: isPlaying
+                                                ? '0 0 8px rgba(239, 68, 68, 0.6), 0 0 16px rgba(239, 68, 68, 0.3)'
+                                                : '0 0 8px rgba(59, 130, 246, 0.5)',
+                                            pointerEvents: 'none',
+                                            zIndex: 150
+                                        }}>
+                                            {/* Playhead top marker */}
                                             <div style={{
                                                 position: 'absolute',
-                                                left: `${playbackPosition * cellWidth}px`,
                                                 top: 0,
-                                                bottom: 0,
-                                                width: '3px',
-                                                background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.9) 0%, rgba(239, 68, 68, 0.7) 100%)',
-                                                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6), 0 0 16px rgba(239, 68, 68, 0.3)',
-                                                pointerEvents: 'none',
-                                                zIndex: 150
-                                            }}>
-                                                {/* Playhead top marker */}
-                                                <div style={{
-                                                    position: 'absolute',
-                                                    top: 0,
-                                                    left: '-6px',
-                                                    width: 0,
-                                                    height: 0,
-                                                    borderLeft: '6px solid transparent',
-                                                    borderRight: '6px solid transparent',
-                                                    borderTop: '8px solid rgba(239, 68, 68, 0.95)',
-                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
-                                                }} />
-                                            </div>
-                                        )}
+                                                left: '-6px',
+                                                width: 0,
+                                                height: 0,
+                                                borderLeft: '6px solid transparent',
+                                                borderRight: '6px solid transparent',
+                                                borderTop: isPlaying
+                                                    ? '8px solid rgba(239, 68, 68, 0.95)'
+                                                    : '8px solid rgba(59, 130, 246, 0.95)',
+                                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
+                                            }} />
+                                        </div>
 
                                         {/* Selection rectangle */}
                                         {selectionRect && (

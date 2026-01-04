@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Tone from 'tone';
 
 /**
@@ -9,6 +9,7 @@ import * as Tone from 'tone';
  * - Converts Tone.Transport position to beats
  * - Updates smoothly using requestAnimationFrame
  * - Automatically detects playback start/stop
+ * - Playhead always visible, can be moved even when not playing
  */
 export function usePlaybackPosition() {
     const [playbackPosition, setPlaybackPosition] = useState(0); // Position in beats
@@ -37,10 +38,12 @@ export function usePlaybackPosition() {
                 setPlaybackPosition(beats);
                 lastUpdateRef.current = performance.now();
             } else {
-                // Reset position when stopped
-                if (lastUpdateRef.current > 0 && performance.now() - lastUpdateRef.current > 100) {
-                    setPlaybackPosition(0);
-                }
+                // Keep position when stopped (don't reset to 0)
+                // This allows the playhead to remain visible
+                const seconds = Tone.Transport.seconds;
+                const bpm = Tone.Transport.bpm.value || 120;
+                const beats = (seconds * bpm) / 60;
+                setPlaybackPosition(beats);
             }
 
             // Continue animation loop
@@ -58,8 +61,17 @@ export function usePlaybackPosition() {
         };
     }, []);
 
+    // Seek to a specific position in beats
+    const seek = useCallback((beats) => {
+        const bpm = Tone.Transport.bpm.value || 120;
+        const seconds = (beats * 60) / bpm;
+        Tone.Transport.seconds = seconds;
+        setPlaybackPosition(beats);
+    }, []);
+
     return {
         playbackPosition,
-        isPlaying
+        isPlaying,
+        seek
     };
 }
