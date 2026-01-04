@@ -40,6 +40,11 @@ export function AdvancedPianoRoll({
     const [metronomeEnabled, setMetronomeEnabled] = useState(false);
     const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]); // Notes being recorded in real-time
 
+    // Undo/Redo state
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const isApplyingHistoryRef = useRef(false);
+
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
@@ -159,6 +164,114 @@ export function AdvancedPianoRoll({
 
     // Get selected notes
     const selectedNotes = allNotesGlobal.filter(note => isSelected(note.id));
+
+    // Create snapshot of current notes state
+    const createSnapshot = useCallback(() => {
+        return phrases.map(p => ({
+            id: p.id,
+            melody: [...p.tracks.melody],
+            chords: [...p.tracks.chords]
+        }));
+    }, [phrases]);
+
+    // Save state to history before modifications
+    const saveStateToHistory = useCallback(() => {
+        if (isApplyingHistoryRef.current) return;
+
+        const snapshot = createSnapshot();
+        setHistory(prev => {
+            const newHistory = prev.slice(0, historyIndex + 1);
+            newHistory.push(snapshot);
+            // Limit history to 50 items
+            if (newHistory.length > 50) {
+                newHistory.shift();
+                return newHistory;
+            }
+            return newHistory;
+        });
+        setHistoryIndex(prev => Math.min(prev + 1, 49));
+    }, [createSnapshot, historyIndex]);
+
+    // Undo function
+    const undo = useCallback(() => {
+        if (historyIndex < 0) return;
+
+        isApplyingHistoryRef.current = true;
+        const previousState = history[historyIndex];
+
+        // Restore all notes from snapshot
+        previousState.forEach(phraseSnapshot => {
+            const phrase = phrases.find(p => p.id === phraseSnapshot.id);
+            if (!phrase) return;
+
+            // Restore melody track
+            phraseSnapshot.melody.forEach(note => {
+                if (!phrase.tracks.melody.find(n => n.id === note.id)) {
+                    onAddNote(phrase.id, 'melody', note.pitch, note.startTime, note.duration);
+                }
+            });
+
+            // Remove notes that shouldn't be there
+            phrase.tracks.melody.forEach(note => {
+                if (!phraseSnapshot.melody.find(n => n.id === note.id)) {
+                    onRemoveNote(phrase.id, 'melody', note.id);
+                }
+            });
+
+            // Same for chords
+            phraseSnapshot.chords.forEach(note => {
+                if (!phrase.tracks.chords.find(n => n.id === note.id)) {
+                    onAddNote(phrase.id, 'chords', note.pitch, note.startTime, note.duration);
+                }
+            });
+
+            phrase.tracks.chords.forEach(note => {
+                if (!phraseSnapshot.chords.find(n => n.id === note.id)) {
+                    onRemoveNote(phrase.id, 'chords', note.id);
+                }
+            });
+        });
+
+        setHistoryIndex(prev => prev - 1);
+        setTimeout(() => {
+            isApplyingHistoryRef.current = false;
+        }, 50);
+    }, [historyIndex, history, phrases, onAddNote, onRemoveNote]);
+
+    // Redo function
+    const redo = useCallback(() => {
+        if (historyIndex >= history.length - 1) return;
+
+        isApplyingHistoryRef.current = true;
+        const nextState = history[historyIndex + 1];
+
+        // Restore all notes from snapshot
+        nextState.forEach(phraseSnapshot => {
+            const phrase = phrases.find(p => p.id === phraseSnapshot.id);
+            if (!phrase) return;
+
+            // Clear current notes
+            [...phrase.tracks.melody].forEach(note => {
+                onRemoveNote(phrase.id, 'melody', note.id);
+            });
+            [...phrase.tracks.chords].forEach(note => {
+                onRemoveNote(phrase.id, 'chords', note.id);
+            });
+
+            // Restore from snapshot
+            phraseSnapshot.melody.forEach(note => {
+                onAddNote(phrase.id, 'melody', note.pitch, note.startTime, note.duration);
+            });
+            phraseSnapshot.chords.forEach(note => {
+                onAddNote(phrase.id, 'chords', note.pitch, note.startTime, note.duration);
+            });
+        });
+
+        setHistoryIndex(prev => prev + 1);
+        setTimeout(() => {
+            isApplyingHistoryRef.current = false;
+        }, 50);
+    }, [historyIndex, history, phrases, onAddNote, onRemoveNote]);
 
     // Snap value to grid
     const snapValue = useCallback((value) => {
@@ -441,6 +554,18 @@ export function AdvancedPianoRoll({
                 }
             }
 
+            // Undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+
+            // Redo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            }
+
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
                 e.preventDefault();
                 selectAll(allNotesGlobal.map(n => n.id));
@@ -516,7 +641,40 @@ export function AdvancedPianoRoll({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedNotes, allNotesGlobal, phrases, tempo, isPlaying, onAddNote, onRemoveNote, clearSelection, selectAll, copy, cut, paste, duplicate, hasClipboard, onClose]);
+    }, [selectedNotes, allNotesGlobal, phrases, tempo, isPlaying, undo, redo, onAddNote, onRemoveNote, clearSelection, selectAll, copy, cut, paste, duplicate, hasClipboard, onClose]);
+
+    // Initialize history with first snapshot
+    useEffect(() => {
+        if (history.length === 0) {
+            const initialSnapshot = createSnapshot();
+            setHistory([initialSnapshot]);
+            setHistoryIndex(0);
+        }
+    }, []);  // Only run once on mount
+
+    // Track changes to phrases and save to history
+    const prevPhrasesRef = useRef(null);
+    useEffect(() => {
+        if (!prevPhrasesRef.current) {
+            prevPhrasesRef.current = phrases;
+            return;
+        }
+
+        // Check if phrases actually changed (deep comparison of notes)
+        const hasChanged = phrases.some((p, idx) => {
+            const prevPhrase = prevPhrasesRef.current[idx];
+            if (!prevPhrase) return true;
+
+            return p.tracks.melody.length !== prevPhrase.tracks.melody.length ||
+                   p.tracks.chords.length !== prevPhrase.tracks.chords.length;
+        });
+
+        if (hasChanged && !isApplyingHistoryRef.current) {
+            saveStateToHistory();
+        }
+
+        prevPhrasesRef.current = phrases;
+    }, [phrases, saveStateToHistory]);
 
     // Metronome control
     useEffect(() => {
