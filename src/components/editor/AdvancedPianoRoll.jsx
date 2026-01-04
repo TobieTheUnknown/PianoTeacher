@@ -36,6 +36,7 @@ export function AdvancedPianoRoll({
     const [showScaleHighlight, setShowScaleHighlight] = useState(true);
     const [snapToGrid, setSnapToGrid] = useState(true);
     const [gridSize, setGridSize] = useState(0.25); // 1/16 note
+    const [metronomeEnabled, setMetronomeEnabled] = useState(false);
 
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
@@ -348,8 +349,13 @@ export function AdvancedPianoRoll({
     const handleBackgroundMouseDown = useCallback((e) => {
         if (e.target.dataset.clickarea && scrollRef.current) {
             const rect = scrollRef.current.getBoundingClientRect();
-            const x = e.clientX - rect.left + scrollRef.current.scrollLeft;
-            const y = e.clientY - rect.top + scrollRef.current.scrollTop;
+
+            // Account for piano keys (90px) and measure header (32px) offset
+            const PIANO_KEYS_WIDTH = 90;
+            const MEASURE_HEADER_HEIGHT = 32;
+
+            const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
+            const y = e.clientY - rect.top + scrollRef.current.scrollTop - MEASURE_HEADER_HEIGHT;
 
             if (!e.ctrlKey && !e.metaKey) {
                 clearSelection();
@@ -365,8 +371,13 @@ export function AdvancedPianoRoll({
             const handleMouseMove = (e) => {
                 if (!scrollRef.current) return;
                 const rect = scrollRef.current.getBoundingClientRect();
-                const x = e.clientX - rect.left + scrollRef.current.scrollLeft;
-                const y = e.clientY - rect.top + scrollRef.current.scrollTop;
+
+                // Account for piano keys (90px) and measure header (32px) offset
+                const PIANO_KEYS_WIDTH = 90;
+                const MEASURE_HEADER_HEIGHT = 32;
+
+                const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
+                const y = e.clientY - rect.top + scrollRef.current.scrollTop - MEASURE_HEADER_HEIGHT;
                 updateRectSelection(x, y);
             };
 
@@ -489,11 +500,34 @@ export function AdvancedPianoRoll({
                     onClose();
                 }
             }
+
+            // Space bar for play/pause
+            if (e.key === ' ') {
+                e.preventDefault();
+                if (isPlaying) {
+                    audioEngine.stop();
+                } else if (phrases.length > 0) {
+                    audioEngine.playPhrase(phrases[0], tempo);
+                }
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedNotes, allNotesGlobal, phrases, onAddNote, onRemoveNote, clearSelection, selectAll, copy, cut, paste, duplicate, hasClipboard, onClose]);
+    }, [selectedNotes, allNotesGlobal, phrases, tempo, isPlaying, onAddNote, onRemoveNote, clearSelection, selectAll, copy, cut, paste, duplicate, hasClipboard, onClose]);
+
+    // Metronome control
+    useEffect(() => {
+        if (metronomeEnabled) {
+            audioEngine.startMetronome(tempo);
+        } else {
+            audioEngine.stopMetronome();
+        }
+
+        return () => {
+            audioEngine.stopMetronome();
+        };
+    }, [metronomeEnabled, tempo]);
 
     // Handle MIDI recording complete
     const handleRecordingComplete = useCallback((recordedNotes) => {
@@ -688,6 +722,23 @@ export function AdvancedPianoRoll({
                             }}
                         >
                             {snapToGrid ? '✓' : '○'} Magnétisme
+                        </button>
+
+                        {/* Metronome */}
+                        <button
+                            onClick={() => setMetronomeEnabled(!metronomeEnabled)}
+                            style={{
+                                background: metronomeEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                                color: metronomeEnabled ? 'white' : 'var(--text-secondary)',
+                                border: metronomeEnabled ? 'none' : '1px solid var(--border-light)',
+                                padding: '0.5rem 1rem',
+                                borderRadius: 'var(--radius-md)',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {metronomeEnabled ? '🔔' : '🔕'} Métronome
                         </button>
 
                         {/* Scale Highlight */}
@@ -1046,8 +1097,13 @@ export function AdvancedPianoRoll({
                                                 onClick={(e) => {
                                                     if (!scrollRef.current) return;
                                                     const rect = scrollRef.current.getBoundingClientRect();
-                                                    const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft;
-                                                    const gridY = e.clientY - rect.top + scrollRef.current.scrollTop;
+
+                                                    // Account for piano keys (90px) and measure header (32px) offset
+                                                    const PIANO_KEYS_WIDTH = 90;
+                                                    const MEASURE_HEADER_HEIGHT = 32;
+
+                                                    const gridX = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
+                                                    const gridY = e.clientY - rect.top + scrollRef.current.scrollTop - MEASURE_HEADER_HEIGHT;
 
                                                     const beatIndex = Math.floor(gridX / cellWidth);
                                                     const pitchIndex = Math.floor(gridY / cellHeight);

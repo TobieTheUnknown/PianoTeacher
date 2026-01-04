@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { getPianoRollKeys, getFrenchNoteName, getNoteNameFromMidi, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
+import { usePlaybackPosition } from '../hooks/usePlaybackPosition';
 
 // Lazy load the advanced piano roll
 const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(module => ({ default: module.AdvancedPianoRoll })));
@@ -26,6 +27,9 @@ export function PianoRoll({ phrase, allPhrases, keySignature, tempo = 120, onAdd
 
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
+
+    // Track playback position
+    const { playbackPosition, isPlaying } = usePlaybackPosition();
 
     // Helper to get applicable separator for a given measure
     const getSeparatorForMeasure = (measureIndex) => {
@@ -595,6 +599,34 @@ export function PianoRoll({ phrase, allPhrases, keySignature, tempo = 120, onAdd
                                         />
                                     ))
                                 ))}
+
+                                {/* Playback head */}
+                                {isPlaying && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: `${playbackPosition * cellWidth}px`,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: '3px',
+                                        background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.9) 0%, rgba(239, 68, 68, 0.7) 100%)',
+                                        boxShadow: '0 0 8px rgba(239, 68, 68, 0.6), 0 0 16px rgba(239, 68, 68, 0.3)',
+                                        pointerEvents: 'none',
+                                        zIndex: 150
+                                    }}>
+                                        {/* Playhead top marker */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: '-6px',
+                                            width: 0,
+                                            height: 0,
+                                            borderLeft: '6px solid transparent',
+                                            borderRight: '6px solid transparent',
+                                            borderTop: '8px solid rgba(239, 68, 68, 0.95)',
+                                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
+                                        }} />
+                                    </div>
+                                )}
 
                                 {/* Hand Separation Lines (Automation) */}
                                 {separatorEnabled && handSeparators
