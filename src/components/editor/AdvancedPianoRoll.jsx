@@ -38,7 +38,11 @@ export function AdvancedPianoRoll({
     const [snapToGrid, setSnapToGrid] = useState(true);
     const [gridSize, setGridSize] = useState(0.25); // 1/16 note
     const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+    const [loopEnabled, setLoopEnabled] = useState(false); // Loop playback when reaching end
+    const [loopRegion, setLoopRegion] = useState(null); // { start: beats, end: beats } or null for full loop
+    const [draggingLoopHandle, setDraggingLoopHandle] = useState(null); // 'start' | 'end' | null
     const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]); // Notes being recorded in real-time
+    const [activeRecordingNotes, setActiveRecordingNotes] = useState([]); // Notes currently being held during recording
 
     // Undo/Redo state
     const [history, setHistory] = useState([]);
@@ -161,6 +165,26 @@ export function AdvancedPianoRoll({
 
     // Track playback position for playhead visualization
     const { playbackPosition, isPlaying, seek } = usePlaybackPosition();
+
+    // Handle loop/stop at end of playback
+    useEffect(() => {
+        if (!isPlaying) return;
+
+        // Determine loop boundaries
+        const loopStart = loopRegion ? loopRegion.start : 0;
+        const loopEnd = loopRegion ? loopRegion.end : phraseLayouts.totalBeats;
+
+        // Check if playback has reached or exceeded the end
+        if (playbackPosition >= loopEnd) {
+            if (loopEnabled) {
+                // Loop back to the loop start position
+                seek(loopStart);
+            } else {
+                // Stop playback
+                audioEngine.stop();
+            }
+        }
+    }, [playbackPosition, isPlaying, loopEnabled, loopRegion, phraseLayouts.totalBeats, seek]);
 
     // Get selected notes
     const selectedNotes = allNotesGlobal.filter(note => isSelected(note.id));
@@ -352,6 +376,28 @@ export function AdvancedPianoRoll({
 
     // Handle mouse move (drag) with throttling for performance
     const handleMouseMove = useCallback((e) => {
+        // Handle loop handle dragging
+        if (draggingLoopHandle && scrollRef.current) {
+            const rect = scrollRef.current.getBoundingClientRect();
+            const PIANO_KEYS_WIDTH = 90;
+            const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
+            const beatPosition = Math.max(0, Math.min(phraseLayouts.totalBeats, x / cellWidth));
+            const snappedBeat = snapValue(beatPosition);
+
+            if (draggingLoopHandle === 'start') {
+                setLoopRegion(prev => ({
+                    start: Math.min(snappedBeat, prev.end - gridSize),
+                    end: prev.end
+                }));
+            } else if (draggingLoopHandle === 'end') {
+                setLoopRegion(prev => ({
+                    start: prev.start,
+                    end: Math.max(snappedBeat, prev.start + gridSize)
+                }));
+            }
+            return;
+        }
+
         if (!dragState || !scrollRef.current) return;
 
         // Throttle updates to 60fps using requestAnimationFrame
@@ -453,11 +499,12 @@ export function AdvancedPianoRoll({
                 }
             }
         });
-    }, [dragState, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote]);
+    }, [dragState, draggingLoopHandle, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote, phraseLayouts.totalBeats]);
 
     // Handle mouse up
     const handleMouseUp = useCallback(() => {
         setDragState(null);
+        setDraggingLoopHandle(null);
     }, []);
 
     // Handle background mouse down (start rect selection)
@@ -540,6 +587,18 @@ export function AdvancedPianoRoll({
             };
         }
     }, [dragState, handleMouseMove, handleMouseUp]);
+
+    // Handle loop handle dragging
+    useEffect(() => {
+        if (draggingLoopHandle) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            return () => {
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [draggingLoopHandle, handleMouseMove, handleMouseUp]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -839,7 +898,18 @@ export function AdvancedPianoRoll({
                         phraseLength={phrases[0]?.length || 4}
                         onRecordingComplete={handleRecordingComplete}
                         onNoteRecorded={handleNoteRecorded}
+                        onActiveNotesChange={setActiveRecordingNotes}
                         snapToGrid={snapToGrid}
+                        onRecordingStateChange={(recording) => {
+                            // Auto-enable metronome during recording
+                            if (recording && !metronomeEnabled) {
+                                setMetronomeEnabled(true);
+                            }
+                            // Clear active notes when recording stops
+                            if (!recording) {
+                                setActiveRecordingNotes([]);
+                            }
+                        }}
                     />
 
                     {/* Toolbar */}
@@ -973,6 +1043,50 @@ export function AdvancedPianoRoll({
                         >
                             {metronomeEnabled ? '🔔' : '🔕'} Métronome
                         </button>
+
+                        {/* Loop */}
+                        <button
+                            onClick={() => setLoopEnabled(!loopEnabled)}
+                            style={{
+                                background: loopEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
+                                color: loopEnabled ? 'white' : 'var(--text-secondary)',
+                                border: loopEnabled ? 'none' : '1px solid var(--border-light)',
+                                padding: '0.5rem 1rem',
+                                borderRadius: 'var(--radius-md)',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {loopEnabled ? '🔁' : '➡️'} Boucle
+                        </button>
+
+                        {/* Loop Region */}
+                        {loopEnabled && (
+                            <button
+                                onClick={() => {
+                                    if (loopRegion) {
+                                        setLoopRegion(null);
+                                    } else {
+                                        // Set default loop region to first 4 measures (16 beats)
+                                        const defaultEnd = Math.min(16, phraseLayouts.totalBeats);
+                                        setLoopRegion({ start: 0, end: defaultEnd });
+                                    }
+                                }}
+                                style={{
+                                    background: loopRegion ? 'rgba(34, 197, 94, 0.2)' : 'var(--bg-elevated)',
+                                    color: loopRegion ? '#22c55e' : 'var(--text-secondary)',
+                                    border: loopRegion ? '1px solid #22c55e' : '1px solid var(--border-light)',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {loopRegion ? '✓ Région' : '+ Région'}
+                            </button>
+                        )}
 
                         {/* Scale Highlight */}
                         <button
@@ -1146,6 +1260,89 @@ export function AdvancedPianoRoll({
                                                 );
                                             })
                                         ))}
+
+                                        {/* Loop Region Visualization */}
+                                        {loopEnabled && loopRegion && (
+                                            <>
+                                                {/* Loop region highlight */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    left: `${loopRegion.start * cellWidth}px`,
+                                                    top: 0,
+                                                    height: '100%',
+                                                    width: `${(loopRegion.end - loopRegion.start) * cellWidth}px`,
+                                                    background: 'linear-gradient(180deg, rgba(34, 197, 94, 0.3) 0%, rgba(34, 197, 94, 0.2) 100%)',
+                                                    border: '2px solid rgba(34, 197, 94, 0.6)',
+                                                    borderTop: 'none',
+                                                    pointerEvents: 'none',
+                                                    zIndex: 5
+                                                }} />
+
+                                                {/* Start handle */}
+                                                <div
+                                                    onMouseDown={(e) => {
+                                                        e.stopPropagation();
+                                                        setDraggingLoopHandle('start');
+                                                    }}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${loopRegion.start * cellWidth - 6}px`,
+                                                        top: 0,
+                                                        width: '12px',
+                                                        height: '100%',
+                                                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                                                        cursor: 'ew-resize',
+                                                        zIndex: 10,
+                                                        borderRadius: '2px 0 0 2px',
+                                                        boxShadow: '0 2px 6px rgba(34, 197, 94, 0.5)',
+                                                        transition: draggingLoopHandle === 'start' ? 'none' : 'left 0.1s'
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        left: '50%',
+                                                        top: '50%',
+                                                        transform: 'translate(-50%, -50%)',
+                                                        width: '2px',
+                                                        height: '14px',
+                                                        background: 'rgba(255, 255, 255, 0.8)',
+                                                        borderRadius: '1px'
+                                                    }} />
+                                                </div>
+
+                                                {/* End handle */}
+                                                <div
+                                                    onMouseDown={(e) => {
+                                                        e.stopPropagation();
+                                                        setDraggingLoopHandle('end');
+                                                    }}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${loopRegion.end * cellWidth - 6}px`,
+                                                        top: 0,
+                                                        width: '12px',
+                                                        height: '100%',
+                                                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                                                        cursor: 'ew-resize',
+                                                        zIndex: 10,
+                                                        borderRadius: '0 2px 2px 0',
+                                                        boxShadow: '0 2px 6px rgba(34, 197, 94, 0.5)',
+                                                        transition: draggingLoopHandle === 'end' ? 'none' : 'left 0.1s'
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        left: '50%',
+                                                        top: '50%',
+                                                        transform: 'translate(-50%, -50%)',
+                                                        width: '2px',
+                                                        height: '14px',
+                                                        background: 'rgba(255, 255, 255, 0.8)',
+                                                        borderRadius: '1px'
+                                                    }} />
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* Grid content */}
@@ -1217,21 +1414,32 @@ export function AdvancedPianoRoll({
                                             </div>
                                         ))}
 
-                                        {/* Vertical grid lines */}
-                                        {Array.from({ length: phraseLayouts.totalBeats }).map((_, beatIndex) => (
-                                            <div key={`v-${beatIndex}`} style={{
-                                                position: 'absolute',
-                                                left: `${beatIndex * cellWidth}px`,
-                                                top: 0,
-                                                bottom: 0,
-                                                width: beatIndex % 4 === 0 ? '2px' : '1px',
-                                                background: beatIndex % 4 === 0
-                                                    ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
-                                                    : 'rgba(255, 255, 255, 0.05)',
-                                                pointerEvents: 'none',
-                                                zIndex: beatIndex % 4 === 0 ? 3 : 2
-                                            }} />
-                                        ))}
+                                        {/* Vertical grid lines - adapts to gridSize */}
+                                        {(() => {
+                                            const totalSubdivisions = phraseLayouts.totalBeats / gridSize;
+                                            return Array.from({ length: totalSubdivisions }).map((_, subdivIndex) => {
+                                                const beatPosition = subdivIndex * gridSize;
+                                                const isMeasureLine = beatPosition % 4 === 0;
+                                                const isBeatLine = beatPosition % 1 === 0;
+
+                                                return (
+                                                    <div key={`v-${subdivIndex}`} style={{
+                                                        position: 'absolute',
+                                                        left: `${beatPosition * cellWidth}px`,
+                                                        top: 0,
+                                                        bottom: 0,
+                                                        width: isMeasureLine ? '2px' : isBeatLine ? '1px' : '1px',
+                                                        background: isMeasureLine
+                                                            ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
+                                                            : isBeatLine
+                                                            ? 'rgba(255, 255, 255, 0.08)'
+                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                        pointerEvents: 'none',
+                                                        zIndex: isMeasureLine ? 3 : isBeatLine ? 2 : 1
+                                                    }} />
+                                                );
+                                            });
+                                        })()}
 
                                         {/* Horizontal grid lines with scale highlighting */}
                                         {keys.map((pitch, i) => {
@@ -1355,6 +1563,37 @@ export function AdvancedPianoRoll({
                                                         opacity: 0.85,
                                                         animation: 'pulse 1s ease-in-out infinite',
                                                         pointerEvents: 'none'
+                                                    }}
+                                                />
+                                            );
+                                        })}
+
+                                        {/* Active Recording Notes (stretching in real-time) */}
+                                        {activeRecordingNotes.map((note, idx) => {
+                                            const notePitch = typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch;
+                                            const keyIndex = keys.indexOf(notePitch);
+                                            if (keyIndex === -1) return null;
+
+                                            // Calculate dynamic duration from startTime to current playback position
+                                            const dynamicDuration = Math.max(0.125, playbackPosition - note.startTime);
+
+                                            return (
+                                                <div
+                                                    key={`active-${idx}-${note.id}`}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${note.startTime * cellWidth}px`,
+                                                        top: `${keyIndex * cellHeight + 1}px`,
+                                                        width: `${dynamicDuration * cellWidth - 2}px`,
+                                                        height: `${cellHeight - 2}px`,
+                                                        background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)', // Amber/gold for live notes
+                                                        borderRadius: 'var(--radius-sm)',
+                                                        boxShadow: '0 2px 12px rgba(251, 191, 36, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
+                                                        zIndex: 16, // Above preview notes
+                                                        border: '2px solid rgba(255, 255, 255, 0.3)',
+                                                        opacity: 0.9,
+                                                        pointerEvents: 'none',
+                                                        transition: 'width 0.05s linear' // Smooth stretching
                                                     }}
                                                 />
                                             );

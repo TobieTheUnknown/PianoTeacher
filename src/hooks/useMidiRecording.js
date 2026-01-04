@@ -245,6 +245,7 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         isPreRoll,
         preRollCount,
         recordedNotes,
+        activeNotes,
         startRecording,
         stopRecording,
         clearRecordedNotes

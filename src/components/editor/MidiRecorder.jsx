@@ -16,6 +16,8 @@ export function MidiRecorder({
     phraseLength = 4,
     onRecordingComplete,
     onNoteRecorded,
+    onActiveNotesChange,
+    onRecordingStateChange,
     disabled = false,
     snapToGrid = true
 }) {
@@ -28,10 +30,11 @@ export function MidiRecorder({
         isPreRoll,
         preRollCount,
         recordedNotes,
+        activeNotes,
         startRecording,
         stopRecording,
         clearRecordedNotes
-    } = useMidiRecording(tempo, phraseLength, quantization, snapToGrid, onNoteRecorded);
+    } = useMidiRecording(tempo, phraseLength, quantization, snapToGrid, onNoteRecorded, onActiveNotesChange);
 
     // Handle start recording
     const handleStartRecording = () => {
@@ -43,6 +46,13 @@ export function MidiRecorder({
     const handleStopRecording = () => {
         stopRecording();
     };
+
+    // Notify parent of recording state changes
+    React.useEffect(() => {
+        if (onRecordingStateChange) {
+            onRecordingStateChange(isRecording || isPreRoll);
+        }
+    }, [isRecording, isPreRoll, onRecordingStateChange]);
 
     // Auto-call onRecordingComplete when recording stops and we have notes
     React.useEffect(() => {
