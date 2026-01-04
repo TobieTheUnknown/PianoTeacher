@@ -38,6 +38,7 @@ export function AdvancedPianoRoll({
     const [snapToGrid, setSnapToGrid] = useState(true);
     const [gridSize, setGridSize] = useState(0.25); // 1/16 note
     const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+    const [metronomeSubdivision, setMetronomeSubdivision] = useState('quarter'); // 'quarter' | 'eighth'
     const [loopEnabled, setLoopEnabled] = useState(false); // Loop playback when reaching end
     const [loopRegion, setLoopRegion] = useState(null); // { start: beats, end: beats } or null for full loop
     const [draggingLoopHandle, setDraggingLoopHandle] = useState(null); // 'start' | 'end' | null
@@ -742,7 +743,7 @@ export function AdvancedPianoRoll({
     // Metronome control
     useEffect(() => {
         if (metronomeEnabled) {
-            audioEngine.startMetronome(tempo);
+            audioEngine.startMetronome(tempo, metronomeSubdivision);
         } else {
             audioEngine.stopMetronome();
         }
@@ -750,16 +751,20 @@ export function AdvancedPianoRoll({
         return () => {
             audioEngine.stopMetronome();
         };
-    }, [metronomeEnabled, tempo]);
+    }, [metronomeEnabled, tempo, metronomeSubdivision]);
 
     // Handle play/pause
     const handlePlayPause = useCallback(() => {
         if (isPlaying) {
             audioEngine.stop();
         } else if (phrases.length > 0) {
+            // If loop is enabled, seek to loop start before playing
+            if (loopEnabled && loopRegion) {
+                seek(loopRegion.start);
+            }
             audioEngine.playPhrase(phrases[0], tempo);
         }
-    }, [isPlaying, phrases, tempo]);
+    }, [isPlaying, phrases, tempo, loopEnabled, loopRegion, seek]);
 
     // Handle real-time note recorded (during recording)
     const handleNoteRecorded = useCallback((note) => {
@@ -1058,9 +1063,42 @@ export function AdvancedPianoRoll({
                             {metronomeEnabled ? '🔔' : '🔕'} Métronome
                         </button>
 
-                        {/* Loop */}
+                        {/* Metronome Subdivision (only show when metronome is on) */}
+                        {metronomeEnabled && (
+                            <select
+                                value={metronomeSubdivision}
+                                onChange={(e) => setMetronomeSubdivision(e.target.value)}
+                                style={{
+                                    padding: '0.5rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--bg-elevated)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="quarter">♩ Noire (1/4)</option>
+                                <option value="eighth">♪ Croche (1/8)</option>
+                            </select>
+                        )}
+
+                        {/* Loop - clicking activates loop + creates region immediately */}
                         <button
-                            onClick={() => setLoopEnabled(!loopEnabled)}
+                            onClick={() => {
+                                const newLoopEnabled = !loopEnabled;
+                                setLoopEnabled(newLoopEnabled);
+
+                                if (newLoopEnabled) {
+                                    // Create default loop region when enabling (4 measures)
+                                    const defaultEnd = Math.min(16, phraseLayouts.totalBeats);
+                                    setLoopRegion({ start: 0, end: defaultEnd });
+                                } else {
+                                    // Clear loop region when disabling
+                                    setLoopRegion(null);
+                                }
+                            }}
                             style={{
                                 background: loopEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
                                 color: loopEnabled ? 'white' : 'var(--text-secondary)',
@@ -1074,33 +1112,6 @@ export function AdvancedPianoRoll({
                         >
                             {loopEnabled ? '🔁' : '➡️'} Boucle
                         </button>
-
-                        {/* Loop Region */}
-                        {loopEnabled && (
-                            <button
-                                onClick={() => {
-                                    if (loopRegion) {
-                                        setLoopRegion(null);
-                                    } else {
-                                        // Set default loop region to first 4 measures (16 beats)
-                                        const defaultEnd = Math.min(16, phraseLayouts.totalBeats);
-                                        setLoopRegion({ start: 0, end: defaultEnd });
-                                    }
-                                }}
-                                style={{
-                                    background: loopRegion ? 'rgba(34, 197, 94, 0.2)' : 'var(--bg-elevated)',
-                                    color: loopRegion ? '#22c55e' : 'var(--text-secondary)',
-                                    border: loopRegion ? '1px solid #22c55e' : '1px solid var(--border-light)',
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    fontSize: '0.875rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {loopRegion ? '✓ Région' : '+ Région'}
-                            </button>
-                        )}
 
                         {/* Scale Highlight */}
                         <button

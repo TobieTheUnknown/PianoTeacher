@@ -54,12 +54,6 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         return Math.round(timeInBeats / quantization) * quantization;
     }, [quantization, snapToGrid, tempo]);
 
-    // Play metronome click (stable reference)
-    const playMetronomeClick = useCallback((isDownbeat = false) => {
-        const pitch = isDownbeat ? 76 : 72; // E5 for downbeat, C5 for others
-        audioEngine.playNote(pitch, 0.1, 0.05); // Short duration, low velocity
-    }, []);
-
     // Create stable event handlers using refs
     const handleNoteOnRef = useRef();
     const handleNoteOffRef = useRef();
@@ -202,10 +196,10 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
             onPreRollComplete();
         }
 
-        // Start metronome
+        // NO metronome interval here - AudioEngine handles it
+        // Just track beat count for auto-stop
         let beatCount = 0;
         metronomeIntervalRef.current = setInterval(() => {
-            playMetronomeClick(beatCount % 4 === 0);
             beatCount++;
 
             // Auto-stop at phrase length
@@ -217,7 +211,7 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         // Add MIDI listeners (stable references)
         midiInputService.addEventListener('noteOn', handleNoteOnWrapper);
         midiInputService.addEventListener('noteOff', handleNoteOffWrapper);
-    }, [beatDuration, phraseLengthBeats, playMetronomeClick, handleNoteOnWrapper, handleNoteOffWrapper, stopRecording, onPreRollComplete]);
+    }, [beatDuration, phraseLengthBeats, handleNoteOnWrapper, handleNoteOffWrapper, stopRecording, onPreRollComplete]);
 
     // Start pre-roll countdown (stable reference)
     const startPreRoll = useCallback((preRollBars = 1) => {
@@ -226,9 +220,9 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
 
         let count = preRollBars * 4;
 
+        // NO metronome clicks here - AudioEngine handles it
+        // Just count down
         preRollIntervalRef.current = setInterval(() => {
-            playMetronomeClick(count % 4 === 0);
-
             count--;
             setPreRollCount(count);
 
@@ -240,7 +234,7 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
                 actuallyStartRecording();
             }
         }, beatDuration);
-    }, [beatDuration, playMetronomeClick, actuallyStartRecording]);
+    }, [beatDuration, actuallyStartRecording]);
 
     // Start recording with pre-roll
     const startRecording = useCallback((withPreRoll = true, preRollBars = 1) => {
