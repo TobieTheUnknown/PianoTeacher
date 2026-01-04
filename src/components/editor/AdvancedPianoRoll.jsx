@@ -37,6 +37,7 @@ export function AdvancedPianoRoll({
     const [snapToGrid, setSnapToGrid] = useState(true);
     const [gridSize, setGridSize] = useState(0.25); // 1/16 note
     const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+    const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]); // Notes being recorded in real-time
 
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
@@ -529,6 +530,11 @@ export function AdvancedPianoRoll({
         };
     }, [metronomeEnabled, tempo]);
 
+    // Handle real-time note recorded (during recording)
+    const handleNoteRecorded = useCallback((note) => {
+        setRecordingPreviewNotes(prev => [...prev, note]);
+    }, []);
+
     // Handle MIDI recording complete
     const handleRecordingComplete = useCallback((recordedNotes) => {
         if (phrases.length === 0) return;
@@ -537,6 +543,9 @@ export function AdvancedPianoRoll({
             const trackName = note.pitch >= 60 ? 'melody' : 'chords';
             onAddNote(phrases[0].id, trackName, note.pitch, note.startTime, note.duration);
         });
+
+        // Clear preview notes
+        setRecordingPreviewNotes([]);
     }, [phrases, onAddNote]);
 
     return createPortal(
@@ -635,6 +644,8 @@ export function AdvancedPianoRoll({
                         tempo={tempo}
                         phraseLength={phrases[0]?.length || 4}
                         onRecordingComplete={handleRecordingComplete}
+                        onNoteRecorded={handleNoteRecorded}
+                        snapToGrid={snapToGrid}
                     />
 
                     {/* Toolbar */}
@@ -1087,6 +1098,34 @@ export function AdvancedPianoRoll({
                                                         }}
                                                     />
                                                 </div>
+                                            );
+                                        })}
+
+                                        {/* Recording Preview Notes (real-time display) */}
+                                        {recordingPreviewNotes.map((note, idx) => {
+                                            const notePitch = typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch;
+                                            const keyIndex = keys.indexOf(notePitch);
+                                            if (keyIndex === -1) return null;
+
+                                            return (
+                                                <div
+                                                    key={`preview-${idx}-${note.id}`}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${note.startTime * cellWidth}px`,
+                                                        top: `${keyIndex * cellHeight + 1}px`,
+                                                        width: `${note.duration * cellWidth - 2}px`,
+                                                        height: `${cellHeight - 2}px`,
+                                                        background: 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)', // Orange for preview
+                                                        borderRadius: 'var(--radius-sm)',
+                                                        boxShadow: '0 2px 8px rgba(251, 146, 60, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                                                        zIndex: 15,
+                                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                                        opacity: 0.85,
+                                                        animation: 'pulse 1s ease-in-out infinite',
+                                                        pointerEvents: 'none'
+                                                    }}
+                                                />
                                             );
                                         })}
 

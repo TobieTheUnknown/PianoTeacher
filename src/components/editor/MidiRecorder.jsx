@@ -15,7 +15,9 @@ export function MidiRecorder({
     tempo = 120,
     phraseLength = 4,
     onRecordingComplete,
-    disabled = false
+    onNoteRecorded,
+    disabled = false,
+    snapToGrid = true
 }) {
     const [quantization, setQuantization] = React.useState(0.25); // 1/16 note
     const [usePreRoll, setUsePreRoll] = React.useState(true);
@@ -29,7 +31,7 @@ export function MidiRecorder({
         startRecording,
         stopRecording,
         clearRecordedNotes
-    } = useMidiRecording(tempo, phraseLength, quantization);
+    } = useMidiRecording(tempo, phraseLength, quantization, snapToGrid, onNoteRecorded);
 
     // Handle start recording
     const handleStartRecording = () => {

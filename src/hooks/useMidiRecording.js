@@ -9,11 +9,12 @@ import { createNoteEvent } from '../models/song';
  * Features:
  * - Real-time MIDI recording with timing
  * - Quantization based on grid (1/4, 1/8, 1/16)
+ * - High-resolution recording (64 ticks/sec) when snapToGrid is false
  * - Metronome during recording
  * - Pre-roll countdown
  * - Auto-stop on phrase length
  */
-export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25) {
+export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25, snapToGrid = true, onNoteRecorded = null) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPreRoll, setIsPreRoll] = useState(false);
     const [preRollCount, setPreRollCount] = useState(0);
@@ -41,8 +42,16 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
 
     // Quantize time to nearest grid point (stable reference)
     const quantize = useCallback((timeInBeats) => {
+        if (!snapToGrid) {
+            // High-resolution: 64 ticks per second
+            // Convert beats to seconds, round to 1/64 second, convert back
+            const seconds = (timeInBeats * 60) / tempo;
+            const ticksPerSecond = 64;
+            const roundedSeconds = Math.round(seconds * ticksPerSecond) / ticksPerSecond;
+            return (roundedSeconds * tempo) / 60;
+        }
         return Math.round(timeInBeats / quantization) * quantization;
-    }, [quantization]);
+    }, [quantization, snapToGrid, tempo]);
 
     // Play metronome click (stable reference)
     const playMetronomeClick = useCallback((isDownbeat = false) => {
@@ -94,8 +103,13 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
 
             setRecordedNotes(prev => [...prev, note]);
             activeNotesRef.current.delete(event.note);
+
+            // Call real-time callback if provided
+            if (onNoteRecorded) {
+                onNoteRecorded(note);
+            }
         };
-    }, [tempo, phraseLengthBeats, quantize, quantization]);
+    }, [tempo, phraseLengthBeats, quantize, quantization, onNoteRecorded]);
 
     // Stable wrapper functions for event listeners
     const handleNoteOnWrapper = useCallback((event) => {
