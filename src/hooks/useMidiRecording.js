@@ -14,11 +14,12 @@ import { createNoteEvent } from '../models/song';
  * - Pre-roll countdown
  * - Auto-stop on phrase length
  */
-export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25, snapToGrid = true, onNoteRecorded = null) {
+export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25, snapToGrid = true, onNoteRecorded = null, onActiveNotesChange = null) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPreRoll, setIsPreRoll] = useState(false);
     const [preRollCount, setPreRollCount] = useState(0);
     const [recordedNotes, setRecordedNotes] = useState([]);
+    const [activeNotes, setActiveNotes] = useState([]); // Notes currently being held
 
     const startTimeRef = useRef(null);
     const activeNotesRef = useRef(new Map()); // pitch -> { startTime, velocity }
