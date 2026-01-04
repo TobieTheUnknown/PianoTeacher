@@ -784,6 +784,30 @@ export function AdvancedPianoRoll({
         setRecordingPreviewNotes([]);
     }, [phrases, onAddNote]);
 
+    // Handle recording state change (wrapped in useCallback to prevent infinite loop)
+    const handleRecordingStateChange = useCallback((recording) => {
+        // Auto-enable metronome during recording
+        if (recording && !metronomeEnabled) {
+            setMetronomeEnabled(true);
+        }
+        // Reset playhead to start when pre-roll begins
+        if (recording) {
+            seek(0);
+        }
+        // Clear active notes when recording stops
+        if (!recording) {
+            setActiveRecordingNotes([]);
+        }
+    }, [metronomeEnabled, seek]);
+
+    // Handle pre-roll complete (wrapped in useCallback)
+    const handlePreRollComplete = useCallback(() => {
+        // Start playback after pre-roll completes
+        if (phrases.length > 0) {
+            audioEngine.playPhrase(phrases[0], tempo);
+        }
+    }, [phrases, tempo]);
+
     return createPortal(
         <>
             {/* Backdrop */}
@@ -909,26 +933,8 @@ export function AdvancedPianoRoll({
                         onNoteRecorded={handleNoteRecorded}
                         onActiveNotesChange={setActiveRecordingNotes}
                         snapToGrid={snapToGrid}
-                        onRecordingStateChange={(recording) => {
-                            // Auto-enable metronome during recording
-                            if (recording && !metronomeEnabled) {
-                                setMetronomeEnabled(true);
-                            }
-                            // Reset playhead to start when pre-roll begins
-                            if (recording) {
-                                seek(0);
-                            }
-                            // Clear active notes when recording stops
-                            if (!recording) {
-                                setActiveRecordingNotes([]);
-                            }
-                        }}
-                        onPreRollComplete={() => {
-                            // Start playback after pre-roll completes
-                            if (phrases.length > 0) {
-                                audioEngine.playPhrase(phrases[0], tempo);
-                            }
-                        }}
+                        onRecordingStateChange={handleRecordingStateChange}
+                        onPreRollComplete={handlePreRollComplete}
                     />
 
                     {/* Toolbar */}
