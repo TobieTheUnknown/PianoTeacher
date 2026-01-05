@@ -42,6 +42,7 @@ export function AdvancedPianoRoll({
     const [loopEnabled, setLoopEnabled] = useState(false); // Loop playback when reaching end
     const [loopRegion, setLoopRegion] = useState(null); // { start: beats, end: beats } or null for full loop
     const [draggingLoopHandle, setDraggingLoopHandle] = useState(null); // 'start' | 'end' | null
+    const [draggingResizeHandle, setDraggingResizeHandle] = useState(false); // For phrase resize handle
     const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]); // Notes being recorded in real-time
     const [activeRecordingNotes, setActiveRecordingNotes] = useState([]); // Notes currently being held during recording
 
@@ -393,6 +394,18 @@ export function AdvancedPianoRoll({
 
     // Handle mouse move (drag) with throttling for performance
     const handleMouseMove = useCallback((e) => {
+        // Handle phrase resize handle dragging
+        if (draggingResizeHandle && scrollRef.current && onUpdatePhraseLength) {
+            const rect = scrollRef.current.getBoundingClientRect();
+            const PIANO_KEYS_WIDTH = 90;
+            const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
+            const beatPosition = Math.max(4, x / cellWidth); // Minimum 1 measure (4 beats)
+            const measures = Math.round(beatPosition / 4); // Round to nearest measure
+            const clampedMeasures = Math.max(1, Math.min(16, measures)); // 1-16 measures
+            onUpdatePhraseLength(clampedMeasures);
+            return;
+        }
+
         // Handle loop handle dragging
         if (draggingLoopHandle && scrollRef.current) {
             const rect = scrollRef.current.getBoundingClientRect();
@@ -516,12 +529,13 @@ export function AdvancedPianoRoll({
                 }
             }
         });
-    }, [dragState, draggingLoopHandle, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote, phraseLayouts.totalBeats]);
+    }, [dragState, draggingLoopHandle, draggingResizeHandle, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote, onUpdatePhraseLength, phraseLayouts.totalBeats]);
 
     // Handle mouse up
     const handleMouseUp = useCallback(() => {
         setDragState(null);
         setDraggingLoopHandle(null);
+        setDraggingResizeHandle(false);
     }, []);
 
     // Handle background mouse down (start rect selection)
@@ -564,6 +578,14 @@ export function AdvancedPianoRoll({
                 if (!selectionRect) return;
 
                 const { x, y, width, height } = selectionRect;
+
+                // If the selection rectangle is too small (simple click), cancel silently
+                // This allows the onClick handler to create notes
+                const MIN_DRAG_SIZE = 5;
+                if (width < MIN_DRAG_SIZE && height < MIN_DRAG_SIZE) {
+                    cancelRectSelection(true); // silently = true
+                    return;
+                }
 
                 const selectedIds = allNotesGlobal.filter(note => {
                     const noteX = note.globalX;
@@ -616,6 +638,18 @@ export function AdvancedPianoRoll({
             };
         }
     }, [draggingLoopHandle, handleMouseMove, handleMouseUp]);
+
+    // Handle phrase resize handle dragging
+    useEffect(() => {
+        if (draggingResizeHandle) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            return () => {
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [draggingResizeHandle, handleMouseMove, handleMouseUp]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -953,7 +987,9 @@ export function AdvancedPianoRoll({
                                 boxShadow: isPlaying
                                     ? '0 2px 8px rgba(239, 68, 68, 0.3)'
                                     : '0 2px 8px rgba(16, 185, 129, 0.3)',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                minWidth: '110px',
+                                justifyContent: 'center'
                             }}
                         >
                             <span>{isPlaying ? '⏸' : '▶'}</span>
@@ -1003,284 +1039,273 @@ export function AdvancedPianoRoll({
                         snapToGrid={snapToGrid}
                         onRecordingStateChange={handleRecordingStateChange}
                         onPreRollComplete={handlePreRollComplete}
+                        metronomeSubdivision={metronomeEnabled ? metronomeSubdivision : 'quarter'}
                     />
 
-                    {/* Toolbar */}
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {/* Toolbar - Compact unified design */}
+                    <div style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        alignItems: 'center',
+                        background: 'var(--bg-elevated)',
+                        padding: '0.5rem',
+                        borderRadius: 'var(--radius-lg)',
+                        border: '1px solid var(--border-light)'
+                    }}>
                         {/* Zoom Controls */}
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                             <button
                                 onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}
                                 style={{
-                                    background: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border-light)',
-                                    padding: '0.5rem',
-                                    borderRadius: 'var(--radius-md)',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
                                     cursor: 'pointer',
-                                    fontWeight: '600',
-                                    width: '32px',
-                                    height: '32px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    color: 'var(--text-secondary)'
                                 }}
-                            >
-                                −
-                            </button>
-                            <span style={{ fontSize: '0.875rem', fontWeight: '600', minWidth: '50px', textAlign: 'center' }}>
+                                title="Zoom arrière"
+                            >−</button>
+                            <span style={{ fontSize: '0.75rem', fontWeight: '600', minWidth: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button
                                 onClick={() => setZoom(Math.min(3, zoom + 0.25))}
                                 style={{
-                                    background: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border-light)',
-                                    padding: '0.5rem',
-                                    borderRadius: 'var(--radius-md)',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
                                     cursor: 'pointer',
-                                    fontWeight: '600',
-                                    width: '32px',
-                                    height: '32px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    color: 'var(--text-secondary)'
                                 }}
-                            >
-                                +
-                            </button>
+                                title="Zoom avant"
+                            >+</button>
                         </div>
 
-                        {/* Grid Size */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                                Grille:
-                            </label>
+                        <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+
+                        {/* Grid Controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                             <select
                                 value={gridSize}
                                 onChange={(e) => setGridSize(parseFloat(e.target.value))}
                                 style={{
-                                    padding: '0.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: '1px solid var(--border-color)',
-                                    background: 'var(--bg-elevated)',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)',
+                                    border: 'none',
+                                    background: 'var(--bg-tertiary)',
                                     color: 'var(--text-primary)',
-                                    fontSize: '0.875rem',
+                                    fontSize: '0.75rem',
                                     cursor: 'pointer'
                                 }}
+                                title="Taille de la grille"
                             >
                                 <option value={1}>1/4</option>
                                 <option value={0.5}>1/8</option>
                                 <option value={0.25}>1/16</option>
                                 <option value={0.125}>1/32</option>
                             </select>
-                        </div>
-
-                        {/* Phrase Size */}
-                        {onUpdatePhraseLength && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                                    Taille:
-                                </label>
-                                <select
-                                    value={phrases[0]?.length || 4}
-                                    onChange={(e) => onUpdatePhraseLength(parseInt(e.target.value))}
-                                    style={{
-                                        padding: '0.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: '1px solid var(--border-color)',
-                                        background: 'var(--bg-elevated)',
-                                        color: 'var(--text-primary)',
-                                        fontSize: '0.875rem',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    <option value={1}>1 mesure</option>
-                                    <option value={2}>2 mesures</option>
-                                    <option value={3}>3 mesures</option>
-                                    <option value={4}>4 mesures</option>
-                                    <option value={8}>8 mesures</option>
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Snap to Grid */}
-                        <button
-                            onClick={() => setSnapToGrid(!snapToGrid)}
-                            style={{
-                                background: snapToGrid ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                                color: snapToGrid ? 'white' : 'var(--text-secondary)',
-                                border: snapToGrid ? 'none' : '1px solid var(--border-light)',
-                                padding: '0.5rem 1rem',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            {snapToGrid ? '✓' : '○'} Magnétisme
-                        </button>
-
-                        {/* Metronome */}
-                        <button
-                            onClick={() => setMetronomeEnabled(!metronomeEnabled)}
-                            style={{
-                                background: metronomeEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                                color: metronomeEnabled ? 'white' : 'var(--text-secondary)',
-                                border: metronomeEnabled ? 'none' : '1px solid var(--border-light)',
-                                padding: '0.5rem 1rem',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            {metronomeEnabled ? '🔔' : '🔕'} Métronome
-                        </button>
-
-                        {/* Metronome Subdivision (only show when metronome is on) */}
-                        {metronomeEnabled && (
-                            <select
-                                value={metronomeSubdivision}
-                                onChange={(e) => setMetronomeSubdivision(e.target.value)}
+                            <button
+                                onClick={() => setSnapToGrid(!snapToGrid)}
                                 style={{
-                                    padding: '0.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: '1px solid var(--border-color)',
-                                    background: 'var(--bg-elevated)',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '0.875rem',
+                                    background: snapToGrid ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                                    color: snapToGrid ? 'white' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+                                    fontSize: '0.75rem',
                                     fontWeight: '600',
                                     cursor: 'pointer'
                                 }}
+                                title="Magnétisme à la grille"
                             >
-                                <option value="quarter">♩ Noire (1/4)</option>
-                                <option value="eighth">♪ Croche (1/8)</option>
-                            </select>
-                        )}
+                                🧲
+                            </button>
+                        </div>
 
-                        {/* Loop - clicking activates loop + creates region immediately */}
-                        <button
-                            onClick={() => {
-                                const newLoopEnabled = !loopEnabled;
-                                setLoopEnabled(newLoopEnabled);
+                        <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
 
-                                if (newLoopEnabled) {
-                                    // Create default loop region when enabling (4 measures)
-                                    const defaultEnd = Math.min(16, phraseLayouts.totalBeats);
-                                    setLoopRegion({ start: 0, end: defaultEnd });
-                                } else {
-                                    // Clear loop region when disabling
-                                    setLoopRegion(null);
-                                }
-                            }}
-                            style={{
-                                background: loopEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                                color: loopEnabled ? 'white' : 'var(--text-secondary)',
-                                border: loopEnabled ? 'none' : '1px solid var(--border-light)',
-                                padding: '0.5rem 1rem',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            {loopEnabled ? '🔁' : '➡️'} Boucle
-                        </button>
+                        {/* Metronome - Compact */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            <button
+                                onClick={() => setMetronomeEnabled(!metronomeEnabled)}
+                                style={{
+                                    background: metronomeEnabled ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                                    color: metronomeEnabled ? 'white' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.875rem',
+                                    cursor: 'pointer'
+                                }}
+                                title={metronomeEnabled ? 'Désactiver le métronome' : 'Activer le métronome'}
+                            >
+                                {metronomeEnabled ? '🔔' : '🔕'}
+                            </button>
+                            {metronomeEnabled && (
+                                <>
+                                    <button
+                                        onClick={() => setMetronomeSubdivision('quarter')}
+                                        style={{
+                                            background: metronomeSubdivision === 'quarter' ? 'rgba(139, 92, 246, 0.3)' : 'transparent',
+                                            color: metronomeSubdivision === 'quarter' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                                            border: 'none',
+                                            padding: '0.35rem 0.4rem',
+                                            borderRadius: 'var(--radius-sm)',
+                                            fontSize: '0.875rem',
+                                            cursor: 'pointer'
+                                        }}
+                                        title="Noire (1/4)"
+                                    >♩</button>
+                                    <button
+                                        onClick={() => setMetronomeSubdivision('eighth')}
+                                        style={{
+                                            background: metronomeSubdivision === 'eighth' ? 'rgba(139, 92, 246, 0.3)' : 'transparent',
+                                            color: metronomeSubdivision === 'eighth' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                                            border: 'none',
+                                            padding: '0.35rem 0.4rem',
+                                            borderRadius: 'var(--radius-sm)',
+                                            fontSize: '0.875rem',
+                                            cursor: 'pointer'
+                                        }}
+                                        title="Croche (1/8)"
+                                    >♪♪</button>
+                                </>
+                            )}
+                        </div>
 
-                        {/* Scale Highlight */}
-                        <button
-                            onClick={() => setShowScaleHighlight(!showScaleHighlight)}
-                            style={{
-                                background: showScaleHighlight ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                                color: showScaleHighlight ? 'white' : 'var(--text-secondary)',
-                                border: showScaleHighlight ? 'none' : '1px solid var(--border-light)',
-                                padding: '0.5rem 1rem',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            {showScaleHighlight ? '✓' : '○'} Gamme {normalizedKeySignature}
-                        </button>
+                        <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
 
-                        {/* Clear Selection */}
+                        {/* Loop & Scale */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <button
+                                onClick={() => {
+                                    const newLoopEnabled = !loopEnabled;
+                                    setLoopEnabled(newLoopEnabled);
+                                    if (newLoopEnabled) {
+                                        const defaultEnd = Math.min(16, phraseLayouts.totalBeats);
+                                        setLoopRegion({ start: 0, end: defaultEnd });
+                                    } else {
+                                        setLoopRegion(null);
+                                    }
+                                }}
+                                style={{
+                                    background: loopEnabled ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                                    color: loopEnabled ? 'white' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.875rem',
+                                    cursor: 'pointer'
+                                }}
+                                title="Boucle"
+                            >
+                                🔁
+                            </button>
+                            <button
+                                onClick={() => setShowScaleHighlight(!showScaleHighlight)}
+                                style={{
+                                    background: showScaleHighlight ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                                    color: showScaleHighlight ? 'white' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                }}
+                                title={`Afficher la gamme ${normalizedKeySignature}`}
+                            >
+                                🎼 {normalizedKeySignature}
+                            </button>
+                        </div>
+
+                        {/* Selection Actions - Only when notes selected */}
                         {selectedNotes.length > 0 && (
                             <>
-                                <button
-                                    onClick={clearSelection}
-                                    style={{
-                                        background: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-light)',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontSize: '0.875rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        color: 'var(--text-secondary)'
-                                    }}
-                                >
-                                    Désélectionner
-                                </button>
-
-                                {/* Hand Labeling */}
-                                <button
-                                    onClick={() => {
-                                        // Move selected notes to left hand (chords track)
-                                        saveStateToHistory();
-                                        selectedNotes.forEach(note => {
-                                            if (note.trackName !== 'chords') {
-                                                // Remove from current track
-                                                onRemoveNote(note.phraseId, note.trackName, note.id);
-                                                // Add to chords track
-                                                onAddNote(note.phraseId, 'chords', note.pitch, note.localStartTime, note.duration);
-                                            }
-                                        });
-                                        clearSelection();
-                                    }}
-                                    style={{
-                                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontSize: '0.875rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)'
-                                    }}
-                                >
-                                    👈 Main Gauche
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        // Move selected notes to right hand (melody track)
-                                        saveStateToHistory();
-                                        selectedNotes.forEach(note => {
-                                            if (note.trackName !== 'melody') {
-                                                // Remove from current track
-                                                onRemoveNote(note.phraseId, note.trackName, note.id);
-                                                // Add to melody track
-                                                onAddNote(note.phraseId, 'melody', note.pitch, note.localStartTime, note.duration);
-                                            }
-                                        });
-                                        clearSelection();
-                                    }}
-                                    style={{
-                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontSize: '0.875rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
-                                    }}
-                                >
-                                    👉 Main Droite
-                                </button>
+                                <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    background: 'rgba(139, 92, 246, 0.1)',
+                                    padding: '0.25rem',
+                                    borderRadius: 'var(--radius-sm)'
+                                }}>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', fontWeight: '600', padding: '0 0.25rem' }}>
+                                        {selectedNotes.length}
+                                    </span>
+                                    <button
+                                        onClick={() => {
+                                            saveStateToHistory();
+                                            selectedNotes.forEach(note => {
+                                                if (note.trackName !== 'chords') {
+                                                    onRemoveNote(note.phraseId, note.trackName, note.id);
+                                                    onAddNote(note.phraseId, 'chords', note.pitch, note.localStartTime, note.duration);
+                                                }
+                                            });
+                                            clearSelection();
+                                        }}
+                                        style={{
+                                            background: '#3b82f6',
+                                            color: 'white',
+                                            border: 'none',
+                                            padding: '0.3rem 0.5rem',
+                                            borderRadius: 'var(--radius-sm)',
+                                            fontSize: '0.7rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer'
+                                        }}
+                                        title="Assigner à la main gauche"
+                                    >
+                                        👈 MG
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            saveStateToHistory();
+                                            selectedNotes.forEach(note => {
+                                                if (note.trackName !== 'melody') {
+                                                    onRemoveNote(note.phraseId, note.trackName, note.id);
+                                                    onAddNote(note.phraseId, 'melody', note.pitch, note.localStartTime, note.duration);
+                                                }
+                                            });
+                                            clearSelection();
+                                        }}
+                                        style={{
+                                            background: '#10b981',
+                                            color: 'white',
+                                            border: 'none',
+                                            padding: '0.3rem 0.5rem',
+                                            borderRadius: 'var(--radius-sm)',
+                                            fontSize: '0.7rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer'
+                                        }}
+                                        title="Assigner à la main droite"
+                                    >
+                                        MD 👉
+                                    </button>
+                                    <button
+                                        onClick={clearSelection}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: '0.3rem 0.4rem',
+                                            borderRadius: 'var(--radius-sm)',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                        title="Désélectionner"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
                             </>
                         )}
                     </div>
@@ -1502,6 +1527,41 @@ export function AdvancedPianoRoll({
                                                     }} />
                                                 </div>
                                             </>
+                                        )}
+
+                                        {/* Phrase Resize Handle - at the end of the timeline */}
+                                        {onUpdatePhraseLength && (
+                                            <div
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    setDraggingResizeHandle(true);
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: '-6px',
+                                                    top: 0,
+                                                    width: '12px',
+                                                    height: '100%',
+                                                    background: draggingResizeHandle
+                                                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                                                        : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                                    cursor: 'ew-resize',
+                                                    zIndex: 15,
+                                                    borderRadius: '0 4px 4px 0',
+                                                    boxShadow: '0 2px 6px rgba(139, 92, 246, 0.5)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
+                                                title="Redimensionner la phrase"
+                                            >
+                                                <div style={{
+                                                    width: '2px',
+                                                    height: '14px',
+                                                    background: 'rgba(255, 255, 255, 0.8)',
+                                                    borderRadius: '1px'
+                                                }} />
+                                            </div>
                                         )}
                                     </div>
 

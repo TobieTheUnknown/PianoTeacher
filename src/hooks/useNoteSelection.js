@@ -124,15 +124,19 @@ export function useNoteSelection() {
     }, [selectionRect, selectNotes]);
 
     // Cancel rectangle selection
-    const cancelRectSelection = useCallback(() => {
+    // silently: if true, don't set justEndedSelectionRef (allows onClick to work)
+    const cancelRectSelection = useCallback((silently = false) => {
         setSelectionRect(null);
         selectionStartRef.current = null;
 
         // Mark that we just ended a selection to prevent immediate click handler
-        justEndedSelectionRef.current = true;
-        setTimeout(() => {
-            justEndedSelectionRef.current = false;
-        }, 50);
+        // (unless cancelled silently, e.g. for small rectangles that are really just clicks)
+        if (!silently) {
+            justEndedSelectionRef.current = true;
+            setTimeout(() => {
+                justEndedSelectionRef.current = false;
+            }, 50);
+        }
     }, []);
 
     return {
