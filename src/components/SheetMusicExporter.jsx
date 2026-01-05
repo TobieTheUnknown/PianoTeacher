@@ -25,7 +25,7 @@ export const SheetMusicExporter = ({ song }) => {
             const options = {
                 withAnnotations,
                 track,
-                phraseIndex: phraseIndex === 'all' ? null : parseInt(phraseIndex)
+                phraseIndex: (phraseIndex === 'all' || phraseIndex === null) ? null : parseInt(phraseIndex)
             };
 
             const svgContainer = sheetMusicExportService.exportToSheetMusic(song, options);
@@ -50,7 +50,7 @@ export const SheetMusicExporter = ({ song }) => {
             const options = {
                 withAnnotations,
                 track,
-                phraseIndex: phraseIndex === 'all' ? null : parseInt(phraseIndex)
+                phraseIndex: (phraseIndex === 'all' || phraseIndex === null) ? null : parseInt(phraseIndex)
             };
 
             const blob = sheetMusicExportService.exportToSVG(song, options);
@@ -81,7 +81,7 @@ export const SheetMusicExporter = ({ song }) => {
             const options = {
                 withAnnotations,
                 track,
-                phraseIndex: phraseIndex === 'all' ? null : parseInt(phraseIndex)
+                phraseIndex: (phraseIndex === 'all' || phraseIndex === null) ? null : parseInt(phraseIndex)
             };
 
             const blob = await sheetMusicExportService.exportToPNG(song, options);

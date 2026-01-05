@@ -125,14 +125,15 @@ export class SheetMusicExportService {
 
         // Récupérer les notes à exporter
         let phrasesToExport;
-        if (phraseIndex !== null && phraseIndex !== 'all') {
-            const idx = parseInt(phraseIndex);
-            if (idx >= 0 && idx < song.phrases.length && song.phrases[idx]) {
+        if (phraseIndex !== null && phraseIndex !== 'all' && !isNaN(phraseIndex)) {
+            const idx = typeof phraseIndex === 'number' ? phraseIndex : parseInt(phraseIndex);
+            if (!isNaN(idx) && idx >= 0 && idx < song.phrases.length && song.phrases[idx]) {
                 phrasesToExport = [song.phrases[idx]];
             } else {
-                throw new Error(`Phrase à l'index ${idx} introuvable`);
+                throw new Error(`Phrase à l'index ${idx} introuvable (total: ${song.phrases.length} phrases)`);
             }
         } else {
+            // Export toutes les phrases
             phrasesToExport = song.phrases.filter(p => p); // Filtrer les undefined
         }
 
