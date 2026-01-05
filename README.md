@@ -21,6 +21,21 @@ Importez vos fichiers `.mid` et laissez l'algorithme faire le travail.
 - **Édition Intuitive** : Ajustez les notes directement sur la grille.
 > ![Editor](docs/screenshots/editor_v2.png)
 
+### 🎙️ Enregistrement MIDI (Nouveau v2.0)
+Créez vos propres compositions directement depuis votre clavier MIDI.
+- **Enregistrement en Temps Réel** : Capturez vos performances avec précision.
+- **Pré-décompte Configurable** : 1 ou 2 mesures de préparation avant l'enregistrement.
+- **Quantification Automatique** : Alignement des notes sur la grille (noire ou croche).
+- **Visualisation Live** : Voyez vos notes apparaître en temps réel pendant l'enregistrement.
+
+### 🎛️ Éditeur Avancé (Piano Roll Amélioré v2.0)
+Un environnement d'édition complet pour peaufiner vos compositions.
+- **Sélection Multiple** : Rectangle de sélection et Ctrl+clic pour éditer plusieurs notes.
+- **Copier/Coller/Dupliquer** : Raccourcis clavier complets (Ctrl+C, Ctrl+V, Ctrl+D).
+- **Métronome Intégré** : Subdivision noire ou croche avec contrôle visuel.
+- **Redimensionnement Timeline** : Ajustez la longueur des phrases par glisser-déposer.
+- **Lecture par Phrase** : Lecture isolée avec arrêt automatique en fin de phrase.
+
 ### 📖 Apprentissage par Mesure (Vue d'Ensemble)
 Ne soyez plus submergé par la complexité. Travaillez chaque mesure individuellement.
 - **Analyse Harmonique** : Détection automatique des accords.
@@ -71,8 +86,16 @@ L'application sera disponible sur `http://localhost:5173`.
 
 ---
 
-## 🗺️ Roadmap v2.0
+## 🗺️ Roadmap
+
+### v2.0 (Actuelle)
 - [x] Support des claviers MIDI USB (Web MIDI API).
+- [x] Enregistrement MIDI en temps réel avec pré-décompte.
+- [x] Éditeur avancé avec sélection multiple et raccourcis clavier.
+- [x] Métronome intégré avec subdivision configurable.
+- [x] Interface utilisateur optimisée et compacte.
+
+### Prochaines versions
 - [ ] Export de partitions en format PDF.
 - [ ] Import direct depuis YouTube (Audio-to-MIDI).
 
