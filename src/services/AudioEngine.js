@@ -77,7 +77,9 @@ class AudioEngine {
     // Simple playback of a phrase
     // startPositionBeats: optional start position in beats (if not provided, starts from 0)
     // stopAtEnd: if true, automatically stop playback at the end of the phrase
-    playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false) {
+    // onPlaybackEnd: optional callback called when playback ends (either manually or automatically)
+    playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null) {
+        this.onPlaybackEnd = onPlaybackEnd;
         // Stop playback but keep metronome if it's enabled
         Tone.Transport.stop();
         Tone.Transport.cancel(); // Clear scheduled events
@@ -232,6 +234,12 @@ class AudioEngine {
         if (this.stopTimeout) {
             clearTimeout(this.stopTimeout);
             this.stopTimeout = null;
+        }
+
+        // Call the playback end callback if it exists
+        if (this.onPlaybackEnd) {
+            this.onPlaybackEnd();
+            this.onPlaybackEnd = null;
         }
 
         // Only stop metronome if explicitly disabled

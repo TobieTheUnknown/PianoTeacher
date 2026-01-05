@@ -14,7 +14,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [saveStatus, setSaveStatus] = useState('saved');
     const [editingPhraseId, setEditingPhraseId] = useState(null);
     const [editingPhraseName, setEditingPhraseName] = useState('');
-
+    const [playingPhraseId, setPlayingPhraseId] = useState(null); // Track which phrase is playing
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
 
@@ -53,12 +53,17 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
+        setPlayingPhraseId(phrase.id);
         // stopAtEnd = true to automatically stop at end of the phrase
-        audioEngine.playPhrase(phrase, song.tempo, null, true);
+        // Pass a callback to clear playingPhraseId when playback ends
+        audioEngine.playPhrase(phrase, song.tempo, null, true, () => {
+            setPlayingPhraseId(null);
+        });
     };
 
     const handleStop = () => {
         audioEngine.stop();
+        setPlayingPhraseId(null);
     };
 
     // Move phrase up/down
@@ -677,6 +682,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 onSplitTimeChange={setSplitTime}
                                 onConfirmSplit={handleConfirmSplit}
                                 onCancelSplit={handleCancelSplit}
+                                isCurrentlyPlaying={playingPhraseId === phrase.id}
                             />
                         </div>
                     </div>

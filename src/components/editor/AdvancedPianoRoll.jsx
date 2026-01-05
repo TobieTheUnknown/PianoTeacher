@@ -565,6 +565,14 @@ export function AdvancedPianoRoll({
 
                 const { x, y, width, height } = selectionRect;
 
+                // If the selection rectangle is too small (simple click), cancel silently
+                // This allows the onClick handler to create notes
+                const MIN_DRAG_SIZE = 5;
+                if (width < MIN_DRAG_SIZE && height < MIN_DRAG_SIZE) {
+                    cancelRectSelection(true); // silently = true
+                    return;
+                }
+
                 const selectedIds = allNotesGlobal.filter(note => {
                     const noteX = note.globalX;
                     const noteY = keys.indexOf(note.pitch) * cellHeight;

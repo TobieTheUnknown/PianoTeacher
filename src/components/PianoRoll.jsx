@@ -10,7 +10,7 @@ const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(m
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
+export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit, isCurrentlyPlaying = false }) {
     // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
     const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
@@ -24,11 +24,8 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
-    // Calculate phrase offset in beats (sum of all previous phrases' lengths)
-    const phraseStartBeat = allPhrases && phraseIndex !== undefined
-        ? allPhrases.slice(0, phraseIndex).reduce((total, p) => total + (p.length * 4), 0)
-        : 0;
-    const phraseEndBeat = phraseStartBeat + (phrase.length * 4);
+    // Phrase length in beats
+    const phraseLengthBeats = phrase.length * 4;
 
     // Track playback position
     const { playbackPosition, isPlaying } = usePlaybackPosition();
@@ -502,11 +499,11 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                                     ))
                                 ))}
 
-                                {/* Playback head - only show if position is within this phrase's bounds */}
-                                {isPlaying && playbackPosition >= phraseStartBeat && playbackPosition < phraseEndBeat && (
+                                {/* Playback head - only show if this phrase is currently playing */}
+                                {isCurrentlyPlaying && isPlaying && playbackPosition >= 0 && playbackPosition < phraseLengthBeats && (
                                     <div style={{
                                         position: 'absolute',
-                                        left: `${(playbackPosition - phraseStartBeat) * cellWidth}px`,
+                                        left: `${playbackPosition * cellWidth}px`,
                                         top: 0,
                                         bottom: 0,
                                         width: '3px',
