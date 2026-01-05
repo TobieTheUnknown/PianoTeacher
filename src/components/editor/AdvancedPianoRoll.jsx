@@ -42,6 +42,7 @@ export function AdvancedPianoRoll({
     const [loopEnabled, setLoopEnabled] = useState(false); // Loop playback when reaching end
     const [loopRegion, setLoopRegion] = useState(null); // { start: beats, end: beats } or null for full loop
     const [draggingLoopHandle, setDraggingLoopHandle] = useState(null); // 'start' | 'end' | null
+    const [draggingResizeHandle, setDraggingResizeHandle] = useState(false); // For phrase resize handle
     const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]); // Notes being recorded in real-time
     const [activeRecordingNotes, setActiveRecordingNotes] = useState([]); // Notes currently being held during recording
 
@@ -393,6 +394,18 @@ export function AdvancedPianoRoll({
 
     // Handle mouse move (drag) with throttling for performance
     const handleMouseMove = useCallback((e) => {
+        // Handle phrase resize handle dragging
+        if (draggingResizeHandle && scrollRef.current && onUpdatePhraseLength) {
+            const rect = scrollRef.current.getBoundingClientRect();
+            const PIANO_KEYS_WIDTH = 90;
+            const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
+            const beatPosition = Math.max(4, x / cellWidth); // Minimum 1 measure (4 beats)
+            const measures = Math.round(beatPosition / 4); // Round to nearest measure
+            const clampedMeasures = Math.max(1, Math.min(16, measures)); // 1-16 measures
+            onUpdatePhraseLength(clampedMeasures);
+            return;
+        }
+
         // Handle loop handle dragging
         if (draggingLoopHandle && scrollRef.current) {
             const rect = scrollRef.current.getBoundingClientRect();
@@ -516,12 +529,13 @@ export function AdvancedPianoRoll({
                 }
             }
         });
-    }, [dragState, draggingLoopHandle, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote, phraseLayouts.totalBeats]);
+    }, [dragState, draggingLoopHandle, draggingResizeHandle, cellWidth, cellHeight, keys, snapValue, gridSize, selectedNotes, onUpdateNote, onUpdatePhraseLength, phraseLayouts.totalBeats]);
 
     // Handle mouse up
     const handleMouseUp = useCallback(() => {
         setDragState(null);
         setDraggingLoopHandle(null);
+        setDraggingResizeHandle(false);
     }, []);
 
     // Handle background mouse down (start rect selection)
@@ -624,6 +638,18 @@ export function AdvancedPianoRoll({
             };
         }
     }, [draggingLoopHandle, handleMouseMove, handleMouseUp]);
+
+    // Handle phrase resize handle dragging
+    useEffect(() => {
+        if (draggingResizeHandle) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            return () => {
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [draggingResizeHandle, handleMouseMove, handleMouseUp]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -961,7 +987,9 @@ export function AdvancedPianoRoll({
                                 boxShadow: isPlaying
                                     ? '0 2px 8px rgba(239, 68, 68, 0.3)'
                                     : '0 2px 8px rgba(16, 185, 129, 0.3)',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                minWidth: '110px',
+                                justifyContent: 'center'
                             }}
                         >
                             <span>{isPlaying ? '⏸' : '▶'}</span>
@@ -1011,6 +1039,7 @@ export function AdvancedPianoRoll({
                         snapToGrid={snapToGrid}
                         onRecordingStateChange={handleRecordingStateChange}
                         onPreRollComplete={handlePreRollComplete}
+                        metronomeSubdivision={metronomeEnabled ? metronomeSubdivision : 'quarter'}
                     />
 
                     {/* Toolbar - Compact unified design */}
@@ -1060,14 +1089,14 @@ export function AdvancedPianoRoll({
 
                         <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
 
-                        {/* Grid & Phrase Controls */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {/* Grid Controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                             <select
                                 value={gridSize}
                                 onChange={(e) => setGridSize(parseFloat(e.target.value))}
                                 style={{
                                     padding: '0.35rem 0.5rem',
-                                    borderRadius: 'var(--radius-sm)',
+                                    borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)',
                                     border: 'none',
                                     background: 'var(--bg-tertiary)',
                                     color: 'var(--text-primary)',
@@ -1081,30 +1110,6 @@ export function AdvancedPianoRoll({
                                 <option value={0.25}>1/16</option>
                                 <option value={0.125}>1/32</option>
                             </select>
-
-                            {onUpdatePhraseLength && (
-                                <select
-                                    value={phrases[0]?.length || 4}
-                                    onChange={(e) => onUpdatePhraseLength(parseInt(e.target.value))}
-                                    style={{
-                                        padding: '0.35rem 0.5rem',
-                                        borderRadius: 'var(--radius-sm)',
-                                        border: 'none',
-                                        background: 'var(--bg-tertiary)',
-                                        color: 'var(--text-primary)',
-                                        fontSize: '0.75rem',
-                                        cursor: 'pointer'
-                                    }}
-                                    title="Longueur de la phrase"
-                                >
-                                    <option value={1}>1 mes.</option>
-                                    <option value={2}>2 mes.</option>
-                                    <option value={3}>3 mes.</option>
-                                    <option value={4}>4 mes.</option>
-                                    <option value={8}>8 mes.</option>
-                                </select>
-                            )}
-
                             <button
                                 onClick={() => setSnapToGrid(!snapToGrid)}
                                 style={{
@@ -1112,7 +1117,7 @@ export function AdvancedPianoRoll({
                                     color: snapToGrid ? 'white' : 'var(--text-secondary)',
                                     border: 'none',
                                     padding: '0.35rem 0.5rem',
-                                    borderRadius: 'var(--radius-sm)',
+                                    borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
                                     fontSize: '0.75rem',
                                     fontWeight: '600',
                                     cursor: 'pointer'
@@ -1522,6 +1527,41 @@ export function AdvancedPianoRoll({
                                                     }} />
                                                 </div>
                                             </>
+                                        )}
+
+                                        {/* Phrase Resize Handle - at the end of the timeline */}
+                                        {onUpdatePhraseLength && (
+                                            <div
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    setDraggingResizeHandle(true);
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: '-6px',
+                                                    top: 0,
+                                                    width: '12px',
+                                                    height: '100%',
+                                                    background: draggingResizeHandle
+                                                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                                                        : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                                    cursor: 'ew-resize',
+                                                    zIndex: 15,
+                                                    borderRadius: '0 4px 4px 0',
+                                                    boxShadow: '0 2px 6px rgba(139, 92, 246, 0.5)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
+                                                title="Redimensionner la phrase"
+                                            >
+                                                <div style={{
+                                                    width: '2px',
+                                                    height: '14px',
+                                                    background: 'rgba(255, 255, 255, 0.8)',
+                                                    borderRadius: '1px'
+                                                }} />
+                                            </div>
                                         )}
                                     </div>
 
