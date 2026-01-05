@@ -1,7 +1,7 @@
 {
   "name": "piano-teacher",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -29,7 +29,8 @@
     "@tonejs/midi": "^2.0.28",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "tone": "^15.1.22"
+    "tone": "^15.1.22",
+    "vexflow": "^5.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

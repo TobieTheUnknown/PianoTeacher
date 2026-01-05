@@ -5,6 +5,7 @@ import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
 import { SynthesiaView } from './components/SynthesiaView';
 import { Settings } from './components/Settings';
+import { SheetMusicExporter } from './components/SheetMusicExporter';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
 
@@ -28,7 +29,7 @@ function App() {
     reorderPhrases
   } = useSong();
 
-  const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn', 'synthesia'
+  const [mode, setMode] = useState('library'); // 'library', 'edit', 'learn', 'synthesia', 'export'
   const [showSettings, setShowSettings] = useState(false);
 
   // Enable global MIDI audio (works across all pages)
@@ -97,6 +98,11 @@ function App() {
             onClick={() => setMode('synthesia')}
             label="Synthesia"
           />
+          <NavButton
+            active={mode === 'export'}
+            onClick={() => setMode('export')}
+            label="Export Partition"
+          />
         </div>
 
         {/* Settings Button */}
@@ -157,6 +163,9 @@ function App() {
         )}
         {mode === 'synthesia' && (
           <SynthesiaView song={song} />
+        )}
+        {mode === 'export' && (
+          <SheetMusicExporter song={song} />
         )}
       </main>
 
