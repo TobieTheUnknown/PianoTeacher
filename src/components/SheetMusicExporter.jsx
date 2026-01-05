@@ -108,7 +108,42 @@ export const SheetMusicExporter = ({ song }) => {
     if (!song) {
         return (
             <div style={styles.container}>
-                <p>Aucun morceau sélectionné</p>
+                <div style={styles.emptyState}>
+                    <h2>🎵 Aucun morceau sélectionné</h2>
+                    <p>Veuillez d'abord créer ou charger un morceau depuis la bibliothèque.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!song.phrases || song.phrases.length === 0) {
+        return (
+            <div style={styles.container}>
+                <div style={styles.emptyState}>
+                    <h2>📝 Morceau vide</h2>
+                    <p>Ce morceau ne contient aucune phrase.</p>
+                    <p>Veuillez d'abord importer un fichier MIDI ou créer des notes dans l'éditeur.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Vérifier qu'au moins une phrase a des notes
+    const hasNotes = song.phrases.some(phrase =>
+        phrase && phrase.tracks && (
+            (phrase.tracks.melody && phrase.tracks.melody.length > 0) ||
+            (phrase.tracks.chords && phrase.tracks.chords.length > 0)
+        )
+    );
+
+    if (!hasNotes) {
+        return (
+            <div style={styles.container}>
+                <div style={styles.emptyState}>
+                    <h2>🎹 Aucune note trouvée</h2>
+                    <p>Le morceau ne contient aucune note à afficher.</p>
+                    <p>Veuillez ajouter des notes dans l'éditeur avant d'exporter la partition.</p>
+                </div>
             </div>
         );
     }
@@ -155,7 +190,7 @@ export const SheetMusicExporter = ({ song }) => {
                         style={styles.select}
                     >
                         <option value="all">Toutes les phrases</option>
-                        {song.phrases.map((phrase, idx) => (
+                        {song.phrases.filter(p => p).map((phrase, idx) => (
                             <option key={idx} value={idx}>
                                 {phrase.name || `Phrase ${idx + 1}`}
                             </option>
@@ -209,6 +244,13 @@ const styles = {
         maxWidth: '1200px',
         margin: '0 auto',
         fontFamily: 'Arial, sans-serif',
+    },
+    emptyState: {
+        textAlign: 'center',
+        padding: '60px 20px',
+        backgroundColor: '#f8f9fa',
+        borderRadius: '8px',
+        border: '2px dashed #dee2e6',
     },
     title: {
         fontSize: '24px',

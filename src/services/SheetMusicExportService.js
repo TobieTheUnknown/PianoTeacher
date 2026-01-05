@@ -102,6 +102,15 @@ export class SheetMusicExportService {
             phraseIndex = null
         } = options;
 
+        // Vérifications de sécurité
+        if (!song) {
+            throw new Error('Aucun morceau fourni');
+        }
+
+        if (!song.phrases || song.phrases.length === 0) {
+            throw new Error('Le morceau ne contient aucune phrase');
+        }
+
         // Créer un conteneur pour le rendu
         const container = document.createElement('div');
         container.style.width = '1200px';
@@ -115,22 +124,40 @@ export class SheetMusicExportService {
         this.context = context;
 
         // Récupérer les notes à exporter
-        const phrasesToExport = phraseIndex !== null
-            ? [song.phrases[phraseIndex]]
-            : song.phrases;
+        let phrasesToExport;
+        if (phraseIndex !== null && phraseIndex !== 'all') {
+            const idx = parseInt(phraseIndex);
+            if (idx >= 0 && idx < song.phrases.length && song.phrases[idx]) {
+                phrasesToExport = [song.phrases[idx]];
+            } else {
+                throw new Error(`Phrase à l'index ${idx} introuvable`);
+            }
+        } else {
+            phrasesToExport = song.phrases.filter(p => p); // Filtrer les undefined
+        }
+
+        if (phrasesToExport.length === 0) {
+            throw new Error('Aucune phrase valide à exporter');
+        }
 
         let yPosition = 40;
 
         phrasesToExport.forEach((phrase, pIndex) => {
+            // Vérifier que la phrase existe et a des tracks
+            if (!phrase || !phrase.tracks) {
+                console.warn(`Phrase ${pIndex} invalide, ignorée`);
+                return;
+            }
+
             // Pour chaque phrase, créer les portées
-            const melodyNotes = track === 'chords' ? [] : phrase.tracks.melody || [];
-            const chordNotes = track === 'melody' ? [] : phrase.tracks.chords || [];
+            const melodyNotes = track === 'chords' ? [] : (phrase.tracks.melody || []);
+            const chordNotes = track === 'melody' ? [] : (phrase.tracks.chords || []);
 
             // Grouper les notes par mesures
             const melodyMeasures = this.groupNotesByMeasures(melodyNotes);
             const chordMeasures = this.groupNotesByMeasures(chordNotes);
 
-            const maxMeasures = Math.max(melodyMeasures.length, chordMeasures.length, phrase.length);
+            const maxMeasures = Math.max(melodyMeasures.length, chordMeasures.length, phrase.length || 4);
 
             // Créer les systèmes de portées (groupes de 4 mesures par ligne)
             const measuresPerLine = 4;
@@ -140,7 +167,7 @@ export class SheetMusicExportService {
                     const trebleStave = new Stave(10, yPosition, 1100);
                     if (m === 0) {
                         trebleStave.addClef('treble').addTimeSignature('4/4');
-                        if (song.key) {
+                        if (song.key && song.key.note) {
                             trebleStave.addKeySignature(this.getKeySignatureString(song.key));
                         }
                     }
@@ -162,7 +189,7 @@ export class SheetMusicExportService {
                     const bassStave = new Stave(10, yPosition, 1100);
                     if (m === 0) {
                         bassStave.addClef('bass').addTimeSignature('4/4');
-                        if (song.key) {
+                        if (song.key && song.key.note) {
                             bassStave.addKeySignature(this.getKeySignatureString(song.key));
                         }
                     }
@@ -201,7 +228,7 @@ export class SheetMusicExportService {
      * @param {boolean} withAnnotations - Ajouter les annotations
      */
     renderMeasuresOnStave(stave, measures, keySignature, withAnnotations) {
-        if (!measures || measures.length === 0) return;
+        if (!stave || !measures || measures.length === 0) return;
 
         const allNotes = [];
 
@@ -216,8 +243,14 @@ export class SheetMusicExportService {
                 );
             } else {
                 measure.forEach(note => {
+                    // Vérifier que la note a une propriété pitch
+                    if (!note || typeof note.pitch === 'undefined') {
+                        console.warn('Note invalide ignorée:', note);
+                        return;
+                    }
+
                     const vexNote = this.midiToVexNote(note.pitch);
-                    const vexDuration = this.durationToVexDuration(note.duration);
+                    const vexDuration = this.durationToVexDuration(note.duration || 1);
 
                     const staveNote = new StaveNote({
                         keys: [vexNote],
@@ -226,19 +259,21 @@ export class SheetMusicExportService {
 
                     // Ajouter des altérations si nécessaire
                     const noteName = getNoteNameFromMidi(note.pitch);
-                    if (noteName.includes('#')) {
+                    if (noteName && noteName.includes('#')) {
                         staveNote.addModifier(new Accidental('#'), 0);
-                    } else if (noteName.includes('b')) {
+                    } else if (noteName && noteName.includes('b')) {
                         staveNote.addModifier(new Accidental('b'), 0);
                     }
 
                     // Ajouter l'annotation en français si demandé
                     if (withAnnotations) {
                         const frenchName = getFrenchNoteName(note.pitch, keySignature);
-                        const annotation = new Annotation(frenchName);
-                        annotation.setVerticalJustification(Annotation.VerticalJustify.BOTTOM);
-                        annotation.setFont('Arial', 10, 'italic');
-                        staveNote.addModifier(annotation, 0);
+                        if (frenchName) {
+                            const annotation = new Annotation(frenchName);
+                            annotation.setVerticalJustification(Annotation.VerticalJustify.BOTTOM);
+                            annotation.setFont('Arial', 10, 'italic');
+                            staveNote.addModifier(annotation, 0);
+                        }
                     }
 
                     allNotes.push(staveNote);
