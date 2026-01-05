@@ -1120,43 +1120,84 @@ export function AdvancedPianoRoll({
                             {snapToGrid ? '✓' : '○'} Magnétisme
                         </button>
 
-                        {/* Metronome */}
-                        <button
-                            onClick={() => setMetronomeEnabled(!metronomeEnabled)}
-                            style={{
-                                background: metronomeEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                                color: metronomeEnabled ? 'white' : 'var(--text-secondary)',
-                                border: metronomeEnabled ? 'none' : '1px solid var(--border-light)',
-                                padding: '0.5rem 1rem',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            {metronomeEnabled ? '🔔' : '🔕'} Métronome
-                        </button>
-
-                        {/* Metronome Subdivision (only show when metronome is on) */}
-                        {metronomeEnabled && (
-                            <select
-                                value={metronomeSubdivision}
-                                onChange={(e) => setMetronomeSubdivision(e.target.value)}
+                        {/* Metronome - Segmented Control */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            background: 'var(--bg-elevated)',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-light)',
+                            padding: '2px',
+                            gap: '2px'
+                        }}>
+                            {/* Metronome On/Off Toggle */}
+                            <button
+                                onClick={() => setMetronomeEnabled(!metronomeEnabled)}
                                 style={{
-                                    padding: '0.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: '1px solid var(--border-color)',
-                                    background: 'var(--bg-elevated)',
-                                    color: 'var(--text-primary)',
+                                    background: metronomeEnabled ? 'var(--gradient-primary)' : 'transparent',
+                                    color: metronomeEnabled ? 'white' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: 'calc(var(--radius-md) - 2px)',
                                     fontSize: '0.875rem',
                                     fontWeight: '600',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    transition: 'all 0.15s ease'
                                 }}
+                                title={metronomeEnabled ? 'Désactiver le métronome' : 'Activer le métronome'}
                             >
-                                <option value="quarter">♩ Noire (1/4)</option>
-                                <option value="eighth">♪ Croche (1/8)</option>
-                            </select>
-                        )}
+                                <span style={{ fontSize: '1rem' }}>{metronomeEnabled ? '🔔' : '🔕'}</span>
+                            </button>
+
+                            {/* Subdivision Buttons - Only when metronome is enabled */}
+                            {metronomeEnabled && (
+                                <>
+                                    <div style={{
+                                        width: '1px',
+                                        height: '20px',
+                                        background: 'var(--border-color)',
+                                        margin: '0 2px'
+                                    }} />
+                                    <button
+                                        onClick={() => setMetronomeSubdivision('quarter')}
+                                        style={{
+                                            background: metronomeSubdivision === 'quarter' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                                            color: metronomeSubdivision === 'quarter' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                                            border: 'none',
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: 'calc(var(--radius-md) - 2px)',
+                                            fontSize: '0.875rem',
+                                            fontWeight: metronomeSubdivision === 'quarter' ? '700' : '500',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        title="Noire (1/4)"
+                                    >
+                                        ♩
+                                    </button>
+                                    <button
+                                        onClick={() => setMetronomeSubdivision('eighth')}
+                                        style={{
+                                            background: metronomeSubdivision === 'eighth' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                                            color: metronomeSubdivision === 'eighth' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                                            border: 'none',
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: 'calc(var(--radius-md) - 2px)',
+                                            fontSize: '0.875rem',
+                                            fontWeight: metronomeSubdivision === 'eighth' ? '700' : '500',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        title="Croche (1/8)"
+                                    >
+                                        ♪♪
+                                    </button>
+                                </>
+                            )}
+                        </div>
 
                         {/* Loop - clicking activates loop + creates region immediately */}
                         <button

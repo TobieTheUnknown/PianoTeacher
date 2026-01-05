@@ -53,7 +53,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
-        audioEngine.playPhrase(phrase, song.tempo);
+        // stopAtEnd = true to automatically stop at end of the phrase
+        audioEngine.playPhrase(phrase, song.tempo, null, true);
     };
 
     const handleStop = () => {
