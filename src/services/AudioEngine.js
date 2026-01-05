@@ -4,8 +4,13 @@ import { getNoteNameFromMidi } from '../models/song';
 class AudioEngine {
     constructor() {
         this.sampler = null;
-        this.isPlaying = false;
+        this.isPlaying = false; // True only when actually playing notes (not just metronome)
         this.metronomeEnabled = false; // Track if metronome should stay active
+    }
+
+    // Returns true only if we're playing actual music (not just metronome)
+    getIsActuallyPlaying() {
+        return this.isPlaying;
     }
 
     async initialize() {

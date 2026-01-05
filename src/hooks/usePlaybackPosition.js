@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Tone from 'tone';
+import { audioEngine } from '../services/AudioEngine';
 
 /**
  * Hook for tracking playback position in the piano roll
@@ -10,6 +11,7 @@ import * as Tone from 'tone';
  * - Updates at reduced framerate (20fps) for better performance
  * - Automatically detects playback start/stop
  * - Playhead always visible, can be moved even when not playing
+ * - Distinguishes between actual playback and metronome-only
  */
 export function usePlaybackPosition() {
     const [playbackPosition, setPlaybackPosition] = useState(0); // Position in beats
@@ -31,27 +33,15 @@ export function usePlaybackPosition() {
 
             // Only update if enough time has passed (throttle to 20fps)
             if (timeSinceLastUpdate >= UPDATE_INTERVAL) {
-                // Check if transport is actually playing
-                const transportPlaying = Tone.Transport.state === 'started';
-                setIsPlaying(transportPlaying);
+                // Check if we're actually playing music (not just metronome)
+                const actuallyPlaying = audioEngine.getIsActuallyPlaying();
+                setIsPlaying(actuallyPlaying);
 
-                if (transportPlaying) {
-                    // Get current position in seconds
-                    const seconds = Tone.Transport.seconds;
-
-                    // Convert to beats based on current BPM
-                    const bpm = Tone.Transport.bpm.value;
-                    const beats = (seconds * bpm) / 60;
-
-                    setPlaybackPosition(beats);
-                } else {
-                    // Keep position when stopped (don't reset to 0)
-                    // This allows the playhead to remain visible
-                    const seconds = Tone.Transport.seconds;
-                    const bpm = Tone.Transport.bpm.value || 120;
-                    const beats = (seconds * bpm) / 60;
-                    setPlaybackPosition(beats);
-                }
+                // Update position from Transport
+                const seconds = Tone.Transport.seconds;
+                const bpm = Tone.Transport.bpm.value || 120;
+                const beats = (seconds * bpm) / 60;
+                setPlaybackPosition(beats);
 
                 lastUpdateRef.current = now;
             }
