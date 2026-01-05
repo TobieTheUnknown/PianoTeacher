@@ -5,6 +5,7 @@ class AudioEngine {
     constructor() {
         this.sampler = null;
         this.isPlaying = false;
+        this.metronomeEnabled = false; // Track if metronome should stay active
     }
 
     async initialize() {
@@ -74,8 +75,15 @@ class AudioEngine {
     }
 
     // Simple playback of a phrase
-    playPhrase(phrase, tempo = 120) {
-        this.stop();
+    // startPositionBeats: optional start position in beats (if not provided, starts from 0)
+    playPhrase(phrase, tempo = 120, startPositionBeats = null) {
+        // Stop playback but keep metronome if it's enabled
+        Tone.Transport.stop();
+        Tone.Transport.cancel(); // Clear scheduled events
+        if (this.sampler) {
+            this.sampler.releaseAll();
+        }
+
         Tone.Transport.bpm.value = tempo;
 
         // Combine tracks for playback
@@ -95,13 +103,31 @@ class AudioEngine {
 
         part.start(0);
 
+        // Restart metronome if it was enabled
+        if (this.metronomeEnabled && this.metronomeLoop) {
+            this.metronomeLoop.start(0);
+        }
+
+        // Start Transport from specified position or from 0
+        if (startPositionBeats !== null && startPositionBeats > 0) {
+            // Convert beats to seconds
+            const startSeconds = (startPositionBeats * 60) / tempo;
+            Tone.Transport.seconds = startSeconds;
+        }
+
         Tone.Transport.start();
         this.isPlaying = true;
     }
 
     // Play a specific list of notes (e.g. for a measure)
     playNotes(notes, tempo = 120) {
-        this.stop();
+        // Stop playback but keep metronome if it's enabled
+        Tone.Transport.stop();
+        Tone.Transport.cancel(); // Clear scheduled events
+        if (this.sampler) {
+            this.sampler.releaseAll();
+        }
+
         if (notes.length === 0) return;
 
         Tone.Transport.bpm.value = tempo;
@@ -120,6 +146,11 @@ class AudioEngine {
 
         part.start(0);
 
+        // Restart metronome if it was enabled
+        if (this.metronomeEnabled && this.metronomeLoop) {
+            this.metronomeLoop.start(0);
+        }
+
         Tone.Transport.start();
         this.isPlaying = true;
     }
@@ -133,16 +164,24 @@ class AudioEngine {
         this.metronomeSynth.triggerAttackRelease(pitch, duration, time, isAccent ? 1.0 : 0.6);
     }
 
-    startMetronome(tempo = 120) {
+    startMetronome(tempo = 120, subdivision = 'quarter') {
         // Stop any existing metronome loop to avoid duplicates
         this.stopMetronome();
 
+        this.metronomeEnabled = true;
         Tone.Transport.bpm.value = tempo;
 
-        // Schedule click every quarter note
+        // Map subdivision to Tone.js notation
+        const subdivisionMap = {
+            'quarter': '4n',  // Noire (1/4)
+            'eighth': '8n'    // Croche (1/8)
+        };
+        const toneSubdivision = subdivisionMap[subdivision] || '4n';
+
+        // Schedule click at the specified subdivision
         this.metronomeLoop = new Tone.Loop((time) => {
             this.playClick(time);
-        }, "4n").start(0);
+        }, toneSubdivision).start(0);
 
         if (Tone.Transport.state !== 'started') {
             Tone.Transport.start();
@@ -150,6 +189,7 @@ class AudioEngine {
     }
 
     stopMetronome() {
+        this.metronomeEnabled = false;
         if (this.metronomeLoop) {
             this.metronomeLoop.stop();
             this.metronomeLoop.dispose();
@@ -164,8 +204,12 @@ class AudioEngine {
     stop() {
         Tone.Transport.stop();
         Tone.Transport.cancel(); // Clear scheduled events
-        this.stopMetronome();
         this.isPlaying = false;
+
+        // Only stop metronome if explicitly disabled
+        if (!this.metronomeEnabled) {
+            this.stopMetronome();
+        }
 
         if (this.sampler) {
             this.sampler.releaseAll();

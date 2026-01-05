@@ -1,21 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { getPianoRollKeys, getFrenchNoteName, getNoteNameFromMidi, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
+import { usePlaybackPosition } from '../hooks/usePlaybackPosition';
+
+// Lazy load the advanced piano roll
+const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(module => ({ default: module.AdvancedPianoRoll })));
 
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpdateNote, onUpdateHandSeparators, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
+export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit }) {
     // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
     const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
-    const [dragState, setDragState] = useState(null); // { type: 'move'|'resize'|'separator', noteId, startX, startY, originalNote, trackName, separatorIndex }
+    const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote, trackName }
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
-
-    // Hand separation lines - use phrase data or default
-    const handSeparators = phrase.handSeparators || [];
-    const [separatorEnabled, setSeparatorEnabled] = useState(handSeparators.length > 0);
 
     // Fullscreen and zoom
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -24,15 +24,14 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
-    // Helper to get applicable separator for a given measure
-    const getSeparatorForMeasure = (measureIndex) => {
-        if (!separatorEnabled || handSeparators.length === 0) return null;
-        // Find the most recent separator before or at this measure
-        const applicable = handSeparators
-            .filter(s => s.fromMeasure <= measureIndex)
-            .sort((a, b) => b.fromMeasure - a.fromMeasure);
-        return applicable[0] || null;
-    };
+    // Calculate phrase offset in beats (sum of all previous phrases' lengths)
+    const phraseStartBeat = allPhrases && phraseIndex !== undefined
+        ? allPhrases.slice(0, phraseIndex).reduce((total, p) => total + (p.length * 4), 0)
+        : 0;
+    const phraseEndBeat = phraseStartBeat + (phrase.length * 4);
+
+    // Track playback position
+    const { playbackPosition, isPlaying } = usePlaybackPosition();
 
     // Combine notes from both tracks with track information
     // Filter out notes that don't match our key range or numeric format
@@ -130,75 +129,17 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
                     lastPlayedPitchRef.current = newPitch;
                 }
             }
-        } else if (dragState.type === 'separator') {
-            // Move separator line
-            handleSeparatorDrag(e, deltaX, deltaY);
         }
     };
 
     const handleMouseUp = () => {
         // If mouse didn't move, treat as click to delete note
-        if (dragState && !dragState.hasMoved && dragState.type !== 'separator') {
+        if (dragState && !dragState.hasMoved) {
             if (dragState.noteId) {
                 onRemoveNote(phrase.id, dragState.trackName, dragState.noteId);
             }
         }
         setDragState(null);
-    };
-
-    const handleSeparatorMouseDown = (e, separatorIndex) => {
-        e.stopPropagation();
-        e.preventDefault();
-
-        const separator = handSeparators[separatorIndex];
-        setDragState({
-            type: 'separator',
-            startX: e.clientX,
-            startY: e.clientY,
-            separatorIndex,
-            originalPitch: separator.pitch,
-            originalMeasure: separator.fromMeasure
-        });
-    };
-
-    const handleSeparatorDrag = (e, deltaX, deltaY) => {
-        if (!dragState || dragState.type !== 'separator') return;
-
-        const deltaPitch = Math.round(deltaY / cellHeight);
-        const deltaMeasure = Math.round(deltaX / (cellWidth * 4)); // 4 beats per measure
-
-        const originalKeyIndex = keys.indexOf(dragState.originalPitch);
-        const newKeyIndex = Math.max(0, Math.min(keys.length - 1, originalKeyIndex + deltaPitch));
-        const newPitch = keys[newKeyIndex];
-
-        const newMeasure = Math.max(0, Math.min(phrase.length - 1, dragState.originalMeasure + deltaMeasure));
-
-        const currentSeparator = handSeparators[dragState.separatorIndex];
-
-        // If moving to a new measure, create a new automation point
-        if (newMeasure !== currentSeparator.fromMeasure) {
-            // Check if a separator already exists at the target measure
-            const existingIndex = handSeparators.findIndex(s => s.fromMeasure === newMeasure);
-
-            if (existingIndex !== -1) {
-                // Update existing separator at that measure
-                const updatedSeparators = handSeparators.map((sep, idx) =>
-                    idx === existingIndex ? { ...sep, pitch: newPitch } : sep
-                );
-                onUpdateHandSeparators(updatedSeparators);
-            } else {
-                // Create new automation point
-                const updatedSeparators = [...handSeparators, { fromMeasure: newMeasure, pitch: newPitch }]
-                    .sort((a, b) => a.fromMeasure - b.fromMeasure);
-                onUpdateHandSeparators(updatedSeparators);
-            }
-        } else if (newPitch !== currentSeparator.pitch) {
-            // Just changing pitch at current measure
-            const updatedSeparators = handSeparators.map((sep, idx) =>
-                idx === dragState.separatorIndex ? { ...sep, pitch: newPitch } : sep
-            );
-            onUpdateHandSeparators(updatedSeparators);
-        }
     };
 
     useEffect(() => {
@@ -241,38 +182,6 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
         }}>
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {/* Separator Toggle */}
-                <button
-                    onClick={() => {
-                        if (separatorEnabled) {
-                            // Disable: clear all separators
-                            onUpdateHandSeparators([]);
-                            setSeparatorEnabled(false);
-                        } else {
-                            // Enable: add default separator at C4 (60) from measure 0
-                            onUpdateHandSeparators([{ fromMeasure: 0, pitch: 60 }]);
-                            setSeparatorEnabled(true);
-                        }
-                    }}
-                    style={{
-                        background: separatorEnabled ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                        color: separatorEnabled ? 'white' : 'var(--text-secondary)',
-                        border: separatorEnabled ? 'none' : '1px solid var(--border-light)',
-                        padding: '0.5rem 1rem',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        transition: 'all var(--transition-fast)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}
-                >
-                    <span>{separatorEnabled ? '✓' : '○'}</span>
-                    <span>Séparateur MG/MD</span>
-                </button>
-
                 {/* Zoom Controls */}
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button
@@ -593,86 +502,33 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
                                     ))
                                 ))}
 
-                                {/* Hand Separation Lines (Automation) */}
-                                {separatorEnabled && handSeparators
-                                    .sort((a, b) => a.fromMeasure - b.fromMeasure)
-                                    .map((separator, idx) => {
-                                        const nextSeparator = handSeparators.find(s => s.fromMeasure > separator.fromMeasure);
-                                        const lineStart = separator.fromMeasure * 4 * cellWidth;
-                                        const lineEnd = nextSeparator
-                                            ? nextSeparator.fromMeasure * 4 * cellWidth
-                                            : phrase.length * 4 * cellWidth;
-
-                                        // Ensure pitch is number
-                                        const validPitch = typeof separator.pitch === 'string' ? getMidiNumber(separator.pitch) : separator.pitch;
-
-                                        return (
-                                            <React.Fragment key={idx}>
-                                                {/* Horizontal line segment */}
-                                                <div
-                                                    onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: `${lineStart}px`,
-                                                        width: `${lineEnd - lineStart}px`,
-                                                        top: `${keys.indexOf(validPitch) * cellHeight}px`,
-                                                        height: '3px',
-                                                        background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
-                                                        cursor: 'move',
-                                                        zIndex: 50,
-                                                        boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)',
-                                                        transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
-                                                    }}
-                                                />
-
-                                                {/* Automation point marker */}
-                                                <div
-                                                    onMouseDown={(e) => handleSeparatorMouseDown(e, idx)}
-                                                    onDoubleClick={(e) => {
-                                                        e.stopPropagation();
-                                                        // Double-click to delete automation point (but keep at least one)
-                                                        if (handSeparators.length > 1) {
-                                                            const updatedSeparators = handSeparators.filter((_, i) => i !== idx);
-                                                            onUpdateHandSeparators(updatedSeparators);
-                                                        }
-                                                    }}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: `${lineStart - 6}px`,
-                                                        top: `${keys.indexOf(validPitch) * cellHeight - 6}px`,
-                                                        width: '12px',
-                                                        height: '12px',
-                                                        borderRadius: '50%',
-                                                        background: '#f59e0b',
-                                                        border: '2px solid white',
-                                                        cursor: 'move',
-                                                        zIndex: 51,
-                                                        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.8)',
-                                                        transition: dragState?.type === 'separator' && dragState.separatorIndex === idx ? 'none' : 'all 0.1s',
-                                                    }}
-                                                />
-
-                                                {/* Label showing measure number */}
-                                                <div style={{
-                                                    position: 'absolute',
-                                                    left: `${lineStart + 8}px`,
-                                                    top: `${keys.indexOf(validPitch) * cellHeight - 20}px`,
-                                                    background: '#f59e0b',
-                                                    color: 'white',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '4px',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: '600',
-                                                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-                                                    pointerEvents: 'none',
-                                                    whiteSpace: 'nowrap',
-                                                    zIndex: 52
-                                                }}>
-                                                    M{separator.fromMeasure + 1}
-                                                </div>
-                                            </React.Fragment>
-                                        );
-                                    })}
+                                {/* Playback head - only show if position is within this phrase's bounds */}
+                                {isPlaying && playbackPosition >= phraseStartBeat && playbackPosition < phraseEndBeat && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: `${(playbackPosition - phraseStartBeat) * cellWidth}px`,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: '3px',
+                                        background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.9) 0%, rgba(239, 68, 68, 0.7) 100%)',
+                                        boxShadow: '0 0 8px rgba(239, 68, 68, 0.6), 0 0 16px rgba(239, 68, 68, 0.3)',
+                                        pointerEvents: 'none',
+                                        zIndex: 150
+                                    }}>
+                                        {/* Playhead top marker */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: '-6px',
+                                            width: 0,
+                                            height: 0,
+                                            borderLeft: '6px solid transparent',
+                                            borderRight: '6px solid transparent',
+                                            borderTop: '8px solid rgba(239, 68, 68, 0.95)',
+                                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
+                                        }} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -681,26 +537,10 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
         </div>
     );
 
-    // Render fullscreen modal using portal
+    // Render advanced piano roll in fullscreen mode (lazy loaded)
     if (isFullscreen) {
-        return createPortal(
-            <>
-                {/* Backdrop */}
-                <div
-                    onClick={() => setIsFullscreen(false)}
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: '100vw',
-                        height: '100vh',
-                        zIndex: 9998,
-                        background: 'rgba(0, 0, 0, 0.8)',
-                        backdropFilter: 'blur(4px)'
-                    }}
-                />
-
-                {/* Modal */}
+        return (
+            <Suspense fallback={
                 <div style={{
                     position: 'fixed',
                     top: 0,
@@ -710,185 +550,25 @@ export function PianoRoll({ phrase, keySignature, onAddNote, onRemoveNote, onUpd
                     zIndex: 9999,
                     background: 'var(--bg-primary)',
                     display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.25rem',
+                    color: 'var(--text-secondary)'
                 }}>
-                    {/* Modal Header with close button */}
-                    <div style={{
-                        padding: '1rem 1.5rem',
-                        borderBottom: '1px solid var(--border-light)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexShrink: 0,
-                        background: 'var(--bg-secondary)'
-                    }}>
-                        <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: '600' }}>
-                            🎹 Piano Roll - Mode Plein Écran
-                        </h3>
-                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                            {/* Split Button in Fullscreen */}
-                            {onSplit && (
-                                <button
-                                    onClick={onSplit}
-                                    style={{
-                                        backgroundColor: isSplitMode ? 'var(--accent-secondary)' : 'var(--bg-elevated)',
-                                        border: '1px solid var(--accent-secondary)',
-                                        color: isSplitMode ? 'white' : 'var(--text-primary)',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontSize: '0.9375rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <span>✂️</span>
-                                    <span>Découper</span>
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setIsFullscreen(false)}
-                                style={{
-                                    background: 'var(--gradient-primary)',
-                                    color: 'white',
-                                    border: 'none',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    fontSize: '0.9375rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                }}
-                            >
-                                <span style={{ fontSize: '1.2rem' }}>✕</span>
-                                <span>Fermer</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Modal Content */}
-                    <div style={{
-                        flex: 1,
-                        padding: '1.5rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        minHeight: 0,
-                        overflow: 'hidden'
-                    }}>
-                        {/* Split Controls in Fullscreen */}
-                        {isSplitMode && (
-                            <div style={{
-                                padding: '1.5rem',
-                                marginBottom: '1.5rem',
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                border: '2px solid var(--accent-secondary)',
-                                borderRadius: 'var(--radius-lg)',
-                                flexShrink: 0
-                            }}>
-                                <h4 style={{
-                                    margin: '0 0 1rem 0',
-                                    fontSize: '1rem',
-                                    color: 'var(--text-primary)'
-                                }}>
-                                    🎯 Mode Découpage
-                                </h4>
-                                <p style={{
-                                    margin: '0 0 1rem 0',
-                                    fontSize: '0.875rem',
-                                    color: 'var(--text-secondary)'
-                                }}>
-                                    Entrez la mesure où découper la phrase. Tout ce qui est avant restera dans la phrase actuelle, tout ce qui est après sera déplacé dans une nouvelle phrase.
-                                </p>
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    <div style={{ flex: '1', minWidth: '200px' }}>
-                                        <label style={{
-                                            display: 'block',
-                                            marginBottom: '0.5rem',
-                                            fontSize: '0.875rem',
-                                            color: 'var(--text-primary)',
-                                            fontWeight: '600'
-                                        }}>
-                                            Mesure de découpage
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={splitTime}
-                                            onChange={(e) => onSplitTimeChange(e.target.value)}
-                                            placeholder="Ex: 2"
-                                            step="1"
-                                            min="1"
-                                            style={{
-                                                width: '100%',
-                                                padding: '0.75rem',
-                                                fontSize: '1rem',
-                                                background: 'var(--bg-elevated)',
-                                                border: '1px solid var(--border-light)',
-                                                borderRadius: 'var(--radius-md)',
-                                                color: 'var(--text-primary)'
-                                            }}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                        <button
-                                            onClick={onConfirmSplit}
-                                            style={{
-                                                background: 'var(--gradient-success)',
-                                                color: 'white',
-                                                border: 'none',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem',
-                                                padding: '0.75rem 1.5rem',
-                                                fontWeight: '600',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.9375rem'
-                                            }}
-                                        >
-                                            <span>✓</span>
-                                            <span>Valider</span>
-                                        </button>
-                                        <button
-                                            onClick={onCancelSplit}
-                                            style={{
-                                                backgroundColor: 'var(--bg-elevated)',
-                                                border: '1px solid var(--border-light)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem',
-                                                padding: '0.75rem 1.5rem',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.9375rem',
-                                                color: 'var(--text-primary)'
-                                            }}
-                                        >
-                                            <span>✗</span>
-                                            <span>Annuler</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {pianoRollContent}
-                    </div>
+                    Chargement de l'éditeur avancé...
                 </div>
-            </>,
-            document.body
+            }>
+                <AdvancedPianoRoll
+                    phrase={phrase}
+                    keySignature={keySignature}
+                    tempo={tempo}
+                    onAddNote={onAddNote}
+                    onRemoveNote={onRemoveNote}
+                    onUpdateNote={onUpdateNote}
+                    onUpdatePhraseLength={onUpdatePhraseLength}
+                    onClose={() => setIsFullscreen(false)}
+                />
+            </Suspense>
         );
     }
 

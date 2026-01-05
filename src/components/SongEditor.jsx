@@ -113,6 +113,20 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         setSplitTime('');
     };
 
+    const handleUpdatePhraseLength = (phraseId, newLength) => {
+        const phraseIndex = song.phrases.findIndex(p => p.id === phraseId);
+        if (phraseIndex === -1) return;
+
+        const updatedPhrase = {
+            ...song.phrases[phraseIndex],
+            length: newLength
+        };
+
+        const newPhrases = [...song.phrases];
+        newPhrases[phraseIndex] = updatedPhrase;
+        onUpdateMetadata({ ...song, phrases: newPhrases });
+    };
+
     const handleConfirmSplit = () => {
         if (!splitMode || !splitTime) return;
         const interval = parseFloat(splitTime);
@@ -648,11 +662,14 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         <div style={{ marginBottom: '1rem' }}>
                             <PianoRoll
                                 phrase={phrase}
+                                phraseIndex={phraseIndex}
+                                allPhrases={song.phrases}
                                 keySignature={song.key}
+                                tempo={song.tempo}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}
-                                onUpdateHandSeparators={(separators) => onUpdateHandSeparators(phrase.id, separators)}
+                                onUpdatePhraseLength={(newLength) => handleUpdatePhraseLength(phrase.id, newLength)}
                                 onSplit={() => handleStartSplit(phrase.id)}
                                 isSplitMode={splitMode?.phraseId === phrase.id}
                                 splitTime={splitTime}
