@@ -1,7 +1,5 @@
-import Vex from 'vexflow';
+import { Formatter, Renderer, Stave, StaveNote, Voice, Accidental, Annotation } from 'vexflow';
 import { getNoteNameFromMidi, getFrenchNoteName } from '../models/song';
-
-const { Factory, Formatter, Renderer } = Vex.Flow;
 
 /**
  * Service pour exporter des partitions musicales à partir de données MIDI
@@ -110,9 +108,11 @@ export class SheetMusicExportService {
         container.style.height = 'auto';
 
         // Initialiser le renderer VexFlow
-        this.renderer = new Renderer(container, Renderer.Backends.SVG);
-        this.renderer.resize(1200, 800);
-        this.context = this.renderer.getContext();
+        const renderer = new Renderer(container, Renderer.Backends.SVG);
+        renderer.resize(1200, 800);
+        const context = renderer.getContext();
+        this.renderer = renderer;
+        this.context = context;
 
         // Récupérer les notes à exporter
         const phrasesToExport = phraseIndex !== null
@@ -120,7 +120,6 @@ export class SheetMusicExportService {
             : song.phrases;
 
         let yPosition = 40;
-        const factory = new Factory({ renderer: { elementId: null, backend: Renderer.Backends.SVG } });
 
         phrasesToExport.forEach((phrase, pIndex) => {
             // Pour chaque phrase, créer les portées
@@ -138,7 +137,7 @@ export class SheetMusicExportService {
             for (let m = 0; m < maxMeasures; m += measuresPerLine) {
                 // Dessiner la portée supérieure (clé de Sol - mélodie)
                 if (track !== 'chords') {
-                    const trebleStave = new Vex.Flow.Stave(10, yPosition, 1100);
+                    const trebleStave = new Stave(10, yPosition, 1100);
                     if (m === 0) {
                         trebleStave.addClef('treble').addTimeSignature('4/4');
                         if (song.key) {
@@ -160,7 +159,7 @@ export class SheetMusicExportService {
 
                 // Dessiner la portée inférieure (clé de Fa - accords/basse)
                 if (track !== 'melody') {
-                    const bassStave = new Vex.Flow.Stave(10, yPosition, 1100);
+                    const bassStave = new Stave(10, yPosition, 1100);
                     if (m === 0) {
                         bassStave.addClef('bass').addTimeSignature('4/4');
                         if (song.key) {
@@ -210,7 +209,7 @@ export class SheetMusicExportService {
             if (!measure || measure.length === 0) {
                 // Mesure vide - ajouter un silence
                 allNotes.push(
-                    new Vex.Flow.StaveNote({
+                    new StaveNote({
                         keys: ['b/4'],
                         duration: 'wr', // Whole rest
                     })
@@ -220,7 +219,7 @@ export class SheetMusicExportService {
                     const vexNote = this.midiToVexNote(note.pitch);
                     const vexDuration = this.durationToVexDuration(note.duration);
 
-                    const staveNote = new Vex.Flow.StaveNote({
+                    const staveNote = new StaveNote({
                         keys: [vexNote],
                         duration: vexDuration,
                     });
@@ -228,20 +227,18 @@ export class SheetMusicExportService {
                     // Ajouter des altérations si nécessaire
                     const noteName = getNoteNameFromMidi(note.pitch);
                     if (noteName.includes('#')) {
-                        staveNote.addModifier(new Vex.Flow.Accidental('#'), 0);
+                        staveNote.addModifier(new Accidental('#'), 0);
                     } else if (noteName.includes('b')) {
-                        staveNote.addModifier(new Vex.Flow.Accidental('b'), 0);
+                        staveNote.addModifier(new Accidental('b'), 0);
                     }
 
                     // Ajouter l'annotation en français si demandé
                     if (withAnnotations) {
                         const frenchName = getFrenchNoteName(note.pitch, keySignature);
-                        staveNote.addModifier(
-                            new Vex.Flow.Annotation(frenchName)
-                                .setVerticalJustification(Vex.Flow.Annotation.VerticalJustify.BOTTOM)
-                                .setFont('Arial', 10, 'italic'),
-                            0
-                        );
+                        const annotation = new Annotation(frenchName);
+                        annotation.setVerticalJustification(Annotation.VerticalJustify.BOTTOM);
+                        annotation.setFont('Arial', 10, 'italic');
+                        staveNote.addModifier(annotation, 0);
                     }
 
                     allNotes.push(staveNote);
@@ -251,7 +248,7 @@ export class SheetMusicExportService {
 
         if (allNotes.length > 0) {
             // Créer une voix et formater
-            const voice = new Vex.Flow.Voice({
+            const voice = new Voice({
                 num_beats: 4 * measures.length,
                 beat_value: 4,
             });
