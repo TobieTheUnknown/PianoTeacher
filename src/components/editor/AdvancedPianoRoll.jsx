@@ -168,6 +168,18 @@ export function AdvancedPianoRoll({
     // Track playback position for playhead visualization
     const { playbackPosition, isPlaying, seek } = usePlaybackPosition();
 
+    // Initialize playhead position to the start of the opened phrase (on mount only)
+    useEffect(() => {
+        // Find the layout for the phrase that was opened
+        const openedPhraseLayout = phraseLayouts.layouts.find(l => l.phraseId === phrase.id);
+
+        if (openedPhraseLayout && openedPhraseLayout.startBeat > 0) {
+            // Seek to the start of this phrase (unless it's the first phrase at beat 0)
+            seek(openedPhraseLayout.startBeat);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Empty dependency array - only run on mount
+
     // Handle loop/stop at end of playback
     useEffect(() => {
         if (!isPlaying) return;
@@ -799,18 +811,22 @@ export function AdvancedPianoRoll({
         if (isPlaying) {
             audioEngine.stop();
         } else if (phrases.length > 0) {
-            // If loop is enabled, seek to loop start before playing
+            // Determine start position
+            let startPos = playbackPosition;
+
+            // If loop is enabled, start at loop start
             if (loopEnabled && loopRegion) {
+                startPos = loopRegion.start;
                 seek(loopRegion.start);
             }
 
             // Combine all phrases for continuous playback
             const combinedPhrase = combinePhrases();
             if (combinedPhrase) {
-                audioEngine.playPhrase(combinedPhrase, tempo);
+                audioEngine.playPhrase(combinedPhrase, tempo, startPos);
             }
         }
-    }, [isPlaying, phrases, tempo, loopEnabled, loopRegion, seek, combinePhrases]);
+    }, [isPlaying, phrases, tempo, loopEnabled, loopRegion, seek, combinePhrases, playbackPosition]);
 
     // Handle real-time note recorded (during recording)
     const handleNoteRecorded = useCallback((note) => {
@@ -836,6 +852,11 @@ export function AdvancedPianoRoll({
         if (recording && !metronomeEnabled) {
             setMetronomeEnabled(true);
         }
+        // Force-restart metronome when recording starts (even if already enabled)
+        // This ensures metronome works on subsequent recordings after playback cancelled it
+        if (recording && metronomeEnabled) {
+            audioEngine.startMetronome(tempo, metronomeSubdivision);
+        }
         // Reset playhead to start when pre-roll begins
         if (recording) {
             seek(0);
@@ -844,7 +865,7 @@ export function AdvancedPianoRoll({
         if (!recording) {
             setActiveRecordingNotes([]);
         }
-    }, [metronomeEnabled, seek]);
+    }, [metronomeEnabled, tempo, metronomeSubdivision, seek]);
 
     // Handle pre-roll complete (wrapped in useCallback)
     const handlePreRollComplete = useCallback(() => {
