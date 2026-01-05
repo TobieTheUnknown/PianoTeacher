@@ -662,13 +662,13 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         <div style={{ marginBottom: '1rem' }}>
                             <PianoRoll
                                 phrase={phrase}
+                                phraseIndex={phraseIndex}
                                 allPhrases={song.phrases}
                                 keySignature={song.key}
                                 tempo={song.tempo}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}
-                                onUpdateHandSeparators={(separators) => onUpdateHandSeparators(phrase.id, separators)}
                                 onUpdatePhraseLength={(newLength) => handleUpdatePhraseLength(phrase.id, newLength)}
                                 onSplit={() => handleStartSplit(phrase.id)}
                                 isSplitMode={splitMode?.phraseId === phrase.id}

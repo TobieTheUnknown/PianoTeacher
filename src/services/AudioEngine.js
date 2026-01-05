@@ -75,7 +75,8 @@ class AudioEngine {
     }
 
     // Simple playback of a phrase
-    playPhrase(phrase, tempo = 120) {
+    // startPositionBeats: optional start position in beats (if not provided, starts from 0)
+    playPhrase(phrase, tempo = 120, startPositionBeats = null) {
         // Stop playback but keep metronome if it's enabled
         Tone.Transport.stop();
         Tone.Transport.cancel(); // Clear scheduled events
@@ -105,6 +106,13 @@ class AudioEngine {
         // Restart metronome if it was enabled
         if (this.metronomeEnabled && this.metronomeLoop) {
             this.metronomeLoop.start(0);
+        }
+
+        // Start Transport from specified position or from 0
+        if (startPositionBeats !== null && startPositionBeats > 0) {
+            // Convert beats to seconds
+            const startSeconds = (startPositionBeats * 60) / tempo;
+            Tone.Transport.seconds = startSeconds;
         }
 
         Tone.Transport.start();
