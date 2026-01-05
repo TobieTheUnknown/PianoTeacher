@@ -560,6 +560,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
             }>
                 <AdvancedPianoRoll
                     phrase={phrase}
+                    allPhrases={allPhrases || [phrase]}
                     keySignature={keySignature}
                     tempo={tempo}
                     onAddNote={onAddNote}
