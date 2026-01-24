@@ -10,7 +10,7 @@ const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(m
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit, isCurrentlyPlaying = false }) {
+export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, timeSignature = { numerator: 4, denominator: 4 }, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit, isCurrentlyPlaying = false }) {
     // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
     const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
@@ -24,8 +24,24 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
+    // Calculate beats per measure based on time signature
+    const beatsPerMeasure = React.useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return 4; // Default to 4/4
+        }
+        return (timeSignature.numerator / timeSignature.denominator) * 4;
+    }, [timeSignature]);
+
+    // Detect if time signature is compound (ternary)
+    const isCompoundTime = React.useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return false;
+        }
+        return timeSignature.denominator === 8 && timeSignature.numerator % 3 === 0;
+    }, [timeSignature]);
+
     // Phrase length in beats
-    const phraseLengthBeats = phrase.length * 4;
+    const phraseLengthBeats = phrase.length * beatsPerMeasure;
 
     // Track playback position
     const { playbackPosition, isPlaying } = usePlaybackPosition();
@@ -278,7 +294,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                     }}
                 >
                     <div style={{
-                        width: `${90 + phrase.length * 4 * cellWidth}px`, // Piano keys width + grid width
+                        width: `${90 + phrase.length * beatsPerMeasure * cellWidth}px`, // Piano keys width + grid width
                         minHeight: '100%',
                         position: 'relative',
                         display: 'flex'
@@ -355,7 +371,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                             }}>
                                 {Array.from({ length: phrase.length }).map((_, measureIndex) => (
                                     <div key={`measure-${measureIndex}`} style={{
-                                        width: `${4 * cellWidth}px`,
+                                        width: `${beatsPerMeasure * cellWidth}px`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
@@ -377,19 +393,61 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                                 position: 'relative'
                             }}>
                                 {/* Grid Lines - Vertical */}
-                                {Array.from({ length: phrase.length * 4 }).map((_, i) => (
-                                    <div key={`v-${i}`} style={{
-                                        position: 'absolute',
-                                        left: `${i * cellWidth}px`,
-                                        top: 0,
-                                        bottom: 0,
-                                        width: i % 4 === 0 ? '2px' : '1px',
-                                        background: i % 4 === 0
-                                            ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
-                                            : 'rgba(255, 255, 255, 0.05)',
-                                        pointerEvents: 'none'
-                                    }} />
-                                ))}
+                                {Array.from({ length: Math.ceil(phraseLengthBeats) }).map((_, i) => {
+                                    const isMeasureLine = Math.abs(i % beatsPerMeasure) < 0.01;
+
+                                    // Determine line type based on time signature
+                                    let lineType; // 'measure', 'beat', or 'subdivision'
+
+                                    if (isMeasureLine) {
+                                        lineType = 'measure';
+                                    } else if (isCompoundTime) {
+                                        // In compound time, beats are dotted quarters (1.5 quarter notes)
+                                        const isOnDottedQuarter = Math.abs(i % 1.5) < 0.01;
+                                        if (isOnDottedQuarter) {
+                                            lineType = 'beat';
+                                        } else {
+                                            lineType = 'subdivision';
+                                        }
+                                    } else {
+                                        // In simple time, beats are quarter notes
+                                        // i is always an integer, so this is always a beat in simple time
+                                        lineType = 'beat';
+                                    }
+
+                                    // Style based on line type
+                                    let lineStyle;
+                                    switch (lineType) {
+                                        case 'measure':
+                                            lineStyle = {
+                                                width: '2px',
+                                                background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
+                                            };
+                                            break;
+                                        case 'beat':
+                                            lineStyle = {
+                                                width: '1px',
+                                                background: 'rgba(255, 255, 255, 0.08)'
+                                            };
+                                            break;
+                                        default: // 'subdivision'
+                                            lineStyle = {
+                                                width: '1px',
+                                                background: 'rgba(255, 255, 255, 0.04)'
+                                            };
+                                    }
+
+                                    return (
+                                        <div key={`v-${i}`} style={{
+                                            position: 'absolute',
+                                            left: `${i * cellWidth}px`,
+                                            top: 0,
+                                            height: '100%',
+                                            pointerEvents: 'none',
+                                            ...lineStyle
+                                        }} />
+                                    );
+                                })}
                                 {/* Grid Lines - Horizontal */}
                                 {keys.map((pitch, i) => {
                                     const isBlack = [1, 3, 6, 8, 10].includes(pitch % 12);
@@ -479,7 +537,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
 
                                 {/* Click Area Overlay */}
                                 {!dragState && keys.map((pitch, yIndex) => (
-                                    Array.from({ length: phrase.length * 4 }).map((_, xIndex) => (
+                                    Array.from({ length: phrase.length * beatsPerMeasure }).map((_, xIndex) => (
                                         <div
                                             key={`${pitch}-${xIndex}`}
                                             onClick={(e) => {
@@ -560,6 +618,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                     allPhrases={[phrase]}
                     keySignature={keySignature}
                     tempo={tempo}
+                    timeSignature={timeSignature}
                     onAddNote={onAddNote}
                     onRemoveNote={onRemoveNote}
                     onUpdateNote={onUpdateNote}

@@ -71,6 +71,15 @@ export function SynthesiaViewOptimized({ song }) {
   const [songStats, setSongStats] = useState(null);
   const [freePlayMode, setFreePlayMode] = useState(false);
 
+  // Calculate beats per measure based on time signature
+  const timeSignature = song?.timeSignature || { numerator: 4, denominator: 4 };
+  const beatsPerMeasure = useMemo(() => {
+    if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+      return 4;
+    }
+    return (timeSignature.numerator / timeSignature.denominator) * 4;
+  }, [timeSignature]);
+
   // Helper to convert note name to MIDI number
   const getMidiNumber = useCallback((noteName) => {
     if (typeof noteName === 'number') return noteName;
@@ -158,7 +167,7 @@ export function SynthesiaViewOptimized({ song }) {
           }
         }
 
-        currentTime += (phrase.duration || phrase.length * 4 || 4);
+        currentTime += (phrase.duration || phrase.length * beatsPerMeasure || beatsPerMeasure);
       }
     } catch (error) {
       console.error('Error in getAllNotes:', error);
@@ -166,7 +175,7 @@ export function SynthesiaViewOptimized({ song }) {
     }
 
     return notes.sort((a, b) => a.startTime - b.startTime);
-  }, [song, getMidiNumber]);
+  }, [song, getMidiNumber, beatsPerMeasure]);
 
   const allNotes = useMemo(() => getAllNotes(), [getAllNotes]);
   const defaultBPM = song?.tempo || 120;
@@ -297,7 +306,6 @@ export function SynthesiaViewOptimized({ song }) {
 
   // Jump to measure
   const jumpToMeasure = useCallback((measureNumber) => {
-    const beatsPerMeasure = 4;
     const offsetMeasures = 0.5;
     const targetMeasure = Math.max(0, measureNumber - 1 - offsetMeasures);
     const targetTime = (targetMeasure * beatsPerMeasure) / beatsPerSecond;
@@ -306,7 +314,7 @@ export function SynthesiaViewOptimized({ song }) {
     startTimeRef.current = performance.now() - (targetTime / playbackSpeed) * 1000;
     processedNotesRef.current = new Set();
     setPlayedNotes(new Map());
-  }, [beatsPerSecond, playbackSpeed]);
+  }, [beatsPerMeasure, beatsPerSecond, playbackSpeed]);
 
   // Loop controls
   const setLoopForRange = useCallback((startMeasure, endMeasure, name = '') => {
@@ -456,7 +464,6 @@ export function SynthesiaViewOptimized({ song }) {
       return;
     }
 
-    const beatsPerMeasure = 4;
     const currentBeat = currentTime * beatsPerSecond;
 
     let currentClickPosition;
@@ -485,7 +492,7 @@ export function SynthesiaViewOptimized({ song }) {
 
     audioEngine.stopMetronome();
 
-  }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision]);
+  }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision, beatsPerMeasure]);
 
   const resumeAfterWait = () => {
     if (pausedAtTimeRef.current !== null) {
@@ -525,7 +532,6 @@ export function SynthesiaViewOptimized({ song }) {
       const elapsed = (performance.now() - startTimeRef.current) / 1000 * playbackSpeed;
 
       if (isLoopEnabled && loopConfig) {
-        const beatsPerMeasure = 4;
         const firstMeasure = loopConfig.startMeasure - 1;
         const lastMeasure = loopConfig.endMeasure - 1;
 
@@ -581,7 +587,7 @@ export function SynthesiaViewOptimized({ song }) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, handMode]);
+  }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, handMode, beatsPerMeasure]);
 
   // Check if song completed
   useEffect(() => {

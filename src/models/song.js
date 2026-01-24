@@ -18,6 +18,7 @@ export const createSong = (title = 'Nouveau Morceau') => ({
     artist: '',
     key: { note: 'C', mode: 'major' }, // Key signature with note and mode
     tempo: 120,
+    timeSignature: { numerator: 4, denominator: 4 }, // Time signature (e.g., 4/4, 3/4, 6/8)
     phrases: [],
     highlightedMeasures: [], // Array of measure numbers that are highlighted
     createdAt: new Date().toISOString(),

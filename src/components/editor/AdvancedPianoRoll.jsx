@@ -18,6 +18,7 @@ export function AdvancedPianoRoll({
     allPhrases,
     keySignature,
     tempo = 120,
+    timeSignature = { numerator: 4, denominator: 4 },
     onAddNote,
     onRemoveNote,
     onUpdateNote,
@@ -54,6 +55,24 @@ export function AdvancedPianoRoll({
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
+    // Calculate beats per measure based on time signature
+    // beatsPerMeasure represents quarter notes per measure
+    const beatsPerMeasure = useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return 4; // Default to 4/4
+        }
+        return (timeSignature.numerator / timeSignature.denominator) * 4;
+    }, [timeSignature]);
+
+    // Detect if time signature is compound (ternary)
+    // Compound time: denominator is 8 and numerator is divisible by 3 (e.g., 6/8, 9/8, 12/8)
+    const isCompoundTime = useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return false;
+        }
+        return timeSignature.denominator === 8 && timeSignature.numerator % 3 === 0;
+    }, [timeSignature]);
+
     // Use allPhrases if provided, otherwise fallback to single phrase
     const phrases = useMemo(() => allPhrases || [phrase], [allPhrases, phrase]);
 
@@ -70,7 +89,7 @@ export function AdvancedPianoRoll({
         let cumulativeMeasures = 0;
 
         phrases.forEach((p, index) => {
-            const phraseLengthBeats = p.length * 4;
+            const phraseLengthBeats = p.length * beatsPerMeasure;
 
             layouts.push({
                 phraseId: p.id,
@@ -97,7 +116,7 @@ export function AdvancedPianoRoll({
             totalMeasures: cumulativeMeasures,
             totalWidth: cumulativeBeats * cellWidth + 90
         };
-    }, [phrases, cellWidth]);
+    }, [phrases, cellWidth, beatsPerMeasure]);
 
     // Transform notes to global coordinates
     const allNotesGlobal = useMemo(() => {
@@ -399,8 +418,8 @@ export function AdvancedPianoRoll({
             const rect = scrollRef.current.getBoundingClientRect();
             const PIANO_KEYS_WIDTH = 90;
             const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
-            const beatPosition = Math.max(4, x / cellWidth); // Minimum 1 measure (4 beats)
-            const measures = Math.round(beatPosition / 4); // Round to nearest measure
+            const beatPosition = Math.max(beatsPerMeasure, x / cellWidth); // Minimum 1 measure
+            const measures = Math.round(beatPosition / beatsPerMeasure); // Round to nearest measure
             const clampedMeasures = Math.max(1, Math.min(16, measures)); // 1-16 measures
             onUpdatePhraseLength(clampedMeasures);
             return;
@@ -718,7 +737,7 @@ export function AdvancedPianoRoll({
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
                     const maxEndTime = Math.max(...selectedNotes.map(n => n.localStartTime + n.duration));
-                    const offset = Math.ceil(maxEndTime / 4) * 4;
+                    const offset = Math.ceil(maxEndTime / beatsPerMeasure) * beatsPerMeasure;
 
                     const duplicatedNotes = duplicate(selectedNotes, offset);
                     duplicatedNotes.forEach(note => {
@@ -744,7 +763,7 @@ export function AdvancedPianoRoll({
                 if (isPlaying) {
                     audioEngine.stop();
                 } else if (phrases.length > 0) {
-                    audioEngine.playPhrase(phrases[0], tempo);
+                    audioEngine.playPhrase(phrases[0], tempo, null, false, null, beatsPerMeasure);
                 }
             }
         };
@@ -826,13 +845,13 @@ export function AdvancedPianoRoll({
                 });
             });
 
-            // Accumulate total beats (phrase length * 4 beats per measure)
-            totalBeats += phrase.length * 4;
+            // Accumulate total beats (phrase length * beatsPerMeasure)
+            totalBeats += phrase.length * beatsPerMeasure;
         });
 
         return {
             id: 'combined',
-            length: totalBeats / 4, // Convert back to measures
+            length: totalBeats / beatsPerMeasure, // Convert back to measures
             tracks: {
                 melody: combinedMelody,
                 chords: combinedChords
@@ -857,7 +876,7 @@ export function AdvancedPianoRoll({
             // Combine all phrases for continuous playback
             const combinedPhrase = combinePhrases();
             if (combinedPhrase) {
-                audioEngine.playPhrase(combinedPhrase, tempo, startPos);
+                audioEngine.playPhrase(combinedPhrase, tempo, startPos, false, null, beatsPerMeasure);
             }
         }
     }, [isPlaying, phrases, tempo, loopEnabled, loopRegion, seek, combinePhrases, playbackPosition]);
@@ -906,9 +925,72 @@ export function AdvancedPianoRoll({
         // Start playback after pre-roll completes with all phrases combined
         const combinedPhrase = combinePhrases();
         if (combinedPhrase) {
-            audioEngine.playPhrase(combinedPhrase, tempo);
+            audioEngine.playPhrase(combinedPhrase, tempo, null, false, null, beatsPerMeasure);
         }
-    }, [combinePhrases, tempo]);
+    }, [combinePhrases, tempo, beatsPerMeasure]);
+
+    // Quantize all notes to the current grid
+    const quantizeAllNotes = useCallback(() => {
+        if (!phrases || phrases.length === 0) {
+            console.log('No phrases to quantize');
+            return;
+        }
+
+        console.log('Quantizing with grid size:', gridSize);
+        console.log('Number of phrases:', phrases.length);
+
+        const quantize = (value) => {
+            return Math.round(value / gridSize) * gridSize;
+        };
+
+        let quantizedCount = 0;
+        let totalNotes = 0;
+
+        phrases.forEach((phrase, idx) => {
+            console.log(`Phrase ${idx}:`, {
+                melodyCount: phrase.tracks?.melody?.length || 0,
+                chordsCount: phrase.tracks?.chords?.length || 0
+            });
+
+            // Quantize melody notes
+            if (phrase.tracks?.melody) {
+                phrase.tracks.melody.forEach(note => {
+                    totalNotes++;
+                    const quantizedStart = quantize(note.startTime);
+                    const quantizedDuration = Math.max(gridSize, quantize(note.duration));
+
+                    if (quantizedStart !== note.startTime || quantizedDuration !== note.duration) {
+                        console.log(`Quantizing melody note: ${note.startTime} -> ${quantizedStart}, duration: ${note.duration} -> ${quantizedDuration}`);
+                        onUpdateNote(phrase.id, 'melody', note.id, {
+                            startTime: quantizedStart,
+                            duration: quantizedDuration
+                        });
+                        quantizedCount++;
+                    }
+                });
+            }
+
+            // Quantize chord notes
+            if (phrase.tracks?.chords) {
+                phrase.tracks.chords.forEach(note => {
+                    totalNotes++;
+                    const quantizedStart = quantize(note.startTime);
+                    const quantizedDuration = Math.max(gridSize, quantize(note.duration));
+
+                    if (quantizedStart !== note.startTime || quantizedDuration !== note.duration) {
+                        console.log(`Quantizing chord note: ${note.startTime} -> ${quantizedStart}, duration: ${note.duration} -> ${quantizedDuration}`);
+                        onUpdateNote(phrase.id, 'chords', note.id, {
+                            startTime: quantizedStart,
+                            duration: quantizedDuration
+                        });
+                        quantizedCount++;
+                    }
+                });
+            }
+        });
+
+        console.log(`Quantized ${quantizedCount} notes out of ${totalNotes} total notes`);
+    }, [phrases, gridSize, onUpdateNote]);
 
     return createPortal(
         <>
@@ -1125,6 +1207,23 @@ export function AdvancedPianoRoll({
                                 title="Magnétisme à la grille"
                             >
                                 🧲
+                            </button>
+                            <button
+                                onClick={quantizeAllNotes}
+                                style={{
+                                    background: 'var(--bg-tertiary)',
+                                    color: 'var(--text-secondary)',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    marginLeft: '2px'
+                                }}
+                                title="Quantizer toutes les notes sur la grille"
+                            >
+                                ⚡
                             </button>
                         </div>
 
@@ -1425,7 +1524,7 @@ export function AdvancedPianoRoll({
                                                     <div
                                                         key={`measure-${layout.phraseId}-${measureOffset}`}
                                                         style={{
-                                                            width: `${4 * cellWidth}px`,
+                                                            width: `${beatsPerMeasure * cellWidth}px`,
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
@@ -1634,28 +1733,91 @@ export function AdvancedPianoRoll({
                                             </div>
                                         ))}
 
-                                        {/* Vertical grid lines - adapts to gridSize */}
+                                        {/* Vertical grid lines - adapts to gridSize and time signature */}
                                         {(() => {
-                                            const totalSubdivisions = phraseLayouts.totalBeats / gridSize;
+                                            // Safety checks with fallbacks
+                                            const safeGridSize = gridSize && gridSize > 0 ? gridSize : 0.25;
+                                            const safeTotalBeats = phraseLayouts.totalBeats || 16;
+                                            const safeBeatsPerMeasure = beatsPerMeasure || 4;
+
+                                            const totalSubdivisions = Math.ceil(safeTotalBeats / safeGridSize);
+
                                             return Array.from({ length: totalSubdivisions }).map((_, subdivIndex) => {
-                                                const beatPosition = subdivIndex * gridSize;
-                                                const isMeasureLine = beatPosition % 4 === 0;
-                                                const isBeatLine = beatPosition % 1 === 0;
+                                                const beatPosition = subdivIndex * safeGridSize;
+                                                const isMeasureLine = Math.abs(beatPosition % safeBeatsPerMeasure) < 0.01;
+
+                                                // Determine line type based on time signature
+                                                let lineType; // 'measure', 'beat', 'subdivision', or 'fine'
+
+                                                if (isMeasureLine) {
+                                                    lineType = 'measure';
+                                                } else if (isCompoundTime) {
+                                                    // In compound time (6/8, 9/8, 12/8):
+                                                    // - "beat" = dotted quarter (1.5 quarter notes / 3 eighth notes)
+                                                    // - "subdivision" = eighth note (0.5 quarter notes)
+                                                    const isOnDottedQuarter = Math.abs(beatPosition % 1.5) < 0.01;
+                                                    const isOnEighth = Math.abs(beatPosition % 0.5) < 0.01;
+
+                                                    if (isOnDottedQuarter) {
+                                                        lineType = 'beat';
+                                                    } else if (isOnEighth) {
+                                                        lineType = 'subdivision';
+                                                    } else {
+                                                        lineType = 'fine';
+                                                    }
+                                                } else {
+                                                    // In simple time (4/4, 3/4, 2/4):
+                                                    // - "beat" = quarter note (1.0 beat)
+                                                    // - "subdivision" = anything aligned with gridSize
+                                                    const isOnQuarter = Math.abs(beatPosition % 1) < 0.01;
+
+                                                    if (isOnQuarter) {
+                                                        lineType = 'beat';
+                                                    } else {
+                                                        lineType = 'subdivision';
+                                                    }
+                                                }
+
+                                                // Style based on line type
+                                                let lineStyle;
+                                                switch (lineType) {
+                                                    case 'measure':
+                                                        lineStyle = {
+                                                            width: '2px',
+                                                            background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)',
+                                                            zIndex: 3
+                                                        };
+                                                        break;
+                                                    case 'beat':
+                                                        lineStyle = {
+                                                            width: '1px',
+                                                            background: 'rgba(255, 255, 255, 0.12)',
+                                                            zIndex: 2
+                                                        };
+                                                        break;
+                                                    case 'subdivision':
+                                                        lineStyle = {
+                                                            width: '1px',
+                                                            background: 'rgba(255, 255, 255, 0.12)',
+                                                            zIndex: 1
+                                                        };
+                                                        break;
+                                                    default: // 'fine'
+                                                        lineStyle = {
+                                                            width: '1px',
+                                                            background: 'rgba(255, 255, 255, 0.06)',
+                                                            zIndex: 1
+                                                        };
+                                                }
 
                                                 return (
                                                     <div key={`v-${subdivIndex}`} style={{
                                                         position: 'absolute',
                                                         left: `${beatPosition * cellWidth}px`,
                                                         top: 0,
-                                                        bottom: 0,
-                                                        width: isMeasureLine ? '2px' : isBeatLine ? '1px' : '1px',
-                                                        background: isMeasureLine
-                                                            ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
-                                                            : isBeatLine
-                                                            ? 'rgba(255, 255, 255, 0.08)'
-                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                        height: '100%',
                                                         pointerEvents: 'none',
-                                                        zIndex: isMeasureLine ? 3 : isBeatLine ? 2 : 1
+                                                        ...lineStyle
                                                     }} />
                                                 );
                                             });

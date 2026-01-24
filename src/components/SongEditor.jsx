@@ -54,11 +54,14 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
         setPlayingPhraseId(phrase.id);
+        // Calculate beatsPerMeasure from time signature
+        const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
+        const beatsPerMeasure = (timeSignature.numerator / timeSignature.denominator) * 4;
         // stopAtEnd = true to automatically stop at end of the phrase
         // Pass a callback to clear playingPhraseId when playback ends
         audioEngine.playPhrase(phrase, song.tempo, null, true, () => {
             setPlayingPhraseId(null);
-        });
+        }, beatsPerMeasure);
     };
 
     const handleStop = () => {
@@ -141,7 +144,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             return;
         }
 
-        const beatsPerMeasure = 4;
+        const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
+        const beatsPerMeasure = (timeSignature.numerator / timeSignature.denominator) * 4;
 
         if (isBatchSplit) {
             const phrase = song.phrases.find(p => p.id === splitMode.phraseId);
@@ -334,6 +338,48 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             onChange={(e) => onUpdateMetadata({ tempo: parseInt(e.target.value) })}
                             placeholder="120"
                         />
+                    </div>
+                    <div>
+                        <label style={{
+                            display: 'block',
+                            marginBottom: '0.5rem',
+                            color: 'var(--text-primary)',
+                            fontWeight: '400',
+                            fontSize: '0.875rem'
+                        }}>
+                            Signature rythmique
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                                type="number"
+                                value={song.timeSignature?.numerator || 4}
+                                onChange={(e) => onUpdateMetadata({
+                                    timeSignature: {
+                                        ...song.timeSignature,
+                                        numerator: parseInt(e.target.value) || 4
+                                    }
+                                })}
+                                min="1"
+                                max="16"
+                                style={{ width: '60px', textAlign: 'center' }}
+                            />
+                            <span style={{ fontSize: '1.25rem', color: 'var(--text-secondary)' }}>/</span>
+                            <select
+                                value={song.timeSignature?.denominator || 4}
+                                onChange={(e) => onUpdateMetadata({
+                                    timeSignature: {
+                                        ...song.timeSignature,
+                                        denominator: parseInt(e.target.value)
+                                    }
+                                })}
+                                style={{ width: '80px' }}
+                            >
+                                <option value="2">2</option>
+                                <option value="4">4</option>
+                                <option value="8">8</option>
+                                <option value="16">16</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -672,6 +718,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 allPhrases={song.phrases}
                                 keySignature={song.key}
                                 tempo={song.tempo}
+                                timeSignature={song.timeSignature || { numerator: 4, denominator: 4 }}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}
