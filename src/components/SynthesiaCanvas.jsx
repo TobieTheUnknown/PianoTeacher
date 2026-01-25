@@ -41,6 +41,7 @@ const SynthesiaCanvas = memo(({
   activeNotes,
   playedNotes,
   feedbackMessages,
+  // eslint-disable-next-line no-unused-vars
   expectedNotes,
   allNotes,
   beatsPerSecond,

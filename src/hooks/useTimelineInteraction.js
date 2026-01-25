@@ -13,6 +13,7 @@ export function useTimelineInteraction({
     loopEnd,
     onSeek,
     onLoopChange,
+    // eslint-disable-next-line no-unused-vars
     isPlaying
 }) {
     const timelineRef = useRef(null);

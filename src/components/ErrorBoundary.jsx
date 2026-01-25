@@ -20,6 +20,7 @@ export class ErrorBoundary extends React.Component {
     };
   }
 
+  // eslint-disable-next-line no-unused-vars
   static getDerivedStateFromError(error) {
     // Met à jour le state pour afficher l'UI de fallback
     return { hasError: true };
@@ -99,7 +100,7 @@ export class ErrorBoundary extends React.Component {
             </p>
 
             {/* Détails de l'erreur en mode développement */}
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details style={{
                 textAlign: 'left',
                 marginBottom: '1.5rem',

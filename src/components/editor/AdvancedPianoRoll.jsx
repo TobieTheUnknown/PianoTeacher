@@ -22,6 +22,7 @@ export function AdvancedPianoRoll({
     onAddNote,
     onRemoveNote,
     onUpdateNote,
+    // eslint-disable-next-line no-unused-vars
     onUpdateHandSeparators,
     onUpdatePhraseLength,
     onClose
@@ -171,6 +172,7 @@ export function AdvancedPianoRoll({
         isSelected,
         startRectSelection,
         updateRectSelection,
+        // eslint-disable-next-line no-unused-vars
         endRectSelection,
         cancelRectSelection
     } = useNoteSelection();
@@ -710,7 +712,7 @@ export function AdvancedPianoRoll({
             if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
-                    const { clipboardData, noteIdsToDelete } = cut(selectedNotes);
+                    const { clipboardData: _clipboardData, noteIdsToDelete } = cut(selectedNotes);
                     noteIdsToDelete.forEach(id => {
                         const note = allNotesGlobal.find(n => n.id === id);
                         if (note) {

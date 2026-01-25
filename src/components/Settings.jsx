@@ -13,22 +13,28 @@ export function Settings({ isOpen, onClose }) {
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
     const fileInputRef = useRef(null);
 
-    // MIDI states
-    const [midiDevices, setMidiDevices] = useState([]);
-    const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
-    const [midiSettings, setMidiSettings] = useState(midiInputService.getSettings());
-    const [midiSupported, setMidiSupported] = useState(midiInputService.isSupported);
+    // MIDI states - initialize with current values to avoid cascade on open
+    const [midiDevices, setMidiDevices] = useState(() => midiInputService.getDevices());
+    const [selectedMidiDevice, setSelectedMidiDevice] = useState(() => midiInputService.getActiveDevice());
+    const [midiSettings, setMidiSettings] = useState(() => midiInputService.getSettings());
+    const [midiSupported, setMidiSupported] = useState(() => midiInputService.isSupported);
     const [showLatencyCalibration, setShowLatencyCalibration] = useState(false);
 
-    // MIDI effects
+    // MIDI effects - refresh data when modal opens
+    // This intentionally syncs external service state on modal open - the setState is necessary
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (!isOpen) return;
 
-        // Load MIDI devices and active device
+        // Batch refresh MIDI state - these values may have changed since component mount
         const devices = midiInputService.getDevices();
-        setMidiDevices(devices);
-        setSelectedMidiDevice(midiInputService.getActiveDevice());
-        setMidiSupported(midiInputService.isSupported);
+        const activeDevice = midiInputService.getActiveDevice();
+        const supported = midiInputService.isSupported;
+
+        // Only update if values have changed - intentional sync from external service
+        setMidiDevices(prev => JSON.stringify(prev) !== JSON.stringify(devices) ? devices : prev);
+        setSelectedMidiDevice(prev => prev !== activeDevice ? activeDevice : prev);
+        setMidiSupported(prev => prev !== supported ? supported : prev);
 
         // Listen for device changes
         const handleDevicesChanged = (devices) => {
@@ -53,6 +59,7 @@ export function Settings({ isOpen, onClose }) {
             midiInputService.removeEventListener('deviceDisconnected', handleDeviceDisconnected);
         };
     }, [isOpen]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     if (!isOpen) return null;
 

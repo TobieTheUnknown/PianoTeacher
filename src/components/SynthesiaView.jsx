@@ -50,7 +50,7 @@ export function SynthesiaView({ song }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [currentBPM, setCurrentBPM] = useState(song?.tempo || 120);
-    const [midiAccess, setMidiAccess] = useState(null);
+    // midiAccess state removed - not used (MIDI is handled via midiInputService)
     const [activeNotes, setActiveNotes] = useState(new Set());
 
     // New features state
@@ -60,6 +60,7 @@ export function SynthesiaView({ song }) {
     const [audioInitialized, setAudioInitialized] = useState(false);
     const [isLoopEnabled, setIsLoopEnabled] = useState(false);
     const [loopConfig, setLoopConfig] = useState(null); // { startMeasure, endMeasure, name }
+    // eslint-disable-next-line no-unused-vars
     const [selectedPhraseIndex, setSelectedPhraseIndex] = useState('');
     const [customRangeStart, setCustomRangeStart] = useState('');
     const [customRangeEnd, setCustomRangeEnd] = useState('');
@@ -119,7 +120,11 @@ export function SynthesiaView({ song }) {
     const WAIT_MODE_THRESHOLD = 0.05; // Wait mode triggers when note is within 50ms of hit line
 
     // Calculate beats per measure based on time signature
-    const timeSignature = song?.timeSignature || { numerator: 4, denominator: 4 };
+    // Memoize timeSignature to avoid creating new object references on every render
+    const timeSignature = useMemo(() => {
+        return song?.timeSignature || { numerator: 4, denominator: 4 };
+    }, [song?.timeSignature]);
+
     const beatsPerMeasure = useMemo(() => {
         if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
             return 4; // Default to 4/4
@@ -179,7 +184,8 @@ export function SynthesiaView({ song }) {
             if (noteToOffset[note] !== undefined && !isNaN(octave)) {
                 return 12 + (octave * 12) + noteToOffset[note];
             }
-        } catch (e) {
+        // eslint-disable-next-line no-unused-vars
+        } catch (_e) {
             console.warn('Invalid note name:', noteName);
         }
         return null;
@@ -261,7 +267,7 @@ export function SynthesiaView({ song }) {
     useEffect(() => {
         // Listen to MIDI note events from MidiInputService
         const handleNoteOn = (event) => {
-            const { note, velocity } = event;
+            const { note } = event;
 
             // Add to active notes (ancienne méthode, conservée pour compatibilité)
             setActiveNotes(prev => new Set([...prev, note]));
@@ -459,7 +465,8 @@ export function SynthesiaView({ song }) {
         setCustomRangeEnd('');
     }, []);
 
-    // Handle phrase selection from dropdown
+    // Handle phrase selection from dropdown (legacy - now handled by TimelineNavigator)
+    // eslint-disable-next-line no-unused-vars
     const handlePhraseSelect = useCallback((event) => {
         const index = event.target.value;
         setSelectedPhraseIndex(index);
@@ -471,7 +478,8 @@ export function SynthesiaView({ song }) {
         }
     }, [phraseMeasureRanges, setLoopForRange]);
 
-    // Handle custom range loop
+    // Handle custom range loop (legacy - now handled by TimelineNavigator)
+    // eslint-disable-next-line no-unused-vars
     const handleCustomRangeLoop = useCallback(() => {
         const start = parseInt(customRangeStart);
         const end = parseInt(customRangeEnd);
@@ -719,13 +727,11 @@ export function SynthesiaView({ song }) {
 
         // Calculate click position based on division
         let currentClickPosition;
-        let clicksPerMeasure;
 
         switch (effectiveDivision) {
             case 'half-measure':
                 // Click twice per measure (1/2)
                 currentClickPosition = Math.floor(currentBeat / (beatsPerMeasure / 2));
-                clicksPerMeasure = 2;
                 break;
             case 'beat':
                 // Click on every beat
@@ -733,17 +739,14 @@ export function SynthesiaView({ song }) {
                 // For simple time, click on quarter notes (1 beat)
                 if (isCompoundTime) {
                     currentClickPosition = Math.floor(currentBeat / 1.5);
-                    clicksPerMeasure = Math.round(beatsPerMeasure / 1.5);
                 } else {
                     currentClickPosition = Math.floor(currentBeat);
-                    clicksPerMeasure = beatsPerMeasure;
                 }
                 break;
             case 'measure':
             default:
                 // Click on every measure (1)
                 currentClickPosition = Math.floor(currentBeat / beatsPerMeasure);
-                clicksPerMeasure = 1;
                 break;
         }
 
@@ -824,9 +827,11 @@ export function SynthesiaView({ song }) {
         }
     };
 
-    // Get key color based on state
+    // Get key color based on state (legacy - color logic is now inline in drawKeyboard)
+    // eslint-disable-next-line no-unused-vars
     const getKeyColor = (midiNote, isBlack) => {
         const isPressed = activeNotes.has(midiNote);
+        // eslint-disable-next-line no-unused-vars
         const isExpectedNote = expectedNotes.has(midiNote);
 
         // Check if note was just played
@@ -900,7 +905,7 @@ export function SynthesiaView({ song }) {
 
     // Draw measure numbers
     const drawMeasureNumbers = (ctx) => {
-        const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+        const _keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
         const lookAheadTime = 4;
         const currentBeat = currentTime * beatsPerSecond;
         const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
@@ -1045,7 +1050,7 @@ export function SynthesiaView({ song }) {
         for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
             if (!isBlackKey(i)) {
                 const x = getNoteX(i);
-                const isPressed = activeNotes.has(i);
+                const _isPressed = activeNotes.has(i);
 
                 // Déterminer l'état de la touche (ordre de priorité)
                 const isStudentKey = activeKeys.student.has(i);
@@ -1127,7 +1132,7 @@ export function SynthesiaView({ song }) {
         for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
             if (isBlackKey(i)) {
                 const x = getNoteX(i);
-                const isPressed = activeNotes.has(i);
+                const _isPressed = activeNotes.has(i);
                 const blackKeyHeight = KEYBOARD_HEIGHT * 0.65;
 
                 // Déterminer l'état de la touche (ordre de priorité)

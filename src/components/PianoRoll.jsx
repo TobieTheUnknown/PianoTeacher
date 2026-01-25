@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
-import { createPortal } from 'react-dom';
-import { getPianoRollKeys, getFrenchNoteName, getNoteNameFromMidi, getMidiNumber } from '../models/song';
+// createPortal removed - not used
+import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { usePlaybackPosition } from '../hooks/usePlaybackPosition';
 
@@ -10,7 +10,7 @@ const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(m
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, timeSignature = { numerator: 4, denominator: 4 }, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit, isCurrentlyPlaying = false }) {
+export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = { numerator: 4, denominator: 4 }, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, isCurrentlyPlaying = false }) {
     // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
     const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
@@ -155,13 +155,26 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
         setDragState(null);
     };
 
+    // Use refs to store handlers to avoid stale closures in event listeners
+    const handleMouseMoveRef = useRef(handleMouseMove);
+    const handleMouseUpRef = useRef(handleMouseUp);
+
+    // Update refs in effect to avoid render-time ref access
+    useEffect(() => {
+        handleMouseMoveRef.current = handleMouseMove;
+        handleMouseUpRef.current = handleMouseUp;
+    });
+
     useEffect(() => {
         if (dragState) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
+            const onMouseMove = (e) => handleMouseMoveRef.current(e);
+            const onMouseUp = () => handleMouseUpRef.current();
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
             return () => {
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
             };
         }
     }, [dragState]);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../services/StorageService';
 import { getFrenchKeyName } from '../models/song';
 
@@ -7,13 +7,15 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
     const [showLibraryModal, setShowLibraryModal] = useState(false);
     const [mergeOnImport, setMergeOnImport] = useState(false);
 
-    useEffect(() => {
-        loadSongs();
+    const loadSongs = useCallback(() => {
+        setSongs(StorageService.getSongs());
     }, []);
 
-    const loadSongs = () => {
-        setSongs(StorageService.getSongs());
-    };
+    useEffect(() => {
+        // Initial data load - setState here is intentional and necessary
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadSongs();
+    }, [loadSongs]);
 
     const handleDelete = (id, e) => {
         e.stopPropagation();
@@ -39,6 +41,7 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                 loadSongs();
                 setShowLibraryModal(false);
                 alert(`Bibliothèque ${mergeOnImport ? 'fusionnée' : 'importée'} avec succès !`);
+            // eslint-disable-next-line no-unused-vars
             } catch (error) {
                 alert('Erreur lors de l\'import du fichier JSON.');
             }

@@ -213,7 +213,8 @@ export const getMidiNumber = (noteName) => {
         if (noteToOffset[note] !== undefined && !isNaN(octave)) {
             return 12 + (octave * 12) + noteToOffset[note];
         }
-    } catch (e) {
+    // eslint-disable-next-line no-unused-vars
+    } catch (_e) {
         console.warn('Invalid note name:', noteName);
     }
     return null;

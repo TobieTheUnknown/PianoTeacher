@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators, onReorderPhrases }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases }) {
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null);
     const [splitTime, setSplitTime] = useState('');
@@ -216,6 +216,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 onImportSong(importedSong);
                 setShowImportExportModal(false);
                 alert("Morceau importé avec succès !");
+            // eslint-disable-next-line no-unused-vars
             } catch (error) {
                 alert("Erreur lors de l'import du fichier JSON.");
             }

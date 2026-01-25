@@ -24,6 +24,7 @@ export function TimelineNavigator({
     onLoopToggle,
     onPhraseLoopSelect,
     isPlaying,
+    // eslint-disable-next-line no-unused-vars
     tempo
 }) {
     // Helper functions pour conversion (définis avant le hook)
@@ -31,6 +32,7 @@ export function TimelineNavigator({
         return ((measure - 1) * 4) / bps;
     }, []);
 
+    // eslint-disable-next-line no-unused-vars
     const timeToMeasure = useCallback((time, bps) => {
         const beats = time * bps;
         // Soustraire un petit epsilon pour éviter que la fin d'une mesure
@@ -56,6 +58,7 @@ export function TimelineNavigator({
         isDraggingLoopHandle,
         handleTimelineClick,
         handleMouseDown,
+        // eslint-disable-next-line no-unused-vars
         handleWheel,
         timeToX
     } = useTimelineInteraction({
@@ -85,18 +88,17 @@ export function TimelineNavigator({
 
     // Calculer les plages de mesures pour chaque phrase
     const phraseMeasureRanges = useMemo(() => {
-        let currentMeasure = 1;
-        return phrases.map((phrase, index) => {
-            const range = {
+        return phrases.reduce((acc, phrase, index) => {
+            const startMeasure = index === 0 ? 1 : acc[index - 1].endMeasure + 1;
+            acc.push({
                 phraseIndex: index,
                 name: phrase.name,
-                startMeasure: currentMeasure,
-                endMeasure: currentMeasure + phrase.length - 1,
+                startMeasure: startMeasure,
+                endMeasure: startMeasure + phrase.length - 1,
                 length: phrase.length
-            };
-            currentMeasure += phrase.length;
-            return range;
-        });
+            });
+            return acc;
+        }, []);
     }, [phrases]);
 
     // Gérer le click sur un raccourci phrase

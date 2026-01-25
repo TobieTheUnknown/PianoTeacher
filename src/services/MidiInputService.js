@@ -88,7 +88,7 @@ class MidiInputService {
         this.isSupported = true;
 
         try {
-            this.midiAccess = await navigator.requestMIDIAccess();
+            this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
             console.log('MIDI Access granted via Web MIDI API');
 
             // Listen for device connection/disconnection
@@ -147,7 +147,7 @@ class MidiInputService {
             this.useTauriMidi = false;
             if (navigator.requestMIDIAccess) {
                 try {
-                    this.midiAccess = await navigator.requestMIDIAccess();
+                    this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
                     this.isSupported = true;
                     this.midiAccess.onstatechange = (e) => this.handleStateChange(e);
                     this.refreshDevices();

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo } from 'react';
 import { useSong } from '../useSong';
 
@@ -21,6 +22,7 @@ export function SongProvider({ children }) {
 
   // Mémoriser le contexte pour éviter re-renders inutiles
   // Seul le changement de song.id déclenche un re-render
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const contextValue = useMemo(() => {
     return {
       // Song data
