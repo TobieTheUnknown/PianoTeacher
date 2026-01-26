@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 
 /**
  * Hook optimisé pour gérer plusieurs layers de canvas
@@ -21,6 +21,9 @@ export const useCanvasLayers = (width, height) => {
   // Container pour tous les canvas
   const containerRef = useRef(null);
 
+  // Track if canvases are mounted
+  const [mounted, setMounted] = useState(false);
+
   // Flags pour savoir quels layers ont besoin d'être redessinés
   const needsRedrawRef = useRef({
     static: true,
@@ -28,29 +31,45 @@ export const useCanvasLayers = (width, height) => {
     overlay: true
   });
 
-  // Initialiser les canvas
+  // Helper function to setup a canvas
+  const setupCanvas = useCallback((canvas, w, h) => {
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d', { alpha: true });
+
+    // Configuration pour meilleur rendu
+    canvas.width = w;
+    canvas.height = h;
+
+    // Optimisations rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    return ctx;
+  }, []);
+
+  // Mark as mounted after first render
   useEffect(() => {
-    if (!containerRef.current) return;
+    // Use requestAnimationFrame to ensure DOM is ready
+    const frameId = requestAnimationFrame(() => {
+      setMounted(true);
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, []);
 
-    const setupCanvas = (canvas) => {
-      if (!canvas) return null;
-      const ctx = canvas.getContext('2d', { alpha: true });
+  // Setup canvases when dimensions change or after mount
+  useEffect(() => {
+    if (!mounted) return;
 
-      // Configuration pour meilleur rendu
-      canvas.width = width;
-      canvas.height = height;
+    // Setup each canvas if it exists
+    if (staticLayerRef.current) setupCanvas(staticLayerRef.current, width, height);
+    if (dynamicLayerRef.current) setupCanvas(dynamicLayerRef.current, width, height);
+    if (overlayLayerRef.current) setupCanvas(overlayLayerRef.current, width, height);
 
-      // Optimisations rendering
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-
-      return ctx;
-    };
-
-    setupCanvas(staticLayerRef.current);
-    setupCanvas(dynamicLayerRef.current);
-    setupCanvas(overlayLayerRef.current);
-  }, [width, height]);
+    // Mark all layers as needing redraw after resize
+    needsRedrawRef.current.static = true;
+    needsRedrawRef.current.dynamic = true;
+    needsRedrawRef.current.overlay = true;
+  }, [width, height, mounted, setupCanvas]);
 
   // Fonctions pour marquer les layers à redessiner
   const markStaticDirty = useCallback(() => {

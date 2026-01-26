@@ -363,7 +363,8 @@ const PianoRollCanvas = memo(({
     // Mark layers dirty when relevant props change
     useEffect(() => {
         markStaticDirty();
-    }, [scrollX, scrollY, showScaleHighlight, phraseLayouts, markStaticDirty]);
+        markDynamicDirty(); // Notes also need redraw when scroll changes
+    }, [scrollX, scrollY, showScaleHighlight, phraseLayouts, markStaticDirty, markDynamicDirty]);
 
     useEffect(() => {
         markDynamicDirty();
@@ -549,7 +550,10 @@ const PianoRollCanvas = memo(({
                 width: 0,
                 height: 0,
                 startX: coords.gridX,
-                startY: coords.gridY
+                startY: coords.gridY,
+                // Store initial scroll to compensate for scroll changes during selection
+                initialScrollX: scrollX,
+                initialScrollY: scrollY
             });
         }
     }, [scrollX, scrollY, cellWidth, cellHeight, keys, notes, totalBeats, selectedIdsSet, onPlayheadSeek, onNoteClick, onNoteDragStart]);
@@ -687,10 +691,14 @@ const PianoRollCanvas = memo(({
             markOverlayDirty();
         } else if (selectionRect) {
             // Update selection rectangle
+            // Compensate for scroll delta since the start of selection
+            const scrollDeltaX = scrollX - selectionRect.initialScrollX;
+            const scrollDeltaY = scrollY - selectionRect.initialScrollY;
+
             const newRect = {
                 ...selectionRect,
-                width: coords.gridX - selectionRect.startX,
-                height: coords.gridY - selectionRect.startY
+                width: coords.gridX - selectionRect.startX + scrollDeltaX,
+                height: coords.gridY - selectionRect.startY + scrollDeltaY
             };
 
             setSelectionRect(newRect);
@@ -940,6 +948,8 @@ const PianoRollCanvas = memo(({
                 height: '100%',
                 overflow: 'hidden',
                 cursor,
+                overscrollBehavior: 'contain', // Prevent browser swipe back/forward
+                touchAction: 'none', // Prevent touch gestures interference
                 ...style
             }}
             onMouseDown={handleMouseDown}

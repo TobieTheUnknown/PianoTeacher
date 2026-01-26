@@ -4,7 +4,10 @@ import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../models/so
 import { audioEngine } from '../services/AudioEngine';
 import { usePlaybackPosition } from '../hooks/usePlaybackPosition';
 
-// Lazy load the advanced piano roll
+// Lazy load the new PianoRollEditor for fullscreen mode
+const PianoRollEditor = lazy(() => import('./editor/PianoRollEditor').then(module => ({ default: module.PianoRollEditor })));
+
+// Keep AdvancedPianoRoll as fallback (deprecated)
 const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(module => ({ default: module.AdvancedPianoRoll })));
 
 const CELL_WIDTH = 40; // px per beat
@@ -605,7 +608,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
         </div>
     );
 
-    // Render advanced piano roll in fullscreen mode (lazy loaded)
+    // Render new PianoRollEditor in fullscreen mode (lazy loaded)
     if (isFullscreen) {
         return (
             <Suspense fallback={
@@ -626,7 +629,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                     Chargement de l'éditeur avancé...
                 </div>
             }>
-                <AdvancedPianoRoll
+                <PianoRollEditor
                     phrase={phrase}
                     allPhrases={[phrase]}
                     keySignature={keySignature}
@@ -636,6 +639,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                     onRemoveNote={onRemoveNote}
                     onUpdateNote={onUpdateNote}
                     onUpdatePhraseLength={onUpdatePhraseLength}
+                    isFullscreen={true}
                     onClose={() => setIsFullscreen(false)}
                 />
             </Suspense>
