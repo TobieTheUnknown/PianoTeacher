@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useRef, useState, memo, useMemo } from 'react';
 import { useCanvasLayers } from '../../../hooks/useCanvasLayers';
+import handColorsService from '../../../services/HandColorsService';
 import {
     drawGrid,
     drawPianoKeys,
@@ -111,6 +112,7 @@ const PianoRollCanvas = memo(({
     const [hoverState, setHoverState] = useState(null);
     const [dragState, setDragState] = useState(null);
     const [selectionRect, setSelectionRect] = useState(null);
+    const [isDeselectMode, setIsDeselectMode] = useState(false);
     const [cursor, setCursor] = useState('crosshair');
 
     // Ref for storing original positions during multi-drag
@@ -159,6 +161,15 @@ const PianoRollCanvas = memo(({
 
         resizeObserver.observe(containerRef.current);
         return () => resizeObserver.disconnect();
+    }, [markStaticDirty, markDynamicDirty]);
+
+    // Subscribe to hand color changes to trigger redraw
+    useEffect(() => {
+        const unsubscribe = handColorsService.addListener(() => {
+            markStaticDirty();  // Grid colors (scale highlighting)
+            markDynamicDirty(); // Note colors
+        });
+        return unsubscribe;
     }, [markStaticDirty, markDynamicDirty]);
 
     // Drawing functions
@@ -265,6 +276,7 @@ const PianoRollCanvas = memo(({
             position: playbackPosition,
             cellWidth,
             scrollX,
+            viewportWidth: dimensions.width,
             viewportHeight: dimensions.height - HEADER_HEIGHT,
             pianoKeyWidth: PIANO_KEY_WIDTH,
             headerHeight: HEADER_HEIGHT,
@@ -286,7 +298,8 @@ const PianoRollCanvas = memo(({
                 scrollX,
                 scrollY,
                 pianoKeyWidth: PIANO_KEY_WIDTH,
-                headerHeight: HEADER_HEIGHT
+                headerHeight: HEADER_HEIGHT,
+                isDeselectMode
             });
         }
 
@@ -319,37 +332,58 @@ const PianoRollCanvas = memo(({
                 headerHeight: HEADER_HEIGHT
             });
         }
-    }, [dimensions, selectionRect, hoverState, dragState, keys, cellWidth, cellHeight, scrollX, scrollY, gridSize]);
+    }, [dimensions, selectionRect, isDeselectMode, hoverState, dragState, keys, cellWidth, cellHeight, scrollX, scrollY, gridSize]);
 
-    // Animation loop
+    // Animation loop - OPTIMIZED: only runs when needed
     useEffect(() => {
         let animationFrameId;
-        const FPS_INTERVAL = 1000 / 60;
+
+        // Determine if continuous animation is needed
+        const needsContinuousAnimation = isPlaying || dragState || selectionRect;
 
         const render = (timestamp) => {
             const elapsed = timestamp - lastDrawTimeRef.current;
+            const FPS_INTERVAL = 1000 / 60;
 
             if (elapsed > FPS_INTERVAL) {
                 lastDrawTimeRef.current = timestamp - (elapsed % FPS_INTERVAL);
 
+                let didDraw = false;
+
                 // Only redraw layers that need it
                 if (needsRedraw.current.static) {
                     drawLayer('static', drawStaticLayer);
+                    didDraw = true;
                 }
 
-                // Dynamic layer redraws every frame during playback or drag
+                // Dynamic layer redraws during playback or when marked dirty
                 if (isPlaying || dragState || needsRedraw.current.dynamic) {
                     drawLayer('dynamic', drawDynamicLayer);
+                    didDraw = true;
                 }
 
+                // Overlay redraws for selection, hover, or drag preview
                 if (needsRedraw.current.overlay || selectionRect || hoverState || dragState) {
                     drawLayer('overlay', drawOverlayLayer);
+                    didDraw = true;
+                }
+
+                // If nothing was drawn and we don't need continuous animation, stop the loop
+                if (!didDraw && !needsContinuousAnimation) {
+                    return;
                 }
             }
 
-            animationFrameId = requestAnimationFrame(render);
+            // Continue loop only if needed
+            if (needsContinuousAnimation ||
+                needsRedraw.current.static ||
+                needsRedraw.current.dynamic ||
+                needsRedraw.current.overlay) {
+                animationFrameId = requestAnimationFrame(render);
+            }
         };
 
+        // Start the loop
         animationFrameId = requestAnimationFrame(render);
         animationFrameRef.current = animationFrameId;
 
@@ -360,15 +394,22 @@ const PianoRollCanvas = memo(({
         };
     }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, isPlaying, dragState, selectionRect, hoverState, needsRedraw]);
 
+    // Re-trigger render loop when hover state changes
+    useEffect(() => {
+        if (hoverState && !animationFrameRef.current) {
+            markOverlayDirty();
+        }
+    }, [hoverState, markOverlayDirty]);
+
     // Mark layers dirty when relevant props change
     useEffect(() => {
         markStaticDirty();
         markDynamicDirty(); // Notes also need redraw when scroll changes
-    }, [scrollX, scrollY, showScaleHighlight, phraseLayouts, markStaticDirty, markDynamicDirty]);
+    }, [scrollX, scrollY, showScaleHighlight, phraseLayouts, gridSize, cellWidth, cellHeight, markStaticDirty, markDynamicDirty]);
 
     useEffect(() => {
         markDynamicDirty();
-    }, [notes, selectedIdsSet, playbackPosition, loopRegion, recordingPreviewNotes, activeRecordingNotes, markDynamicDirty]);
+    }, [notes, selectedIdsSet, playbackPosition, loopRegion, loopEnabled, recordingPreviewNotes, activeRecordingNotes, markDynamicDirty]);
 
     // Follow playhead during playback
     useEffect(() => {
@@ -544,6 +585,8 @@ const PianoRollCanvas = memo(({
             }
         } else {
             // Start selection rectangle
+            // Ctrl/Cmd = deselect mode
+            setIsDeselectMode(e.ctrlKey || e.metaKey);
             setSelectionRect({
                 x: coords.gridX,
                 y: coords.gridY,
@@ -822,6 +865,7 @@ const PianoRollCanvas = memo(({
             }
 
             setSelectionRect(null);
+            setIsDeselectMode(false);
             markOverlayDirty();
         } else {
             // Click on empty grid - add note

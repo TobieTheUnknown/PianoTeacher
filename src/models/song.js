@@ -231,7 +231,7 @@ export const getNoteNameFromMidi = (midiNumber) => {
     return `${noteNames[noteIndex]}${octave}`;
 };
 
-export const getFrenchNoteName = (pitch, keySignature = null) => {
+export const getFrenchNoteName = (pitch, keySignature = null, includeOctave = true) => {
     if (pitch === null || pitch === undefined) return '';
 
     // Normalize to string format for display logic if it's a number
@@ -254,7 +254,7 @@ export const getFrenchNoteName = (pitch, keySignature = null) => {
     // Get the correct enharmonic spelling
     const correctNote = keySignature ? getEnharmonicNote(note, keySignature) : note;
 
-    return `${NOTE_NAMES[correctNote] || correctNote}${octave}`;
+    return `${NOTE_NAMES[correctNote] || correctNote}${includeOctave ? octave : ''}`;
 };
 
 // Helper to generate a scale or chromatic list for the Piano Roll Y-axis

@@ -3,12 +3,10 @@ import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { usePlaybackPosition } from '../hooks/usePlaybackPosition';
+import handColorsService from '../services/HandColorsService';
 
 // Lazy load the new PianoRollEditor for fullscreen mode
 const PianoRollEditor = lazy(() => import('./editor/PianoRollEditor').then(module => ({ default: module.PianoRollEditor })));
-
-// Keep AdvancedPianoRoll as fallback (deprecated)
-const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(module => ({ default: module.AdvancedPianoRoll })));
 
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
@@ -23,6 +21,16 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
     // Fullscreen and zoom
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [zoom, setZoom] = useState(0.5); // 0.5 = 50% (default), 1 = 100%, 1.5 = 150%, etc.
+
+    // Hand colors from service with reactive updates
+    const [handColors, setHandColors] = useState(() => handColorsService.getColors());
+
+    useEffect(() => {
+        const unsubscribe = handColorsService.addListener((colors) => {
+            setHandColors(colors);
+        });
+        return unsubscribe;
+    }, []);
 
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
@@ -360,7 +368,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                                                 : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
                                         }}
                                     >
-                                        {getFrenchNoteName(pitch, keySignature)}
+                                        {getFrenchNoteName(pitch, keySignature, false)}
                                     </div>
                                 );
                             })}
@@ -503,13 +511,13 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                                                 width: `${note.duration * cellWidth - 2}px`,
                                                 height: `${cellHeight - 2}px`,
                                                 background: note.trackName === 'melody'
-                                                    ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
-                                                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                    ? `linear-gradient(135deg, ${handColors.rightHand.primary} 0%, ${handColors.rightHand.dark} 100%)`
+                                                    : `linear-gradient(135deg, ${handColors.leftHand.primary} 0%, ${handColors.leftHand.dark} 100%)`,
                                                 borderRadius: 'var(--radius-sm)',
                                                 cursor: isDragging ? 'grabbing' : 'grab',
                                                 boxShadow: note.trackName === 'melody'
-                                                    ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                                                    : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                                                    ? `0 2px 8px ${handColors.rightHand.primary}66, inset 0 1px 0 rgba(255, 255, 255, 0.2)`
+                                                    : `0 2px 8px ${handColors.leftHand.primary}66, inset 0 1px 0 rgba(255, 255, 255, 0.2)`,
                                                 zIndex: isDragging ? 100 : 10,
                                                 transition: isDragging ? 'none' : 'all var(--transition-fast)',
                                                 border: '1px solid rgba(255, 255, 255, 0.1)',

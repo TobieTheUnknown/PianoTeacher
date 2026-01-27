@@ -1,8 +1,9 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createNoteEvent } from '../models/song';
 
 /**
  * Hook for managing note selection in the piano roll
+ * OPTIMIZED: Stable callbacks and memoized returns to prevent cascading re-renders
  *
  * Features:
  * - Single click selection
@@ -16,6 +17,12 @@ export function useNoteSelection() {
     const [selectionRect, setSelectionRect] = useState(null); // { x, y, width, height }
     const selectionStartRef = useRef(null);
     const justEndedSelectionRef = useRef(false); // Flag to prevent click after drag selection
+
+    // Keep a ref to the current selection for stable callbacks (updated via effect)
+    const selectedNoteIdsRef = useRef(selectedNoteIds);
+    useEffect(() => {
+        selectedNoteIdsRef.current = selectedNoteIds;
+    }, [selectedNoteIds]);
 
     // Select a single note
     const selectNote = useCallback((noteId, additive = false) => {
@@ -48,6 +55,15 @@ export function useNoteSelection() {
         });
     }, []);
 
+    // Deselect multiple notes
+    const deselectNotes = useCallback((noteIds) => {
+        setSelectedNoteIds(prev => {
+            const newSelection = new Set(prev);
+            noteIds.forEach(id => newSelection.delete(id));
+            return newSelection;
+        });
+    }, []);
+
     // Clear selection
     const clearSelection = useCallback(() => {
         setSelectedNoteIds(new Set());
@@ -59,6 +75,8 @@ export function useNoteSelection() {
     }, []);
 
     // Check if note is selected
+    // NOTE: This depends on selectedNoteIds to ensure useMemo/useCallback consumers
+    // get re-evaluated when selection changes
     const isSelected = useCallback((noteId) => {
         return selectedNoteIds.has(noteId);
     }, [selectedNoteIds]);
@@ -86,7 +104,8 @@ export function useNoteSelection() {
     }, []);
 
     // End rectangle selection and return selected notes
-    const endRectSelection = useCallback((notes, cellWidth, cellHeight, keys, additive = false) => {
+    // mode: 'select' (default), 'add' (additive), 'remove' (deselect)
+    const endRectSelection = useCallback((notes, cellWidth, cellHeight, keys, mode = 'select') => {
         if (!selectionRect) {
             selectionStartRef.current = null;
             return;
@@ -95,7 +114,7 @@ export function useNoteSelection() {
         const { x, y, width, height } = selectionRect;
 
         // Find notes that intersect with the selection rectangle
-        const selectedIds = notes.filter(note => {
+        const intersectingIds = notes.filter(note => {
             const noteX = note.startTime * cellWidth;
             const noteY = keys.indexOf(note.pitch) * cellHeight;
             const noteWidth = note.duration * cellWidth;
@@ -110,7 +129,11 @@ export function useNoteSelection() {
             );
         }).map(note => note.id);
 
-        selectNotes(selectedIds, additive);
+        if (mode === 'remove') {
+            deselectNotes(intersectingIds);
+        } else {
+            selectNotes(intersectingIds, mode === 'add');
+        }
 
         // Clear rectangle
         setSelectionRect(null);
@@ -121,7 +144,7 @@ export function useNoteSelection() {
         setTimeout(() => {
             justEndedSelectionRef.current = false;
         }, 50);
-    }, [selectionRect, selectNotes]);
+    }, [selectionRect, selectNotes, deselectNotes]);
 
     // Cancel rectangle selection
     // silently: if true, don't set justEndedSelectionRef (allows onClick to work)
@@ -139,14 +162,18 @@ export function useNoteSelection() {
         }
     }, []);
 
+    // Memoize the array version to avoid creating new arrays on every render
+    const selectedNoteIdsArray = useMemo(() => Array.from(selectedNoteIds), [selectedNoteIds]);
+
     return {
-        selectedNoteIds: Array.from(selectedNoteIds),
+        selectedNoteIds: selectedNoteIdsArray,
         selectedNoteIdsSet: selectedNoteIds,
         selectionRect,
         justEndedSelectionRef,
         selectNote,
         selectNotes,
         deselectNote,
+        deselectNotes,
         clearSelection,
         selectAll,
         isSelected,

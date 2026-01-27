@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import themeEngine from '../services/ThemeEngine';
 import { StorageService } from '../services/StorageService';
 import { midiInputService } from '../services/MidiInputService';
+import handColorsService, { COLOR_PRESETS, SCALE_HIGHLIGHT_PRESETS } from '../services/HandColorsService';
 import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
 
@@ -19,6 +20,17 @@ export function Settings({ isOpen, onClose }) {
     const [midiSettings, setMidiSettings] = useState(() => midiInputService.getSettings());
     const [midiSupported, setMidiSupported] = useState(() => midiInputService.isSupported);
     const [showLatencyCalibration, setShowLatencyCalibration] = useState(false);
+
+    // Hand colors state with listener for external changes
+    const [handColors, setHandColors] = useState(() => handColorsService.getColors());
+
+    // Subscribe to hand colors changes (for synchronization with other components)
+    useEffect(() => {
+        const unsubscribe = handColorsService.addListener((colors) => {
+            setHandColors(colors);
+        });
+        return unsubscribe;
+    }, []);
 
     // MIDI effects - refresh data when modal opens
     // This intentionally syncs external service state on modal open - the setState is necessary
@@ -251,6 +263,11 @@ export function Settings({ isOpen, onClose }) {
                         active={activeTab === 'midi'}
                         onClick={() => setActiveTab('midi')}
                         label="🎹 MIDI"
+                    />
+                    <TabButton
+                        active={activeTab === 'colors'}
+                        onClick={() => setActiveTab('colors')}
+                        label="🎨 Couleurs"
                     />
                 </div>
 
@@ -903,6 +920,263 @@ export function Settings({ isOpen, onClose }) {
                             </div>
                         </div>
                     )}
+
+                    {activeTab === 'colors' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div>
+                                <h3 style={{
+                                    fontSize: '1.1rem',
+                                    fontWeight: '600',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: '1rem'
+                                }}>
+                                    Couleurs des mains
+                                </h3>
+                                <p style={{
+                                    fontSize: '0.9rem',
+                                    color: 'var(--text-secondary)',
+                                    marginBottom: '1rem'
+                                }}>
+                                    Personnalisez les couleurs pour chaque main (utilisées dans l'éditeur et Synthesia)
+                                </p>
+
+                                <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                                    {/* Main Gauche */}
+                                    <div style={{ flex: 1, minWidth: '200px' }}>
+                                        <h4 style={{
+                                            fontSize: '0.95rem',
+                                            fontWeight: '600',
+                                            color: 'var(--text-primary)',
+                                            marginBottom: '0.75rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}>
+                                            <span style={{
+                                                width: '20px',
+                                                height: '20px',
+                                                borderRadius: '4px',
+                                                background: handColors.leftHand.primary
+                                            }}></span>
+                                            Main Gauche (MG)
+                                        </h4>
+                                        <ColorPicker
+                                            label="Couleur principale"
+                                            value={handColors.leftHand.primary}
+                                            onChange={(value) => {
+                                                handColorsService.setHandColors('left', { primary: value, light: value, dark: value });
+                                                setHandColors(handColorsService.getColors());
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Main Droite */}
+                                    <div style={{ flex: 1, minWidth: '200px' }}>
+                                        <h4 style={{
+                                            fontSize: '0.95rem',
+                                            fontWeight: '600',
+                                            color: 'var(--text-primary)',
+                                            marginBottom: '0.75rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}>
+                                            <span style={{
+                                                width: '20px',
+                                                height: '20px',
+                                                borderRadius: '4px',
+                                                background: handColors.rightHand.primary
+                                            }}></span>
+                                            Main Droite (MD)
+                                        </h4>
+                                        <ColorPicker
+                                            label="Couleur principale"
+                                            value={handColors.rightHand.primary}
+                                            onChange={(value) => {
+                                                handColorsService.setHandColors('right', { primary: value, light: value, dark: value });
+                                                setHandColors(handColorsService.getColors());
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Swap button */}
+                                <button
+                                    onClick={() => {
+                                        handColorsService.swapHands();
+                                        setHandColors(handColorsService.getColors());
+                                    }}
+                                    style={{
+                                        marginTop: '1rem',
+                                        padding: '0.5rem 1rem',
+                                        background: 'var(--bg-tertiary)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        fontSize: '0.85rem',
+                                        fontWeight: '500'
+                                    }}
+                                >
+                                    🔄 Échanger les couleurs
+                                </button>
+                            </div>
+
+                            {/* Presets */}
+                            <div style={{
+                                padding: '1rem',
+                                background: 'var(--bg-tertiary)',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid var(--border-color)'
+                            }}>
+                                <h4 style={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: '0.5rem'
+                                }}>
+                                    💡 Presets de couleurs
+                                </h4>
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    {Object.entries(COLOR_PRESETS).map(([key, preset]) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => {
+                                                handColorsService.applyPreset(key);
+                                                setHandColors(handColorsService.getColors());
+                                            }}
+                                            style={{
+                                                padding: '0.5rem 1rem',
+                                                background: 'var(--bg-secondary)',
+                                                color: 'var(--text-primary)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 'var(--radius-md)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                fontWeight: '500',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem'
+                                            }}
+                                        >
+                                            <span style={{
+                                                display: 'flex',
+                                                gap: '2px'
+                                            }}>
+                                                <span style={{
+                                                    width: '12px',
+                                                    height: '12px',
+                                                    borderRadius: '2px',
+                                                    background: preset.leftHand.primary
+                                                }}></span>
+                                                <span style={{
+                                                    width: '12px',
+                                                    height: '12px',
+                                                    borderRadius: '2px',
+                                                    background: preset.rightHand.primary
+                                                }}></span>
+                                            </span>
+                                            {preset.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Scale Highlighting */}
+                            <div>
+                                <h3 style={{
+                                    fontSize: '1.1rem',
+                                    fontWeight: '600',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: '1rem'
+                                }}>
+                                    Surbrillance de la gamme
+                                </h3>
+                                <p style={{
+                                    fontSize: '0.9rem',
+                                    color: 'var(--text-secondary)',
+                                    marginBottom: '1rem'
+                                }}>
+                                    Couleur de surbrillance des notes dans la gamme (Piano Roll)
+                                </p>
+
+                                {/* Advanced color picker for scale highlight */}
+                                <ScaleHighlightColorPicker
+                                    value={handColors.scaleHighlight.inScale}
+                                    onChange={(newColor) => {
+                                        handColorsService.setScaleHighlightColors({ inScale: newColor });
+                                        setHandColors(handColorsService.getColors());
+                                    }}
+                                />
+
+                                {/* Presets */}
+                                <div style={{ marginTop: '1rem' }}>
+                                    <p style={{
+                                        fontSize: '0.85rem',
+                                        color: 'var(--text-secondary)',
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        Presets rapides :
+                                    </p>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        {Object.entries(SCALE_HIGHLIGHT_PRESETS).map(([key, preset]) => (
+                                            <button
+                                                key={key}
+                                                onClick={() => {
+                                                    handColorsService.applyScaleHighlightPreset(key);
+                                                    setHandColors(handColorsService.getColors());
+                                                }}
+                                                style={{
+                                                    padding: '0.4rem 0.75rem',
+                                                    background: 'var(--bg-secondary)',
+                                                    color: 'var(--text-primary)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: '500',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.4rem'
+                                                }}
+                                            >
+                                                <span style={{
+                                                    width: '14px',
+                                                    height: '14px',
+                                                    borderRadius: '2px',
+                                                    background: preset.inScale,
+                                                    border: '1px solid var(--border-color)'
+                                                }}></span>
+                                                {preset.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Reset button */}
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('Voulez-vous vraiment réinitialiser les couleurs par défaut ?')) {
+                                        handColorsService.resetToDefault();
+                                        setHandColors(handColorsService.getColors());
+                                    }
+                                }}
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    background: 'var(--bg-tertiary)',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-md)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                🔄 Réinitialiser les couleurs par défaut
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -1014,5 +1288,145 @@ function PresetButton({ label, onClick }) {
         >
             {label}
         </button>
+    );
+}
+
+/**
+ * Compact color picker for scale highlighting with color input and opacity slider
+ */
+function ScaleHighlightColorPicker({ value, onChange }) {
+    // Parse current rgba value
+    const parseRgba = (rgbaStr) => {
+        const match = rgbaStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+        if (match) {
+            return {
+                r: parseInt(match[1]),
+                g: parseInt(match[2]),
+                b: parseInt(match[3]),
+                a: match[4] !== undefined ? parseFloat(match[4]) : 1
+            };
+        }
+        return { r: 251, g: 191, b: 36, a: 0.15 }; // Default amber
+    };
+
+    // Convert RGB to hex
+    const rgbToHex = (r, g, b) => {
+        return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    };
+
+    // Convert hex to RGB
+    const hexToRgb = (hex) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 251, g: 191, b: 36 };
+    };
+
+    const rgba = parseRgba(value);
+    const hex = rgbToHex(rgba.r, rgba.g, rgba.b);
+
+    const handleColorChange = (newHex) => {
+        const rgb = hexToRgb(newHex);
+        const newColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${rgba.a})`;
+        onChange(newColor);
+    };
+
+    const handleOpacityChange = (newOpacity) => {
+        const newColor = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${newOpacity})`;
+        onChange(newColor);
+    };
+
+    const previewColor = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {/* Color picker row - same style as ColorPicker */}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div style={{
+                    position: 'relative',
+                    width: '60px',
+                    height: '40px'
+                }}>
+                    {/* Checkerboard background for transparency preview */}
+                    <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 10px 10px',
+                        border: '1px solid var(--border-color)'
+                    }} />
+                    {/* Color overlay */}
+                    <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: 'var(--radius-md)',
+                        background: previewColor,
+                        border: '1px solid var(--border-color)'
+                    }} />
+                    <input
+                        type="color"
+                        value={hex}
+                        onChange={(e) => handleColorChange(e.target.value)}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            width: '100%',
+                            height: '100%',
+                            opacity: 0,
+                            cursor: 'pointer'
+                        }}
+                    />
+                </div>
+                <input
+                    type="text"
+                    value={hex}
+                    onChange={(e) => handleColorChange(e.target.value)}
+                    style={{
+                        width: '90px',
+                        padding: '0.5rem 0.75rem',
+                        background: 'var(--bg-tertiary)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.875rem',
+                        fontFamily: 'monospace'
+                    }}
+                />
+                <span style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-secondary)',
+                    fontFamily: 'monospace'
+                }}>
+                    {Math.round(rgba.a * 100)}%
+                </span>
+            </div>
+
+            {/* Opacity slider */}
+            <div>
+                <label style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '0.85rem',
+                    color: 'var(--text-primary)',
+                    marginBottom: '0.25rem'
+                }}>
+                    <span>Opacité</span>
+                </label>
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={Math.round(rgba.a * 100)}
+                    onChange={(e) => handleOpacityChange(parseInt(e.target.value) / 100)}
+                    style={{
+                        width: '100%',
+                        cursor: 'pointer',
+                        accentColor: 'var(--accent-primary)'
+                    }}
+                />
+            </div>
+        </div>
     );
 }

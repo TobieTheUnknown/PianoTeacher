@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import handColorsService from '../../../services/HandColorsService';
 import styles from '../PianoRollEditor.module.css';
 
 const MINIMAP_WIDTH = 200;
@@ -18,6 +19,9 @@ export function Minimap({
 
     const scale = MINIMAP_WIDTH / totalBeats;
 
+    // Get dynamic colors from HandColorsService
+    const handColors = useMemo(() => handColorsService.getColors(), []);
+
     // Draw minimap
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -35,8 +39,8 @@ export function Minimap({
             const x = (note.globalStartTime !== undefined ? note.globalStartTime : note.startTime) * scale;
             const width = Math.max(1, note.duration * scale);
 
-            // Color based on track
-            ctx.fillStyle = note.trackName === 'melody' ? '#8b5cf6' : '#3b82f6';
+            // Color based on track - melody = right hand, chords = left hand
+            ctx.fillStyle = note.trackName === 'melody' ? handColors.rightHand.primary : handColors.leftHand.primary;
             ctx.fillRect(x, 0, width, MINIMAP_HEIGHT);
         });
 
@@ -52,7 +56,7 @@ export function Minimap({
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 2;
         ctx.strokeRect(vpStartX, 0, vpWidth, MINIMAP_HEIGHT);
-    }, [notes, totalBeats, viewportStart, viewportEnd, scale]);
+    }, [notes, totalBeats, viewportStart, viewportEnd, scale, handColors]);
 
     // Handle click to navigate
     const handleClick = useCallback((e) => {

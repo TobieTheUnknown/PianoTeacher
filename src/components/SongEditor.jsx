@@ -382,6 +382,57 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             </select>
                         </div>
                     </div>
+                    <div>
+                        <label style={{
+                            display: 'block',
+                            marginBottom: '0.5rem',
+                            color: 'var(--text-primary)',
+                            fontWeight: '400',
+                            fontSize: '0.875rem'
+                        }}>
+                            Tonalité
+                        </label>
+                        <select
+                            value={(() => {
+                                // Handle both object format {note, mode} and string format
+                                if (!song.key) return 'C';
+                                if (typeof song.key === 'string') return song.key;
+                                if (typeof song.key === 'object' && song.key.note) {
+                                    return song.key.mode === 'minor' ? `${song.key.note}m` : song.key.note;
+                                }
+                                return 'C';
+                            })()}
+                            onChange={(e) => onUpdateMetadata({ key: e.target.value })}
+                            style={{ width: '120px' }}
+                        >
+                            <optgroup label="Majeur">
+                                <option value="C">Do majeur</option>
+                                <option value="G">Sol majeur</option>
+                                <option value="D">Ré majeur</option>
+                                <option value="A">La majeur</option>
+                                <option value="E">Mi majeur</option>
+                                <option value="B">Si majeur</option>
+                                <option value="F#">Fa# majeur</option>
+                                <option value="F">Fa majeur</option>
+                                <option value="Bb">Sib majeur</option>
+                                <option value="Eb">Mib majeur</option>
+                                <option value="Ab">Lab majeur</option>
+                                <option value="Db">Réb majeur</option>
+                            </optgroup>
+                            <optgroup label="Mineur">
+                                <option value="Am">La mineur</option>
+                                <option value="Em">Mi mineur</option>
+                                <option value="Bm">Si mineur</option>
+                                <option value="F#m">Fa# mineur</option>
+                                <option value="C#m">Do# mineur</option>
+                                <option value="Dm">Ré mineur</option>
+                                <option value="Gm">Sol mineur</option>
+                                <option value="Cm">Do mineur</option>
+                                <option value="Fm">Fa mineur</option>
+                                <option value="Bbm">Sib mineur</option>
+                            </optgroup>
+                        </select>
+                    </div>
                 </div>
             </div>
 

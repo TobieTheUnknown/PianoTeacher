@@ -443,18 +443,40 @@ export function SynthesiaViewOptimized({ song }) {
 
     if (computerHands.size === 0) return;
 
+    const notesToActivate = [];
+    const notesToDeactivate = [];
+
     allNotes.forEach(note => {
       if (!computerHands.has(note.hand)) return;
-      if (processedNotesRef.current.has(note.id)) return;
 
       const noteTime = note.startTime / beatsPerSecond;
+      const noteEndTime = noteTime + (note.duration / beatsPerSecond);
 
+      // Note should start playing
       if (currentTime >= noteTime && currentTime < noteTime + 0.1) {
-        audioEngine.playNote(note.pitch, note.duration / beatsPerSecond);
-        processedNotesRef.current.add(note.id);
-        setPlayedNotes(prev => new Map(prev).set(note.id, 'auto'));
+        if (!processedNotesRef.current.has(note.id)) {
+          audioEngine.playNote(note.pitch, note.duration / beatsPerSecond);
+          processedNotesRef.current.add(note.id);
+          setPlayedNotes(prev => new Map(prev).set(note.id, 'auto'));
+          notesToActivate.push(note.pitch);
+        }
+      }
+
+      // Note should stop (for visual feedback)
+      if (currentTime >= noteEndTime && currentTime < noteEndTime + 0.1) {
+        notesToDeactivate.push(note.pitch);
       }
     });
+
+    // Update activeNotes for visual feedback on keyboard
+    if (notesToActivate.length > 0 || notesToDeactivate.length > 0) {
+      setActiveNotes(prev => {
+        const newSet = new Set(prev);
+        notesToActivate.forEach(pitch => newSet.add(pitch));
+        notesToDeactivate.forEach(pitch => newSet.delete(pitch));
+        return newSet;
+      });
+    }
   }, [currentTime, isPlaying, handMode, allNotes, beatsPerSecond]);
 
   // Metronome control

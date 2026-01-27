@@ -1,17 +1,19 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ZoomControls } from './ZoomControls';
 import { GridControls } from './GridControls';
 import { PlaybackControls } from './PlaybackControls';
 import { MetronomeControls } from './MetronomeControls';
 import { LoopControls } from './LoopControls';
+import { MeasureControls } from './MeasureControls';
 import { SelectionActions } from './SelectionActions';
 import styles from '../PianoRollEditor.module.css';
 
 /**
  * Main toolbar component for PianoRollEditor
  * Combines all control groups into a unified toolbar
+ * OPTIMIZED: Wrapped in React.memo with custom comparison to prevent unnecessary re-renders
  */
-export function Toolbar({
+const ToolbarComponent = ({
     // Zoom
     zoom,
     onZoomChange,
@@ -25,6 +27,7 @@ export function Toolbar({
     // Scale highlight
     showScaleHighlight,
     onShowScaleHighlightChange,
+    keySignature,
 
     // Metronome
     metronomeEnabled,
@@ -43,6 +46,11 @@ export function Toolbar({
     onPlay,
     onStop,
     onSeek,
+
+    // Measures
+    totalMeasures,
+    phraseLength,
+    onAddMeasures,
 
     // Selection
     selectedNotesCount,
@@ -68,7 +76,7 @@ export function Toolbar({
     // Fullscreen
     isFullscreen,
     onClose
-}) {
+}) => {
     return (
         <div className={styles.toolbar}>
             {/* Playback Controls */}
@@ -135,6 +143,18 @@ export function Toolbar({
 
             <div className={styles.toolbarDivider} />
 
+            {/* Measure Controls */}
+            {onAddMeasures && (
+                <>
+                    <MeasureControls
+                        totalMeasures={totalMeasures}
+                        phraseLength={phraseLength}
+                        onAddMeasures={onAddMeasures}
+                    />
+                    <div className={styles.toolbarDivider} />
+                </>
+            )}
+
             {/* Scale Highlight Toggle */}
             <div className={styles.toolbarSection}>
                 <button
@@ -143,7 +163,7 @@ export function Toolbar({
                     aria-pressed={showScaleHighlight}
                     title="Afficher les notes de la gamme"
                 >
-                    🎵 Gamme
+                    🎵 {keySignature || 'Do'}
                 </button>
             </div>
 
@@ -199,6 +219,38 @@ export function Toolbar({
             )}
         </div>
     );
-}
+};
+
+/**
+ * Custom comparison function for React.memo
+ * Only re-render when state values change, not when callback references change
+ */
+const arePropsEqual = (prevProps, nextProps) => {
+    // Compare state values that should trigger re-render
+    return (
+        prevProps.zoom === nextProps.zoom &&
+        prevProps.gridSize === nextProps.gridSize &&
+        prevProps.snapToGrid === nextProps.snapToGrid &&
+        prevProps.showScaleHighlight === nextProps.showScaleHighlight &&
+        prevProps.keySignature === nextProps.keySignature &&
+        prevProps.metronomeEnabled === nextProps.metronomeEnabled &&
+        prevProps.metronomeSubdivision === nextProps.metronomeSubdivision &&
+        prevProps.loopEnabled === nextProps.loopEnabled &&
+        prevProps.isPlaying === nextProps.isPlaying &&
+        prevProps.playbackPosition === nextProps.playbackPosition &&
+        prevProps.tempo === nextProps.tempo &&
+        prevProps.totalMeasures === nextProps.totalMeasures &&
+        prevProps.phraseLength === nextProps.phraseLength &&
+        prevProps.selectedNotesCount === nextProps.selectedNotesCount &&
+        prevProps.totalNotesCount === nextProps.totalNotesCount &&
+        prevProps.hasClipboard === nextProps.hasClipboard &&
+        prevProps.canUndo === nextProps.canUndo &&
+        prevProps.canRedo === nextProps.canRedo &&
+        prevProps.isRecording === nextProps.isRecording &&
+        prevProps.isFullscreen === nextProps.isFullscreen
+    );
+};
+
+export const Toolbar = memo(ToolbarComponent, arePropsEqual);
 
 export default Toolbar;

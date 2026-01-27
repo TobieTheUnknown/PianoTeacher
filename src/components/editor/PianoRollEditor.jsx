@@ -102,6 +102,7 @@ export function PianoRollEditor({
     const phraseLayouts = useMemo(() => {
         const layouts = [];
         let cumulativeBeats = 0;
+        let totalMeasures = 0;
 
         phrases.forEach((p, index) => {
             const phraseLengthBeats = p.length * beatsPerMeasure;
@@ -112,15 +113,18 @@ export function PianoRollEditor({
                 phraseName: p.name,
                 startBeat: cumulativeBeats,
                 endBeat: cumulativeBeats + phraseLengthBeats,
-                lengthBeats: phraseLengthBeats
+                lengthBeats: phraseLengthBeats,
+                lengthMeasures: p.length
             });
 
             cumulativeBeats += phraseLengthBeats;
+            totalMeasures += p.length;
         });
 
         return {
             layouts,
-            totalBeats: cumulativeBeats
+            totalBeats: cumulativeBeats,
+            totalMeasures
         };
     }, [phrases, beatsPerMeasure]);
 
@@ -156,6 +160,7 @@ export function PianoRollEditor({
         justEndedSelectionRef,
         selectNote,
         selectNotes,
+        deselectNotes,
         clearSelection,
         selectAll,
         isSelected
@@ -169,7 +174,7 @@ export function PianoRollEditor({
         hasClipboard
     } = useNoteClipboard();
 
-    const { isInScale } = useScaleContext(keySignature);
+    const { isInScale, keySignature: displayKeySignature } = useScaleContext(keySignature);
     const { playbackPosition, isPlaying, seek } = usePlaybackPosition();
 
     // Note name helper
@@ -327,6 +332,15 @@ export function PianoRollEditor({
         });
     }, [allNotesGlobal, selectedNoteIdsSet, gridSize, onUpdateNote, saveStateToHistory]);
 
+    // Add/remove measures handler
+    const handleAddMeasures = useCallback((delta) => {
+        if (!phrase || !onUpdatePhraseLength) return;
+        const newLength = Math.max(1, Math.min(999, phrase.length + delta));
+        if (newLength !== phrase.length) {
+            onUpdatePhraseLength(newLength);
+        }
+    }, [phrase, onUpdatePhraseLength]);
+
     // Grid click handler
     const handleGridClick = useCallback((pitch, globalBeat) => {
         if (justEndedSelectionRef.current) return;
@@ -438,13 +452,20 @@ export function PianoRollEditor({
     }, [allNotesGlobal, getPhraseAtBeat, onUpdateNote, onRemoveNote, onAddNote, saveStateToHistory]);
 
     // Selection complete handler
+    // Ctrl/Cmd = deselect, Shift = add to selection, nothing = replace
     const handleSelectionComplete = useCallback((selectedIds, e) => {
         if (selectedIds.length > 0) {
-            selectNotes(selectedIds, e.ctrlKey || e.metaKey || e.shiftKey);
-        } else if (!e.ctrlKey && !e.metaKey) {
+            if (e.ctrlKey || e.metaKey) {
+                // Deselect mode
+                deselectNotes(selectedIds);
+            } else {
+                // Select mode (additive if shift)
+                selectNotes(selectedIds, e.shiftKey);
+            }
+        } else if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
             clearSelection();
         }
-    }, [selectNotes, clearSelection]);
+    }, [selectNotes, deselectNotes, clearSelection]);
 
     // Playhead seek handler
     const handlePlayheadSeek = useCallback((beat) => {
@@ -534,6 +555,16 @@ export function PianoRollEditor({
 
         setContextMenu(null);
     }, [contextMenu, selectedNotes, allNotesGlobal, copy, cut, paste, duplicate, hasClipboard, playbackPosition, getPhraseAtBeat, onAddNote, onRemoveNote, saveStateToHistory, clearSelection, selectAll, gridSize]);
+
+    // Play handler using playPhrase API
+    const handlePlay = useCallback(() => {
+        const combinedPhrase = { tracks: { melody: [], chords: [] } };
+        phrases.forEach(p => {
+            combinedPhrase.tracks.melody.push(...(p.tracks.melody || []));
+            combinedPhrase.tracks.chords.push(...(p.tracks.chords || []));
+        });
+        audioEngine.playPhrase(combinedPhrase, tempo, playbackPosition, false, null, beatsPerMeasure);
+    }, [phrases, tempo, playbackPosition, beatsPerMeasure]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -633,7 +664,7 @@ export function PianoRollEditor({
                     if (isPlaying) {
                         audioEngine.stop();
                     } else {
-                        audioEngine.playFromBeat(playbackPosition, tempo);
+                        handlePlay();
                     }
                     break;
                 case 'escape':
@@ -656,7 +687,7 @@ export function PianoRollEditor({
         allNotesGlobal, selectedNotes, copy, cut, paste, duplicate, hasClipboard,
         playbackPosition, isPlaying, gridSize, tempo, undo, redo, quantizeNotes,
         onAddNote, onRemoveNote, getPhraseAtBeat, saveStateToHistory,
-        clearSelection, selectAll, isFullscreen, onClose, contextMenu
+        clearSelection, selectAll, isFullscreen, onClose, contextMenu, handlePlay
     ]);
 
     // Scroll handler
@@ -680,6 +711,60 @@ export function PianoRollEditor({
             }
         }
     }, [playbackPosition, isPlaying, loopEnabled, loopRegion, phraseLayouts.totalBeats, seek]);
+
+    // Memoized callbacks for Toolbar to prevent unnecessary re-renders
+    const handleStop = useCallback(() => {
+        audioEngine.stop();
+    }, []);
+
+    const handleCopy = useCallback(() => {
+        if (selectedNotes.length > 0) {
+            copy(selectedNotes);
+        }
+    }, [selectedNotes, copy]);
+
+    const handleCut = useCallback(() => {
+        if (selectedNotes.length > 0) {
+            const toCut = cut(selectedNotes);
+            saveStateToHistory();
+            toCut.forEach(note => onRemoveNote(note.phraseId, note.trackName, note.id));
+            clearSelection();
+        }
+    }, [selectedNotes, cut, saveStateToHistory, onRemoveNote, clearSelection]);
+
+    const handlePaste = useCallback(() => {
+        if (hasClipboard()) {
+            const pasted = paste(playbackPosition);
+            saveStateToHistory();
+            pasted.forEach(note => {
+                const phraseInfo = getPhraseAtBeat(note.startTime);
+                if (phraseInfo) {
+                    onAddNote(phraseInfo.phrase.id, note.trackName || 'melody', note.pitch, note.startTime - phraseInfo.layout.startBeat, note.duration);
+                }
+            });
+        }
+    }, [hasClipboard, paste, playbackPosition, saveStateToHistory, getPhraseAtBeat, onAddNote]);
+
+    const handleDelete = useCallback(() => {
+        if (selectedNotes.length > 0) {
+            saveStateToHistory();
+            selectedNotes.forEach(note => onRemoveNote(note.phraseId, note.trackName, note.id));
+            clearSelection();
+        }
+    }, [selectedNotes, saveStateToHistory, onRemoveNote, clearSelection]);
+
+    const handleDuplicate = useCallback(() => {
+        if (selectedNotes.length > 0) {
+            const duplicated = duplicate(selectedNotes, gridSize);
+            saveStateToHistory();
+            duplicated.forEach(note => {
+                const phraseInfo = getPhraseAtBeat(note.startTime);
+                if (phraseInfo) {
+                    onAddNote(phraseInfo.phrase.id, note.trackName || 'melody', note.pitch, note.startTime - phraseInfo.layout.startBeat, note.duration);
+                }
+            });
+        }
+    }, [selectedNotes, duplicate, gridSize, saveStateToHistory, getPhraseAtBeat, onAddNote]);
 
     // Body scroll lock for fullscreen
     useEffect(() => {
@@ -730,59 +815,30 @@ export function PianoRollEditor({
                 onSnapToGridChange={setSnapToGrid}
                 showScaleHighlight={showScaleHighlight}
                 onShowScaleHighlightChange={setShowScaleHighlight}
+                keySignature={displayKeySignature}
                 metronomeEnabled={metronomeEnabled}
                 onMetronomeEnabledChange={setMetronomeEnabled}
                 metronomeSubdivision={metronomeSubdivision}
                 onMetronomeSubdivisionChange={setMetronomeSubdivision}
                 loopEnabled={loopEnabled}
                 onLoopEnabledChange={setLoopEnabled}
+                totalMeasures={phraseLayouts.totalMeasures}
+                phraseLength={phrase?.length || 0}
+                onAddMeasures={onUpdatePhraseLength ? handleAddMeasures : null}
                 isPlaying={isPlaying}
                 playbackPosition={playbackPosition}
                 tempo={tempo}
-                onPlay={() => audioEngine.playFromBeat(playbackPosition, tempo)}
-                onStop={() => audioEngine.stop()}
+                onPlay={handlePlay}
+                onStop={handleStop}
                 onSeek={seek}
                 selectedNotesCount={selectedNotes.length}
                 totalNotesCount={allNotesGlobal.length}
                 hasClipboard={hasClipboard()}
-                onCopy={() => copy(selectedNotes)}
-                onCut={() => {
-                    const toCut = cut(selectedNotes);
-                    saveStateToHistory();
-                    toCut.forEach(note => onRemoveNote(note.phraseId, note.trackName, note.id));
-                    clearSelection();
-                }}
-                onPaste={() => {
-                    if (hasClipboard()) {
-                        const pasted = paste(playbackPosition);
-                        saveStateToHistory();
-                        pasted.forEach(note => {
-                            const phraseInfo = getPhraseAtBeat(note.startTime);
-                            if (phraseInfo) {
-                                onAddNote(phraseInfo.phrase.id, note.trackName || 'melody', note.pitch, note.startTime - phraseInfo.layout.startBeat, note.duration);
-                            }
-                        });
-                    }
-                }}
-                onDelete={() => {
-                    if (selectedNotes.length > 0) {
-                        saveStateToHistory();
-                        selectedNotes.forEach(note => onRemoveNote(note.phraseId, note.trackName, note.id));
-                        clearSelection();
-                    }
-                }}
-                onDuplicate={() => {
-                    if (selectedNotes.length > 0) {
-                        const duplicated = duplicate(selectedNotes, gridSize);
-                        saveStateToHistory();
-                        duplicated.forEach(note => {
-                            const phraseInfo = getPhraseAtBeat(note.startTime);
-                            if (phraseInfo) {
-                                onAddNote(phraseInfo.phrase.id, note.trackName || 'melody', note.pitch, note.startTime - phraseInfo.layout.startBeat, note.duration);
-                            }
-                        });
-                    }
-                }}
+                onCopy={handleCopy}
+                onCut={handleCut}
+                onPaste={handlePaste}
+                onDelete={handleDelete}
+                onDuplicate={handleDuplicate}
                 onQuantize={quantizeNotes}
                 canUndo={historyIndex >= 0}
                 canRedo={historyIndex < history.length - 1}
