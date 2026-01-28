@@ -121,25 +121,13 @@ export const parseMidiFile = async (file) => {
             const targetTrack = avgPitch < 60 ? 'chords' : 'melody';
 
             track.notes.forEach(note => {
-                // Convert time to beats using integer arithmetic to avoid floating-point errors
-                // Use 1/16 note as base unit (4 divisions per beat)
-                const TICKS_PER_BEAT = 4; // 4 x 1/16 notes = 1 beat
-
-                // Convert seconds to beats
+                // Convert seconds to beats (no quantization - preserve original timing)
                 const startTimeBeats = note.time * (song.tempo / 60);
-                const durationBeats = note.duration * (song.tempo / 60);
-
-                // Convert to ticks (integer)
-                const startTimeTicks = Math.round(startTimeBeats * TICKS_PER_BEAT);
-                const durationTicks = Math.max(1, Math.round(durationBeats * TICKS_PER_BEAT));
-
-                // Convert back to beats (now quantized to 1/16 note grid)
-                const quantizedStartTime = startTimeTicks / TICKS_PER_BEAT;
-                const quantizedDuration = durationTicks / TICKS_PER_BEAT;
+                const durationBeats = Math.max(0.0625, note.duration * (song.tempo / 60)); // Min 1/16 note
 
                 // Create NoteEvent
                 // note.midi is the integer MIDI number (e.g., 60 for C4)
-                const event = createNoteEvent(note.midi, quantizedStartTime, quantizedDuration);
+                const event = createNoteEvent(note.midi, startTimeBeats, durationBeats);
 
                 phrase.tracks[targetTrack].push(event);
             });
