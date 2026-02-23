@@ -77,38 +77,45 @@ export const parseMidiFile = async (file) => {
         const allMidiNotes = [];
 
         // Process tracks
-        midi.tracks.forEach(track => {
-            // Collect notes for key detection
-            allMidiNotes.push(...track.notes);
-            // Simple heuristic: 
-            // - If average pitch < C4 (60), assign to Chords (Left Hand)
-            // - Else assign to Melody (Right Hand)
-            // - Or just put everything in Melody if it's a single track MIDI
+        // Collect notes for key detection first
+        midi.tracks.forEach(track => allMidiNotes.push(...track.notes));
 
-            let avgPitch = 0;
-            if (track.notes.length > 0) {
-                avgPitch = track.notes.reduce((sum, n) => sum + n.midi, 0) / track.notes.length;
+        // Build list of non-empty tracks with their average pitch
+        const nonEmptyTracks = midi.tracks
+            .filter(track => track.notes.length > 0)
+            .map(track => ({
+                track,
+                avgPitch: track.notes.reduce((sum, n) => sum + n.midi, 0) / track.notes.length
+            }));
+
+        // Track assignment heuristic:
+        // - Multi-track MIDI (e.g. two-hand piano): sort by avg pitch, lowest → chords, rest → melody
+        //   This correctly handles left-hand parts whose avg pitch is above C4 (e.g. D4-D5 arpeggios)
+        // - Single-track MIDI: use absolute threshold C4 (MIDI 60) for backward compatibility
+        const assignTarget = (trackInfo, index, sorted) => {
+            if (sorted.length >= 2) {
+                return index === 0 ? 'chords' : 'melody'; // lowest avg → left hand
             }
+            return trackInfo.avgPitch < 60 ? 'chords' : 'melody';
+        };
 
-            const targetTrack = avgPitch < 60 ? 'chords' : 'melody';
+        nonEmptyTracks
+            .sort((a, b) => a.avgPitch - b.avgPitch)
+            .forEach((trackInfo, index, sorted) => {
+                const targetTrack = assignTarget(trackInfo, index, sorted);
+                trackInfo.track.notes.forEach(note => {
+                    // Convert time to beats
+                    const startTime = note.time * (song.tempo / 60);
+                    const duration = note.duration * (song.tempo / 60);
 
-            track.notes.forEach(note => {
-                // Convert time to beats
-                const startTime = note.time * (song.tempo / 60);
-                const duration = note.duration * (song.tempo / 60);
+                    // Round to avoid floating-point precision issues at measure boundaries
+                    const roundedStartTime = Math.round(startTime * 1000) / 1000;
+                    const roundedDuration = Math.round(duration * 1000) / 1000;
 
-                // Round to avoid floating-point precision issues at measure boundaries
-                // This ensures notes at exactly beat 4.0, 8.0, etc. are correctly placed
-                const roundedStartTime = Math.round(startTime * 1000) / 1000;
-                const roundedDuration = Math.round(duration * 1000) / 1000;
-
-                // Create NoteEvent
-                // note.midi is the integer MIDI number (e.g., 60 for C4)
-                const event = createNoteEvent(note.midi, roundedStartTime, roundedDuration);
-
-                phrase.tracks[targetTrack].push(event);
+                    const event = createNoteEvent(note.midi, roundedStartTime, roundedDuration);
+                    phrase.tracks[targetTrack].push(event);
+                });
             });
-        });
 
         // Detect key signature from all notes
         const detectedKey = detectKey(allMidiNotes);

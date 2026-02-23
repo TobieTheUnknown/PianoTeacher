@@ -39,6 +39,44 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote, trackName }
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
+    const autoScrollRef = useRef(null); // requestAnimationFrame ID for edge auto-scroll
+    const mousePositionRef = useRef({ x: 0, y: 0 }); // Current mouse position for auto-scroll loop
+
+    const SCROLL_THRESHOLD = 60; // px from edge to trigger auto-scroll
+    const SCROLL_SPEED = 12;     // max px per frame
+
+    const stopAutoScroll = () => {
+        if (autoScrollRef.current) {
+            cancelAnimationFrame(autoScrollRef.current);
+            autoScrollRef.current = null;
+        }
+    };
+
+    const startAutoScroll = () => {
+        if (autoScrollRef.current) return;
+        const tick = () => {
+            const container = scrollRef.current;
+            if (!container) { autoScrollRef.current = null; return; }
+            const rect = container.getBoundingClientRect();
+            const { x, y } = mousePositionRef.current;
+            let scrollX = 0;
+            let scrollY = 0;
+            if (x < rect.left + SCROLL_THRESHOLD) {
+                scrollX = -SCROLL_SPEED * (1 - (x - rect.left) / SCROLL_THRESHOLD);
+            } else if (x > rect.right - SCROLL_THRESHOLD) {
+                scrollX = SCROLL_SPEED * (1 - (rect.right - x) / SCROLL_THRESHOLD);
+            }
+            if (y < rect.top + SCROLL_THRESHOLD) {
+                scrollY = -SCROLL_SPEED * (1 - (y - rect.top) / SCROLL_THRESHOLD);
+            } else if (y > rect.bottom - SCROLL_THRESHOLD) {
+                scrollY = SCROLL_SPEED * (1 - (rect.bottom - y) / SCROLL_THRESHOLD);
+            }
+            container.scrollLeft += scrollX;
+            container.scrollTop += scrollY;
+            autoScrollRef.current = requestAnimationFrame(tick);
+        };
+        autoScrollRef.current = requestAnimationFrame(tick);
+    };
 
     // Fullscreen and zoom
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -106,6 +144,22 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
     const handleMouseMove = (e) => {
         if (!dragState) return;
 
+        // Update mouse position for auto-scroll loop
+        mousePositionRef.current = { x: e.clientX, y: e.clientY };
+
+        // Start/stop edge auto-scroll
+        const container = scrollRef.current;
+        if (container) {
+            const rect = container.getBoundingClientRect();
+            const nearEdge =
+                e.clientX < rect.left + SCROLL_THRESHOLD ||
+                e.clientX > rect.right - SCROLL_THRESHOLD ||
+                e.clientY < rect.top + SCROLL_THRESHOLD ||
+                e.clientY > rect.bottom - SCROLL_THRESHOLD;
+            if (nearEdge) startAutoScroll();
+            else stopAutoScroll();
+        }
+
         const deltaX = e.clientX - dragState.startX;
         const deltaY = e.clientY - dragState.startY;
 
@@ -153,6 +207,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
     };
 
     const handleMouseUp = () => {
+        stopAutoScroll();
         // If mouse didn't move, treat as click to delete note
         if (dragState && !dragState.hasMoved) {
             if (dragState.noteId) {
@@ -169,6 +224,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
             return () => {
                 window.removeEventListener('mousemove', handleMouseMove);
                 window.removeEventListener('mouseup', handleMouseUp);
+                stopAutoScroll();
             };
         }
     }, [dragState]);
