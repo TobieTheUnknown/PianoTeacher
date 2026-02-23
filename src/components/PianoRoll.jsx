@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { getPianoRollKeys, getFrenchNoteName, getNoteNameFromMidi, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
@@ -11,8 +11,31 @@ const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
 export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit, isCurrentlyPlaying = false }) {
-    // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
-    const [keys] = useState(() => getPianoRollKeys(1, 5));
+    // Compute key range dynamically so notes outside the default octave 1-5 range are always visible
+    const keys = useMemo(() => {
+        const allPitches = [
+            ...phrase.tracks.melody,
+            ...phrase.tracks.chords
+        ]
+            .map(n => typeof n.pitch === 'string' ? getMidiNumber(n.pitch) : n.pitch)
+            .filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
+
+        // Default range: octave 1 to 5 (MIDI 24–83)
+        let startOctave = 1;
+        let endOctave = 5;
+
+        if (allPitches.length > 0) {
+            const minPitch = Math.min(...allPitches);
+            const maxPitch = Math.max(...allPitches);
+            // octave formula (matching getPianoRollKeys): octave = floor((midi - 12) / 12)
+            const minOctave = Math.floor((minPitch - 12) / 12);
+            const maxOctave = Math.floor((maxPitch - 12) / 12);
+            startOctave = Math.min(startOctave, minOctave);
+            endOctave = Math.max(endOctave, maxOctave);
+        }
+
+        return getPianoRollKeys(startOctave, endOctave);
+    }, [phrase.tracks.melody, phrase.tracks.chords]);
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote, trackName }
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
