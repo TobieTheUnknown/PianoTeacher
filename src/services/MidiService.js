@@ -103,34 +103,34 @@ export const parseMidiFile = async (file) => {
 
         // Collect all notes for key detection
         const allMidiNotes = [];
+        midi.tracks.forEach(track => allMidiNotes.push(...track.notes));
 
-        // Process tracks
-        midi.tracks.forEach(track => {
-            // Collect notes for key detection
-            allMidiNotes.push(...track.notes);
-            // Simple heuristic:
-            // - If average pitch < C4 (60), assign to Chords (Left Hand)
-            // - Else assign to Melody (Right Hand)
-            // - Or just put everything in Melody if it's a single track MIDI
+        // Track assignment heuristic:
+        // - Multi-track MIDI: sort by avg pitch, lowest → chords (left hand), rest → melody (right hand)
+        //   Handles left-hand parts whose avg pitch is above C4 (e.g. D4-D5 arpeggios)
+        // - Single-track MIDI: use absolute threshold C4 (60) for backward compatibility
+        const nonEmptyTracks = midi.tracks
+            .filter(track => track.notes.length > 0)
+            .map(track => ({
+                track,
+                avgPitch: track.notes.reduce((sum, n) => sum + n.midi, 0) / track.notes.length
+            }))
+            .sort((a, b) => a.avgPitch - b.avgPitch);
 
-            let avgPitch = 0;
-            if (track.notes.length > 0) {
-                avgPitch = track.notes.reduce((sum, n) => sum + n.midi, 0) / track.notes.length;
-            }
+        nonEmptyTracks.forEach((trackInfo, index) => {
+            const targetTrack = nonEmptyTracks.length >= 2
+                ? (index === 0 ? 'chords' : 'melody')
+                : (trackInfo.avgPitch < 60 ? 'chords' : 'melody');
 
-            const targetTrack = avgPitch < 60 ? 'chords' : 'melody';
-
-            track.notes.forEach(note => {
+            trackInfo.track.notes.forEach(note => {
                 // Convert seconds to beats (no quantization - preserve original timing)
                 const startTimeBeats = note.time * (song.tempo / 60);
                 const durationBeats = Math.max(0.0625, note.duration * (song.tempo / 60)); // Min 1/16 note
 
-                // Create NoteEvent
-                // note.midi is the integer MIDI number (e.g., 60 for C4)
                 const event = createNoteEvent(note.midi, startTimeBeats, durationBeats);
-
                 phrase.tracks[targetTrack].push(event);
             });
+        });
 
         // Detect key signature from all notes
         const detectedKey = detectKey(allMidiNotes);
@@ -138,9 +138,6 @@ export const parseMidiFile = async (file) => {
         console.log("Detected key:", detectedKey);
 
         // Normalize note positions to align with measure boundaries
-        // (beatsPerMeasure already calculated above)
-
-        // Find the earliest note across all tracks
         let earliestNoteTime = Infinity;
         phrase.tracks.melody.forEach(note => {
             if (note.startTime < earliestNoteTime) earliestNoteTime = note.startTime;
@@ -150,21 +147,14 @@ export const parseMidiFile = async (file) => {
         });
 
         if (earliestNoteTime !== Infinity && earliestNoteTime > 0) {
-            // Calculate offset to align to measure boundary
-            // Round down to nearest measure start
             const measuresBeforeFirstNote = Math.floor(earliestNoteTime / beatsPerMeasure);
             const alignedStart = measuresBeforeFirstNote * beatsPerMeasure;
             const offset = earliestNoteTime - alignedStart;
 
             console.log(`Normalizing notes: earliest=${earliestNoteTime}, alignedStart=${alignedStart}, offset=${offset}`);
 
-            // Subtract offset from all notes to align them
-            phrase.tracks.melody.forEach(note => {
-                note.startTime -= offset;
-            });
-            phrase.tracks.chords.forEach(note => {
-                note.startTime -= offset;
-            });
+            phrase.tracks.melody.forEach(note => { note.startTime -= offset; });
+            phrase.tracks.chords.forEach(note => { note.startTime -= offset; });
         }
 
         song.phrases.push(phrase);
