@@ -131,7 +131,6 @@ export const parseMidiFile = async (file) => {
 
                 phrase.tracks[targetTrack].push(event);
             });
-        });
 
         // Detect key signature from all notes
         const detectedKey = detectKey(allMidiNotes);

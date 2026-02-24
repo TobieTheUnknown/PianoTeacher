@@ -50,6 +50,15 @@ Plongez dans l'action avec une visualisation moderne des notes tombantes.
 - **Statistiques de Performance** : Suivez votre précision en temps réel.
 > ![Synthesia](docs/screenshots/synthesia_v2.png)
 
+### 📝 Export de Partitions (Nouveau v2.1)
+Transformez vos morceaux en partitions musicales professionnelles.
+- **Formats SVG et PNG** : Exportez vos partitions dans les formats les plus courants.
+- **Annotations en Français** : Affichez les noms de notes en notation française (Do, Ré, Mi, etc.).
+- **Flexibilité** : Exportez une phrase spécifique ou tout le morceau.
+- **Choix des Portées** : Exportez la mélodie seule, les accords seuls, ou les deux.
+- **Prévisualisation** : Visualisez la partition avant de l'exporter.
+> 📄 Voir la [documentation complète](docs/SHEET_MUSIC_EXPORT.md) pour plus de détails.
+
 ---
 
 ## 🚀 Installation & Lancement
@@ -81,6 +90,7 @@ L'application sera disponible sur `http://localhost:5173`.
 - **Frontend** : [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
 - **Audio Engine** : [Tone.js](https://tonejs.github.io/) pour la synthèse sonore haute fidélité.
 - **MIDI Parsing** : [@tonejs/midi](https://github.com/Tonejs/Midi) avec algorithme propriétaire de détection de tonalité.
+- **Sheet Music Rendering** : [VexFlow](https://www.vexflow.com/) pour le rendu de notation musicale.
 - **Desktop Wrapper** : [Tauri](https://tauri.app/) pour des performances natives légères.
 - **Persistence** : LocalStorage API pour une confidentialité totale (aucune donnée ne quitte votre machine).
 
@@ -88,15 +98,21 @@ L'application sera disponible sur `http://localhost:5173`.
 
 ## 🗺️ Roadmap
 
-### v2.0 (Actuelle)
+### v2.0
 - [x] Support des claviers MIDI USB (Web MIDI API).
 - [x] Enregistrement MIDI en temps réel avec pré-décompte.
 - [x] Éditeur avancé avec sélection multiple et raccourcis clavier.
 - [x] Métronome intégré avec subdivision configurable.
 - [x] Interface utilisateur optimisée et compacte.
 
+### v2.1 (Actuelle)
+- [x] Export de partitions en SVG et PNG.
+- [x] Annotations en français (Do, Ré, Mi).
+- [x] Prévisualisation des partitions avant export.
+
 ### Prochaines versions
-- [ ] Export de partitions en format PDF.
+- [ ] Export de partitions en format PDF multi-pages.
+- [ ] Support des accords simultanés dans les partitions.
 - [ ] Import direct depuis YouTube (Audio-to-MIDI).
 
 ---
