@@ -42,7 +42,9 @@ function toFrenchNotation(key) {
 export function useScaleContext(keySignature) {
     // Normalize keySignature (handle null/undefined/object/string values)
     const normalizedKey = useMemo(() => {
-        if (!keySignature) return 'C';
+        if (!keySignature) {
+            return 'C';
+        }
 
         // If it's an object like { note: 'C', mode: 'major' }
         if (typeof keySignature === 'object' && keySignature.note) {

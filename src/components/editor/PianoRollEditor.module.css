@@ -1,0 +1,366 @@
+/* PianoRollEditor Styles */
+
+.container {
+    display: flex;
+    flex-direction: column;
+    background-color: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 400px;
+    position: relative;
+}
+
+.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100vh;
+    width: 100vw;
+    border-radius: 0;
+    z-index: 9999;
+}
+
+.canvasArea {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.shortcutsHint {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    z-index: 10;
+}
+
+/* Toolbar Styles */
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(180deg, #2d2d2d 0%, #252525 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toolbarSection {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.toolbarDivider {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 4px;
+}
+
+.toolbarButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: #d1d5db;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.toolbarButton:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.toolbarButton:active {
+    transform: scale(0.98);
+}
+
+.toolbarButton.active {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: rgba(139, 92, 246, 0.5);
+    color: #a78bfa;
+}
+
+.toolbarButton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.toolbarSelect {
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: #d1d5db;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+}
+
+.toolbarSelect:focus {
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+.toolbarLabel {
+    font-size: 11px;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.measureDisplay {
+    font-size: 12px;
+    color: #9ca3af;
+    min-width: 55px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.playbackControls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.playButton {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.playButton:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.playButton.playing {
+    background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+}
+
+.positionDisplay {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 12px;
+    color: #d1d5db;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-width: 60px;
+    text-align: center;
+}
+
+.closeButton {
+    margin-left: auto;
+    padding: 6px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 4px;
+    color: #fca5a5;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.closeButton:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Zoom Controls */
+.zoomControls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.zoomValue {
+    font-size: 11px;
+    color: #9ca3af;
+    min-width: 36px;
+    text-align: center;
+}
+
+/* Grid Controls */
+.gridControls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Selection Actions */
+.selectionActions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.selectionCount {
+    font-size: 11px;
+    color: #a78bfa;
+    background: rgba(139, 92, 246, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* Context Menu */
+.contextMenu {
+    position: fixed;
+    background: #2d2d2d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    min-width: 180px;
+    padding: 4px 0;
+    z-index: 10000;
+}
+
+.contextMenuItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: #d1d5db;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.contextMenuItem:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.2);
+}
+
+.contextMenuItem:disabled {
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+.contextMenuShortcut {
+    font-size: 11px;
+    color: #6b7280;
+    margin-left: 16px;
+}
+
+.contextMenuSeparator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+/* Minimap */
+.minimap {
+    position: absolute;
+    bottom: 48px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.minimapCanvas {
+    display: block;
+}
+
+/* Shortcuts Hint */
+.shortcutsHintContainer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 4px;
+    font-size: 10px;
+    color: #9ca3af;
+}
+
+.shortcutItem {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.shortcutKey {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 9px;
+}
+
+/* Recording Indicator */
+.recordingIndicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 4px;
+    animation: pulse 1s infinite;
+}
+
+.recordingDot {
+    width: 8px;
+    height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+}
+
+.recordingText {
+    font-size: 11px;
+    color: #fca5a5;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .toolbar {
+        padding: 6px 8px;
+        gap: 6px;
+    }
+
+    .toolbarButton {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    .toolbarLabel {
+        display: none;
+    }
+}

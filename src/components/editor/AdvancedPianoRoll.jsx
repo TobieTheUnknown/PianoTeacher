@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../../models/song';
 import { audioEngine } from '../../services/AudioEngine';
+import handColorsService from '../../services/HandColorsService';
 import { useNoteSelection, useNoteClipboard } from '../../hooks/useNoteSelection';
 import { useScaleContext } from '../../hooks/useScaleContext';
 import { usePlaybackPosition } from '../../hooks/usePlaybackPosition';
@@ -18,9 +19,11 @@ export function AdvancedPianoRoll({
     allPhrases,
     keySignature,
     tempo = 120,
+    timeSignature = { numerator: 4, denominator: 4 },
     onAddNote,
     onRemoveNote,
     onUpdateNote,
+    // eslint-disable-next-line no-unused-vars
     onUpdateHandSeparators,
     onUpdatePhraseLength,
     onClose
@@ -45,6 +48,7 @@ export function AdvancedPianoRoll({
     const [draggingResizeHandle, setDraggingResizeHandle] = useState(false); // For phrase resize handle
     const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]); // Notes being recorded in real-time
     const [activeRecordingNotes, setActiveRecordingNotes] = useState([]); // Notes currently being held during recording
+    const [isDeselectMode, setIsDeselectMode] = useState(false); // Track if Ctrl/Cmd is pressed during selection
 
     // Undo/Redo state
     const [history, setHistory] = useState([]);
@@ -53,6 +57,35 @@ export function AdvancedPianoRoll({
 
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
+
+    // Get dynamic colors from HandColorsService with reactive updates
+    const [handColors, setHandColors] = useState(() => handColorsService.getColors());
+
+    // Subscribe to hand color changes
+    useEffect(() => {
+        const unsubscribe = handColorsService.addListener((colors) => {
+            setHandColors(colors);
+        });
+        return unsubscribe;
+    }, []);
+
+    // Calculate beats per measure based on time signature
+    // beatsPerMeasure represents quarter notes per measure
+    const beatsPerMeasure = useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return 4; // Default to 4/4
+        }
+        return (timeSignature.numerator / timeSignature.denominator) * 4;
+    }, [timeSignature]);
+
+    // Detect if time signature is compound (ternary)
+    // Compound time: denominator is 8 and numerator is divisible by 3 (e.g., 6/8, 9/8, 12/8)
+    const isCompoundTime = useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return false;
+        }
+        return timeSignature.denominator === 8 && timeSignature.numerator % 3 === 0;
+    }, [timeSignature]);
 
     // Use allPhrases if provided, otherwise fallback to single phrase
     const phrases = useMemo(() => allPhrases || [phrase], [allPhrases, phrase]);
@@ -70,7 +103,7 @@ export function AdvancedPianoRoll({
         let cumulativeMeasures = 0;
 
         phrases.forEach((p, index) => {
-            const phraseLengthBeats = p.length * 4;
+            const phraseLengthBeats = p.length * beatsPerMeasure;
 
             layouts.push({
                 phraseId: p.id,
@@ -97,7 +130,7 @@ export function AdvancedPianoRoll({
             totalMeasures: cumulativeMeasures,
             totalWidth: cumulativeBeats * cellWidth + 90
         };
-    }, [phrases, cellWidth]);
+    }, [phrases, cellWidth, beatsPerMeasure]);
 
     // Transform notes to global coordinates
     const allNotesGlobal = useMemo(() => {
@@ -147,11 +180,13 @@ export function AdvancedPianoRoll({
         justEndedSelectionRef,
         selectNote,
         selectNotes,
+        deselectNotes,
         clearSelection,
         selectAll,
         isSelected,
         startRectSelection,
         updateRectSelection,
+        // eslint-disable-next-line no-unused-vars
         endRectSelection,
         cancelRectSelection
     } = useNoteSelection();
@@ -201,8 +236,11 @@ export function AdvancedPianoRoll({
         }
     }, [playbackPosition, isPlaying, loopEnabled, loopRegion, phraseLayouts.totalBeats, seek]);
 
-    // Get selected notes
-    const selectedNotes = allNotesGlobal.filter(note => isSelected(note.id));
+    // Get selected notes (memoized for performance)
+    const selectedNotes = useMemo(() =>
+        allNotesGlobal.filter(note => isSelected(note.id)),
+        [allNotesGlobal, isSelected]
+    );
 
     // Create snapshot of current notes state
     const createSnapshot = useCallback(() => {
@@ -399,9 +437,9 @@ export function AdvancedPianoRoll({
             const rect = scrollRef.current.getBoundingClientRect();
             const PIANO_KEYS_WIDTH = 90;
             const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
-            const beatPosition = Math.max(4, x / cellWidth); // Minimum 1 measure (4 beats)
-            const measures = Math.round(beatPosition / 4); // Round to nearest measure
-            const clampedMeasures = Math.max(1, Math.min(16, measures)); // 1-16 measures
+            const beatPosition = Math.max(beatsPerMeasure, x / cellWidth); // Minimum 1 measure
+            const measures = Math.round(beatPosition / beatsPerMeasure); // Round to nearest measure
+            const clampedMeasures = Math.max(1, Math.min(999, measures)); // 1-999 measures
             onUpdatePhraseLength(clampedMeasures);
             return;
         }
@@ -550,7 +588,10 @@ export function AdvancedPianoRoll({
             const x = e.clientX - rect.left + scrollRef.current.scrollLeft - PIANO_KEYS_WIDTH;
             const y = e.clientY - rect.top + scrollRef.current.scrollTop - MEASURE_HEADER_HEIGHT;
 
-            if (!e.ctrlKey && !e.metaKey) {
+            // Ctrl/Cmd = deselect mode, Shift = additive mode, neither = replace
+            const isDeselect = e.ctrlKey || e.metaKey;
+            setIsDeselectMode(isDeselect);
+            if (!e.shiftKey && !isDeselect) {
                 clearSelection();
             }
 
@@ -587,7 +628,7 @@ export function AdvancedPianoRoll({
                     return;
                 }
 
-                const selectedIds = allNotesGlobal.filter(note => {
+                const intersectingIds = allNotesGlobal.filter(note => {
                     const noteX = note.globalX;
                     const noteY = keys.indexOf(note.pitch) * cellHeight;
                     const noteWidth = note.duration * cellWidth;
@@ -601,8 +642,14 @@ export function AdvancedPianoRoll({
                     );
                 }).map(note => note.id);
 
-                selectNotes(selectedIds, e.ctrlKey || e.metaKey);
+                // Determine selection mode: Ctrl/Cmd = remove, Shift = add, neither = replace
+                if (e.ctrlKey || e.metaKey) {
+                    deselectNotes(intersectingIds);
+                } else {
+                    selectNotes(intersectingIds, e.shiftKey);
+                }
                 cancelRectSelection();
+                setIsDeselectMode(false);
             };
 
             window.addEventListener('mousemove', handleMouseMove);
@@ -613,7 +660,7 @@ export function AdvancedPianoRoll({
                 window.removeEventListener('mouseup', handleMouseUp);
             };
         }
-    }, [selectionRect, allNotesGlobal, cellWidth, cellHeight, keys, updateRectSelection, selectNotes, cancelRectSelection]);
+    }, [selectionRect, allNotesGlobal, cellWidth, cellHeight, keys, updateRectSelection, selectNotes, deselectNotes, cancelRectSelection, setIsDeselectMode]);
 
     // Handle drag state
     useEffect(() => {
@@ -691,7 +738,7 @@ export function AdvancedPianoRoll({
             if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
-                    const { clipboardData, noteIdsToDelete } = cut(selectedNotes);
+                    const { clipboardData: _clipboardData, noteIdsToDelete } = cut(selectedNotes);
                     noteIdsToDelete.forEach(id => {
                         const note = allNotesGlobal.find(n => n.id === id);
                         if (note) {
@@ -718,7 +765,7 @@ export function AdvancedPianoRoll({
                 if (selectedNotes.length > 0) {
                     e.preventDefault();
                     const maxEndTime = Math.max(...selectedNotes.map(n => n.localStartTime + n.duration));
-                    const offset = Math.ceil(maxEndTime / 4) * 4;
+                    const offset = Math.ceil(maxEndTime / beatsPerMeasure) * beatsPerMeasure;
 
                     const duplicatedNotes = duplicate(selectedNotes, offset);
                     duplicatedNotes.forEach(note => {
@@ -744,7 +791,7 @@ export function AdvancedPianoRoll({
                 if (isPlaying) {
                     audioEngine.stop();
                 } else if (phrases.length > 0) {
-                    audioEngine.playPhrase(phrases[0], tempo);
+                    audioEngine.playPhrase(phrases[0], tempo, null, false, null, beatsPerMeasure);
                 }
             }
         };
@@ -826,13 +873,13 @@ export function AdvancedPianoRoll({
                 });
             });
 
-            // Accumulate total beats (phrase length * 4 beats per measure)
-            totalBeats += phrase.length * 4;
+            // Accumulate total beats (phrase length * beatsPerMeasure)
+            totalBeats += phrase.length * beatsPerMeasure;
         });
 
         return {
             id: 'combined',
-            length: totalBeats / 4, // Convert back to measures
+            length: totalBeats / beatsPerMeasure, // Convert back to measures
             tracks: {
                 melody: combinedMelody,
                 chords: combinedChords
@@ -857,7 +904,7 @@ export function AdvancedPianoRoll({
             // Combine all phrases for continuous playback
             const combinedPhrase = combinePhrases();
             if (combinedPhrase) {
-                audioEngine.playPhrase(combinedPhrase, tempo, startPos);
+                audioEngine.playPhrase(combinedPhrase, tempo, startPos, false, null, beatsPerMeasure);
             }
         }
     }, [isPlaying, phrases, tempo, loopEnabled, loopRegion, seek, combinePhrases, playbackPosition]);
@@ -906,9 +953,52 @@ export function AdvancedPianoRoll({
         // Start playback after pre-roll completes with all phrases combined
         const combinedPhrase = combinePhrases();
         if (combinedPhrase) {
-            audioEngine.playPhrase(combinedPhrase, tempo);
+            audioEngine.playPhrase(combinedPhrase, tempo, null, false, null, beatsPerMeasure);
         }
-    }, [combinePhrases, tempo]);
+    }, [combinePhrases, tempo, beatsPerMeasure]);
+
+    // Quantize all notes to the current grid
+    const quantizeAllNotes = useCallback(() => {
+        if (!phrases || phrases.length === 0) {
+            return;
+        }
+
+        const quantize = (value) => {
+            return Math.round(value / gridSize) * gridSize;
+        };
+
+        phrases.forEach((phrase) => {
+            // Quantize melody notes
+            if (phrase.tracks?.melody) {
+                phrase.tracks.melody.forEach(note => {
+                    const quantizedStart = quantize(note.startTime);
+                    const quantizedDuration = Math.max(gridSize, quantize(note.duration));
+
+                    if (quantizedStart !== note.startTime || quantizedDuration !== note.duration) {
+                        onUpdateNote(phrase.id, 'melody', note.id, {
+                            startTime: quantizedStart,
+                            duration: quantizedDuration
+                        });
+                    }
+                });
+            }
+
+            // Quantize chord notes
+            if (phrase.tracks?.chords) {
+                phrase.tracks.chords.forEach(note => {
+                    const quantizedStart = quantize(note.startTime);
+                    const quantizedDuration = Math.max(gridSize, quantize(note.duration));
+
+                    if (quantizedStart !== note.startTime || quantizedDuration !== note.duration) {
+                        onUpdateNote(phrase.id, 'chords', note.id, {
+                            startTime: quantizedStart,
+                            duration: quantizedDuration
+                        });
+                    }
+                });
+            }
+        });
+    }, [phrases, gridSize, onUpdateNote]);
 
     return createPortal(
         <>
@@ -1126,6 +1216,23 @@ export function AdvancedPianoRoll({
                             >
                                 🧲
                             </button>
+                            <button
+                                onClick={quantizeAllNotes}
+                                style={{
+                                    background: 'var(--bg-tertiary)',
+                                    color: 'var(--text-secondary)',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    marginLeft: '2px'
+                                }}
+                                title="Quantizer toutes les notes sur la grille"
+                            >
+                                ⚡
+                            </button>
                         </div>
 
                         <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
@@ -1223,6 +1330,81 @@ export function AdvancedPianoRoll({
                             >
                                 🎼 {normalizedKeySignature}
                             </button>
+                        </div>
+
+                        <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
+
+                        {/* Measure Controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            <button
+                                onClick={() => {
+                                    if (phrase && onUpdatePhraseLength && phrase.length > 1) {
+                                        onUpdatePhraseLength(phrase.length - 1);
+                                    }
+                                }}
+                                disabled={!phrase || phrase.length <= 1}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: phrase && phrase.length > 1 ? 'pointer' : 'not-allowed',
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    color: phrase && phrase.length > 1 ? 'var(--text-secondary)' : 'var(--text-disabled)',
+                                    opacity: phrase && phrase.length > 1 ? 1 : 0.5
+                                }}
+                                title="Réduire d'une mesure"
+                            >−</button>
+                            <span style={{
+                                fontSize: '0.75rem',
+                                fontWeight: '600',
+                                minWidth: '60px',
+                                textAlign: 'center',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                {phraseLayouts.totalMeasures} mes.
+                            </span>
+                            <button
+                                onClick={() => {
+                                    if (phrase && onUpdatePhraseLength) {
+                                        onUpdatePhraseLength(phrase.length + 1);
+                                    }
+                                }}
+                                disabled={!phrase || !onUpdatePhraseLength}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: phrase && onUpdatePhraseLength ? 'pointer' : 'not-allowed',
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    color: phrase && onUpdatePhraseLength ? 'var(--text-secondary)' : 'var(--text-disabled)',
+                                    opacity: phrase && onUpdatePhraseLength ? 1 : 0.5
+                                }}
+                                title="Ajouter une mesure"
+                            >+</button>
+                            <button
+                                onClick={() => {
+                                    if (phrase && onUpdatePhraseLength) {
+                                        onUpdatePhraseLength(phrase.length + 4);
+                                    }
+                                }}
+                                disabled={!phrase || !onUpdatePhraseLength}
+                                style={{
+                                    background: 'var(--bg-tertiary)',
+                                    border: 'none',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: phrase && onUpdatePhraseLength ? 'pointer' : 'not-allowed',
+                                    fontWeight: '600',
+                                    fontSize: '0.7rem',
+                                    color: phrase && onUpdatePhraseLength ? 'var(--text-secondary)' : 'var(--text-disabled)',
+                                    opacity: phrase && onUpdatePhraseLength ? 1 : 0.5
+                                }}
+                                title="Ajouter 4 mesures"
+                            >+4</button>
                         </div>
 
                         {/* Selection Actions - Only when notes selected */}
@@ -1425,7 +1607,7 @@ export function AdvancedPianoRoll({
                                                     <div
                                                         key={`measure-${layout.phraseId}-${measureOffset}`}
                                                         style={{
-                                                            width: `${4 * cellWidth}px`,
+                                                            width: `${beatsPerMeasure * cellWidth}px`,
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
@@ -1634,28 +1816,91 @@ export function AdvancedPianoRoll({
                                             </div>
                                         ))}
 
-                                        {/* Vertical grid lines - adapts to gridSize */}
+                                        {/* Vertical grid lines - adapts to gridSize and time signature */}
                                         {(() => {
-                                            const totalSubdivisions = phraseLayouts.totalBeats / gridSize;
+                                            // Safety checks with fallbacks
+                                            const safeGridSize = gridSize && gridSize > 0 ? gridSize : 0.25;
+                                            const safeTotalBeats = phraseLayouts.totalBeats || 16;
+                                            const safeBeatsPerMeasure = beatsPerMeasure || 4;
+
+                                            const totalSubdivisions = Math.ceil(safeTotalBeats / safeGridSize);
+
                                             return Array.from({ length: totalSubdivisions }).map((_, subdivIndex) => {
-                                                const beatPosition = subdivIndex * gridSize;
-                                                const isMeasureLine = beatPosition % 4 === 0;
-                                                const isBeatLine = beatPosition % 1 === 0;
+                                                const beatPosition = subdivIndex * safeGridSize;
+                                                const isMeasureLine = Math.abs(beatPosition % safeBeatsPerMeasure) < 0.01;
+
+                                                // Determine line type based on time signature
+                                                let lineType; // 'measure', 'beat', 'subdivision', or 'fine'
+
+                                                if (isMeasureLine) {
+                                                    lineType = 'measure';
+                                                } else if (isCompoundTime) {
+                                                    // In compound time (6/8, 9/8, 12/8):
+                                                    // - "beat" = dotted quarter (1.5 quarter notes / 3 eighth notes)
+                                                    // - "subdivision" = eighth note (0.5 quarter notes)
+                                                    const isOnDottedQuarter = Math.abs(beatPosition % 1.5) < 0.01;
+                                                    const isOnEighth = Math.abs(beatPosition % 0.5) < 0.01;
+
+                                                    if (isOnDottedQuarter) {
+                                                        lineType = 'beat';
+                                                    } else if (isOnEighth) {
+                                                        lineType = 'subdivision';
+                                                    } else {
+                                                        lineType = 'fine';
+                                                    }
+                                                } else {
+                                                    // In simple time (4/4, 3/4, 2/4):
+                                                    // - "beat" = quarter note (1.0 beat)
+                                                    // - "subdivision" = anything aligned with gridSize
+                                                    const isOnQuarter = Math.abs(beatPosition % 1) < 0.01;
+
+                                                    if (isOnQuarter) {
+                                                        lineType = 'beat';
+                                                    } else {
+                                                        lineType = 'subdivision';
+                                                    }
+                                                }
+
+                                                // Style based on line type
+                                                let lineStyle;
+                                                switch (lineType) {
+                                                    case 'measure':
+                                                        lineStyle = {
+                                                            width: '2px',
+                                                            background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)',
+                                                            zIndex: 3
+                                                        };
+                                                        break;
+                                                    case 'beat':
+                                                        lineStyle = {
+                                                            width: '1px',
+                                                            background: 'rgba(255, 255, 255, 0.12)',
+                                                            zIndex: 2
+                                                        };
+                                                        break;
+                                                    case 'subdivision':
+                                                        lineStyle = {
+                                                            width: '1px',
+                                                            background: 'rgba(255, 255, 255, 0.12)',
+                                                            zIndex: 1
+                                                        };
+                                                        break;
+                                                    default: // 'fine'
+                                                        lineStyle = {
+                                                            width: '1px',
+                                                            background: 'rgba(255, 255, 255, 0.06)',
+                                                            zIndex: 1
+                                                        };
+                                                }
 
                                                 return (
                                                     <div key={`v-${subdivIndex}`} style={{
                                                         position: 'absolute',
                                                         left: `${beatPosition * cellWidth}px`,
                                                         top: 0,
-                                                        bottom: 0,
-                                                        width: isMeasureLine ? '2px' : isBeatLine ? '1px' : '1px',
-                                                        background: isMeasureLine
-                                                            ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
-                                                            : isBeatLine
-                                                            ? 'rgba(255, 255, 255, 0.08)'
-                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                        height: '100%',
                                                         pointerEvents: 'none',
-                                                        zIndex: isMeasureLine ? 3 : isBeatLine ? 2 : 1
+                                                        ...lineStyle
                                                     }} />
                                                 );
                                             });
@@ -1706,18 +1951,16 @@ export function AdvancedPianoRoll({
                                                         height: `${cellHeight - 2}px`,
                                                         background: note.trackName === 'melody'
                                                             ? noteIsSelected
-                                                                ? 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)'
-                                                                : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                                                                ? handColors.rightHand.selected
+                                                                : handColors.rightHand.primary
                                                             : noteIsSelected
-                                                            ? 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)'
-                                                            : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                            ? handColors.leftHand.selected
+                                                            : handColors.leftHand.primary,
                                                         borderRadius: 'var(--radius-sm)',
                                                         cursor: isDragging ? 'grabbing' : 'grab',
                                                         boxShadow: noteIsSelected
-                                                            ? '0 0 0 2px white, 0 4px 12px rgba(139, 92, 246, 0.6)'
-                                                            : note.trackName === 'melody'
-                                                            ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                                                            : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                                                            ? `0 0 0 2px white, 0 4px 12px ${note.trackName === 'melody' ? handColors.rightHand.primary : handColors.leftHand.primary}66`
+                                                            : `0 2px 8px ${note.trackName === 'melody' ? handColors.rightHand.primary : handColors.leftHand.primary}44, inset 0 1px 0 rgba(255, 255, 255, 0.2)`,
                                                         zIndex: isDragging ? 100 : noteIsSelected ? 20 : 10,
                                                         transition: isDragging ? 'none' : 'all var(--transition-fast)',
                                                         border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -1895,8 +2138,12 @@ export function AdvancedPianoRoll({
                                                 top: `${selectionRect.y}px`,
                                                 width: `${selectionRect.width}px`,
                                                 height: `${selectionRect.height}px`,
-                                                border: '2px dashed rgba(139, 92, 246, 0.8)',
-                                                background: 'rgba(139, 92, 246, 0.1)',
+                                                border: isDeselectMode
+                                                    ? '2px dashed rgba(239, 68, 68, 0.8)'
+                                                    : '2px dashed rgba(139, 92, 246, 0.8)',
+                                                background: isDeselectMode
+                                                    ? 'rgba(239, 68, 68, 0.1)'
+                                                    : 'rgba(139, 92, 246, 0.1)',
                                                 pointerEvents: 'none',
                                                 zIndex: 200
                                             }} />
@@ -1924,6 +2171,8 @@ export function AdvancedPianoRoll({
                         <span><strong>Ctrl+X</strong> Couper</span>
                         <span><strong>Ctrl+V</strong> Coller</span>
                         <span><strong>Ctrl+D</strong> Dupliquer</span>
+                        <span><strong>Shift+Drag</strong> Ajouter à la sélection</span>
+                        <span><strong>Ctrl+Drag</strong> Désélectionner</span>
                         <span><strong>Suppr</strong> Effacer</span>
                         <span><strong>Échap</strong> Fermer</span>
                     </div>

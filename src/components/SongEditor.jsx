@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onUpdateHandSeparators, onReorderPhrases }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases }) {
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null);
     const [splitTime, setSplitTime] = useState('');
@@ -54,11 +54,14 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
         setPlayingPhraseId(phrase.id);
+        // Calculate beatsPerMeasure from time signature
+        const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
+        const beatsPerMeasure = (timeSignature.numerator / timeSignature.denominator) * 4;
         // stopAtEnd = true to automatically stop at end of the phrase
         // Pass a callback to clear playingPhraseId when playback ends
         audioEngine.playPhrase(phrase, song.tempo, null, true, () => {
             setPlayingPhraseId(null);
-        });
+        }, beatsPerMeasure);
     };
 
     const handleStop = () => {
@@ -141,7 +144,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             return;
         }
 
-        const beatsPerMeasure = 4;
+        const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
+        const beatsPerMeasure = (timeSignature.numerator / timeSignature.denominator) * 4;
 
         if (isBatchSplit) {
             const phrase = song.phrases.find(p => p.id === splitMode.phraseId);
@@ -212,6 +216,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 onImportSong(importedSong);
                 setShowImportExportModal(false);
                 alert("Morceau importé avec succès !");
+            // eslint-disable-next-line no-unused-vars
             } catch (error) {
                 alert("Erreur lors de l'import du fichier JSON.");
             }
@@ -334,6 +339,99 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             onChange={(e) => onUpdateMetadata({ tempo: parseInt(e.target.value) })}
                             placeholder="120"
                         />
+                    </div>
+                    <div>
+                        <label style={{
+                            display: 'block',
+                            marginBottom: '0.5rem',
+                            color: 'var(--text-primary)',
+                            fontWeight: '400',
+                            fontSize: '0.875rem'
+                        }}>
+                            Signature rythmique
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                                type="number"
+                                value={song.timeSignature?.numerator || 4}
+                                onChange={(e) => onUpdateMetadata({
+                                    timeSignature: {
+                                        ...song.timeSignature,
+                                        numerator: parseInt(e.target.value) || 4
+                                    }
+                                })}
+                                min="1"
+                                max="16"
+                                style={{ width: '60px', textAlign: 'center' }}
+                            />
+                            <span style={{ fontSize: '1.25rem', color: 'var(--text-secondary)' }}>/</span>
+                            <select
+                                value={song.timeSignature?.denominator || 4}
+                                onChange={(e) => onUpdateMetadata({
+                                    timeSignature: {
+                                        ...song.timeSignature,
+                                        denominator: parseInt(e.target.value)
+                                    }
+                                })}
+                                style={{ width: '80px' }}
+                            >
+                                <option value="2">2</option>
+                                <option value="4">4</option>
+                                <option value="8">8</option>
+                                <option value="16">16</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label style={{
+                            display: 'block',
+                            marginBottom: '0.5rem',
+                            color: 'var(--text-primary)',
+                            fontWeight: '400',
+                            fontSize: '0.875rem'
+                        }}>
+                            Tonalité
+                        </label>
+                        <select
+                            value={(() => {
+                                // Handle both object format {note, mode} and string format
+                                if (!song.key) return 'C';
+                                if (typeof song.key === 'string') return song.key;
+                                if (typeof song.key === 'object' && song.key.note) {
+                                    return song.key.mode === 'minor' ? `${song.key.note}m` : song.key.note;
+                                }
+                                return 'C';
+                            })()}
+                            onChange={(e) => onUpdateMetadata({ key: e.target.value })}
+                            style={{ width: '120px' }}
+                        >
+                            <optgroup label="Majeur">
+                                <option value="C">Do majeur</option>
+                                <option value="G">Sol majeur</option>
+                                <option value="D">Ré majeur</option>
+                                <option value="A">La majeur</option>
+                                <option value="E">Mi majeur</option>
+                                <option value="B">Si majeur</option>
+                                <option value="F#">Fa# majeur</option>
+                                <option value="F">Fa majeur</option>
+                                <option value="Bb">Sib majeur</option>
+                                <option value="Eb">Mib majeur</option>
+                                <option value="Ab">Lab majeur</option>
+                                <option value="Db">Réb majeur</option>
+                            </optgroup>
+                            <optgroup label="Mineur">
+                                <option value="Am">La mineur</option>
+                                <option value="Em">Mi mineur</option>
+                                <option value="Bm">Si mineur</option>
+                                <option value="F#m">Fa# mineur</option>
+                                <option value="C#m">Do# mineur</option>
+                                <option value="Dm">Ré mineur</option>
+                                <option value="Gm">Sol mineur</option>
+                                <option value="Cm">Do mineur</option>
+                                <option value="Fm">Fa mineur</option>
+                                <option value="Bbm">Sib mineur</option>
+                            </optgroup>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -672,6 +770,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 allPhrases={song.phrases}
                                 keySignature={song.key}
                                 tempo={song.tempo}
+                                timeSignature={song.timeSignature || { numerator: 4, denominator: 4 }}
                                 onAddNote={addNoteToPhrase}
                                 onRemoveNote={removeNoteFromPhrase}
                                 onUpdateNote={onUpdateNote}

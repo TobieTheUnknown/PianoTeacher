@@ -21,6 +21,12 @@ const migrateSong = (song) => {
     if (!song || !song.phrases) return song;
 
     const migratedSong = { ...song };
+
+    // Add default timeSignature if missing
+    if (!migratedSong.timeSignature) {
+        migratedSong.timeSignature = { numerator: 4, denominator: 4 };
+    }
+
     migratedSong.phrases = song.phrases.map(phrase => {
         const newPhrase = { ...phrase };
 

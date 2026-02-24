@@ -62,41 +62,13 @@ export function LiveLearning({ song, onToggleHighlight }) {
         };
     }, [song]);
 
-    const handlePlayMeasure = async (measure, hand = 'both') => {
-        await audioEngine.initialize();
-
-        let notesToPlay = [];
-        if (hand === 'both') {
-            notesToPlay = [...measure.melody, ...measure.chords];
-        } else if (hand === 'right') {
-            notesToPlay = measure.melody;
-        } else if (hand === 'left') {
-            notesToPlay = measure.chords;
-        }
-
-        if (notesToPlay.length > 0) {
-            audioEngine.playNotes(notesToPlay, song.tempo);
-        }
-    };
-
-    // Helper to display note name with optional octave
-    const displayNoteName = (pitch, keySignature) => {
-        const fullName = getFrenchNoteName(pitch, keySignature);
-        if (showOctaves) return fullName;
-        // Remove the octave number (last character)
-        return fullName.slice(0, -1);
-    };
-
-    if (!analysis) {
-        return (
-            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                Aucun morceau chargé. Importez un fichier MIDI pour commencer.
-            </div>
-        );
-    }
-
     // Group measures by phrase, then by 4 within each phrase
+    // Moved before early return to comply with React hooks rules
     const phrasesWithGroups = useMemo(() => {
+        if (!song || !song.phrases || song.phrases.length === 0) {
+            return [];
+        }
+
         const result = [];
         let currentPhraseIndex = 0;
 
@@ -133,6 +105,39 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
         return result;
     }, [song]);
+
+    const handlePlayMeasure = async (measure, hand = 'both') => {
+        await audioEngine.initialize();
+
+        let notesToPlay = [];
+        if (hand === 'both') {
+            notesToPlay = [...measure.melody, ...measure.chords];
+        } else if (hand === 'right') {
+            notesToPlay = measure.melody;
+        } else if (hand === 'left') {
+            notesToPlay = measure.chords;
+        }
+
+        if (notesToPlay.length > 0) {
+            audioEngine.playNotes(notesToPlay, song.tempo);
+        }
+    };
+
+    // Helper to display note name with optional octave
+    const displayNoteName = (pitch, keySignature) => {
+        const fullName = getFrenchNoteName(pitch, keySignature);
+        if (showOctaves) return fullName;
+        // Remove the octave number (last character)
+        return fullName.slice(0, -1);
+    };
+
+    if (!analysis) {
+        return (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                Aucun morceau chargé. Importez un fichier MIDI pour commencer.
+            </div>
+        );
+    }
 
     const highlightedMeasures = song.highlightedMeasures || [];
 

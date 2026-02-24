@@ -18,6 +18,7 @@ export const createSong = (title = 'Nouveau Morceau') => ({
     artist: '',
     key: { note: 'C', mode: 'major' }, // Key signature with note and mode
     tempo: 120,
+    timeSignature: { numerator: 4, denominator: 4 }, // Time signature (e.g., 4/4, 3/4, 6/8)
     phrases: [],
     highlightedMeasures: [], // Array of measure numbers that are highlighted
     createdAt: new Date().toISOString(),
@@ -212,7 +213,8 @@ export const getMidiNumber = (noteName) => {
         if (noteToOffset[note] !== undefined && !isNaN(octave)) {
             return 12 + (octave * 12) + noteToOffset[note];
         }
-    } catch (e) {
+    // eslint-disable-next-line no-unused-vars
+    } catch (_e) {
         console.warn('Invalid note name:', noteName);
     }
     return null;
@@ -229,7 +231,7 @@ export const getNoteNameFromMidi = (midiNumber) => {
     return `${noteNames[noteIndex]}${octave}`;
 };
 
-export const getFrenchNoteName = (pitch, keySignature = null) => {
+export const getFrenchNoteName = (pitch, keySignature = null, includeOctave = true) => {
     if (pitch === null || pitch === undefined) return '';
 
     // Normalize to string format for display logic if it's a number
@@ -252,7 +254,7 @@ export const getFrenchNoteName = (pitch, keySignature = null) => {
     // Get the correct enharmonic spelling
     const correctNote = keySignature ? getEnharmonicNote(note, keySignature) : note;
 
-    return `${NOTE_NAMES[correctNote] || correctNote}${octave}`;
+    return `${NOTE_NAMES[correctNote] || correctNote}${includeOctave ? octave : ''}`;
 };
 
 // Helper to generate a scale or chromatic list for the Piano Roll Y-axis

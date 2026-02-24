@@ -31,6 +31,7 @@ export function MidiRecorder({
         isPreRoll,
         preRollCount,
         recordedNotes,
+        // eslint-disable-next-line no-unused-vars
         activeNotes,
         startRecording,
         stopRecording,

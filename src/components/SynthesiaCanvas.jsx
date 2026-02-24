@@ -1,21 +1,18 @@
-import React, { useEffect, useCallback, useRef, memo } from 'react';
+import React, { useEffect, useCallback, useRef, memo, useState } from 'react';
 import { useCanvasLayers } from '../hooks/useCanvasLayers';
 import { getFrenchNoteName } from '../models/song';
+import handColorsService from '../services/HandColorsService';
 import styles from './SynthesiaView.module.css';
 
-// Color constants
-const COLORS = {
+// Static color constants (non-hand colors)
+const STATIC_COLORS = {
   background: '#1a1a1a',
   whiteKey: '#ffffff',
   blackKey: '#000000',
-  whiteKeyPressed: '#60a5fa',
-  blackKeyPressed: '#3b82f6',
   whiteKeyCorrect: '#86efac',
   blackKeyCorrect: '#22c55e',
   whiteKeyWrong: '#fca5a5',
   blackKeyWrong: '#ef4444',
-  rightHand: '#60a5fa',
-  leftHand: '#f472b6',
   playedCorrect: '#22c55e',
   playedWrong: '#ef4444',
   missed: '#f59e0b'
@@ -41,6 +38,7 @@ const SynthesiaCanvas = memo(({
   activeNotes,
   playedNotes,
   feedbackMessages,
+  // eslint-disable-next-line no-unused-vars
   expectedNotes,
   allNotes,
   beatsPerSecond,
@@ -61,6 +59,34 @@ const SynthesiaCanvas = memo(({
   } = useCanvasLayers(CANVAS_WIDTH, CANVAS_HEIGHT);
 
   const lastDrawTimeRef = useRef(0);
+
+  // Subscribe to hand color changes from HandColorsService
+  const [handColors, setHandColors] = useState(() => handColorsService.getColors());
+
+  useEffect(() => {
+    const unsubscribe = handColorsService.addListener((colors) => {
+      setHandColors(colors);
+      markDynamicDirty(); // Force redraw when colors change
+    });
+    return unsubscribe;
+  }, [markDynamicDirty]);
+
+  // Function to get dynamic colors using the reactive state
+  const getDynamicColors = useCallback(() => {
+    return {
+      ...STATIC_COLORS,
+      // Hand colors from state (reactive)
+      rightHand: handColors.rightHand.primary,
+      rightHandLight: handColors.rightHand.light,
+      rightHandDark: handColors.rightHand.dark,
+      leftHand: handColors.leftHand.primary,
+      leftHandLight: handColors.leftHand.light,
+      leftHandDark: handColors.leftHand.dark,
+      // Key pressed colors based on hands
+      whiteKeyPressed: handColors.leftHand.light, // Default to left hand for freeplay
+      blackKeyPressed: handColors.leftHand.dark,
+    };
+  }, [handColors]);
 
   // Helper functions
   const isBlackKey = useCallback((midiNote) => {
@@ -89,21 +115,43 @@ const SynthesiaCanvas = memo(({
   const getKeyColor = useCallback((midiNote, isBlack) => {
     const isPressed = activeNotes.has(midiNote);
     const recentFeedback = feedbackMessages.find(f => f.noteNum === midiNote);
+    const colors = getDynamicColors();
 
     if (isPressed && recentFeedback) {
       if (recentFeedback.type === 'correct') {
-        return isBlack ? COLORS.blackKeyCorrect : COLORS.whiteKeyCorrect;
+        return isBlack ? STATIC_COLORS.blackKeyCorrect : STATIC_COLORS.whiteKeyCorrect;
       } else if (recentFeedback.type === 'wrong') {
-        return isBlack ? COLORS.blackKeyWrong : COLORS.whiteKeyWrong;
+        return isBlack ? STATIC_COLORS.blackKeyWrong : STATIC_COLORS.whiteKeyWrong;
       }
     }
 
     if (isPressed) {
-      return isBlack ? COLORS.blackKeyPressed : COLORS.whiteKeyPressed;
+      // Find if this note is expected and determine which hand
+      const lookAheadTime = 0.5; // Look for notes within 0.5 seconds
+      const expectedNote = allNotes.find(note => {
+        const noteStartTime = note.startTime / beatsPerSecond;
+        const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
+        // Note is expected if we're within its time window (with some tolerance)
+        return note.pitch === midiNote &&
+               currentTime >= noteStartTime - lookAheadTime &&
+               currentTime <= noteEndTime + 0.1;
+      });
+
+      if (expectedNote) {
+        // Color based on hand from dynamic service
+        if (expectedNote.hand === 'right') {
+          return isBlack ? colors.rightHandDark : colors.rightHandLight;
+        } else {
+          return isBlack ? colors.leftHandDark : colors.leftHandLight;
+        }
+      }
+
+      // Default pressed color (freeplay or no expected note)
+      return isBlack ? colors.blackKeyPressed : colors.whiteKeyPressed;
     }
 
-    return isBlack ? COLORS.blackKey : COLORS.whiteKey;
-  }, [activeNotes, feedbackMessages]);
+    return isBlack ? STATIC_COLORS.blackKey : STATIC_COLORS.whiteKey;
+  }, [activeNotes, feedbackMessages, allNotes, beatsPerSecond, currentTime, getDynamicColors]);
 
   const darkenColor = useCallback((color, amount = 0.3) => {
     if (!color.startsWith('#')) return color;
@@ -280,7 +328,9 @@ const SynthesiaCanvas = memo(({
     const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
-    // Falling notes
+    // Falling notes - get dynamic colors once per frame
+    const noteColors = getDynamicColors();
+
     allNotes.forEach(note => {
       const noteStartTime = note.startTime / beatsPerSecond;
       const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
@@ -305,14 +355,16 @@ const SynthesiaCanvas = memo(({
 
       if (endY < 0 && startY < 0) return;
 
-      let color = note.hand === 'right' ? COLORS.rightHand : COLORS.leftHand;
+      // Use dynamic colors from service
+      let color = note.hand === 'right' ? noteColors.rightHand : noteColors.leftHand;
 
       if (playStatus === 'correct') {
-        color = COLORS.playedCorrect;
+        color = STATIC_COLORS.playedCorrect;
       } else if (playStatus === 'missed') {
-        color = COLORS.missed;
+        color = STATIC_COLORS.missed;
       } else if (playStatus === 'auto') {
-        color = note.hand === 'right' ? '#93c5fd' : '#f9a8d4';
+        // Auto-played notes: lighter version of hand color
+        color = note.hand === 'right' ? noteColors.rightHandLight : noteColors.leftHandLight;
       }
 
       const isNoteBlack = isBlackKey(note.pitch);
@@ -437,7 +489,7 @@ const SynthesiaCanvas = memo(({
     ctx.stroke();
 
     ctx.shadowBlur = 0;
-  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect]);
+  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors]);
 
   // Draw overlay layer (feedback, combo) - changes occasionally
   const drawOverlayLayer = useCallback((ctx) => {
@@ -455,7 +507,7 @@ const SynthesiaCanvas = memo(({
 
       ctx.globalAlpha = opacity;
 
-      let color = COLORS.playedCorrect;
+      let color = STATIC_COLORS.playedCorrect;
       let fontSize = 18;
       let fontWeight = 'bold';
 
@@ -470,7 +522,7 @@ const SynthesiaCanvas = memo(({
           fontSize = 20;
         }
       } else if (feedback.type === 'wrong') {
-        color = COLORS.playedWrong;
+        color = STATIC_COLORS.playedWrong;
       } else if (feedback.type === 'freeplay') {
         color = '#60a5fa';
         fontSize = 16;

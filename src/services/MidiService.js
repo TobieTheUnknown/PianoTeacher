@@ -66,10 +66,38 @@ export const parseMidiFile = async (file) => {
             song.tempo = Math.round(midi.header.tempos[0].bpm);
         }
 
+        // Extract time signature from MIDI
+        if (midi.header.timeSignatures.length > 0) {
+            const ts = midi.header.timeSignatures[0];
+            // @tonejs/midi stores time signature as an array [numerator, denominator]
+            song.timeSignature = {
+                numerator: ts.timeSignature[0],
+                denominator: ts.timeSignature[1]
+            };
+            console.log("Detected time signature:", song.timeSignature);
+        }
+
+        // Ensure timeSignature is always valid (fallback to 4/4)
+        if (!song.timeSignature || !song.timeSignature.numerator || !song.timeSignature.denominator) {
+            console.warn("Invalid or missing time signature, defaulting to 4/4");
+            song.timeSignature = { numerator: 4, denominator: 4 };
+        }
+
         // Create a single large phrase for the whole song (user can split later)
         // We'll estimate length based on the last note
         const durationInBeats = midi.duration * (song.tempo / 60);
-        const phraseLength = Math.ceil(durationInBeats / 4); // in measures
+        // Calculate beats per measure based on time signature
+        const beatsPerMeasure = (song.timeSignature.numerator / song.timeSignature.denominator) * 4;
+        let phraseLength = Math.ceil(durationInBeats / beatsPerMeasure); // in measures
+
+        // Ensure phrase length is valid (at least 1 measure, at most 64 measures)
+        if (!phraseLength || phraseLength < 1 || !isFinite(phraseLength)) {
+            console.warn("Invalid phrase length calculated:", phraseLength, "defaulting to 4 measures");
+            phraseLength = 4;
+        } else if (phraseLength > 64) {
+            console.warn("Phrase too long:", phraseLength, "capping at 64 measures");
+            phraseLength = 64;
+        }
 
         const phrase = createPhrase('Phrase A', phraseLength);
 
@@ -77,50 +105,67 @@ export const parseMidiFile = async (file) => {
         const allMidiNotes = [];
 
         // Process tracks
-        // Collect notes for key detection first
-        midi.tracks.forEach(track => allMidiNotes.push(...track.notes));
+        midi.tracks.forEach(track => {
+            // Collect notes for key detection
+            allMidiNotes.push(...track.notes);
+            // Simple heuristic:
+            // - If average pitch < C4 (60), assign to Chords (Left Hand)
+            // - Else assign to Melody (Right Hand)
+            // - Or just put everything in Melody if it's a single track MIDI
 
-        // Build list of non-empty tracks with their average pitch
-        const nonEmptyTracks = midi.tracks
-            .filter(track => track.notes.length > 0)
-            .map(track => ({
-                track,
-                avgPitch: track.notes.reduce((sum, n) => sum + n.midi, 0) / track.notes.length
-            }));
-
-        // Track assignment heuristic:
-        // - Multi-track MIDI (e.g. two-hand piano): sort by avg pitch, lowest → chords, rest → melody
-        //   This correctly handles left-hand parts whose avg pitch is above C4 (e.g. D4-D5 arpeggios)
-        // - Single-track MIDI: use absolute threshold C4 (MIDI 60) for backward compatibility
-        const assignTarget = (trackInfo, index, sorted) => {
-            if (sorted.length >= 2) {
-                return index === 0 ? 'chords' : 'melody'; // lowest avg → left hand
+            let avgPitch = 0;
+            if (track.notes.length > 0) {
+                avgPitch = track.notes.reduce((sum, n) => sum + n.midi, 0) / track.notes.length;
             }
-            return trackInfo.avgPitch < 60 ? 'chords' : 'melody';
-        };
 
-        nonEmptyTracks
-            .sort((a, b) => a.avgPitch - b.avgPitch)
-            .forEach((trackInfo, index, sorted) => {
-                const targetTrack = assignTarget(trackInfo, index, sorted);
-                trackInfo.track.notes.forEach(note => {
-                    // Convert time to beats
-                    const startTime = note.time * (song.tempo / 60);
-                    const duration = note.duration * (song.tempo / 60);
+            const targetTrack = avgPitch < 60 ? 'chords' : 'melody';
 
-                    // Round to avoid floating-point precision issues at measure boundaries
-                    const roundedStartTime = Math.round(startTime * 1000) / 1000;
-                    const roundedDuration = Math.round(duration * 1000) / 1000;
+            track.notes.forEach(note => {
+                // Convert seconds to beats (no quantization - preserve original timing)
+                const startTimeBeats = note.time * (song.tempo / 60);
+                const durationBeats = Math.max(0.0625, note.duration * (song.tempo / 60)); // Min 1/16 note
 
-                    const event = createNoteEvent(note.midi, roundedStartTime, roundedDuration);
-                    phrase.tracks[targetTrack].push(event);
-                });
+                // Create NoteEvent
+                // note.midi is the integer MIDI number (e.g., 60 for C4)
+                const event = createNoteEvent(note.midi, startTimeBeats, durationBeats);
+
+                phrase.tracks[targetTrack].push(event);
             });
 
         // Detect key signature from all notes
         const detectedKey = detectKey(allMidiNotes);
         song.key = detectedKey;
         console.log("Detected key:", detectedKey);
+
+        // Normalize note positions to align with measure boundaries
+        // (beatsPerMeasure already calculated above)
+
+        // Find the earliest note across all tracks
+        let earliestNoteTime = Infinity;
+        phrase.tracks.melody.forEach(note => {
+            if (note.startTime < earliestNoteTime) earliestNoteTime = note.startTime;
+        });
+        phrase.tracks.chords.forEach(note => {
+            if (note.startTime < earliestNoteTime) earliestNoteTime = note.startTime;
+        });
+
+        if (earliestNoteTime !== Infinity && earliestNoteTime > 0) {
+            // Calculate offset to align to measure boundary
+            // Round down to nearest measure start
+            const measuresBeforeFirstNote = Math.floor(earliestNoteTime / beatsPerMeasure);
+            const alignedStart = measuresBeforeFirstNote * beatsPerMeasure;
+            const offset = earliestNoteTime - alignedStart;
+
+            console.log(`Normalizing notes: earliest=${earliestNoteTime}, alignedStart=${alignedStart}, offset=${offset}`);
+
+            // Subtract offset from all notes to align them
+            phrase.tracks.melody.forEach(note => {
+                note.startTime -= offset;
+            });
+            phrase.tracks.chords.forEach(note => {
+                note.startTime -= offset;
+            });
+        }
 
         song.phrases.push(phrase);
         return song;

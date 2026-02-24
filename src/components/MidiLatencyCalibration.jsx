@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as Tone from 'tone';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
-import { getNoteNameFromMidi } from '../models/song';
+// getNoteNameFromMidi removed - not used
 
 /**
  * Visual Scrolling Track Component
@@ -12,12 +12,14 @@ import { getNoteNameFromMidi } from '../models/song';
  */
 function VisualScrollingTrack({ currentBeat, totalBeats, beatInterval }) {
     const [elapsedTime, setElapsedTime] = useState(0);
-    const startTimeRef = useRef(performance.now());
+    const startTimeRef = useRef(null);
     const animationFrameRef = useRef(null);
 
     // Animation loop to update elapsed time
     useEffect(() => {
-        startTimeRef.current = performance.now();
+        if (startTimeRef.current === null) {
+            startTimeRef.current = performance.now();
+        }
 
         const animate = () => {
             const now = performance.now();
@@ -288,6 +290,7 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
     useEffect(() => {
         if (phase !== 'calibrating') return;
 
+        // eslint-disable-next-line no-unused-vars
         const handleNoteOn = (event) => {
             const now = performance.now();
 
@@ -326,9 +329,7 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
         metronomeSynth.current.triggerAttackRelease(frequency, '8n');
     };
 
-    const playVisualPulse = () => {
-        // Visual pulse is handled by the beat display
-    };
+    // playVisualPulse removed - not used (visual pulse handled by beat display)
 
     const startCalibration = () => {
         setPhase('calibrating');

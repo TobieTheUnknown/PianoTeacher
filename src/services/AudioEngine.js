@@ -83,7 +83,7 @@ class AudioEngine {
     // startPositionBeats: optional start position in beats (if not provided, starts from 0)
     // stopAtEnd: if true, automatically stop playback at the end of the phrase
     // onPlaybackEnd: optional callback called when playback ends (either manually or automatically)
-    playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null) {
+    playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null, beatsPerMeasure = 4) {
         this.onPlaybackEnd = onPlaybackEnd;
         // Stop playback but keep metronome if it's enabled
         Tone.Transport.stop();
@@ -135,7 +135,7 @@ class AudioEngine {
 
         // Schedule automatic stop at end of phrase if requested
         if (stopAtEnd) {
-            const phraseLengthBeats = phrase.length * 4; // phrase.length is in measures, 4 beats per measure
+            const phraseLengthBeats = phrase.length * beatsPerMeasure; // phrase.length is in measures
             const phraseDurationSeconds = (phraseLengthBeats * 60) / tempo;
             const remainingSeconds = phraseDurationSeconds - startSeconds;
 

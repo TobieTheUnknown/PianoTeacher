@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, no-undef */
 import fs from 'fs';
 import midiPkg from '@tonejs/midi';
 const { Midi } = midiPkg;

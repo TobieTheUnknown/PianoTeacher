@@ -33,6 +33,7 @@ const SynthesiaControls = memo(({
 
   // Loop controls
   selectedPhraseIndex,
+  // eslint-disable-next-line no-unused-vars
   setSelectedPhraseIndex,
   customRangeStart,
   setCustomRangeStart,

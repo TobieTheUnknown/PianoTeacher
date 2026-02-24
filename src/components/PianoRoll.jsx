@@ -1,41 +1,19 @@
-import React, { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
-import { createPortal } from 'react-dom';
-import { getPianoRollKeys, getFrenchNoteName, getNoteNameFromMidi, getMidiNumber } from '../models/song';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
+// createPortal removed - not used
+import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { usePlaybackPosition } from '../hooks/usePlaybackPosition';
+import handColorsService from '../services/HandColorsService';
 
-// Lazy load the advanced piano roll
-const AdvancedPianoRoll = lazy(() => import('./editor/AdvancedPianoRoll').then(module => ({ default: module.AdvancedPianoRoll })));
+// Lazy load the new PianoRollEditor for fullscreen mode
+const PianoRollEditor = lazy(() => import('./editor/PianoRollEditor').then(module => ({ default: module.PianoRollEditor })));
 
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo = 120, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, onSplit, isSplitMode, splitTime, onSplitTimeChange, onConfirmSplit, onCancelSplit, isCurrentlyPlaying = false }) {
-    // Compute key range dynamically so notes outside the default octave 1-5 range are always visible
-    const keys = useMemo(() => {
-        const allPitches = [
-            ...phrase.tracks.melody,
-            ...phrase.tracks.chords
-        ]
-            .map(n => typeof n.pitch === 'string' ? getMidiNumber(n.pitch) : n.pitch)
-            .filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
-
-        // Default range: octave 1 to 5 (MIDI 24–83)
-        let startOctave = 1;
-        let endOctave = 5;
-
-        if (allPitches.length > 0) {
-            const minPitch = Math.min(...allPitches);
-            const maxPitch = Math.max(...allPitches);
-            // octave formula (matching getPianoRollKeys): octave = floor((midi - 12) / 12)
-            const minOctave = Math.floor((minPitch - 12) / 12);
-            const maxOctave = Math.floor((maxPitch - 12) / 12);
-            startOctave = Math.min(startOctave, minOctave);
-            endOctave = Math.max(endOctave, maxOctave);
-        }
-
-        return getPianoRollKeys(startOctave, endOctave);
-    }, [phrase.tracks.melody, phrase.tracks.chords]);
+export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = { numerator: 4, denominator: 4 }, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, isCurrentlyPlaying = false }) {
+    // keys are now an array of MIDI numbers (e.g. [83, 82, ... 48])
+    const [keys] = useState(() => getPianoRollKeys(1, 5));
     const scrollRef = useRef(null);
     const [dragState, setDragState] = useState(null); // { type: 'move'|'resize', noteId, startX, startY, originalNote, trackName }
     const lastPlayedPitchRef = useRef(null); // Track last played pitch for audio feedback
@@ -82,11 +60,37 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [zoom, setZoom] = useState(0.5); // 0.5 = 50% (default), 1 = 100%, 1.5 = 150%, etc.
 
+    // Hand colors from service with reactive updates
+    const [handColors, setHandColors] = useState(() => handColorsService.getColors());
+
+    useEffect(() => {
+        const unsubscribe = handColorsService.addListener((colors) => {
+            setHandColors(colors);
+        });
+        return unsubscribe;
+    }, []);
+
     const cellWidth = CELL_WIDTH * zoom;
     const cellHeight = CELL_HEIGHT * zoom;
 
+    // Calculate beats per measure based on time signature
+    const beatsPerMeasure = React.useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return 4; // Default to 4/4
+        }
+        return (timeSignature.numerator / timeSignature.denominator) * 4;
+    }, [timeSignature]);
+
+    // Detect if time signature is compound (ternary)
+    const isCompoundTime = React.useMemo(() => {
+        if (!timeSignature || !timeSignature.numerator || !timeSignature.denominator) {
+            return false;
+        }
+        return timeSignature.denominator === 8 && timeSignature.numerator % 3 === 0;
+    }, [timeSignature]);
+
     // Phrase length in beats
-    const phraseLengthBeats = phrase.length * 4;
+    const phraseLengthBeats = phrase.length * beatsPerMeasure;
 
     // Track playback position
     const { playbackPosition, isPlaying } = usePlaybackPosition();
@@ -217,14 +221,26 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
         setDragState(null);
     };
 
+    // Use refs to store handlers to avoid stale closures in event listeners
+    const handleMouseMoveRef = useRef(handleMouseMove);
+    const handleMouseUpRef = useRef(handleMouseUp);
+
+    // Update refs in effect to avoid render-time ref access
+    useEffect(() => {
+        handleMouseMoveRef.current = handleMouseMove;
+        handleMouseUpRef.current = handleMouseUp;
+    });
+
     useEffect(() => {
         if (dragState) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
+            const onMouseMove = (e) => handleMouseMoveRef.current(e);
+            const onMouseUp = () => handleMouseUpRef.current();
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
             return () => {
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-                stopAutoScroll();
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
             };
         }
     }, [dragState]);
@@ -357,7 +373,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                     }}
                 >
                     <div style={{
-                        width: `${90 + phrase.length * 4 * cellWidth}px`, // Piano keys width + grid width
+                        width: `${90 + phrase.length * beatsPerMeasure * cellWidth}px`, // Piano keys width + grid width
                         minHeight: '100%',
                         position: 'relative',
                         display: 'flex'
@@ -407,7 +423,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                                                 : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
                                         }}
                                     >
-                                        {getFrenchNoteName(pitch, keySignature)}
+                                        {getFrenchNoteName(pitch, keySignature, false)}
                                     </div>
                                 );
                             })}
@@ -434,7 +450,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                             }}>
                                 {Array.from({ length: phrase.length }).map((_, measureIndex) => (
                                     <div key={`measure-${measureIndex}`} style={{
-                                        width: `${4 * cellWidth}px`,
+                                        width: `${beatsPerMeasure * cellWidth}px`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
@@ -456,19 +472,61 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                                 position: 'relative'
                             }}>
                                 {/* Grid Lines - Vertical */}
-                                {Array.from({ length: phrase.length * 4 }).map((_, i) => (
-                                    <div key={`v-${i}`} style={{
-                                        position: 'absolute',
-                                        left: `${i * cellWidth}px`,
-                                        top: 0,
-                                        bottom: 0,
-                                        width: i % 4 === 0 ? '2px' : '1px',
-                                        background: i % 4 === 0
-                                            ? 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
-                                            : 'rgba(255, 255, 255, 0.05)',
-                                        pointerEvents: 'none'
-                                    }} />
-                                ))}
+                                {Array.from({ length: Math.ceil(phraseLengthBeats) }).map((_, i) => {
+                                    const isMeasureLine = Math.abs(i % beatsPerMeasure) < 0.01;
+
+                                    // Determine line type based on time signature
+                                    let lineType; // 'measure', 'beat', or 'subdivision'
+
+                                    if (isMeasureLine) {
+                                        lineType = 'measure';
+                                    } else if (isCompoundTime) {
+                                        // In compound time, beats are dotted quarters (1.5 quarter notes)
+                                        const isOnDottedQuarter = Math.abs(i % 1.5) < 0.01;
+                                        if (isOnDottedQuarter) {
+                                            lineType = 'beat';
+                                        } else {
+                                            lineType = 'subdivision';
+                                        }
+                                    } else {
+                                        // In simple time, beats are quarter notes
+                                        // i is always an integer, so this is always a beat in simple time
+                                        lineType = 'beat';
+                                    }
+
+                                    // Style based on line type
+                                    let lineStyle;
+                                    switch (lineType) {
+                                        case 'measure':
+                                            lineStyle = {
+                                                width: '2px',
+                                                background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)'
+                                            };
+                                            break;
+                                        case 'beat':
+                                            lineStyle = {
+                                                width: '1px',
+                                                background: 'rgba(255, 255, 255, 0.08)'
+                                            };
+                                            break;
+                                        default: // 'subdivision'
+                                            lineStyle = {
+                                                width: '1px',
+                                                background: 'rgba(255, 255, 255, 0.04)'
+                                            };
+                                    }
+
+                                    return (
+                                        <div key={`v-${i}`} style={{
+                                            position: 'absolute',
+                                            left: `${i * cellWidth}px`,
+                                            top: 0,
+                                            height: '100%',
+                                            pointerEvents: 'none',
+                                            ...lineStyle
+                                        }} />
+                                    );
+                                })}
                                 {/* Grid Lines - Horizontal */}
                                 {keys.map((pitch, i) => {
                                     const isBlack = [1, 3, 6, 8, 10].includes(pitch % 12);
@@ -508,13 +566,13 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                                                 width: `${note.duration * cellWidth - 2}px`,
                                                 height: `${cellHeight - 2}px`,
                                                 background: note.trackName === 'melody'
-                                                    ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
-                                                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                    ? `linear-gradient(135deg, ${handColors.rightHand.primary} 0%, ${handColors.rightHand.dark} 100%)`
+                                                    : `linear-gradient(135deg, ${handColors.leftHand.primary} 0%, ${handColors.leftHand.dark} 100%)`,
                                                 borderRadius: 'var(--radius-sm)',
                                                 cursor: isDragging ? 'grabbing' : 'grab',
                                                 boxShadow: note.trackName === 'melody'
-                                                    ? '0 2px 8px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                                                    : '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                                                    ? `0 2px 8px ${handColors.rightHand.primary}66, inset 0 1px 0 rgba(255, 255, 255, 0.2)`
+                                                    : `0 2px 8px ${handColors.leftHand.primary}66, inset 0 1px 0 rgba(255, 255, 255, 0.2)`,
                                                 zIndex: isDragging ? 100 : 10,
                                                 transition: isDragging ? 'none' : 'all var(--transition-fast)',
                                                 border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -558,7 +616,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
 
                                 {/* Click Area Overlay */}
                                 {!dragState && keys.map((pitch, yIndex) => (
-                                    Array.from({ length: phrase.length * 4 }).map((_, xIndex) => (
+                                    Array.from({ length: phrase.length * beatsPerMeasure }).map((_, xIndex) => (
                                         <div
                                             key={`${pitch}-${xIndex}`}
                                             onClick={(e) => {
@@ -613,7 +671,7 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
         </div>
     );
 
-    // Render advanced piano roll in fullscreen mode (lazy loaded)
+    // Render new PianoRollEditor in fullscreen mode (lazy loaded)
     if (isFullscreen) {
         return (
             <Suspense fallback={
@@ -634,15 +692,17 @@ export function PianoRoll({ phrase, phraseIndex, allPhrases, keySignature, tempo
                     Chargement de l'éditeur avancé...
                 </div>
             }>
-                <AdvancedPianoRoll
+                <PianoRollEditor
                     phrase={phrase}
                     allPhrases={[phrase]}
                     keySignature={keySignature}
                     tempo={tempo}
+                    timeSignature={timeSignature}
                     onAddNote={onAddNote}
                     onRemoveNote={onRemoveNote}
                     onUpdateNote={onUpdateNote}
                     onUpdatePhraseLength={onUpdatePhraseLength}
+                    isFullscreen={true}
                     onClose={() => setIsFullscreen(false)}
                 />
             </Suspense>
