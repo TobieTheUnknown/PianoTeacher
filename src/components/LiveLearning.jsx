@@ -1,10 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys, NOTE_NAMES, getEnharmonicNote, getNoteNameFromMidi } from '../models/song';
+import { arpeggioToChord, detectArpeggioMotifs } from '../utils/chordDetection';
 import { audioEngine } from '../services/AudioEngine';
 
 export function LiveLearning({ song, onToggleHighlight }) {
     const [showDetails, setShowDetails] = useState(false);
     const [showOctaves, setShowOctaves] = useState(false);
+    const [expandedChords, setExpandedChords] = useState(new Map()); // Map<measureNum, Set<repIndex>>
+    const [expandedMelodies, setExpandedMelodies] = useState(new Set());
 
     // Analyze and structure the song data
     const analysis = useMemo(() => {
@@ -40,14 +43,20 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
                 // Build measure summary - get ALL chord groups
                 const chordGroups = groupNotesByTime(measure.chords);
+                const isArpeggio = chordGroups.length >= 2 && chordGroups.every(g => g.notes.length === 1);
+                const motifInfo = isArpeggio ? detectArpeggioMotifs(chordGroups, song.key) : null;
+                const detectedChord = motifInfo ? motifInfo.chord : null;
 
                 measures.push({
                     number: measures.length + 1,
-                    chordGroups, // All chord groups in this measure
+                    chordGroups,
                     melodyCount: measure.melody.length,
                     hasChord: chordGroups.length > 0,
                     melody: measure.melody,
-                    chords: measure.chords
+                    chords: measure.chords,
+                    isArpeggio,
+                    detectedChord,
+                    motifInfo
                 });
             });
         });
@@ -78,13 +87,19 @@ export function LiveLearning({ song, onToggleHighlight }) {
             // Build measure objects for this phrase
             const measures = phraseMeasures.map((measure, idx) => {
                 const chordGroups = groupNotesByTime(measure.chords);
+                const isArpeggio = chordGroups.length >= 2 && chordGroups.every(g => g.notes.length === 1);
+                const motifInfo = isArpeggio ? detectArpeggioMotifs(chordGroups, song.key) : null;
+                const detectedChord = motifInfo ? motifInfo.chord : null;
                 return {
                     number: currentPhraseIndex + idx + 1,
                     chordGroups,
                     melodyCount: measure.melody.length,
                     hasChord: chordGroups.length > 0,
                     melody: measure.melody,
-                    chords: measure.chords
+                    chords: measure.chords,
+                    isArpeggio,
+                    detectedChord,
+                    motifInfo
                 };
             });
 
@@ -394,6 +409,27 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     onPlay={handlePlayMeasure}
                                                     showDetails={showDetails}
                                                     displayNoteName={displayNoteName}
+                                                    expandedChordReps={expandedChords.get(measure.number) || new Set()}
+                                                    onToggleChordRep={(measureNum, repIndex) => {
+                                                        setExpandedChords(prev => {
+                                                            const next = new Map(prev);
+                                                            const reps = new Set(next.get(measureNum) || []);
+                                                            if (reps.has(repIndex)) reps.delete(repIndex);
+                                                            else reps.add(repIndex);
+                                                            if (reps.size === 0) next.delete(measureNum);
+                                                            else next.set(measureNum, reps);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    isMelodyExpanded={expandedMelodies.has(measure.number)}
+                                                    onToggleMelodyExpand={(measureNum) => {
+                                                        setExpandedMelodies(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(measureNum)) next.delete(measureNum);
+                                                            else next.add(measureNum);
+                                                            return next;
+                                                        });
+                                                    }}
                                                 />
                                             ))}
                                         </div>
@@ -449,7 +485,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
 }
 
 // Helper component for measure cards
-function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails, displayNoteName }) {
+function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, onPlay, showDetails, displayNoteName, expandedChordReps, onToggleChordRep, isMelodyExpanded, onToggleMelodyExpand }) {
     return (
         <div
             onClick={() => onPlay(measure, 'both')}
@@ -591,9 +627,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
 {/* Chord info - show ALL chords in measure or arpeggio */}
             <div style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
                 {(() => {
-                    // Détection d'arpège: tous les groupes ont une seule note
-                    const isArpeggio = measure.chordGroups.length >= 2 &&
-                                      measure.chordGroups.every(g => g.notes.length === 1);
+                    const { isArpeggio, detectedChord, motifInfo } = measure;
 
                     return (
                         <>
@@ -602,7 +636,9 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                 color: 'var(--text-secondary)',
                                 marginBottom: '0.25rem'
                             }}>
-                                {isArpeggio ? (
+                                {isArpeggio && detectedChord ? (
+                                    <>Accord (arpège de {measure.chordGroups.length} notes)</>
+                                ) : isArpeggio ? (
                                     <>Arpège ({measure.chordGroups.length} notes)</>
                                 ) : (
                                     <>Accords {measure.chordGroups.length > 1 && `(${measure.chordGroups.length})`}</>
@@ -610,8 +646,77 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                             </div>
 
                             {measure.hasChord ? (
-                                isArpeggio ? (
-                                    // Affichage en séquence pour les arpèges (sans flèches)
+                                isArpeggio && detectedChord ? (
+                                    // Arpège reconnu: badges cliquables (1 par répétition du motif)
+                                    <div>
+                                        {(() => {
+                                            const reps = motifInfo?.repetitions || 1;
+                                            const totalNotes = measure.chordGroups.length;
+                                            const notesPerCycle = Math.ceil(totalNotes / reps);
+
+                                            return Array.from({ length: reps }).map((_, repIdx) => {
+                                                const isExpanded = expandedChordReps.has(repIdx) || showDetails;
+                                                const cycleStart = repIdx * notesPerCycle;
+                                                const cycleEnd = Math.min(cycleStart + notesPerCycle, totalNotes);
+                                                const cycleGroups = measure.chordGroups.slice(cycleStart, cycleEnd);
+
+                                                return (
+                                                    <div key={repIdx} style={{ marginBottom: '0.2rem' }}>
+                                                        <span
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onToggleChordRep(measure.number, repIdx);
+                                                            }}
+                                                            style={{
+                                                                fontSize: '0.75rem',
+                                                                fontWeight: 'bold',
+                                                                color: 'var(--text-primary)',
+                                                                cursor: 'pointer',
+                                                                padding: '0.2rem 0.4rem',
+                                                                borderRadius: '4px',
+                                                                background: 'var(--bg-primary)',
+                                                                border: '2px solid var(--accent-secondary)',
+                                                                transition: 'all var(--transition-fast)',
+                                                                userSelect: 'none',
+                                                                display: 'inline-block'
+                                                            }}
+                                                            title="Cliquer pour voir les notes"
+                                                        >
+                                                            {detectedChord.displayName}
+                                                        </span>
+                                                        {isExpanded && (
+                                                            <div style={{
+                                                                display: 'flex',
+                                                                flexWrap: 'wrap',
+                                                                gap: '0.2rem',
+                                                                alignItems: 'center',
+                                                                marginTop: '0.15rem',
+                                                                marginLeft: '0.25rem'
+                                                            }}>
+                                                                {cycleGroups.map((chordGroup, idx) => {
+                                                                    const noteName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
+                                                                    return (
+                                                                        <span key={idx} style={{
+                                                                            fontSize: '0.65rem',
+                                                                            background: 'var(--bg-primary)',
+                                                                            padding: '0.1rem 0.3rem',
+                                                                            borderRadius: '3px',
+                                                                            border: '1px solid var(--accent-secondary)',
+                                                                            color: 'var(--text-primary)'
+                                                                        }}>
+                                                                            {noteName}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                ) : isArpeggio ? (
+                                    // Arpège non reconnu: affichage en séquence (badges individuels)
                                     <div style={{
                                         display: 'flex',
                                         flexWrap: 'wrap',
@@ -638,7 +743,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                         })}
                                     </div>
                                 ) : (
-                                    // Affichage normal pour les accords
+                                    // Accords simultanés: affichage normal (inchangé)
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                         {measure.chordGroups.map((chordGroup, idx) => {
                                             const chordName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
@@ -653,7 +758,6 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                                         {chordName}
                                                     </div>
 
-                                                    {/* Show chord notes when details are enabled */}
                                                     {showDetails && (
                                                         <div style={{
                                                             fontSize: '0.65rem',
@@ -712,23 +816,33 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                 }}>
                     {measure.melody.length > 0 ? (
                         <>
-                            {/* First note with emphasis */}
+                            {/* First note - clickable to expand/collapse */}
                             {measure.melody.sort((a, b) => a.startTime - b.startTime).slice(0, 1).map((n, i) => (
-                                <span key={i} style={{
-                                    fontSize: '0.75rem',
-                                    background: 'var(--bg-primary)',
-                                    padding: '0.2rem 0.4rem',
-                                    borderRadius: '4px',
-                                    border: '2px solid var(--accent-primary)',
-                                    color: 'var(--text-primary)',
-                                    fontWeight: 'bold'
-                                }}>
+                                <span
+                                    key={i}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onToggleMelodyExpand(measure.number);
+                                    }}
+                                    style={{
+                                        fontSize: '0.75rem',
+                                        background: 'var(--bg-primary)',
+                                        padding: '0.2rem 0.4rem',
+                                        borderRadius: '4px',
+                                        border: '2px solid var(--accent-primary)',
+                                        color: 'var(--text-primary)',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        userSelect: 'none'
+                                    }}
+                                    title="Cliquer pour voir les notes"
+                                >
                                     {displayNoteName(n.pitch, keySignature)}
                                 </span>
                             ))}
 
-                            {showDetails ? (
-                                // Show all remaining notes when details are enabled
+                            {(isMelodyExpanded || showDetails) ? (
+                                // Show all remaining notes when expanded or details are enabled
                                 measure.melody.sort((a, b) => a.startTime - b.startTime).slice(1).map((n, i) => (
                                     <span key={i + 1} style={{
                                         fontSize: '0.7rem',
@@ -742,7 +856,7 @@ function MeasureCard({ measure, keySignature, isHighlighted, onToggleHighlight, 
                                     </span>
                                 ))
                             ) : (
-                                // Show count when details are hidden
+                                // Show count when collapsed
                                 measure.melody.length > 1 && (
                                     <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
                                         +{measure.melody.length - 1}

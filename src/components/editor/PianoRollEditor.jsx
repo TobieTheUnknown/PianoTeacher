@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { getPianoRollKeys, getFrenchNoteName } from '../../models/song';
+import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../../models/song';
 import { audioEngine } from '../../services/AudioEngine';
 import { useNoteSelection, useNoteClipboard } from '../../hooks/useNoteSelection';
 import { useScaleContext } from '../../hooks/useScaleContext';
@@ -46,8 +46,29 @@ export function PianoRollEditor({
     // Viewport dimensions state (for minimap)
     const [viewportWidth, setViewportWidth] = useState(800);
 
-    // Piano keys (MIDI range)
-    const [keys] = useState(() => getPianoRollKeys(1, 5));
+    // Piano keys — range expands dynamically to include all notes in the phrase
+    const keys = useMemo(() => {
+        const allPitches = [
+            ...phrase.tracks.melody,
+            ...phrase.tracks.chords
+        ]
+            .map(n => typeof n.pitch === 'string' ? getMidiNumber(n.pitch) : n.pitch)
+            .filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
+
+        let startOctave = 1;
+        let endOctave = 5;
+
+        if (allPitches.length > 0) {
+            const minPitch = Math.min(...allPitches);
+            const maxPitch = Math.max(...allPitches);
+            const minOctave = Math.floor((minPitch - 12) / 12);
+            const maxOctave = Math.floor((maxPitch - 12) / 12);
+            startOctave = Math.min(startOctave, minOctave);
+            endOctave = Math.max(endOctave, maxOctave);
+        }
+
+        return getPianoRollKeys(startOctave, endOctave);
+    }, [phrase.tracks.melody, phrase.tracks.chords]);
 
     // View state
     const [zoom, setZoom] = useState(isFullscreen ? 0.75 : 0.5);
