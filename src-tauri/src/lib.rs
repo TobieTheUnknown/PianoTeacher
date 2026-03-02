@@ -1,17 +1,21 @@
 mod midi;
 
+#[cfg(not(target_os = "android"))]
 use parking_lot::Mutex;
+#[cfg(not(target_os = "android"))]
 use std::sync::Arc;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  // Initialize MIDI state
-  let midi_state = Arc::new(Mutex::new(midi::MidiState::new()));
-
-  tauri::Builder::default()
+  let builder = tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
-    .plugin(tauri_plugin_fs::init())
-    .manage(midi_state)
+    .plugin(tauri_plugin_fs::init());
+
+  // On desktop, manage the full MIDI state with connection tracking
+  #[cfg(not(target_os = "android"))]
+  let builder = builder.manage(Arc::new(Mutex::new(midi::MidiState::new())));
+
+  builder
     .invoke_handler(tauri::generate_handler![
       midi::get_midi_devices,
       midi::connect_midi_device,
