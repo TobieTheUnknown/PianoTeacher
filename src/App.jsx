@@ -3,7 +3,7 @@ import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
-import { SynthesiaView } from './components/SynthesiaView';
+import { SynthesiaViewOptimized as SynthesiaView } from './components/SynthesiaViewOptimized';
 import { Settings } from './components/Settings';
 import { SheetMusicExporter } from './components/SheetMusicExporter';
 import { useSong } from './useSong';

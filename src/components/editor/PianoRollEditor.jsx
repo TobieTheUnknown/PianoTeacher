@@ -84,8 +84,7 @@ export function PianoRollEditor({
     const [metronomeEnabled, setMetronomeEnabled] = useState(false);
     const [metronomeSubdivision, setMetronomeSubdivision] = useState('quarter');
     const [loopEnabled, setLoopEnabled] = useState(false);
-    // eslint-disable-next-line no-unused-vars
-    const [loopRegion, setLoopRegion] = useState(null); // Reserved for loop region feature
+    const [loopRegion, setLoopRegion] = useState(null);
     // eslint-disable-next-line no-unused-vars
     const [showMinimap, setShowMinimap] = useState(isFullscreen); // Reserved for minimap toggle
 
@@ -196,7 +195,7 @@ export function PianoRollEditor({
     } = useNoteClipboard();
 
     const { isInScale, keySignature: displayKeySignature } = useScaleContext(keySignature);
-    const { playbackPosition, isPlaying, seek } = usePlaybackPosition();
+    const { playbackPosition, positionRef, isPlaying, seek } = usePlaybackPosition();
 
     // Note name helper
     const getNoteName = useCallback((pitch) => {
@@ -543,7 +542,7 @@ export function PianoRollEditor({
                 break;
             case 'paste':
                 if (hasClipboard()) {
-                    const pasted = paste(context.beat || playbackPosition);
+                    const pasted = paste(context.beat || positionRef.current);
                     saveStateToHistory();
                     pasted.forEach(note => {
                         const phraseInfo = getPhraseAtBeat(note.startTime);
@@ -575,7 +574,7 @@ export function PianoRollEditor({
         }
 
         setContextMenu(null);
-    }, [contextMenu, selectedNotes, allNotesGlobal, copy, cut, paste, duplicate, hasClipboard, playbackPosition, getPhraseAtBeat, onAddNote, onRemoveNote, saveStateToHistory, clearSelection, selectAll, gridSize]);
+    }, [contextMenu, selectedNotes, allNotesGlobal, copy, cut, paste, duplicate, hasClipboard, positionRef, getPhraseAtBeat, onAddNote, onRemoveNote, saveStateToHistory, clearSelection, selectAll, gridSize]);
 
     // Play handler using playPhrase API
     const handlePlay = useCallback(() => {
@@ -584,8 +583,8 @@ export function PianoRollEditor({
             combinedPhrase.tracks.melody.push(...(p.tracks.melody || []));
             combinedPhrase.tracks.chords.push(...(p.tracks.chords || []));
         });
-        audioEngine.playPhrase(combinedPhrase, tempo, playbackPosition, false, null, beatsPerMeasure);
-    }, [phrases, tempo, playbackPosition, beatsPerMeasure]);
+        audioEngine.playPhrase(combinedPhrase, tempo, positionRef.current, false, null, beatsPerMeasure);
+    }, [phrases, tempo, positionRef, beatsPerMeasure]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -623,7 +622,7 @@ export function PianoRollEditor({
                 case 'v':
                     if (cmdOrCtrl && hasClipboard()) {
                         e.preventDefault();
-                        const pasted = paste(playbackPosition);
+                        const pasted = paste(positionRef.current);
                         saveStateToHistory();
                         pasted.forEach(note => {
                             const phraseInfo = getPhraseAtBeat(note.startTime);
@@ -706,7 +705,7 @@ export function PianoRollEditor({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [
         allNotesGlobal, selectedNotes, copy, cut, paste, duplicate, hasClipboard,
-        playbackPosition, isPlaying, gridSize, tempo, undo, redo, quantizeNotes,
+        positionRef, isPlaying, gridSize, tempo, undo, redo, quantizeNotes,
         onAddNote, onRemoveNote, getPhraseAtBeat, saveStateToHistory,
         clearSelection, selectAll, isFullscreen, onClose, contextMenu, handlePlay
     ]);
@@ -721,17 +720,37 @@ export function PianoRollEditor({
     useEffect(() => {
         if (!isPlaying) return;
 
-        const loopStart = loopRegion?.start ?? 0;
-        const loopEnd = loopRegion?.end ?? phraseLayouts.totalBeats;
+        // Use RAF-based loop checking instead of state-driven
+        let rafId;
+        const checkLoop = () => {
+            const pos = positionRef.current;
+            const loopStart = loopRegion?.start ?? 0;
+            const loopEnd = loopRegion?.end ?? phraseLayouts.totalBeats;
 
-        if (playbackPosition >= loopEnd) {
-            if (loopEnabled) {
-                seek(loopStart);
-            } else {
-                audioEngine.stop();
+            if (pos >= loopEnd) {
+                if (loopEnabled) {
+                    seek(loopStart);
+                } else {
+                    audioEngine.stop();
+                }
             }
+            rafId = requestAnimationFrame(checkLoop);
+        };
+        rafId = requestAnimationFrame(checkLoop);
+        return () => cancelAnimationFrame(rafId);
+    }, [isPlaying, loopEnabled, loopRegion, phraseLayouts.totalBeats, seek, positionRef]);
+
+    // Toggle loop with region initialization
+    const handleLoopEnabledChange = useCallback((enabled) => {
+        setLoopEnabled(enabled);
+        if (enabled && !loopRegion) {
+            // Default loop region: full piece
+            setLoopRegion({ start: 0, end: phraseLayouts.totalBeats });
         }
-    }, [playbackPosition, isPlaying, loopEnabled, loopRegion, phraseLayouts.totalBeats, seek]);
+        if (!enabled) {
+            setLoopRegion(null);
+        }
+    }, [loopRegion, phraseLayouts.totalBeats]);
 
     // Memoized callbacks for Toolbar to prevent unnecessary re-renders
     const handleStop = useCallback(() => {
@@ -755,7 +774,7 @@ export function PianoRollEditor({
 
     const handlePaste = useCallback(() => {
         if (hasClipboard()) {
-            const pasted = paste(playbackPosition);
+            const pasted = paste(positionRef.current);
             saveStateToHistory();
             pasted.forEach(note => {
                 const phraseInfo = getPhraseAtBeat(note.startTime);
@@ -764,7 +783,7 @@ export function PianoRollEditor({
                 }
             });
         }
-    }, [hasClipboard, paste, playbackPosition, saveStateToHistory, getPhraseAtBeat, onAddNote]);
+    }, [hasClipboard, paste, positionRef, saveStateToHistory, getPhraseAtBeat, onAddNote]);
 
     const handleDelete = useCallback(() => {
         if (selectedNotes.length > 0) {
@@ -842,12 +861,13 @@ export function PianoRollEditor({
                 metronomeSubdivision={metronomeSubdivision}
                 onMetronomeSubdivisionChange={setMetronomeSubdivision}
                 loopEnabled={loopEnabled}
-                onLoopEnabledChange={setLoopEnabled}
+                onLoopEnabledChange={handleLoopEnabledChange}
                 totalMeasures={phraseLayouts.totalMeasures}
                 phraseLength={phrase?.length || 0}
                 onAddMeasures={onUpdatePhraseLength ? handleAddMeasures : null}
                 isPlaying={isPlaying}
                 playbackPosition={playbackPosition}
+                positionRef={positionRef}
                 tempo={tempo}
                 onPlay={handlePlay}
                 onStop={handleStop}
@@ -883,6 +903,7 @@ export function PianoRollEditor({
                     totalBeats={phraseLayouts.totalBeats}
                     beatsPerMeasure={beatsPerMeasure}
                     playbackPosition={playbackPosition}
+                    positionRef={positionRef}
                     isPlaying={isPlaying}
                     gridSize={gridSize}
                     snapToGridEnabled={snapToGrid}
@@ -902,6 +923,7 @@ export function PianoRollEditor({
                     onNoteDragEnd={handleNoteDragEnd}
                     onSelectionComplete={handleSelectionComplete}
                     onPlayheadSeek={handlePlayheadSeek}
+                    onLoopRegionChange={setLoopRegion}
                     onContextMenu={handleContextMenu}
                     className={styles.canvas}
                 />

@@ -50,7 +50,8 @@ const PianoRollCanvas = memo(({
     beatsPerMeasure = 4,
 
     // State
-    playbackPosition = 0,
+    playbackPosition = 0, // used only for non-animation reads (paste, etc.)
+    positionRef = null,    // ref updated every frame for smooth animation
     isPlaying = false,
     gridSize = 0.25,
     snapToGridEnabled = true,
@@ -84,8 +85,7 @@ const PianoRollCanvas = memo(({
     onSelectionRectChange,
     onSelectionComplete,
     onPlayheadSeek,
-    // eslint-disable-next-line no-unused-vars
-    onLoopHandleDrag, // Reserved for loop handle interaction
+    onLoopRegionChange,
     onContextMenu,
 
     // Scroll sync (controlled mode)
@@ -117,6 +117,9 @@ const PianoRollCanvas = memo(({
 
     // Ref for storing original positions during multi-drag
     const originalPositionsRef = useRef(new Map());
+
+    // Ref for loop handle dragging (avoids state re-renders during drag)
+    const loopDragRef = useRef(null); // { handle: 'start'|'end', initialBeat, originalRegion }
 
     // Use controlled or internal scroll state
     const scrollX = controlledScrollX !== undefined ? controlledScrollX : internalScrollX;
@@ -218,16 +221,8 @@ const PianoRollCanvas = memo(({
             headerHeight: HEADER_HEIGHT,
             phraseLayouts
         });
-    }, [
-        dimensions, cellWidth, cellHeight, keys, beatsPerMeasure, totalBeats,
-        gridSize, isCompoundTime, scrollX, scrollY, showScaleHighlight, isInScale,
-        getNoteName, activeNotes, phraseLayouts
-    ]);
 
-    const drawDynamicLayer = useCallback((ctx) => {
-        ctx.clearRect(0, 0, dimensions.width, dimensions.height);
-
-        // Draw loop region first (background)
+        // Draw loop region on static layer (handles sit on the header bar)
         if (loopEnabled && loopRegion) {
             drawLoopRegion(ctx, {
                 loopStart: loopRegion.start,
@@ -239,6 +234,14 @@ const PianoRollCanvas = memo(({
                 headerHeight: HEADER_HEIGHT
             });
         }
+    }, [
+        dimensions, cellWidth, cellHeight, keys, beatsPerMeasure, totalBeats,
+        gridSize, isCompoundTime, scrollX, scrollY, showScaleHighlight, isInScale,
+        getNoteName, activeNotes, phraseLayouts, loopEnabled, loopRegion
+    ]);
+
+    const drawDynamicLayer = useCallback((ctx) => {
+        ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
         // Draw notes
         drawNotes(ctx, {
@@ -271,9 +274,19 @@ const PianoRollCanvas = memo(({
             });
         }
 
-        // Draw playhead
+        // Playhead is drawn on the overlay layer for performance (not here)
+    }, [
+        dimensions, notes, keys, cellWidth, cellHeight, selectedIdsSet,
+        scrollX, scrollY,
+        recordingPreviewNotes, activeRecordingNotes, dragState
+    ]);
+
+    const drawOverlayLayer = useCallback((ctx) => {
+        ctx.clearRect(0, 0, dimensions.width, dimensions.height);
+
+        // Draw playhead on overlay (lightweight - just a line, redrawn every frame during playback)
         drawPlayhead(ctx, {
-            position: playbackPosition,
+            position: positionRef ? positionRef.current : 0,
             cellWidth,
             scrollX,
             viewportWidth: dimensions.width,
@@ -282,14 +295,6 @@ const PianoRollCanvas = memo(({
             headerHeight: HEADER_HEIGHT,
             isPlaying
         });
-    }, [
-        dimensions, notes, keys, cellWidth, cellHeight, selectedIdsSet,
-        scrollX, scrollY, playbackPosition, isPlaying, loopEnabled, loopRegion,
-        recordingPreviewNotes, activeRecordingNotes, dragState
-    ]);
-
-    const drawOverlayLayer = useCallback((ctx) => {
-        ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
         // Draw selection rectangle
         if (selectionRect) {
@@ -332,9 +337,9 @@ const PianoRollCanvas = memo(({
                 headerHeight: HEADER_HEIGHT
             });
         }
-    }, [dimensions, selectionRect, isDeselectMode, hoverState, dragState, keys, cellWidth, cellHeight, scrollX, scrollY, gridSize]);
+    }, [dimensions, selectionRect, isDeselectMode, hoverState, dragState, keys, cellWidth, cellHeight, scrollX, scrollY, gridSize, positionRef, isPlaying]);
 
-    // Animation loop - OPTIMIZED: only runs when needed
+    // Animation loop - OPTIMIZED: continuous during playback, on-demand otherwise
     useEffect(() => {
         let animationFrameId;
 
@@ -356,16 +361,44 @@ const PianoRollCanvas = memo(({
                     didDraw = true;
                 }
 
-                // Dynamic layer redraws during playback or when marked dirty
-                if (isPlaying || dragState || needsRedraw.current.dynamic) {
+                // Dynamic layer redraws only when dirty (notes changed, scroll, etc.)
+                if (needsRedraw.current.dynamic || dragState) {
                     drawLayer('dynamic', drawDynamicLayer);
                     didDraw = true;
                 }
 
-                // Overlay redraws for selection, hover, or drag preview
-                if (needsRedraw.current.overlay || selectionRect || hoverState || dragState) {
+                // Overlay redraws every frame during playback (playhead) or on interaction
+                if (isPlaying || needsRedraw.current.overlay || selectionRect || hoverState || dragState) {
                     drawLayer('overlay', drawOverlayLayer);
                     didDraw = true;
+                }
+
+                // Follow playhead during playback (every ~200ms check)
+                if (isPlaying && positionRef) {
+                    const now = timestamp;
+                    if (now - lastFollowCheckRef.current > 200) {
+                        lastFollowCheckRef.current = now;
+                        const fp = followPlayheadRef.current;
+                        const pos = positionRef.current;
+                        if (!fp.dragState && !isBeatVisible(pos, {
+                            scrollX: fp.scrollX,
+                            cellWidth: fp.cellWidth,
+                            viewportWidth: fp.viewportWidth,
+                            pianoKeyWidth: PIANO_KEY_WIDTH
+                        })) {
+                            const newScrollX = calculateScrollToCenter(pos, {
+                                cellWidth: fp.cellWidth,
+                                viewportWidth: fp.viewportWidth,
+                                pianoKeyWidth: PIANO_KEY_WIDTH,
+                                totalBeats: fp.totalBeats
+                            });
+                            if (fp.onScroll) {
+                                fp.onScroll({ scrollX: newScrollX, scrollY: fp.scrollY });
+                            } else if (fp.setInternalScrollX) {
+                                fp.setInternalScrollX(newScrollX);
+                            }
+                        }
+                    }
                 }
 
                 // If nothing was drawn and we don't need continuous animation, stop the loop
@@ -392,7 +425,7 @@ const PianoRollCanvas = memo(({
                 cancelAnimationFrame(animationFrameId);
             }
         };
-    }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, isPlaying, dragState, selectionRect, hoverState, needsRedraw]);
+    }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, isPlaying, dragState, selectionRect, hoverState, needsRedraw, positionRef]);
 
     // Re-trigger render loop when hover state changes
     useEffect(() => {
@@ -409,32 +442,17 @@ const PianoRollCanvas = memo(({
 
     useEffect(() => {
         markDynamicDirty();
-    }, [notes, selectedIdsSet, playbackPosition, loopRegion, loopEnabled, recordingPreviewNotes, activeRecordingNotes, markDynamicDirty]);
+    }, [notes, selectedIdsSet, recordingPreviewNotes, activeRecordingNotes, markDynamicDirty]);
 
-    // Follow playhead during playback
+    // Loop region changes affect static layer
     useEffect(() => {
-        if (isPlaying && !dragState) {
-            if (!isBeatVisible(playbackPosition, {
-                scrollX,
-                cellWidth,
-                viewportWidth: dimensions.width,
-                pianoKeyWidth: PIANO_KEY_WIDTH
-            })) {
-                const newScrollX = calculateScrollToCenter(playbackPosition, {
-                    cellWidth,
-                    viewportWidth: dimensions.width,
-                    pianoKeyWidth: PIANO_KEY_WIDTH,
-                    totalBeats
-                });
+        markStaticDirty();
+    }, [loopRegion, loopEnabled, markStaticDirty]);
 
-                if (onScroll) {
-                    onScroll({ scrollX: newScrollX, scrollY });
-                } else {
-                    setInternalScrollX(newScrollX);
-                }
-            }
-        }
-    }, [isPlaying, playbackPosition, scrollX, scrollY, cellWidth, dimensions.width, totalBeats, dragState, onScroll]);
+    // Follow playhead during playback (checked in animation loop, not state-driven)
+    const lastFollowCheckRef = useRef(0);
+    const followPlayheadRef = useRef({ scrollX, scrollY, cellWidth, viewportWidth: dimensions.width, totalBeats, dragState, onScroll, setInternalScrollX, isPlaying });
+    followPlayheadRef.current = { scrollX, scrollY, cellWidth, viewportWidth: dimensions.width, totalBeats, dragState, onScroll, setInternalScrollX, isPlaying };
 
     // Auto-scroll helper functions
     const startAutoScroll = useCallback(() => {
@@ -495,6 +513,25 @@ const PianoRollCanvas = memo(({
         });
 
         if (coords.isInHeaderArea) {
+            // Check if clicking on a loop handle first
+            if (loopEnabled && loopRegion && onLoopRegionChange) {
+                const startHandleX = PIANO_KEY_WIDTH + loopRegion.start * cellWidth - scrollX;
+                const endHandleX = PIANO_KEY_WIDTH + loopRegion.end * cellWidth - scrollX;
+                const handleWidth = 12;
+                const clickX = coords.canvasX;
+
+                if (clickX >= startHandleX && clickX <= startHandleX + handleWidth) {
+                    loopDragRef.current = { handle: 'start', originalRegion: { ...loopRegion } };
+                    setCursor('ew-resize');
+                    return;
+                }
+                if (clickX >= endHandleX - handleWidth && clickX <= endHandleX) {
+                    loopDragRef.current = { handle: 'end', originalRegion: { ...loopRegion } };
+                    setCursor('ew-resize');
+                    return;
+                }
+            }
+
             // Click on header - seek playhead
             const beat = Math.max(0, Math.min(totalBeats, coords.beat));
             if (onPlayheadSeek) {
@@ -599,7 +636,7 @@ const PianoRollCanvas = memo(({
                 initialScrollY: scrollY
             });
         }
-    }, [scrollX, scrollY, cellWidth, cellHeight, keys, notes, totalBeats, selectedIdsSet, onPlayheadSeek, onNoteClick, onNoteDragStart]);
+    }, [scrollX, scrollY, cellWidth, cellHeight, keys, notes, totalBeats, selectedIdsSet, onPlayheadSeek, onNoteClick, onNoteDragStart, loopEnabled, loopRegion, onLoopRegionChange]);
 
     const handleMouseMove = useCallback((e) => {
         const coords = getGridCoordinates(e, {
@@ -615,8 +652,37 @@ const PianoRollCanvas = memo(({
         // Always track mouse position for auto-scroll
         mousePositionRef.current = { x: coords.canvasX, y: coords.canvasY };
 
+        // Handle loop handle dragging
+        if (loopDragRef.current && onLoopRegionChange && loopRegion) {
+            const beat = Math.max(0, Math.min(totalBeats, coords.beat));
+            const snappedBeat = snapToGrid(beat, gridSize, snapToGridEnabled);
+
+            if (loopDragRef.current.handle === 'start') {
+                const newStart = Math.min(snappedBeat, loopRegion.end - gridSize);
+                onLoopRegionChange({ start: Math.max(0, newStart), end: loopRegion.end });
+            } else {
+                const newEnd = Math.max(snappedBeat, loopRegion.start + gridSize);
+                onLoopRegionChange({ start: loopRegion.start, end: Math.min(totalBeats, newEnd) });
+            }
+            setCursor('ew-resize');
+            return;
+        }
+
         // Update cursor based on state
         let newCursor = 'crosshair';
+
+        // Check if hovering over a loop handle (for cursor feedback)
+        if (loopEnabled && loopRegion && coords.isInHeaderArea) {
+            const startHandleX = PIANO_KEY_WIDTH + loopRegion.start * cellWidth - scrollX;
+            const endHandleX = PIANO_KEY_WIDTH + loopRegion.end * cellWidth - scrollX;
+            const handleWidth = 12;
+            const clickX = coords.canvasX;
+
+            if ((clickX >= startHandleX && clickX <= startHandleX + handleWidth) ||
+                (clickX >= endHandleX - handleWidth && clickX <= endHandleX)) {
+                newCursor = 'ew-resize';
+            }
+        }
 
         if (dragState) {
             // Handle drag
@@ -806,12 +872,20 @@ const PianoRollCanvas = memo(({
     }, [
         scrollX, scrollY, cellWidth, cellHeight, keys, notes, dragState, selectionRect,
         gridSize, snapToGridEnabled, phraseLayouts, dimensions, totalWidth, totalHeight,
-        onNoteDrag, onSelectionRectChange, markOverlayDirty, startAutoScroll, stopAutoScroll
+        onNoteDrag, onSelectionRectChange, markOverlayDirty, startAutoScroll, stopAutoScroll,
+        loopEnabled, loopRegion, onLoopRegionChange, totalBeats
     ]);
 
     const handleMouseUp = useCallback((e) => {
         // Clear auto-scroll
         stopAutoScroll();
+
+        // Finalize loop handle drag
+        if (loopDragRef.current) {
+            loopDragRef.current = null;
+            setCursor('crosshair');
+            return;
+        }
 
         if (dragState) {
             if (!dragState.hasMoved) {
@@ -955,8 +1029,9 @@ const PianoRollCanvas = memo(({
         }
     }, [scrollX, scrollY, cellWidth, cellHeight, keys, notes, onContextMenu]);
 
-    // Wheel handler for scrolling
-    const handleWheel = useCallback((e) => {
+    // Wheel handler ref for native event listener (avoids passive event issue)
+    const wheelHandlerRef = useRef(null);
+    wheelHandlerRef.current = (e) => {
         e.preventDefault();
 
         const maxScrollX = Math.max(0, totalWidth - dimensions.width);
@@ -966,10 +1041,8 @@ const PianoRollCanvas = memo(({
         let newScrollY = scrollY;
 
         if (e.shiftKey) {
-            // Horizontal scroll
             newScrollX = Math.max(0, Math.min(maxScrollX, scrollX + e.deltaY));
         } else {
-            // Vertical scroll (with horizontal for large deltaX)
             newScrollY = Math.max(0, Math.min(maxScrollY, scrollY + e.deltaY));
             newScrollX = Math.max(0, Math.min(maxScrollX, scrollX + e.deltaX));
         }
@@ -980,7 +1053,16 @@ const PianoRollCanvas = memo(({
             setInternalScrollX(newScrollX);
             setInternalScrollY(newScrollY);
         }
-    }, [scrollX, scrollY, totalWidth, totalHeight, dimensions, onScroll]);
+    };
+
+    // Attach wheel listener natively with { passive: false }
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const handler = (e) => wheelHandlerRef.current(e);
+        el.addEventListener('wheel', handler, { passive: false });
+        return () => el.removeEventListener('wheel', handler);
+    }, []);
 
     return (
         <div
@@ -1002,7 +1084,6 @@ const PianoRollCanvas = memo(({
             onMouseLeave={handleMouseLeave}
             onDoubleClick={handleDoubleClick}
             onContextMenu={handleContextMenu}
-            onWheel={handleWheel}
         >
             <canvas
                 ref={staticLayerRef}
@@ -1042,7 +1123,6 @@ const PianoRollCanvas = memo(({
     return (
         prevProps.notes === nextProps.notes &&
         prevProps.selectedNoteIds === nextProps.selectedNoteIds &&
-        prevProps.playbackPosition === nextProps.playbackPosition &&
         prevProps.isPlaying === nextProps.isPlaying &&
         prevProps.cellWidth === nextProps.cellWidth &&
         prevProps.cellHeight === nextProps.cellHeight &&
