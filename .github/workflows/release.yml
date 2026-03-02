@@ -104,7 +104,7 @@ jobs:
         run: npx tauri android init
 
       - name: Build Android APK
-        run: npx tauri android build --apk
+        run: npx tauri android build --apk true
 
       - name: Find and upload APK
         uses: actions/upload-artifact@v4
