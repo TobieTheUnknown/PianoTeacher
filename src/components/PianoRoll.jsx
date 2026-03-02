@@ -116,14 +116,36 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
     const phraseLengthBeats = phrase.length * beatsPerMeasure;
 
     // Track playback position
-    const { playbackPosition, isPlaying } = usePlaybackPosition();
+    const { positionRef, isPlaying } = usePlaybackPosition();
+    const playheadRef = useRef(null);
 
-    // Combine notes from both tracks with track information
-    // Filter out notes that don't match our key range or numeric format
-    const allNotes = [
+    // Combine notes from both tracks with track information (memoized)
+    const allNotes = useMemo(() => [
         ...phrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
         ...phrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' }))
-    ];
+    ], [phrase.tracks.melody, phrase.tracks.chords]);
+
+    // Animate playhead via RAF (no React re-renders)
+    const cellWidthRef = useRef(cellWidth);
+    cellWidthRef.current = cellWidth;
+    useEffect(() => {
+        if (!isCurrentlyPlaying || !isPlaying) return;
+        let rafId;
+        const animate = () => {
+            if (playheadRef.current && positionRef) {
+                const pos = positionRef.current;
+                if (pos >= 0 && pos < phraseLengthBeats) {
+                    playheadRef.current.style.display = 'block';
+                    playheadRef.current.style.left = `${pos * cellWidthRef.current}px`;
+                } else {
+                    playheadRef.current.style.display = 'none';
+                }
+            }
+            rafId = requestAnimationFrame(animate);
+        };
+        rafId = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(rafId);
+    }, [isCurrentlyPlaying, isPlaying, positionRef, phraseLengthBeats]);
 
     const handleGridClick = (pitch, beatIndex) => {
         // Check if note exists at this position in either track
@@ -414,36 +436,27 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                             paddingTop: '32px' // Match measure counter height
                         }}>
                             {keys.map(pitch => {
-                                // Check if black key using helper or simple mod check
-                                // pitch is a number now
                                 const isBlack = [1, 3, 6, 8, 10].includes(pitch % 12);
                                 return (
-                                    <div key={pitch} style={{
-                                        height: `${cellHeight}px`,
-                                        background: isBlack
-                                            ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                            : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
-                                        color: isBlack ? '#ecf0f1' : '#2c3e50',
-                                        borderBottom: `1px solid ${isBlack ? '#1a252f' : '#dee2e6'}`,
-                                        fontSize: '0.8125rem',
-                                        fontWeight: '600',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        paddingLeft: '0.75rem',
-                                        boxSizing: 'border-box',
-                                        transition: 'all var(--transition-fast)',
-                                        cursor: 'pointer',
-                                        position: 'relative'
-                                    }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = isBlack
-                                                ? 'linear-gradient(90deg, #34495e 0%, #3d5a73 100%)'
-                                                : 'linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = isBlack
+                                    <div key={pitch}
+                                        className={isBlack ? 'piano-key-black' : 'piano-key-white'}
+                                        style={{
+                                            height: `${cellHeight}px`,
+                                            fontSize: '0.8125rem',
+                                            fontWeight: '600',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            paddingLeft: '0.75rem',
+                                            boxSizing: 'border-box',
+                                            cursor: 'pointer',
+                                            position: 'relative',
+                                            background: isBlack
                                                 ? 'linear-gradient(90deg, #2c3e50 0%, #34495e 100%)'
-                                                : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)';
+                                                : 'linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%)',
+                                            color: isBlack ? '#ecf0f1' : '#2c3e50',
+                                            borderBottom: isBlack
+                                                ? '1px solid #1a252f'
+                                                : '1px solid #dee2e6'
                                         }}
                                     >
                                         {getFrenchNoteName(pitch, keySignature, false)}
@@ -659,11 +672,12 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                                     ))
                                 ))}
 
-                                {/* Playback head - only show if this phrase is currently playing */}
-                                {isCurrentlyPlaying && isPlaying && playbackPosition >= 0 && playbackPosition < phraseLengthBeats && (
-                                    <div style={{
+                                {/* Playback head - animated via ref, no re-renders */}
+                                <div
+                                    ref={playheadRef}
+                                    style={{
                                         position: 'absolute',
-                                        left: `${playbackPosition * cellWidth}px`,
+                                        display: 'none',
                                         top: 0,
                                         bottom: 0,
                                         width: '3px',
@@ -671,21 +685,20 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                                         boxShadow: '0 0 8px rgba(239, 68, 68, 0.6), 0 0 16px rgba(239, 68, 68, 0.3)',
                                         pointerEvents: 'none',
                                         zIndex: 150
-                                    }}>
-                                        {/* Playhead top marker */}
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: '-6px',
-                                            width: 0,
-                                            height: 0,
-                                            borderLeft: '6px solid transparent',
-                                            borderRight: '6px solid transparent',
-                                            borderTop: '8px solid rgba(239, 68, 68, 0.95)',
-                                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
-                                        }} />
-                                    </div>
-                                )}
+                                    }}
+                                >
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: '-6px',
+                                        width: 0,
+                                        height: 0,
+                                        borderLeft: '6px solid transparent',
+                                        borderRight: '6px solid transparent',
+                                        borderTop: '8px solid rgba(239, 68, 68, 0.95)',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
+                                    }} />
+                                </div>
                             </div>
                         </div>
                     </div>

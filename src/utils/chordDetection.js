@@ -55,7 +55,7 @@ export function identifyChord(midiPitches, keySignature) {
                 const rootName = getRootName(root, keySignature);
                 const quality = template.quality;
                 const displayName = formatChordDisplayName(rootName, quality);
-                return { rootName, quality, displayName };
+                return { rootName, quality, displayName, rootPitchClass: root };
             }
         }
 
@@ -132,8 +132,11 @@ function formatChordDisplayName(rootName, quality) {
 
 /**
  * Detect repeated arpeggio motifs within a measure's chord groups.
- * If the arpeggio repeats the same pitch-class pattern N times,
- * returns { chord, repetitions, notesPerCycle }.
+ *
+ * Strategy:
+ * 1. Try to find a repeating cycle of identical pitch-class sets → single chord × N reps
+ * 2. If cycles differ, try to identify a chord per cycle → multiple distinct chords
+ * 3. Fallback: identify one chord from all notes together
  */
 export function detectArpeggioMotifs(chordGroups, keySignature) {
     if (!chordGroups || chordGroups.length === 0) return null;
@@ -149,46 +152,151 @@ export function detectArpeggioMotifs(chordGroups, keySignature) {
         }
     }
 
-    const chord = identifyChord(midiPitches, keySignature);
-    if (!chord) return null;
-
     const total = midiPitches.length;
-    if (total <= 3) return { chord, repetitions: 1, notesPerCycle: total };
+    if (total === 0) return null;
 
-    // Find the smallest cycle length that repeats exactly
-    // Try cycle sizes from the number of unique pitch classes up to half the total
+    // Try to identify a single chord from all notes
+    const singleChord = identifyChord(midiPitches, keySignature);
+
+    if (total <= 3) {
+        return singleChord ? { chord: singleChord, chords: [singleChord], repetitions: 1, notesPerCycle: total } : null;
+    }
+
+    // Find the smallest cycle length where all cycles have the same pitch-class set
     const uniqueCount = new Set(midiPitches.map(p => p % 12)).size;
-    let bestCycle = total; // fallback: no repetition
+    let bestHomogeneousCycle = null;
 
-    for (let cycleLen = uniqueCount; cycleLen <= total / 2; cycleLen++) {
+    for (let cycleLen = Math.max(3, uniqueCount); cycleLen <= total / 2; cycleLen++) {
         if (total % cycleLen !== 0) continue;
 
-        // Check if this cycle repeats: compare pitch classes
-        const pattern = midiPitches.slice(0, cycleLen).map(p => p % 12);
+        const patternSet = new Set(midiPitches.slice(0, cycleLen).map(p => p % 12));
+        const patternSorted = [...patternSet].sort((a, b) => a - b).join(',');
         let matches = true;
         for (let rep = 1; rep < total / cycleLen; rep++) {
+            const repSet = new Set();
             for (let j = 0; j < cycleLen; j++) {
-                if (midiPitches[rep * cycleLen + j] % 12 !== pattern[j]) {
-                    matches = false;
-                    break;
-                }
+                repSet.add(midiPitches[rep * cycleLen + j] % 12);
             }
-            if (!matches) break;
+            if ([...repSet].sort((a, b) => a - b).join(',') !== patternSorted) {
+                matches = false;
+                break;
+            }
         }
 
         if (matches) {
-            bestCycle = cycleLen;
-            break; // smallest cycle found
+            bestHomogeneousCycle = cycleLen;
+            break;
         }
     }
 
-    const repetitions = Math.floor(total / bestCycle);
+    // If we found a homogeneous repeating cycle, return single chord × N
+    // Add slash bass notation per cycle when bass differs from chord root
+    if (bestHomogeneousCycle && singleChord) {
+        const reps = total / bestHomogeneousCycle;
+        const chords = [];
+        for (let i = 0; i < reps; i++) {
+            const bassPitchClass = midiPitches[i * bestHomogeneousCycle] % 12;
+            if (singleChord.rootPitchClass !== undefined && singleChord.rootPitchClass !== bassPitchClass) {
+                const bassName = getRootName(bassPitchClass, keySignature);
+                chords.push({ ...singleChord, displayName: `${singleChord.displayName}/${bassName}` });
+            } else {
+                chords.push(singleChord);
+            }
+        }
+        return {
+            chord: chords[0],
+            chords,
+            repetitions: reps,
+            notesPerCycle: bestHomogeneousCycle
+        };
+    }
 
-    return {
-        chord,
-        repetitions: repetitions >= 1 ? repetitions : 1,
-        notesPerCycle: bestCycle
-    };
+    // No homogeneous cycle — try to detect distinct chords per group
+    // Try cycle sizes (3, 4, etc.) that divide evenly
+    for (let cycleLen = 3; cycleLen <= Math.min(6, total / 2); cycleLen++) {
+        if (total % cycleLen !== 0) continue;
+
+        const numChords = total / cycleLen;
+        let hasDistinctGroups = false;
+
+        // Check if groups actually differ (different first note = different bass)
+        for (let i = 1; i < numChords; i++) {
+            if (midiPitches[i * cycleLen] % 12 !== midiPitches[0] % 12) {
+                hasDistinctGroups = true;
+                break;
+            }
+        }
+
+        if (hasDistinctGroups && numChords > 1) {
+            // Identify a chord per cycle, adding slash bass when bass != root
+            const chords = [];
+            for (let i = 0; i < numChords; i++) {
+                const cyclePitches = midiPitches.slice(i * cycleLen, (i + 1) * cycleLen);
+                const bassPitchClass = cyclePitches[0] % 12;
+                const bassName = getRootName(bassPitchClass, keySignature);
+
+                // Try identifying from this cycle's pitches, or from all pitches
+                const chord = identifyChord(cyclePitches, keySignature) || singleChord;
+
+                if (chord) {
+                    // Add slash bass if bass note differs from chord root
+                    if (chord.rootPitchClass !== undefined && chord.rootPitchClass !== bassPitchClass) {
+                        chords.push({
+                            ...chord,
+                            displayName: `${chord.displayName}/${bassName}`
+                        });
+                    } else if (chord.rootPitchClass === undefined) {
+                        // singleChord fallback — always add bass since groups differ
+                        chords.push({
+                            ...chord,
+                            displayName: `${chord.displayName}/${bassName}`
+                        });
+                    } else {
+                        chords.push(chord);
+                    }
+                } else {
+                    chords.push({ rootName: bassName, quality: '?', displayName: `${bassName}...` });
+                }
+            }
+
+            return {
+                chord: chords[0],
+                chords,
+                repetitions: numChords,
+                notesPerCycle: cycleLen
+            };
+        }
+
+        // Check for identical sub-chords (homogeneous but missed above)
+        const subChords = [];
+        for (let i = 0; i < numChords; i++) {
+            const cyclePitches = midiPitches.slice(i * cycleLen, (i + 1) * cycleLen);
+            const chord = identifyChord(cyclePitches, keySignature);
+            if (!chord) break;
+            subChords.push(chord);
+        }
+        if (subChords.length === numChords && subChords.every(c => c.displayName === subChords[0].displayName)) {
+            return {
+                chord: subChords[0],
+                chords: subChords,
+                repetitions: numChords,
+                notesPerCycle: cycleLen
+            };
+        }
+    }
+
+    // Fallback: single chord from all notes, with slash bass if needed
+    if (singleChord) {
+        const bassPitchClass = midiPitches[0] % 12;
+        let chord = singleChord;
+        if (singleChord.rootPitchClass !== undefined && singleChord.rootPitchClass !== bassPitchClass) {
+            const bassName = getRootName(bassPitchClass, keySignature);
+            chord = { ...singleChord, displayName: `${singleChord.displayName}/${bassName}` };
+        }
+        return { chord, chords: [chord], repetitions: 1, notesPerCycle: total };
+    }
+
+    return null;
 }
 
 /**

@@ -6,6 +6,7 @@ import { ScoreService } from '../services/ScoreService';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { midiInputService } from '../services/MidiInputService';
+import { TimelineNavigator } from './TimelineNavigator';
 import styles from './SynthesiaView.module.css';
 
 /**
@@ -351,6 +352,42 @@ export function SynthesiaViewOptimized({ song }) {
       setSelectedPhraseIndex('custom');
     }
   }, [customRangeStart, customRangeEnd, setLoopForRange]);
+
+  // Total duration in seconds
+  const totalDuration = useMemo(() => {
+    return (totalMeasures * beatsPerMeasure) / beatsPerSecond;
+  }, [totalMeasures, beatsPerSecond, beatsPerMeasure]);
+
+  // Jump to a specific time in seconds (for TimelineNavigator)
+  const jumpToTime = useCallback((targetTime) => {
+    const clampedTime = Math.max(0, Math.min(totalDuration, targetTime));
+    setCurrentTime(clampedTime);
+    startTimeRef.current = performance.now() - (clampedTime / playbackSpeed) * 1000;
+    processedNotesRef.current = new Set();
+    setPlayedNotes(new Map());
+  }, [totalDuration, playbackSpeed]);
+
+  // Handle loop range change from TimelineNavigator handles
+  const handleLoopChange = useCallback((startMeasure, endMeasure) => {
+    if (loopConfig) {
+      setLoopConfig({
+        startMeasure,
+        endMeasure,
+        name: loopConfig.name || `Mesures ${startMeasure}-${endMeasure}`
+      });
+    }
+  }, [loopConfig]);
+
+  // Toggle loop on/off
+  const handleLoopToggle = useCallback(() => {
+    if (isLoopEnabled) {
+      clearLoop();
+    } else {
+      const currentMeasure = Math.floor((currentTime * beatsPerSecond) / beatsPerMeasure) + 1;
+      const loopMeasure = Math.max(1, currentMeasure);
+      setLoopForRange(loopMeasure, loopMeasure, `Mesure ${loopMeasure}`);
+    }
+  }, [isLoopEnabled, currentTime, beatsPerSecond, beatsPerMeasure, clearLoop, setLoopForRange]);
 
   // Reset BPM when song changes
   useEffect(() => {
@@ -776,6 +813,22 @@ export function SynthesiaViewOptimized({ song }) {
         isLoopEnabled={isLoopEnabled}
         loopConfig={loopConfig}
         sessionStats={sessionStats}
+      />
+
+      {/* Timeline Navigator - Loop Controls */}
+      <TimelineNavigator
+        totalDuration={totalDuration}
+        currentTime={currentTime}
+        loopConfig={loopConfig}
+        isLoopEnabled={isLoopEnabled}
+        phrases={song.phrases}
+        beatsPerSecond={beatsPerSecond}
+        onSeek={jumpToTime}
+        onLoopChange={handleLoopChange}
+        onLoopToggle={handleLoopToggle}
+        onPhraseLoopSelect={setLoopForRange}
+        isPlaying={isPlaying}
+        tempo={currentBPM}
       />
 
       {/* Legend */}

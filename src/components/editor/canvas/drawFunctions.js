@@ -266,7 +266,9 @@ export const drawPianoKeys = (ctx, {
         }
     }
 
-    // Draw black keys on top
+    // Draw black keys on top (thinner height for visual distinction)
+    const blackKeyHeight = Math.round(cellHeight * 0.6);
+    const blackKeyYOffset = Math.round((cellHeight - blackKeyHeight) / 2);
     for (let i = startKeyIndex; i < endKeyIndex; i++) {
         const pitch = keys[i];
         const y = headerHeight + i * cellHeight - scrollY;
@@ -277,11 +279,11 @@ export const drawPianoKeys = (ctx, {
             const blackKeyWidth = pianoKeyWidth * 0.65;
 
             ctx.fillStyle = isActive ? '#8b5cf6' : COLORS.blackKey;
-            ctx.fillRect(0, y, blackKeyWidth, cellHeight);
+            ctx.fillRect(0, y + blackKeyYOffset, blackKeyWidth, blackKeyHeight);
 
             ctx.strokeStyle = COLORS.blackKeyBorder;
             ctx.lineWidth = 1;
-            ctx.strokeRect(0, y, blackKeyWidth, cellHeight);
+            ctx.strokeRect(0, y + blackKeyYOffset, blackKeyWidth, blackKeyHeight);
         }
     }
 
@@ -578,42 +580,56 @@ export const drawLoopRegion = (ctx, {
     const endX = pianoKeyWidth + loopEnd * cellWidth - scrollX;
     const width = endX - startX;
 
-    // Background fill
+    // Background fill in note area (subtle)
     ctx.fillStyle = COLORS.loopRegionFill;
     ctx.fillRect(startX, headerHeight, width, viewportHeight);
 
-    // Borders
+    // Vertical border lines
     ctx.strokeStyle = COLORS.loopRegionBorder;
     ctx.lineWidth = 2;
 
-    // Start line
     ctx.beginPath();
     ctx.moveTo(startX, headerHeight);
     ctx.lineTo(startX, headerHeight + viewportHeight);
     ctx.stroke();
 
-    // End line
     ctx.beginPath();
     ctx.moveTo(endX, headerHeight);
     ctx.lineTo(endX, headerHeight + viewportHeight);
     ctx.stroke();
 
-    // Loop handles (triangles)
-    ctx.fillStyle = COLORS.loopRegionBorder;
+    // Header bar highlight (colored strip on measure number bar)
+    ctx.fillStyle = 'rgba(139, 92, 246, 0.25)';
+    ctx.fillRect(startX, 0, width, headerHeight);
 
-    // Start handle
+    // Loop handles drawn INSIDE the header bar (measure number area)
+    const handleWidth = 12;
+    const handleHeight = headerHeight - 4;
+    const handleY = 2;
+
+    // Start handle (left-aligned bracket)
+    ctx.fillStyle = 'rgba(139, 92, 246, 0.85)';
+    roundRect(ctx, startX, handleY, handleWidth, handleHeight, 2);
+    ctx.fill();
+    // Arrow indicator on start handle
+    ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.moveTo(startX, headerHeight - 2);
-    ctx.lineTo(startX + 10, headerHeight - 2);
-    ctx.lineTo(startX, headerHeight + 10);
+    ctx.moveTo(startX + 3, handleY + handleHeight / 2 - 4);
+    ctx.lineTo(startX + 9, handleY + handleHeight / 2);
+    ctx.lineTo(startX + 3, handleY + handleHeight / 2 + 4);
     ctx.closePath();
     ctx.fill();
 
-    // End handle
+    // End handle (right-aligned bracket)
+    ctx.fillStyle = 'rgba(139, 92, 246, 0.85)';
+    roundRect(ctx, endX - handleWidth, handleY, handleWidth, handleHeight, 2);
+    ctx.fill();
+    // Arrow indicator on end handle
+    ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.moveTo(endX, headerHeight - 2);
-    ctx.lineTo(endX - 10, headerHeight - 2);
-    ctx.lineTo(endX, headerHeight + 10);
+    ctx.moveTo(endX - 3, handleY + handleHeight / 2 - 4);
+    ctx.lineTo(endX - 9, handleY + handleHeight / 2);
+    ctx.lineTo(endX - 3, handleY + handleHeight / 2 + 4);
     ctx.closePath();
     ctx.fill();
 };

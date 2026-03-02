@@ -41,7 +41,8 @@ const ToolbarComponent = ({
 
     // Playback
     isPlaying,
-    playbackPosition,
+    playbackPosition, // kept for backward compat, not used for display
+    positionRef,
     tempo,
     onPlay,
     onStop,
@@ -82,7 +83,7 @@ const ToolbarComponent = ({
             {/* Playback Controls */}
             <PlaybackControls
                 isPlaying={isPlaying}
-                playbackPosition={playbackPosition}
+                positionRef={positionRef}
                 tempo={tempo}
                 onPlay={onPlay}
                 onStop={onStop}
@@ -237,7 +238,6 @@ const arePropsEqual = (prevProps, nextProps) => {
         prevProps.metronomeSubdivision === nextProps.metronomeSubdivision &&
         prevProps.loopEnabled === nextProps.loopEnabled &&
         prevProps.isPlaying === nextProps.isPlaying &&
-        prevProps.playbackPosition === nextProps.playbackPosition &&
         prevProps.tempo === nextProps.tempo &&
         prevProps.totalMeasures === nextProps.totalMeasures &&
         prevProps.phraseLength === nextProps.phraseLength &&

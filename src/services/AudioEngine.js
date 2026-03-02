@@ -18,6 +18,7 @@ class AudioEngine {
 
         await Tone.start();
 
+
         // Metronome Synth
         this.metronomeSynth = new Tone.MembraneSynth({
             pitchDecay: 0.008,
@@ -85,9 +86,14 @@ class AudioEngine {
     // onPlaybackEnd: optional callback called when playback ends (either manually or automatically)
     playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null, beatsPerMeasure = 4) {
         this.onPlaybackEnd = onPlaybackEnd;
-        // Stop playback but keep metronome if it's enabled
+
+        // Stop current transport and dispose of previous part
         Tone.Transport.stop();
-        Tone.Transport.cancel(); // Clear scheduled events
+        if (this._currentPart) {
+            this._currentPart.dispose();
+            this._currentPart = null;
+        }
+        Tone.Transport.cancel();
         if (this.sampler) {
             this.sampler.releaseAll();
         }
@@ -106,16 +112,19 @@ class AudioEngine {
             ...phrase.tracks.chords.map(n => ({ ...n, track: 'chords' }))
         ];
 
-        const part = new Tone.Part((time, note) => {
+        // Pre-compute quarter note duration once
+        const quarterDuration = Tone.Time('4n').toSeconds();
+
+        this._currentPart = new Tone.Part((time, note) => {
             const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
-            this.sampler.triggerAttackRelease(pitch, note.duration * Tone.Time('4n').toSeconds(), time);
+            this.sampler.triggerAttackRelease(pitch, note.duration * quarterDuration, time);
         }, allNotes.map(n => ({
-            time: n.startTime * Tone.Time('4n').toSeconds(),
-            pitch: n.pitch, // Keep original in object, convert inside callback
+            time: n.startTime * quarterDuration,
+            pitch: n.pitch,
             duration: n.duration
         })));
 
-        part.start(0);
+        this._currentPart.start(0);
 
         // Restart metronome if it was enabled
         if (this.metronomeEnabled && this.metronomeLoop) {
@@ -125,7 +134,6 @@ class AudioEngine {
         // Calculate start position
         let startSeconds = 0;
         if (startPositionBeats !== null && startPositionBeats > 0) {
-            // Convert beats to seconds
             startSeconds = (startPositionBeats * 60) / tempo;
             Tone.Transport.seconds = startSeconds;
         }
@@ -135,7 +143,7 @@ class AudioEngine {
 
         // Schedule automatic stop at end of phrase if requested
         if (stopAtEnd) {
-            const phraseLengthBeats = phrase.length * beatsPerMeasure; // phrase.length is in measures
+            const phraseLengthBeats = phrase.length * beatsPerMeasure;
             const phraseDurationSeconds = (phraseLengthBeats * 60) / tempo;
             const remainingSeconds = phraseDurationSeconds - startSeconds;
 
@@ -152,7 +160,11 @@ class AudioEngine {
     playNotes(notes, tempo = 120) {
         // Stop playback but keep metronome if it's enabled
         Tone.Transport.stop();
-        Tone.Transport.cancel(); // Clear scheduled events
+        if (this._currentPart) {
+            this._currentPart.dispose();
+            this._currentPart = null;
+        }
+        Tone.Transport.cancel();
         if (this.sampler) {
             this.sampler.releaseAll();
         }
@@ -163,17 +175,18 @@ class AudioEngine {
 
         // Find the earliest start time to normalize playback
         const minTime = Math.min(...notes.map(n => n.startTime));
+        const quarterDuration = Tone.Time('4n').toSeconds();
 
-        const part = new Tone.Part((time, note) => {
+        this._currentPart = new Tone.Part((time, note) => {
             const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
-            this.sampler.triggerAttackRelease(pitch, note.duration * Tone.Time('4n').toSeconds(), time);
+            this.sampler.triggerAttackRelease(pitch, note.duration * quarterDuration, time);
         }, notes.map(n => ({
-            time: (n.startTime - minTime) * Tone.Time('4n').toSeconds(),
+            time: (n.startTime - minTime) * quarterDuration,
             pitch: n.pitch,
             duration: n.duration
         })));
 
-        part.start(0);
+        this._currentPart.start(0);
 
         // Restart metronome if it was enabled
         if (this.metronomeEnabled && this.metronomeLoop) {
@@ -232,7 +245,11 @@ class AudioEngine {
 
     stop() {
         Tone.Transport.stop();
-        Tone.Transport.cancel(); // Clear scheduled events
+        if (this._currentPart) {
+            this._currentPart.dispose();
+            this._currentPart = null;
+        }
+        Tone.Transport.cancel();
         this.isPlaying = false;
 
         // Clear any scheduled stop timeout

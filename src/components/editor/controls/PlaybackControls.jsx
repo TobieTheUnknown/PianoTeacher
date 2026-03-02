@@ -1,33 +1,36 @@
-import React, { useMemo } from 'react';
+import React, { useRef, useEffect } from 'react';
 import styles from '../PianoRollEditor.module.css';
 
 /**
  * Playback controls (play/stop, position display)
+ * Position display updates via DOM manipulation to avoid React re-renders
  */
 export function PlaybackControls({
     isPlaying,
-    playbackPosition,
+    positionRef,
     tempo,
     onPlay,
     onStop,
     onSeek
 }) {
-    // Format position as bars:beats
-    const formattedPosition = useMemo(() => {
-        const beatsPerMeasure = 4;
-        const measure = Math.floor(playbackPosition / beatsPerMeasure) + 1;
-        const beat = Math.floor(playbackPosition % beatsPerMeasure) + 1;
-        return `${measure}:${beat}`;
-    }, [playbackPosition]);
+    const displayRef = useRef(null);
 
-    // Format time as mm:ss
-    const formattedTime = useMemo(() => {
-        const secondsPerBeat = 60 / tempo;
-        const totalSeconds = playbackPosition * secondsPerBeat;
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = Math.floor(totalSeconds % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    }, [playbackPosition, tempo]);
+    // Update position display directly via DOM (no React re-renders)
+    useEffect(() => {
+        if (!isPlaying || !positionRef) return;
+        let rafId;
+        const update = () => {
+            if (displayRef.current) {
+                const pos = positionRef.current;
+                const measure = Math.floor(pos / 4) + 1;
+                const beat = Math.floor(pos % 4) + 1;
+                displayRef.current.textContent = `${measure}:${beat}`;
+            }
+            rafId = requestAnimationFrame(update);
+        };
+        rafId = requestAnimationFrame(update);
+        return () => cancelAnimationFrame(rafId);
+    }, [isPlaying, positionRef]);
 
     return (
         <div className={styles.playbackControls}>
@@ -50,10 +53,11 @@ export function PlaybackControls({
             </button>
 
             <div
+                ref={displayRef}
                 className={styles.positionDisplay}
-                title={`Position: ${formattedPosition} (${formattedTime})`}
+                title="Position"
             >
-                {formattedPosition}
+                1:1
             </div>
         </div>
     );
