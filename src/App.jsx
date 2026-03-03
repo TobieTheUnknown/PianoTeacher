@@ -60,81 +60,46 @@ function App() {
 
   return (
     <Layout>
-      {/* Minimal Navigation */}
-      <nav style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: '1.5rem',
-        paddingBottom: '1rem',
-        borderBottom: '1px solid var(--border-color)',
-        gap: '1rem'
-      }}>
-        <div style={{
-          display: 'inline-flex',
-          gap: '0.5rem',
-          padding: '0.375rem',
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--radius-lg)'
-        }}>
+      {/* Navigation */}
+      <nav className="nav-bar">
+        <div className="nav-bar-inner">
           <NavButton
             active={mode === 'library'}
             onClick={() => setMode('library')}
             label="Bibliothèque"
+            icon="📚"
           />
           <NavButton
             active={mode === 'edit'}
             onClick={() => setMode('edit')}
             label="Éditeur"
+            icon="✏️"
           />
           <NavButton
             active={mode === 'learn'}
             onClick={() => setMode('learn')}
             label="Apprentissage"
+            icon="🎹"
           />
           <NavButton
             active={mode === 'synthesia'}
             onClick={() => setMode('synthesia')}
             label="Synthesia"
+            icon="🎮"
           />
           <NavButton
             active={mode === 'export'}
             onClick={() => setMode('export')}
-            label="Export Partition"
+            label="Export"
+            icon="🎵"
+          />
+          <NavButton
+            active={showSettings}
+            onClick={() => setShowSettings(true)}
+            label="Réglages"
+            icon="⚙️"
           />
         </div>
-
-        {/* Settings Button */}
-        <button
-          onClick={() => setShowSettings(true)}
-          style={{
-            padding: '0.5rem 1rem',
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 'var(--radius-lg)',
-            cursor: 'pointer',
-            fontSize: '1.1rem',
-            transition: 'all var(--transition-fast)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--bg-tertiary)';
-            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-            e.currentTarget.style.color = 'var(--text-primary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'var(--bg-secondary)';
-            e.currentTarget.style.borderColor = 'var(--border-color)';
-            e.currentTarget.style.color = 'var(--text-secondary)';
-          }}
-          title="Paramètres"
-        >
-          ⚙️
-        </button>
       </nav>
 
       <main>
@@ -176,10 +141,11 @@ function App() {
 }
 
 // Minimal Navigation Button
-function NavButton({ active, onClick, label }) {
+function NavButton({ active, onClick, label, icon }) {
   return (
     <button
       onClick={onClick}
+      className="nav-button"
       style={{
         padding: '0.5rem 1.25rem',
         background: active ? 'var(--accent-primary)' : 'transparent',
@@ -190,7 +156,11 @@ function NavButton({ active, onClick, label }) {
         fontWeight: active ? '500' : '400',
         fontSize: '0.875rem',
         transition: 'all var(--transition-normal)',
-        letterSpacing: '0.01em'
+        letterSpacing: '0.01em',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.4rem'
       }}
       onMouseEnter={(e) => {
         if (!active) {
@@ -205,7 +175,8 @@ function NavButton({ active, onClick, label }) {
         }
       }}
     >
-      {label}
+      {icon && <span className="nav-button-icon">{icon}</span>}
+      <span className="nav-button-label">{label}</span>
     </button>
   );
 }

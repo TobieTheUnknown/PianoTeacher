@@ -1,6 +1,12 @@
 /* Piano Teacher - Minimal Design System */
 
 :root {
+  /* Safe area insets for mobile */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
   /* Minimalist Dark Theme - Refined Palette */
   --bg-primary: #0a0a0a;
   --bg-secondary: #141414;
@@ -72,12 +78,28 @@
   --gradient-primary: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
 }
 
+html {
+  touch-action: manipulation;
+}
+
 * {
   box-sizing: border-box;
 }
 
+*:not(input):not(textarea) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 body {
   margin: 0;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
   font-family: var(--font-family);
   font-size: 15px;
   background: var(--bg-primary);

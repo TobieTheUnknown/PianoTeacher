@@ -352,15 +352,29 @@
 @media (max-width: 768px) {
     .toolbar {
         padding: 6px 8px;
-        gap: 6px;
+        gap: 4px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .toolbarButton {
-        padding: 4px 8px;
+        min-height: 44px;
+        min-width: 44px;
+        padding: 8px;
         font-size: 11px;
+    }
+
+    .playButton {
+        width: 44px;
+        height: 44px;
     }
 
     .toolbarLabel {
         display: none;
+    }
+
+    .toolbarSelect {
+        min-height: 44px;
+        padding: 8px;
     }
 }

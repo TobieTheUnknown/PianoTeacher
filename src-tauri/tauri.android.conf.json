@@ -1,0 +1,14 @@
+{
+  "app": {
+    "windows": [
+      {
+        "fullscreen": false
+      }
+    ]
+  },
+  "bundle": {
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}

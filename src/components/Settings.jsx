@@ -164,6 +164,7 @@ export function Settings({ isOpen, onClose }) {
 
     return (
         <div
+            className="settings-overlay"
             style={{
                 position: 'fixed',
                 top: 0,
@@ -181,6 +182,7 @@ export function Settings({ isOpen, onClose }) {
             onClick={onClose}
         >
             <div
+                className="settings-modal"
                 style={{
                     background: 'var(--bg-elevated)',
                     borderRadius: 'var(--radius-xl)',

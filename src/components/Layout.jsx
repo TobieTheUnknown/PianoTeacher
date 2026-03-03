@@ -3,9 +3,9 @@ import { ThemePicker } from './ThemePicker';
 
 export function Layout({ children }) {
     return (
-        <div className="container">
+        <div className="container" style={{ paddingTop: 'var(--safe-top)' }}>
             <ThemePicker />
-            <header style={{
+            <header className="app-header" style={{
                 padding: '2rem 0 1.5rem',
                 textAlign: 'center',
                 marginBottom: '1.5rem',
@@ -21,7 +21,7 @@ export function Layout({ children }) {
                     Piano Teacher
                 </h1>
 
-                <p style={{
+                <p className="header-subtitle" style={{
                     color: 'var(--text-secondary)',
                     fontSize: '1rem',
                     fontWeight: '300',
