@@ -163,10 +163,10 @@ mod desktop {
 mod android {
     use jni::objects::{JObject, JString, JValue};
     use jni::JNIEnv;
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
     use tauri::{AppHandle, Emitter};
 
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct MidiDevice {
         pub id: String,
         pub name: String,
@@ -318,7 +318,7 @@ mod android {
     /// Called from Kotlin via JNI when a MIDI message is received
     #[no_mangle]
     pub extern "system" fn Java_com_pianoteacher_app_MidiHelper_onMidiMessage(
-        mut env: JNIEnv,
+        _env: JNIEnv,
         _class: jni::objects::JClass,
         status: jni::sys::jint,
         note: jni::sys::jint,
