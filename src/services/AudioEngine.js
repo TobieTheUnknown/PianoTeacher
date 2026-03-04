@@ -1,26 +1,38 @@
-import * as Tone from 'tone';
 import { getNoteNameFromMidi } from '../models/song';
+
+// Lazy-loaded Tone.js module — avoids AudioContext creation on import (crashes Android WebView)
+let Tone = null;
+
+async function loadTone() {
+    if (!Tone) {
+        Tone = await import('tone');
+    }
+    return Tone;
+}
 
 class AudioEngine {
     constructor() {
         this.sampler = null;
-        this.isPlaying = false; // True only when actually playing notes (not just metronome)
-        this.metronomeEnabled = false; // Track if metronome should stay active
+        this.isPlaying = false;
+        this.metronomeEnabled = false;
     }
 
-    // Returns true only if we're playing actual music (not just metronome)
     getIsActuallyPlaying() {
         return this.isPlaying;
+    }
+
+    // Expose Tone module for consumers that need it (e.g. usePlaybackPosition)
+    getTone() {
+        return Tone;
     }
 
     async initialize() {
         if (this.sampler) return;
 
-        await Tone.start();
+        const T = await loadTone();
+        await T.start();
 
-
-        // Metronome Synth
-        this.metronomeSynth = new Tone.MembraneSynth({
+        this.metronomeSynth = new T.MembraneSynth({
             pitchDecay: 0.008,
             octaves: 2,
             envelope: {
@@ -31,7 +43,7 @@ class AudioEngine {
         }).toDestination();
 
         return new Promise((resolve) => {
-            this.sampler = new Tone.Sampler({
+            this.sampler = new T.Sampler({
                 urls: {
                     "A0": "A0.mp3",
                     "C1": "C1.mp3",
@@ -75,19 +87,15 @@ class AudioEngine {
     }
 
     playNote(pitch, duration = '8n', time) {
-        if (!this.sampler) return;
+        if (!this.sampler || !Tone) return;
         const note = typeof pitch === 'number' ? getNoteNameFromMidi(pitch) : pitch;
         this.sampler.triggerAttackRelease(note, duration, time);
     }
 
-    // Simple playback of a phrase
-    // startPositionBeats: optional start position in beats (if not provided, starts from 0)
-    // stopAtEnd: if true, automatically stop playback at the end of the phrase
-    // onPlaybackEnd: optional callback called when playback ends (either manually or automatically)
     playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null, beatsPerMeasure = 4) {
+        if (!Tone) return;
         this.onPlaybackEnd = onPlaybackEnd;
 
-        // Stop current transport and dispose of previous part
         Tone.Transport.stop();
         if (this._currentPart) {
             this._currentPart.dispose();
@@ -98,7 +106,6 @@ class AudioEngine {
             this.sampler.releaseAll();
         }
 
-        // Clear any previous stop timeout
         if (this.stopTimeout) {
             clearTimeout(this.stopTimeout);
             this.stopTimeout = null;
@@ -106,13 +113,11 @@ class AudioEngine {
 
         Tone.Transport.bpm.value = tempo;
 
-        // Combine tracks for playback
         const allNotes = [
             ...phrase.tracks.melody.map(n => ({ ...n, track: 'melody' })),
             ...phrase.tracks.chords.map(n => ({ ...n, track: 'chords' }))
         ];
 
-        // Pre-compute quarter note duration once
         const quarterDuration = Tone.Time('4n').toSeconds();
 
         this._currentPart = new Tone.Part((time, note) => {
@@ -126,12 +131,10 @@ class AudioEngine {
 
         this._currentPart.start(0);
 
-        // Restart metronome if it was enabled
         if (this.metronomeEnabled && this.metronomeLoop) {
             this.metronomeLoop.start(0);
         }
 
-        // Calculate start position
         let startSeconds = 0;
         if (startPositionBeats !== null && startPositionBeats > 0) {
             startSeconds = (startPositionBeats * 60) / tempo;
@@ -141,7 +144,6 @@ class AudioEngine {
         Tone.Transport.start();
         this.isPlaying = true;
 
-        // Schedule automatic stop at end of phrase if requested
         if (stopAtEnd) {
             const phraseLengthBeats = phrase.length * beatsPerMeasure;
             const phraseDurationSeconds = (phraseLengthBeats * 60) / tempo;
@@ -156,9 +158,9 @@ class AudioEngine {
         }
     }
 
-    // Play a specific list of notes (e.g. for a measure)
     playNotes(notes, tempo = 120) {
-        // Stop playback but keep metronome if it's enabled
+        if (!Tone) return;
+
         Tone.Transport.stop();
         if (this._currentPart) {
             this._currentPart.dispose();
@@ -173,7 +175,6 @@ class AudioEngine {
 
         Tone.Transport.bpm.value = tempo;
 
-        // Find the earliest start time to normalize playback
         const minTime = Math.min(...notes.map(n => n.startTime));
         const quarterDuration = Tone.Time('4n').toSeconds();
 
@@ -188,7 +189,6 @@ class AudioEngine {
 
         this._currentPart.start(0);
 
-        // Restart metronome if it was enabled
         if (this.metronomeEnabled && this.metronomeLoop) {
             this.metronomeLoop.start(0);
         }
@@ -197,30 +197,26 @@ class AudioEngine {
         this.isPlaying = true;
     }
 
-    // Metronome Features
     playClick(time, isAccent = false) {
         if (!this.metronomeSynth) return;
-        // Accent (first beat) is higher pitch and louder
         const pitch = isAccent ? "C6" : "C5";
         const duration = "32n";
         this.metronomeSynth.triggerAttackRelease(pitch, duration, time, isAccent ? 1.0 : 0.6);
     }
 
     startMetronome(tempo = 120, subdivision = 'quarter') {
-        // Stop any existing metronome loop to avoid duplicates
+        if (!Tone) return;
         this.stopMetronome();
 
         this.metronomeEnabled = true;
         Tone.Transport.bpm.value = tempo;
 
-        // Map subdivision to Tone.js notation
         const subdivisionMap = {
-            'quarter': '4n',  // Noire (1/4)
-            'eighth': '8n'    // Croche (1/8)
+            'quarter': '4n',
+            'eighth': '8n'
         };
         const toneSubdivision = subdivisionMap[subdivision] || '4n';
 
-        // Schedule click at the specified subdivision
         this.metronomeLoop = new Tone.Loop((time) => {
             this.playClick(time);
         }, toneSubdivision).start(0);
@@ -240,31 +236,33 @@ class AudioEngine {
     }
 
     setTempo(bpm) {
+        if (!Tone) return;
         Tone.Transport.bpm.value = bpm;
     }
 
     stop() {
-        Tone.Transport.stop();
+        if (Tone) {
+            Tone.Transport.stop();
+        }
         if (this._currentPart) {
             this._currentPart.dispose();
             this._currentPart = null;
         }
-        Tone.Transport.cancel();
+        if (Tone) {
+            Tone.Transport.cancel();
+        }
         this.isPlaying = false;
 
-        // Clear any scheduled stop timeout
         if (this.stopTimeout) {
             clearTimeout(this.stopTimeout);
             this.stopTimeout = null;
         }
 
-        // Call the playback end callback if it exists
         if (this.onPlaybackEnd) {
             this.onPlaybackEnd();
             this.onPlaybackEnd = null;
         }
 
-        // Only stop metronome if explicitly disabled
         if (!this.metronomeEnabled) {
             this.stopMetronome();
         }
@@ -273,6 +271,7 @@ class AudioEngine {
             this.sampler.releaseAll();
         }
     }
+
     stopAll() {
         this.stop();
     }

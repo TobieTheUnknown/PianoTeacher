@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import * as Tone from 'tone';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
@@ -759,7 +758,8 @@ export function SynthesiaView({ song }) {
             const isAccent = effectiveDivision === 'measure' || beatInMeasure < 0.1; // Accent first beat of measure
 
             // Play click with accent if applicable
-            audioEngine.playClick(Tone.now(), isAccent);
+            const Tone = audioEngine.getTone();
+            audioEngine.playClick(Tone ? Tone.now() : undefined, isAccent);
         }
 
         // No need for automatic metronome loop anymore

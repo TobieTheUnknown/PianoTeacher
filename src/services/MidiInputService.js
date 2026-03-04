@@ -10,10 +10,20 @@
  * - Native MIDI support for Tauri desktop app
  */
 
-// Import Tauri APIs statically (they're now npm dependencies, so safe to import)
-// They will be included in the bundle but only used in Tauri environment
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+// Tauri APIs loaded dynamically to avoid crashes on Android WebView startup
+let invoke = null;
+let listen = null;
+
+async function loadTauriAPIs() {
+    if (!invoke) {
+        const core = await import('@tauri-apps/api/core');
+        invoke = core.invoke;
+    }
+    if (!listen) {
+        const event = await import('@tauri-apps/api/event');
+        listen = event.listen;
+    }
+}
 
 // Detect if running in Tauri environment
 // In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
@@ -121,6 +131,7 @@ class MidiInputService {
     async initTauriMidi() {
         try {
             console.log('Initializing Tauri MIDI...');
+            await loadTauriAPIs();
 
             this.useTauriMidi = true;
             this.isSupported = true;

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import * as Tone from 'tone';
 import { getNoteNameFromMidi } from '../models/song';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
@@ -13,13 +12,13 @@ import { audioEngine } from '../services/AudioEngine';
 export function useMidiAudio() {
     const audioInitialized = useRef(false);
     const isInitializing = useRef(false);
+    const toneRef = useRef(null);
 
     useEffect(() => {
         // MIDI event handlers
         const handleNoteOn = async (event) => {
             const { note, velocity } = event;
 
-            // Validate note value
             if (typeof note !== 'number' || isNaN(note) || note < 0 || note > 127) {
                 console.error('Invalid MIDI note value:', note);
                 return;
@@ -30,6 +29,7 @@ export function useMidiAudio() {
                 isInitializing.current = true;
                 try {
                     await audioEngine.initialize();
+                    toneRef.current = audioEngine.getTone();
                     audioInitialized.current = true;
                 } catch (error) {
                     console.error('Failed to initialize MIDI audio:', error);
@@ -38,15 +38,12 @@ export function useMidiAudio() {
                 }
             }
 
-            // Wait for initialization to complete if in progress
             if (isInitializing.current && !audioInitialized.current) {
-                // Skip this event, will work on next one
                 return;
             }
 
-            // Play audio with volume from settings
-            if (audioInitialized.current && audioEngine.sampler) {
-                // Ensure audio context is running
+            const Tone = toneRef.current;
+            if (audioInitialized.current && audioEngine.sampler && Tone) {
                 if (Tone.context.state !== 'running') {
                     await Tone.start();
                 }
@@ -69,9 +66,9 @@ export function useMidiAudio() {
 
         const handleNoteOff = (event) => {
             const { note } = event;
+            const Tone = toneRef.current;
 
-            // Release audio
-            if (audioInitialized.current && audioEngine.sampler) {
+            if (audioInitialized.current && audioEngine.sampler && Tone) {
                 const noteName = getNoteNameFromMidi(note);
                 audioEngine.sampler.triggerRelease(noteName, Tone.now());
             }

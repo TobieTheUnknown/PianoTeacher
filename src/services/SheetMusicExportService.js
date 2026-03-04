@@ -1,5 +1,14 @@
-import { Formatter, Renderer, Stave, StaveNote, Voice, Accidental, Annotation } from 'vexflow';
 import { getNoteNameFromMidi, getFrenchNoteName } from '../models/song';
+
+// Lazy-loaded VexFlow — 100KB+ library, unnecessary on mobile
+let vexflow = null;
+
+async function loadVexFlow() {
+    if (!vexflow) {
+        vexflow = await import('vexflow');
+    }
+    return vexflow;
+}
 
 /**
  * Service pour exporter des partitions musicales à partir de données MIDI
@@ -95,14 +104,17 @@ export class SheetMusicExportService {
      * @param {number} options.phraseIndex - Index de la phrase à exporter (ou null pour tout)
      * @returns {HTMLElement} - Element SVG contenant la partition
      */
-    exportToSheetMusic(song, options = {}) {
+    async exportToSheetMusic(song, options = {}) {
+        const { Formatter, Renderer, Stave, StaveNote, Voice, Accidental, Annotation } = await loadVexFlow();
+        // Store VexFlow classes for use in renderMeasuresOnStave
+        this._vex = { Formatter, Renderer, Stave, StaveNote, Voice, Accidental, Annotation };
+
         const {
             withAnnotations = false,
             track = 'both',
             phraseIndex = null
         } = options;
 
-        // Vérifications de sécurité
         if (!song) {
             throw new Error('Aucun morceau fourni');
         }
@@ -111,12 +123,10 @@ export class SheetMusicExportService {
             throw new Error('Le morceau ne contient aucune phrase');
         }
 
-        // Créer un conteneur pour le rendu
         const container = document.createElement('div');
         container.style.width = '1200px';
         container.style.height = 'auto';
 
-        // Initialiser le renderer VexFlow
         const renderer = new Renderer(container, Renderer.Backends.SVG);
         renderer.resize(1200, 800);
         const context = renderer.getContext();
@@ -231,20 +241,19 @@ export class SheetMusicExportService {
     renderMeasuresOnStave(stave, measures, keySignature, withAnnotations) {
         if (!stave || !measures || measures.length === 0) return;
 
+        const { Formatter, StaveNote, Voice, Accidental, Annotation } = this._vex;
         const allNotes = [];
 
         measures.forEach(measure => {
             if (!measure || measure.length === 0) {
-                // Mesure vide - ajouter un silence
                 allNotes.push(
                     new StaveNote({
                         keys: ['b/4'],
-                        duration: 'wr', // Whole rest
+                        duration: 'wr',
                     })
                 );
             } else {
                 measure.forEach(note => {
-                    // Vérifier que la note a une propriété pitch
                     if (!note || typeof note.pitch === 'undefined') {
                         console.warn('Note invalide ignorée:', note);
                         return;
@@ -258,7 +267,6 @@ export class SheetMusicExportService {
                         duration: vexDuration,
                     });
 
-                    // Ajouter des altérations si nécessaire
                     const noteName = getNoteNameFromMidi(note.pitch);
                     if (noteName && noteName.includes('#')) {
                         staveNote.addModifier(new Accidental('#'), 0);
@@ -266,7 +274,6 @@ export class SheetMusicExportService {
                         staveNote.addModifier(new Accidental('b'), 0);
                     }
 
-                    // Ajouter l'annotation en français si demandé
                     if (withAnnotations) {
                         const frenchName = getFrenchNoteName(note.pitch, keySignature);
                         if (frenchName) {
@@ -283,15 +290,13 @@ export class SheetMusicExportService {
         });
 
         if (allNotes.length > 0) {
-            // Créer une voix et formater
             const voice = new Voice({
                 num_beats: 4 * measures.length,
                 beat_value: 4,
             });
-            voice.setStrict(false); // Permettre des mesures incomplètes
+            voice.setStrict(false);
             voice.addTickables(allNotes);
 
-            // Formater et dessiner
             new Formatter()
                 .joinVoices([voice])
                 .format([voice], stave.getWidth() - 20);
@@ -327,7 +332,7 @@ export class SheetMusicExportService {
      * @returns {Promise<Blob>} - Promise contenant le blob PNG
      */
     async exportToPNG(song, options = {}) {
-        const svgContainer = this.exportToSheetMusic(song, options);
+        const svgContainer = await this.exportToSheetMusic(song, options);
         const svg = svgContainer.querySelector('svg');
 
         if (!svg) {
@@ -368,8 +373,8 @@ export class SheetMusicExportService {
      * @param {Object} options - Options d'export
      * @returns {Blob} - Blob SVG
      */
-    exportToSVG(song, options = {}) {
-        const svgContainer = this.exportToSheetMusic(song, options);
+    async exportToSVG(song, options = {}) {
+        const svgContainer = await this.exportToSheetMusic(song, options);
         const svg = svgContainer.querySelector('svg');
 
         if (!svg) {

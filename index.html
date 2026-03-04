@@ -9,6 +9,25 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Error trap — catches crashes BEFORE React/modules load
+      // Shows error on screen instead of black screen (critical for Android debugging)
+      window.onerror = function(msg, src, line, col, err) {
+        var el = document.getElementById('__error_trap');
+        if (!el) {
+          el = document.createElement('pre');
+          el.id = '__error_trap';
+          el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#1a0000;color:#ff6b6b;padding:1rem;font-size:12px;overflow:auto;white-space:pre-wrap;word-break:break-all;';
+          document.body.appendChild(el);
+        }
+        el.textContent += '[ERROR] ' + msg + '\n  at ' + src + ':' + line + ':' + col + '\n' + (err && err.stack ? err.stack : '') + '\n\n';
+      };
+      window.onunhandledrejection = function(e) {
+        var reason = e.reason || {};
+        var msg = reason.message || reason.toString ? reason.toString() : String(reason);
+        window.onerror('[UnhandledRejection] ' + msg, '', 0, 0, reason);
+      };
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

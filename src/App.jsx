@@ -1,16 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
 import { SynthesiaViewOptimized as SynthesiaView } from './components/SynthesiaViewOptimized';
 import { Settings } from './components/Settings';
-import { SheetMusicExporter } from './components/SheetMusicExporter';
 import { TopNavBar } from './components/TopNavBar';
 import { BottomTabBar } from './components/BottomTabBar';
 import { useDeviceContext } from './hooks/useDeviceContext';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
+
+// Lazy-load SheetMusicExporter (pulls in VexFlow 100KB+, not needed on mobile)
+const SheetMusicExporter = React.lazy(() =>
+  import('./components/SheetMusicExporter').then(m => ({ default: m.SheetMusicExporter }))
+);
 
 function App() {
   const {
@@ -118,7 +122,9 @@ function App() {
           />
         )}
         {shouldShowExport && (
-          <SheetMusicExporter song={song} />
+          <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Chargement...</div>}>
+            <SheetMusicExporter song={song} />
+          </Suspense>
         )}
       </main>
 

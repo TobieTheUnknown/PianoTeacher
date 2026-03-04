@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import * as Tone from 'tone';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
-// getNoteNameFromMidi removed - not used
 
 /**
  * Visual Scrolling Track Component
@@ -264,9 +262,10 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
         const initAudio = async () => {
             if (!audioInitialized.current) {
                 await audioEngine.initialize();
+                const Tone = audioEngine.getTone();
+                if (!Tone) return;
                 await Tone.start();
 
-                // Create metronome synth
                 metronomeSynth.current = new Tone.MembraneSynth({
                     pitchDecay: 0.05,
                     octaves: 10,

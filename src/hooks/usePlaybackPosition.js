@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as Tone from 'tone';
 import { audioEngine } from '../services/AudioEngine';
 
 /**
@@ -28,23 +27,26 @@ export function usePlaybackPosition() {
         const updatePosition = () => {
             if (!mounted) return;
 
+            const Tone = audioEngine.getTone();
             const now = performance.now();
 
-            // Read current position from Tone.js Transport
-            const seconds = Tone.Transport.seconds;
-            const bpm = Tone.Transport.bpm.value || 120;
-            const beats = (seconds * bpm) / 60;
+            if (Tone) {
+                // Read current position from Tone.js Transport
+                const seconds = Tone.Transport.seconds;
+                const bpm = Tone.Transport.bpm.value || 120;
+                const beats = (seconds * bpm) / 60;
 
-            // Always update the ref (no React re-render)
-            positionRef.current = beats;
+                // Always update the ref (no React re-render)
+                positionRef.current = beats;
 
-            // Trigger React state update when isPlaying changes
-            const actuallyPlaying = audioEngine.getIsActuallyPlaying();
-            if (actuallyPlaying !== wasPlayingRef.current) {
-                wasPlayingRef.current = actuallyPlaying;
-                setIsPlaying(actuallyPlaying);
-                setPlaybackPosition(beats);
-                lastStateUpdateRef.current = now;
+                // Trigger React state update when isPlaying changes
+                const actuallyPlaying = audioEngine.getIsActuallyPlaying();
+                if (actuallyPlaying !== wasPlayingRef.current) {
+                    wasPlayingRef.current = actuallyPlaying;
+                    setIsPlaying(actuallyPlaying);
+                    setPlaybackPosition(beats);
+                    lastStateUpdateRef.current = now;
+                }
             }
 
             animationFrameRef.current = requestAnimationFrame(updatePosition);
@@ -62,6 +64,8 @@ export function usePlaybackPosition() {
 
     // Seek to a specific position in beats
     const seek = useCallback((beats) => {
+        const Tone = audioEngine.getTone();
+        if (!Tone) return;
         const bpm = Tone.Transport.bpm.value || 120;
         const seconds = (beats * 60) / bpm;
         Tone.Transport.seconds = seconds;

@@ -13,7 +13,7 @@ export const SheetMusicExporter = ({ song }) => {
     const [preview, setPreview] = useState(null);
     const previewContainerRef = useRef(null);
 
-    const handlePreview = () => {
+    const handlePreview = async () => {
         try {
             setIsExporting(true);
 
@@ -28,7 +28,7 @@ export const SheetMusicExporter = ({ song }) => {
                 phraseIndex: (phraseIndex === 'all' || phraseIndex === null) ? null : parseInt(phraseIndex)
             };
 
-            const svgContainer = sheetMusicExportService.exportToSheetMusic(song, options);
+            const svgContainer = await sheetMusicExportService.exportToSheetMusic(song, options);
 
             // Afficher le preview
             if (previewContainerRef.current && svgContainer) {
@@ -53,7 +53,7 @@ export const SheetMusicExporter = ({ song }) => {
                 phraseIndex: (phraseIndex === 'all' || phraseIndex === null) ? null : parseInt(phraseIndex)
             };
 
-            const blob = sheetMusicExportService.exportToSVG(song, options);
+            const blob = await sheetMusicExportService.exportToSVG(song, options);
 
             // Télécharger le fichier
             const url = URL.createObjectURL(blob);

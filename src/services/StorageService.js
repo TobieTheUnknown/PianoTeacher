@@ -1,8 +1,4 @@
 import { getMidiNumber } from '../models/song';
-// Import Tauri plugins statically (they're now npm dependencies, so safe to import)
-// They will be included in the bundle but only used in Tauri environment
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile } from '@tauri-apps/plugin-fs';
 
 // Detect if running in Tauri environment
 // In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
@@ -132,6 +128,9 @@ export const StorageService = {
         // Use Tauri dialog if available (desktop app)
         if (isTauri()) {
             try {
+                const { save } = await import('@tauri-apps/plugin-dialog');
+                const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
                 const filePath = await save({
                     defaultPath: defaultFilename,
                     filters: [{
@@ -148,7 +147,6 @@ export const StorageService = {
                 return { success: false, cancelled: true };
             } catch (error) {
                 console.error('Error exporting song with Tauri:', error);
-                // Fallback to web method
             }
         }
 
@@ -157,7 +155,7 @@ export const StorageService = {
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
         downloadAnchorNode.setAttribute("download", defaultFilename);
-        document.body.appendChild(downloadAnchorNode); // required for firefox
+        document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
         return { success: true };
@@ -169,9 +167,11 @@ export const StorageService = {
         const libraryJson = JSON.stringify(songs, null, 2);
         const defaultFilename = `bibliotheque_piano_${new Date().toISOString().split('T')[0]}.json`;
 
-        // Use Tauri dialog if available (desktop app)
         if (isTauri()) {
             try {
+                const { save } = await import('@tauri-apps/plugin-dialog');
+                const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
                 const filePath = await save({
                     defaultPath: defaultFilename,
                     filters: [{
@@ -188,7 +188,6 @@ export const StorageService = {
                 return { success: false, cancelled: true };
             } catch (error) {
                 console.error('Error exporting library with Tauri:', error);
-                // Fallback to web method
             }
         }
 

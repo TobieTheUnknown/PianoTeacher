@@ -99,8 +99,8 @@ export class ErrorBoundary extends React.Component {
               Quelque chose s'est mal passé. L'application a rencontré une erreur inattendue.
             </p>
 
-            {/* Détails de l'erreur en mode développement */}
-            {import.meta.env.DEV && this.state.error && (
+            {/* Error details — always shown to help debug Android crashes */}
+            {this.state.error && (
               <details style={{
                 textAlign: 'left',
                 marginBottom: '1.5rem',
