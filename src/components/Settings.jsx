@@ -5,8 +5,10 @@ import { midiInputService } from '../services/MidiInputService';
 import handColorsService, { COLOR_PRESETS, SCALE_HIGHLIGHT_PRESETS } from '../services/HandColorsService';
 import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
+import { useDeviceContext } from '../hooks/useDeviceContext';
 
 export function Settings({ isOpen, onClose }) {
+    const { isMobile } = useDeviceContext();
     const [activeTab, setActiveTab] = useState('theme');
     const [accentPrimary, setAccentPrimary] = useState(themeEngine.getVariable('accent-primary'));
     const [accentSecondary, setAccentSecondary] = useState(themeEngine.getVariable('accent-secondary'));
@@ -238,44 +240,47 @@ export function Settings({ isOpen, onClose }) {
                     </button>
                 </div>
 
-                {/* Tabs */}
+                {/* Tabs - scrollable on mobile */}
                 <div style={{
                     display: 'flex',
                     gap: '0.5rem',
-                    padding: '1rem 2rem',
+                    padding: isMobile ? '0.75rem 1rem' : '1rem 2rem',
                     borderBottom: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)'
+                    background: 'var(--bg-secondary)',
+                    overflowX: isMobile ? 'auto' : 'visible',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none'
                 }}>
                     <TabButton
                         active={activeTab === 'theme'}
                         onClick={() => setActiveTab('theme')}
-                        label="🎨 Thème"
+                        label="Thème"
                     />
                     <TabButton
                         active={activeTab === 'typography'}
                         onClick={() => setActiveTab('typography')}
-                        label="📝 Typographie"
+                        label="Typo"
                     />
                     <TabButton
                         active={activeTab === 'library'}
                         onClick={() => setActiveTab('library')}
-                        label="📚 Bibliothèque"
+                        label="Biblio"
                     />
                     <TabButton
                         active={activeTab === 'midi'}
                         onClick={() => setActiveTab('midi')}
-                        label="🎹 MIDI"
+                        label={selectedMidiDevice ? 'MIDI \u25CF' : 'MIDI'}
                     />
                     <TabButton
                         active={activeTab === 'colors'}
                         onClick={() => setActiveTab('colors')}
-                        label="🎨 Couleurs"
+                        label="Couleurs"
                     />
                 </div>
 
                 {/* Content */}
                 <div style={{
-                    padding: '2rem',
+                    padding: isMobile ? '1rem' : '2rem',
                     overflowY: 'auto',
                     flex: 1
                 }}>
@@ -687,7 +692,17 @@ export function Settings({ isOpen, onClose }) {
                                                     fontSize: '0.85rem',
                                                     color: 'var(--text-primary)'
                                                 }}>
-                                                    ✅ Connecté à : <strong>{selectedMidiDevice.name}</strong>
+                                                    <span style={{
+                                                        display: 'inline-block',
+                                                        width: 8,
+                                                        height: 8,
+                                                        borderRadius: '50%',
+                                                        backgroundColor: '#22c55e',
+                                                        marginRight: '0.5rem',
+                                                        animation: 'pulse 2s ease-in-out infinite',
+                                                        verticalAlign: 'middle'
+                                                    }} />
+                                                    Connecté : <strong>{selectedMidiDevice.name}</strong>
                                                 </div>
                                             )}
                                             {midiDevices.length === 0 && (
@@ -700,7 +715,10 @@ export function Settings({ isOpen, onClose }) {
                                                     fontSize: '0.85rem',
                                                     color: 'var(--text-primary)'
                                                 }}>
-                                                    ⚠️ Aucun clavier MIDI détecté. Branchez votre clavier et cliquez sur 🔄
+                                                    {midiInputService.isAndroid()
+                                                        ? '\u26A0\uFE0F ' + midiInputService.getNoDeviceHint()
+                                                        : '\u26A0\uFE0F Aucun clavier MIDI détecté. Branchez votre clavier et cliquez sur \uD83D\uDD04'
+                                                    }
                                                 </div>
                                             )}
                                         </div>

@@ -1,0 +1,271 @@
+/* Synthesia Mobile Overlay - Floating controls on canvas */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.overlayHidden {
+  opacity: 0;
+}
+
+.overlayVisible {
+  opacity: 1;
+}
+
+/* Tap catcher to toggle overlay */
+.tapCatcher {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  z-index: 0;
+}
+
+/* Top-left: back button */
+.backButton {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 12px);
+  left: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2;
+  padding: 0;
+  min-height: unset;
+  min-width: unset;
+}
+
+.backButton:hover,
+.backButton:active {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Top-right: time and combo */
+.topRight {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 12px);
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.timeDisplay {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-md);
+}
+
+.comboDisplay {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #22c55e;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-md);
+}
+
+.comboHigh {
+  color: #fbbf24;
+}
+
+/* Center-bottom: play/pause */
+.centerBottom {
+  position: absolute;
+  bottom: calc(var(--safe-bottom, 0px) + 80px);
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.playPauseButton {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  min-height: unset;
+  min-width: unset;
+  transition: all var(--transition-fast);
+}
+
+.playPauseButton:hover,
+.playPauseButton:active {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
+}
+
+/* Bottom-left: tempo slider */
+.bottomLeft {
+  position: absolute;
+  bottom: calc(var(--safe-bottom, 0px) + 16px);
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: auto;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tempoLabel {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.tempoSlider {
+  width: 80px;
+  height: 4px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+/* Bottom-right: toggles */
+.bottomRight {
+  position: absolute;
+  bottom: calc(var(--safe-bottom, 0px) + 16px);
+  right: 12px;
+  display: flex;
+  gap: 0.5rem;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.toggleButton {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0;
+  min-height: unset;
+  min-width: unset;
+}
+
+.toggleButton:hover,
+.toggleButton:active {
+  background: rgba(0, 0, 0, 0.7);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.toggleButtonActive {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+/* Bottom sheet trigger */
+.moreButton {
+  composes: toggleButton;
+}
+
+/* Bottom sheet */
+.bottomSheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px 16px 0 0;
+  padding: 1rem 1rem calc(var(--safe-bottom, 0px) + 1rem);
+  pointer-events: auto;
+  z-index: 5;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.bottomSheetOpen {
+  transform: translateY(0);
+}
+
+.sheetHandle {
+  width: 32px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  margin: 0 auto 1rem;
+}
+
+.sheetSection {
+  margin-bottom: 1rem;
+}
+
+.sheetLabel {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sheetRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sheetButton {
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.sheetButton:hover,
+.sheetButton:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sheetButtonActive {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border-color: var(--accent-primary);
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef, memo, useState } from 'react';
+import React, { useEffect, useCallback, useRef, memo, useState, useMemo } from 'react';
 import { useCanvasLayers } from '../hooks/useCanvasLayers';
 import { getFrenchNoteName } from '../models/song';
 import handColorsService from '../services/HandColorsService';
@@ -18,20 +18,18 @@ const STATIC_COLORS = {
   missed: '#f59e0b'
 };
 
-// Canvas dimensions
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 800;
-const KEYBOARD_HEIGHT = 150;
-const NOTE_FALL_HEIGHT = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+// Default canvas dimensions (used when no dynamic dimensions provided)
+const DEFAULT_WIDTH = 1200;
+const DEFAULT_HEIGHT = 800;
 
 // Piano keyboard constants
 const FIRST_KEY = 21;
 const LAST_KEY = 108;
-const WHITE_KEY_WIDTH = CANVAS_WIDTH / 52;
 
 /**
  * Composant Canvas optimisé pour SynthesiaView
  * Utilise des layers séparés pour minimiser les redraws
+ * Supports dynamic dimensions via canvasWidth/canvasHeight props
  */
 const SynthesiaCanvas = memo(({
   currentTime,
@@ -45,8 +43,35 @@ const SynthesiaCanvas = memo(({
   song,
   isLoopEnabled,
   loopConfig,
-  sessionStats
+  sessionStats,
+  canvasWidth: propWidth,
+  canvasHeight: propHeight,
+  mobileKeyRange,
 }) => {
+  // Use prop dimensions or defaults
+  const CANVAS_WIDTH = propWidth || DEFAULT_WIDTH;
+  const CANVAS_HEIGHT = propHeight || DEFAULT_HEIGHT;
+  const KEYBOARD_HEIGHT = CANVAS_HEIGHT * 0.1875; // 18.75% of height (150/800 ratio)
+  const NOTE_FALL_HEIGHT = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
+
+  // Use mobile key range or full range
+  const firstKey = mobileKeyRange ? mobileKeyRange[0] : FIRST_KEY;
+  const lastKey = mobileKeyRange ? mobileKeyRange[1] : LAST_KEY;
+
+  // Count white keys in range
+  const whiteKeyCount = useMemo(() => {
+    let count = 0;
+    for (let i = firstKey; i <= lastKey; i++) {
+      if (![1, 3, 6, 8, 10].includes(i % 12)) count++;
+    }
+    return count;
+  }, [firstKey, lastKey]);
+
+  const WHITE_KEY_WIDTH = CANVAS_WIDTH / whiteKeyCount;
+
+  // Scale font sizes proportionally
+  const fontScale = CANVAS_WIDTH / DEFAULT_WIDTH;
+
   const {
     containerRef,
     staticLayerRef,
@@ -95,22 +120,22 @@ const SynthesiaCanvas = memo(({
   }, []);
 
   const getNoteX = useCallback((midiNote) => {
-    if (midiNote < FIRST_KEY || midiNote > LAST_KEY) return null;
+    if (midiNote < firstKey || midiNote > lastKey) return null;
 
-    let whiteKeyCount = 0;
-    for (let i = FIRST_KEY; i < midiNote; i++) {
-      if (!isBlackKey(i)) whiteKeyCount++;
+    let whiteKeyIdx = 0;
+    for (let i = firstKey; i < midiNote; i++) {
+      if (!isBlackKey(i)) whiteKeyIdx++;
     }
 
     const isNoteBlack = isBlackKey(midiNote);
 
     if (!isNoteBlack) {
-      return whiteKeyCount * WHITE_KEY_WIDTH;
+      return whiteKeyIdx * WHITE_KEY_WIDTH;
     } else {
       const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
-      return (whiteKeyCount * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2);
+      return (whiteKeyIdx * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2);
     }
-  }, [isBlackKey]);
+  }, [isBlackKey, firstKey, lastKey, WHITE_KEY_WIDTH]);
 
   const getKeyColor = useCallback((midiNote, isBlack) => {
     const isPressed = activeNotes.has(midiNote);
@@ -127,18 +152,16 @@ const SynthesiaCanvas = memo(({
 
     if (isPressed) {
       // Find if this note is expected and determine which hand
-      const lookAheadTime = 0.5; // Look for notes within 0.5 seconds
+      const lookAheadTime = 0.5;
       const expectedNote = allNotes.find(note => {
         const noteStartTime = note.startTime / beatsPerSecond;
         const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
-        // Note is expected if we're within its time window (with some tolerance)
         return note.pitch === midiNote &&
                currentTime >= noteStartTime - lookAheadTime &&
                currentTime <= noteEndTime + 0.1;
       });
 
       if (expectedNote) {
-        // Color based on hand from dynamic service
         if (expectedNote.hand === 'right') {
           return isBlack ? colors.rightHandDark : colors.rightHandLight;
         } else {
@@ -146,7 +169,6 @@ const SynthesiaCanvas = memo(({
         }
       }
 
-      // Default pressed color (freeplay or no expected note)
       return isBlack ? colors.blackKeyPressed : colors.whiteKeyPressed;
     }
 
@@ -190,6 +212,7 @@ const SynthesiaCanvas = memo(({
     const currentBeat = currentTime * beatsPerSecond;
     const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
     const highlightedMeasures = new Set(song.highlightedMeasures || []);
+    const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
 
     // Vertical grid lines
     ctx.lineWidth = 1;
@@ -197,33 +220,36 @@ const SynthesiaCanvas = memo(({
     ctx.strokeStyle = '#ffffff';
     ctx.globalAlpha = 0.1;
 
-    for (let i = FIRST_KEY; i <= LAST_KEY + 1; i++) {
+    for (let i = firstKey; i <= lastKey + 1; i++) {
       if (!isBlackKey(i)) {
         const x = getNoteX(i);
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, keyboardY);
+        if (x !== null) {
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, keyboardY);
+        }
       }
     }
     ctx.stroke();
 
     // Black key lanes
-    const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
     ctx.fillStyle = '#ffffff';
 
-    for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
+    for (let i = firstKey; i <= lastKey; i++) {
       if (isBlackKey(i)) {
         const x = getNoteX(i);
-        ctx.globalAlpha = 0.03;
-        ctx.fillRect(x, 0, BLACK_KEY_WIDTH, keyboardY);
+        if (x !== null) {
+          ctx.globalAlpha = 0.03;
+          ctx.fillRect(x, 0, BLACK_KEY_WIDTH, keyboardY);
 
-        ctx.beginPath();
-        ctx.strokeStyle = '#ffffff';
-        ctx.globalAlpha = 0.05;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, keyboardY);
-        ctx.moveTo(x + BLACK_KEY_WIDTH, 0);
-        ctx.lineTo(x + BLACK_KEY_WIDTH, keyboardY);
-        ctx.stroke();
+          ctx.beginPath();
+          ctx.strokeStyle = '#ffffff';
+          ctx.globalAlpha = 0.05;
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, keyboardY);
+          ctx.moveTo(x + BLACK_KEY_WIDTH, 0);
+          ctx.lineTo(x + BLACK_KEY_WIDTH, keyboardY);
+          ctx.stroke();
+        }
       }
     }
 
@@ -267,16 +293,16 @@ const SynthesiaCanvas = memo(({
         const isHighlighted = highlightedMeasures.has(measureNumber);
 
         if (isHighlighted) {
-          ctx.font = 'bold 24px Arial';
+          ctx.font = `bold ${Math.round(24 * fontScale)}px Arial`;
           ctx.fillStyle = '#60a5fa';
           ctx.globalAlpha = 0.9;
         } else {
-          ctx.font = 'bold 20px Arial';
+          ctx.font = `bold ${Math.round(20 * fontScale)}px Arial`;
           ctx.fillStyle = '#ffffff';
           ctx.globalAlpha = 0.15;
         }
 
-        ctx.fillText(`${measureNumber}`, 20, y + 7);
+        ctx.fillText(`${measureNumber}`, 20 * fontScale, y + 7);
       }
     }
 
@@ -284,12 +310,12 @@ const SynthesiaCanvas = memo(({
 
     // Loop zone
     if (isLoopEnabled && loopConfig) {
-      const beatsPerMeasure = 4;
+      const bpm = 4;
       const startMeasure = loopConfig.startMeasure - 1;
       const endMeasure = loopConfig.endMeasure;
 
-      const loopStartTime = (startMeasure * beatsPerMeasure) / beatsPerSecond;
-      const loopEndTime = (endMeasure * beatsPerMeasure) / beatsPerSecond;
+      const loopStartTime = (startMeasure * bpm) / beatsPerSecond;
+      const loopEndTime = (endMeasure * bpm) / beatsPerSecond;
 
       const startTimeDiff = loopStartTime - currentTime;
       const endTimeDiff = loopEndTime - currentTime;
@@ -320,7 +346,7 @@ const SynthesiaCanvas = memo(({
         }
       }
     }
-  }, [currentTime, beatsPerSecond, song, isLoopEnabled, loopConfig, isBlackKey, getNoteX]);
+  }, [currentTime, beatsPerSecond, song, isLoopEnabled, loopConfig, isBlackKey, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey]);
 
   // Draw dynamic layer (falling notes, keyboard) - changes every frame
   const drawDynamicLayer = useCallback((ctx) => {
@@ -328,7 +354,7 @@ const SynthesiaCanvas = memo(({
     const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
-    // Falling notes - get dynamic colors once per frame
+    // Falling notes
     const noteColors = getDynamicColors();
 
     allNotes.forEach(note => {
@@ -337,13 +363,6 @@ const SynthesiaCanvas = memo(({
 
       if (noteEndTime < currentTime - 1 || noteStartTime > currentTime + lookAheadTime) {
         return;
-      }
-
-      const playStatus = playedNotes.get(note.id);
-
-      if ((playStatus === 'correct' || playStatus === 'auto') && currentTime > noteStartTime + 0.1) {
-        // Optionally skip fully played notes for better performance
-        // return;
       }
 
       const x = getNoteX(note.pitch);
@@ -355,7 +374,8 @@ const SynthesiaCanvas = memo(({
 
       if (endY < 0 && startY < 0) return;
 
-      // Use dynamic colors from service
+      const playStatus = playedNotes.get(note.id);
+
       let color = note.hand === 'right' ? noteColors.rightHand : noteColors.leftHand;
 
       if (playStatus === 'correct') {
@@ -363,7 +383,6 @@ const SynthesiaCanvas = memo(({
       } else if (playStatus === 'missed') {
         color = STATIC_COLORS.missed;
       } else if (playStatus === 'auto') {
-        // Auto-played notes: lighter version of hand color
         color = note.hand === 'right' ? noteColors.rightHandLight : noteColors.leftHandLight;
       }
 
@@ -385,7 +404,7 @@ const SynthesiaCanvas = memo(({
       }
 
       ctx.fillStyle = color;
-      const radius = 6;
+      const radius = Math.max(4, 6 * fontScale);
       drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
       ctx.fill();
 
@@ -397,27 +416,28 @@ const SynthesiaCanvas = memo(({
       ctx.globalAlpha = 1.0;
       ctx.shadowBlur = 0;
 
-      if (height > 15) {
+      if (height > 15 * fontScale) {
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 12px Arial';
+        ctx.font = `bold ${Math.round(12 * fontScale)}px Arial`;
         ctx.textAlign = 'center';
         const label = getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
         ctx.save();
         ctx.beginPath();
         drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
         ctx.clip();
-        ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4);
+        ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4 * fontScale);
         ctx.restore();
       }
     });
 
     // Keyboard - white keys
     ctx.textAlign = 'center';
-    ctx.font = '12px Arial';
+    ctx.font = `${Math.round(12 * fontScale)}px Arial`;
 
-    for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
+    for (let i = firstKey; i <= lastKey; i++) {
       if (!isBlackKey(i)) {
         const x = getNoteX(i);
+        if (x === null) continue;
         const keyColor = getKeyColor(i, false);
         const isPressed = activeNotes.has(i);
 
@@ -436,14 +456,15 @@ const SynthesiaCanvas = memo(({
 
         ctx.fillStyle = isPressed ? '#ffffff' : '#555';
         const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
-        ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10);
+        ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
       }
     }
 
     // Keyboard - black keys
-    for (let i = FIRST_KEY; i <= LAST_KEY; i++) {
+    for (let i = firstKey; i <= lastKey; i++) {
       if (isBlackKey(i)) {
         const x = getNoteX(i);
+        if (x === null) continue;
         const keyColor = getKeyColor(i, true);
         const isPressed = activeNotes.has(i);
         const blackKeyHeight = KEYBOARD_HEIGHT * 0.65;
@@ -462,10 +483,10 @@ const SynthesiaCanvas = memo(({
         ctx.strokeRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
 
         ctx.fillStyle = isPressed ? '#ffffff' : '#ccc';
-        ctx.font = '10px Arial';
+        ctx.font = `${Math.round(10 * fontScale)}px Arial`;
         const label = getFrenchNoteName(i);
         const shortLabel = label.replace(/[0-9-]/g, '');
-        ctx.fillText(shortLabel, x + BLACK_KEY_WIDTH / 2, keyboardY + blackKeyHeight - 8);
+        ctx.fillText(shortLabel, x + BLACK_KEY_WIDTH / 2, keyboardY + blackKeyHeight - 8 * fontScale);
       }
     }
 
@@ -489,7 +510,7 @@ const SynthesiaCanvas = memo(({
     ctx.stroke();
 
     ctx.shadowBlur = 0;
-  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors]);
+  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey]);
 
   // Draw overlay layer (feedback, combo) - changes occasionally
   const drawOverlayLayer = useCallback((ctx) => {
@@ -500,7 +521,7 @@ const SynthesiaCanvas = memo(({
       const x = getNoteX(feedback.noteNum);
       if (x === null) return;
 
-      const y = keyboardY - 60 - (index * 35);
+      const y = keyboardY - 60 * fontScale - (index * 35 * fontScale);
       const age = Date.now() - feedback.timestamp;
       const duration = feedback.accuracy === 'perfect' ? 1500 : 1000;
       const opacity = Math.max(0, 1 - age / duration);
@@ -508,24 +529,24 @@ const SynthesiaCanvas = memo(({
       ctx.globalAlpha = opacity;
 
       let color = STATIC_COLORS.playedCorrect;
-      let fontSize = 18;
+      let fontSize = Math.round(18 * fontScale);
       let fontWeight = 'bold';
 
       if (feedback.type === 'correct') {
         if (feedback.accuracy === 'perfect') {
           color = '#fbbf24';
-          fontSize = 22;
+          fontSize = Math.round(22 * fontScale);
           ctx.shadowBlur = 15;
           ctx.shadowColor = '#fbbf24';
         } else if (feedback.accuracy === 'good') {
           color = '#22c55e';
-          fontSize = 20;
+          fontSize = Math.round(20 * fontScale);
         }
       } else if (feedback.type === 'wrong') {
         color = STATIC_COLORS.playedWrong;
       } else if (feedback.type === 'freeplay') {
         color = '#60a5fa';
-        fontSize = 16;
+        fontSize = Math.round(16 * fontScale);
       }
 
       ctx.font = `${fontWeight} ${fontSize}px Arial`;
@@ -539,35 +560,27 @@ const SynthesiaCanvas = memo(({
 
     // Combo counter
     if (sessionStats.currentCombo > 2) {
-      const comboX = CANVAS_WIDTH - 150;
-      const comboY = 80;
+      const comboBoxWidth = 140 * fontScale;
+      const comboBoxHeight = 70 * fontScale;
+      const comboX = CANVAS_WIDTH - comboBoxWidth - 10;
+      const comboY = 80 * fontScale;
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(comboX - 20, comboY - 50, 140, 70);
+      ctx.fillRect(comboX - 20 * fontScale, comboY - 50 * fontScale, comboBoxWidth, comboBoxHeight);
       ctx.strokeStyle = sessionStats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
       ctx.lineWidth = 3;
-      ctx.strokeRect(comboX - 20, comboY - 50, 140, 70);
+      ctx.strokeRect(comboX - 20 * fontScale, comboY - 50 * fontScale, comboBoxWidth, comboBoxHeight);
 
       ctx.textAlign = 'center';
       ctx.fillStyle = sessionStats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
 
-      ctx.font = 'bold 32px Arial';
-      ctx.fillText(`${sessionStats.currentCombo}x`, comboX + 50, comboY - 10);
+      ctx.font = `bold ${Math.round(32 * fontScale)}px Arial`;
+      ctx.fillText(`${sessionStats.currentCombo}x`, comboX + comboBoxWidth / 2 - 20 * fontScale, comboY - 10 * fontScale);
 
-      ctx.font = 'bold 14px Arial';
-      ctx.fillText('COMBO', comboX + 50, comboY + 5);
-
-      if (sessionStats.currentCombo >= 10) {
-        const pulse = Math.sin(Date.now() / 100) * 0.2 + 0.8;
-        ctx.globalAlpha = pulse;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = '#fbbf24';
-        ctx.fillText('🔥', comboX + 50, comboY - 25);
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1.0;
-      }
+      ctx.font = `bold ${Math.round(14 * fontScale)}px Arial`;
+      ctx.fillText('COMBO', comboX + comboBoxWidth / 2 - 20 * fontScale, comboY + 5 * fontScale);
     }
-  }, [feedbackMessages, sessionStats, getNoteX]);
+  }, [feedbackMessages, sessionStats, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, WHITE_KEY_WIDTH, fontScale]);
 
   // Render loop with throttling for better performance
   useEffect(() => {
@@ -582,13 +595,8 @@ const SynthesiaCanvas = memo(({
 
       lastDrawTimeRef.current = timestamp;
 
-      // Redraw static layer only when needed (time jumps, loop changes)
       drawLayer('static', drawStaticLayer);
-
-      // Always redraw dynamic layer (notes, keyboard)
       drawLayer('dynamic', drawDynamicLayer);
-
-      // Redraw overlay when feedback or combo changes
       drawLayer('overlay', drawOverlayLayer);
 
       animationFrameId = requestAnimationFrame(render);
@@ -640,8 +648,6 @@ const SynthesiaCanvas = memo(({
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for better memoization
-  // Only re-render if essential props change
   return (
     prevProps.currentTime === nextProps.currentTime &&
     prevProps.activeNotes === nextProps.activeNotes &&
@@ -649,7 +655,9 @@ const SynthesiaCanvas = memo(({
     prevProps.feedbackMessages.length === nextProps.feedbackMessages.length &&
     prevProps.sessionStats.currentCombo === nextProps.sessionStats.currentCombo &&
     prevProps.isLoopEnabled === nextProps.isLoopEnabled &&
-    prevProps.loopConfig === nextProps.loopConfig
+    prevProps.loopConfig === nextProps.loopConfig &&
+    prevProps.canvasWidth === nextProps.canvasWidth &&
+    prevProps.canvasHeight === nextProps.canvasHeight
   );
 });
 

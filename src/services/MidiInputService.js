@@ -498,6 +498,20 @@ class MidiInputService {
         });
     }
 
+    // Check if running on Android
+    isAndroid() {
+        return import.meta.env.TAURI_PLATFORM === 'android' ||
+               (typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent));
+    }
+
+    // Get a helpful message for Android users with no MIDI devices
+    getNoDeviceHint() {
+        if (this.isAndroid()) {
+            return 'Connecte un clavier MIDI via un adaptateur USB-OTG';
+        }
+        return 'Connectez un clavier MIDI USB ou configurez un clavier virtuel';
+    }
+
     // Utility methods
     getDevices() {
         return [...this.devices];

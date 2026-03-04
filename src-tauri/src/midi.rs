@@ -158,10 +158,13 @@ mod desktop {
     }
 }
 
-// ── Android stub (midir not supported) ──────────────────────────────────────
+// ── Android implementation via JNI (android.media.midi) ─────────────────────
 #[cfg(target_os = "android")]
 mod android {
+    use jni::objects::{JObject, JString, JValue};
+    use jni::JNIEnv;
     use serde::Serialize;
+    use tauri::{AppHandle, Emitter};
 
     #[derive(Debug, Clone, Serialize)]
     pub struct MidiDevice {
@@ -170,34 +173,170 @@ mod android {
         pub manufacturer: String,
     }
 
-    pub struct MidiState;
+    #[derive(Debug, Clone, Serialize)]
+    pub struct MidiMessage {
+        pub status: u8,
+        pub note: u8,
+        pub velocity: u8,
+        pub timestamp: f64,
+    }
+
+    pub struct MidiState {
+        pub connected_device_id: Option<String>,
+    }
 
     impl MidiState {
         pub fn new() -> Self {
-            Self
+            Self {
+                connected_device_id: None,
+            }
         }
+    }
+
+    /// Helper to get the Android Activity and call MidiHelper methods via JNI
+    fn with_jni<F, R>(callback: F) -> Result<R, String>
+    where
+        F: FnOnce(&mut JNIEnv, &JObject) -> Result<R, String>,
+    {
+        let ctx = ndk_context::android_context();
+        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }
+            .map_err(|e| format!("Failed to get JavaVM: {}", e))?;
+        let mut env = vm
+            .attach_current_thread()
+            .map_err(|e| format!("Failed to attach thread: {}", e))?;
+        let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+        callback(&mut env, &activity)
     }
 
     #[tauri::command]
     pub async fn get_midi_devices() -> Result<Vec<MidiDevice>, String> {
-        Ok(vec![])
+        with_jni(|env, activity| {
+            // Call MidiHelper.getDevices(activity) static method
+            let helper_class = env
+                .find_class("com/pianoteacher/app/MidiHelper")
+                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+
+            let result = env
+                .call_static_method(
+                    &helper_class,
+                    "getDevices",
+                    "(Landroid/content/Context;)Ljava/lang/String;",
+                    &[JValue::Object(activity)],
+                )
+                .map_err(|e| format!("Failed to call getDevices: {}", e))?;
+
+            let jstr = JString::from(result.l().map_err(|e| format!("Bad return type: {}", e))?);
+            let json: String = env
+                .get_string(&jstr)
+                .map_err(|e| format!("Failed to get string: {}", e))?
+                .into();
+
+            let devices: Vec<MidiDevice> =
+                serde_json::from_str(&json).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+            Ok(devices)
+        })
     }
 
     #[tauri::command]
     pub async fn connect_midi_device(
-        _device_id: String,
+        app: AppHandle,
+        device_id: String,
     ) -> Result<(), String> {
-        Err("MIDI is not supported on Android".to_string())
+        // Store a global reference to the AppHandle for the MIDI callback
+        // The Kotlin side will call back via JNI when MIDI messages arrive
+        let _ = app; // AppHandle is used by the JNI callback registered in MidiHelper
+
+        with_jni(|env, activity| {
+            let helper_class = env
+                .find_class("com/pianoteacher/app/MidiHelper")
+                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+
+            let j_device_id = env
+                .new_string(&device_id)
+                .map_err(|e| format!("Failed to create string: {}", e))?;
+
+            env.call_static_method(
+                &helper_class,
+                "connect",
+                "(Landroid/content/Context;Ljava/lang/String;)V",
+                &[JValue::Object(activity), JValue::Object(&j_device_id)],
+            )
+            .map_err(|e| format!("Failed to connect: {}", e))?;
+
+            Ok(())
+        })
     }
 
     #[tauri::command]
     pub async fn disconnect_midi_device() -> Result<(), String> {
-        Ok(())
+        with_jni(|env, _activity| {
+            let helper_class = env
+                .find_class("com/pianoteacher/app/MidiHelper")
+                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+
+            env.call_static_method(&helper_class, "disconnect", "()V", &[])
+                .map_err(|e| format!("Failed to disconnect: {}", e))?;
+
+            Ok(())
+        })
     }
 
     #[tauri::command]
     pub async fn get_connected_device() -> Result<Option<String>, String> {
-        Ok(None)
+        with_jni(|env, _activity| {
+            let helper_class = env
+                .find_class("com/pianoteacher/app/MidiHelper")
+                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+
+            let result = env
+                .call_static_method(
+                    &helper_class,
+                    "getConnectedDeviceId",
+                    "()Ljava/lang/String;",
+                    &[],
+                )
+                .map_err(|e| format!("Failed to get connected device: {}", e))?;
+
+            let obj = result
+                .l()
+                .map_err(|e| format!("Bad return type: {}", e))?;
+
+            if obj.is_null() {
+                Ok(None)
+            } else {
+                let jstr = JString::from(obj);
+                let id: String = env
+                    .get_string(&jstr)
+                    .map_err(|e| format!("Failed to get string: {}", e))?
+                    .into();
+                Ok(Some(id))
+            }
+        })
+    }
+
+    /// Called from Kotlin via JNI when a MIDI message is received
+    #[no_mangle]
+    pub extern "system" fn Java_com_pianoteacher_app_MidiHelper_onMidiMessage(
+        mut env: JNIEnv,
+        _class: jni::objects::JClass,
+        status: jni::sys::jint,
+        note: jni::sys::jint,
+        velocity: jni::sys::jint,
+        timestamp: jni::sys::jlong,
+    ) {
+        let midi_msg = MidiMessage {
+            status: status as u8,
+            note: note as u8,
+            velocity: velocity as u8,
+            timestamp: timestamp as f64,
+        };
+
+        // Emit to the frontend via Tauri's global app handle
+        // This requires the app handle to be accessible globally
+        if let Some(app) = crate::get_app_handle() {
+            let _ = app.emit("midi-message", midi_msg);
+        }
     }
 }
 

@@ -7,6 +7,11 @@ import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { midiInputService } from '../services/MidiInputService';
 import { TimelineNavigator } from './TimelineNavigator';
+import { SynthesiaMobileOverlay } from './SynthesiaMobileOverlay';
+import { RotatePrompt } from './RotatePrompt';
+import { useDeviceContext } from '../hooks/useDeviceContext';
+import { useWakeLock } from '../hooks/useWakeLock';
+import { useFullscreen } from '../hooks/useFullscreen';
 import styles from './SynthesiaView.module.css';
 
 /**
@@ -27,7 +32,7 @@ const GOOD_TOLERANCE = 0.152; // ±152ms
 const NOTE_TOLERANCE = 0.302; // ±302ms
 const WAIT_MODE_THRESHOLD = 0.05;
 
-export function SynthesiaViewOptimized({ song }) {
+export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
   const animationFrameRef = useRef(null);
   const startTimeRef = useRef(null);
   const pausedAtTimeRef = useRef(null);
@@ -71,6 +76,46 @@ export function SynthesiaViewOptimized({ song }) {
   const [expectedNotes, setExpectedNotes] = useState(new Set());
   const [songStats, setSongStats] = useState(null);
   const [freePlayMode, setFreePlayMode] = useState(false);
+
+  // Mobile context
+  const { isMobile, isLandscape } = useDeviceContext();
+  const canvasContainerRef = useRef(null);
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
+
+  // Notify parent about fullscreen state for hiding tab bar
+  useEffect(() => {
+    if (isMobile) {
+      onFullscreenChange?.(true);
+      return () => onFullscreenChange?.(false);
+    }
+  }, [isMobile, onFullscreenChange]);
+
+  // Calculate dynamic canvas dimensions on mobile
+  useEffect(() => {
+    if (!isMobile) {
+      setCanvasDimensions({ width: 0, height: 0 }); // Use defaults
+      return;
+    }
+
+    const updateDimensions = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setCanvasDimensions({ width: w, height: h });
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [isMobile]);
+
+  // Mobile key range: C2 (36) to C7 (96) in landscape for wider keys
+  const mobileKeyRange = isMobile && isLandscape ? [36, 96] : (isMobile ? [36, 96] : null);
+
+  // Keep screen awake during playback
+  useWakeLock(isPlaying);
+
+  // Enter fullscreen on mobile Synthesia
+  useFullscreen(isMobile);
 
   // Calculate beats per measure based on time signature
   const timeSignature = song?.timeSignature || { numerator: 4, denominator: 4 };
@@ -752,6 +797,53 @@ export function SynthesiaViewOptimized({ song }) {
     );
   }
 
+  // Mobile fullscreen layout
+  if (isMobile) {
+    return (
+      <div className={styles.containerFullscreen} ref={canvasContainerRef}>
+        <RotatePrompt />
+
+        <SynthesiaCanvas
+          currentTime={currentTime}
+          activeNotes={activeNotes}
+          playedNotes={playedNotes}
+          feedbackMessages={feedbackMessages}
+          expectedNotes={expectedNotes}
+          allNotes={allNotes}
+          beatsPerSecond={beatsPerSecond}
+          song={song}
+          isLoopEnabled={isLoopEnabled}
+          loopConfig={loopConfig}
+          sessionStats={sessionStats}
+          canvasWidth={canvasDimensions.width || undefined}
+          canvasHeight={canvasDimensions.height || undefined}
+          mobileKeyRange={mobileKeyRange}
+        />
+
+        <SynthesiaMobileOverlay
+          isPlaying={isPlaying}
+          onPlayPause={handlePlayPause}
+          onBack={() => window.history.back()}
+          currentTime={currentTime}
+          currentBPM={currentBPM}
+          defaultBPM={defaultBPM}
+          onTempoChange={handleBPMChange}
+          handMode={handMode}
+          setHandMode={setHandMode}
+          isLoopEnabled={isLoopEnabled}
+          onLoopToggle={handleLoopToggle}
+          sessionStats={sessionStats}
+          phraseMeasureRanges={phraseMeasureRanges}
+          selectedPhraseIndex={selectedPhraseIndex}
+          onPhraseSelect={handlePhraseSelect}
+          isMetronomeOn={isMetronomeOn}
+          setIsMetronomeOn={setIsMetronomeOn}
+        />
+      </div>
+    );
+  }
+
+  // Desktop layout
   return (
     <div className={styles.container}>
       {/* Header */}

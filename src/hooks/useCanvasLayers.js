@@ -3,9 +3,10 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 /**
  * Hook optimisé pour gérer plusieurs layers de canvas
  * Permet de redessiner uniquement les layers qui changent
+ * Supports dynamic dimensions and devicePixelRatio for HD screens
  *
- * @param {number} width - Largeur du canvas
- * @param {number} height - Hauteur du canvas
+ * @param {number} width - Largeur logique du canvas
+ * @param {number} height - Hauteur logique du canvas
  * @returns {Object} Références aux canvas et fonctions de rendu
  */
 export const useCanvasLayers = (width, height) => {
@@ -31,14 +32,19 @@ export const useCanvasLayers = (width, height) => {
     overlay: true
   });
 
-  // Helper function to setup a canvas
+  // Helper function to setup a canvas with DPR scaling
   const setupCanvas = useCallback((canvas, w, h) => {
     if (!canvas) return null;
+
+    const dpr = window.devicePixelRatio || 1;
     const ctx = canvas.getContext('2d', { alpha: true });
 
-    // Configuration pour meilleur rendu
-    canvas.width = w;
-    canvas.height = h;
+    // Set physical (pixel) size
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+
+    // Scale context so drawing operations use logical coordinates
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Optimisations rendering
     ctx.imageSmoothingEnabled = true;
@@ -94,16 +100,21 @@ export const useCanvasLayers = (width, height) => {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d', { alpha: true });
+    const dpr = window.devicePixelRatio || 1;
 
-    // Clear le layer
-    ctx.clearRect(0, 0, width, height);
+    // Reset transform and clear
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Restore DPR scaling for drawing
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Dessiner
     drawFn(ctx);
 
     // Marquer comme à jour
     needsRedrawRef.current[layerName] = false;
-  }, [width, height]);
+  }, []);
 
   // Clear un layer spécifique
   const clearLayer = useCallback((layerName) => {
@@ -115,8 +126,9 @@ export const useCanvasLayers = (width, height) => {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d', { alpha: true });
-    ctx.clearRect(0, 0, width, height);
-  }, [width, height]);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }, []);
 
   return {
     containerRef,

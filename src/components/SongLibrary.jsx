@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../services/StorageService';
 import { getFrenchKeyName } from '../models/song';
 
-export function SongLibrary({ onLoadSong, onNewSong }) {
+export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
     const [songs, setSongs] = useState([]);
     const [showLibraryModal, setShowLibraryModal] = useState(false);
     const [mergeOnImport, setMergeOnImport] = useState(false);
+    const [actionSheetSong, setActionSheetSong] = useState(null);
 
     const loadSongs = useCallback(() => {
         setSongs(StorageService.getSongs());
@@ -79,23 +80,25 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                     </p>
                 </div>
 
-                {/* Action Buttons */}
-                <div style={{
-                    display: 'flex',
-                    gap: '0.75rem',
-                    flexWrap: 'wrap'
-                }}>
-                    <button onClick={handleOpenLibraryModal}>
-                        Import/Export
-                    </button>
+                {/* Action Buttons - hidden on mobile (FAB instead) */}
+                {!isMobile && (
+                    <div style={{
+                        display: 'flex',
+                        gap: '0.75rem',
+                        flexWrap: 'wrap'
+                    }}>
+                        <button onClick={handleOpenLibraryModal}>
+                            Import/Export
+                        </button>
 
-                    <button
-                        onClick={onNewSong}
-                        className="btn-primary"
-                    >
-                        Nouveau Morceau
-                    </button>
-                </div>
+                        <button
+                            onClick={onNewSong}
+                            className="btn-primary"
+                        >
+                            Nouveau Morceau
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Empty State */}
@@ -142,11 +145,12 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                     {songs.map((song) => (
                         <div
                             key={song.id}
-                            onClick={() => onLoadSong(song.id)}
+                            onClick={() => isMobile ? setActionSheetSong(song) : onLoadSong(song.id)}
                             className="card"
                             style={{
                                 cursor: 'pointer',
-                                padding: '1.5rem'
+                                padding: '1.5rem',
+                                minHeight: isMobile ? '56px' : undefined
                             }}
                         >
                             {/* Song Title */}
@@ -238,6 +242,153 @@ export function SongLibrary({ onLoadSong, onNewSong }) {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Mobile FAB */}
+            {isMobile && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: 'calc(70px + var(--safe-bottom) + 16px)',
+                    right: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    zIndex: 50
+                }}>
+                    <button
+                        onClick={handleOpenLibraryModal}
+                        style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '50%',
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border-color)',
+                            color: 'var(--text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0,
+                            minHeight: 'unset',
+                            boxShadow: 'var(--shadow-lg)'
+                        }}
+                        title="Import/Export"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={onNewSong}
+                        className="btn-primary"
+                        style={{
+                            width: '56px',
+                            height: '56px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0,
+                            minHeight: 'unset',
+                            boxShadow: 'var(--shadow-xl)',
+                            fontSize: '1.5rem'
+                        }}
+                        title="Nouveau"
+                    >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                    </button>
+                </div>
+            )}
+
+            {/* Mobile Action Sheet */}
+            {actionSheetSong && isMobile && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        zIndex: 1000
+                    }}
+                    onClick={() => setActionSheetSong(null)}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            background: 'var(--bg-elevated)',
+                            borderRadius: '16px 16px 0 0',
+                            padding: '1rem',
+                            paddingBottom: 'calc(1rem + var(--safe-bottom))'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{
+                            width: 32,
+                            height: 4,
+                            background: 'var(--border-medium)',
+                            borderRadius: 2,
+                            margin: '0 auto 1rem'
+                        }} />
+                        <h3 style={{
+                            fontSize: '1rem',
+                            fontWeight: '500',
+                            marginBottom: '1rem',
+                            color: 'var(--text-primary)',
+                            textAlign: 'center'
+                        }}>
+                            {actionSheetSong.title}
+                        </h3>
+                        {[
+                            { label: 'Jouer (Synthesia)', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
+                            { label: 'Voir (lecture seule)', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
+                            { label: 'Supprimer', action: () => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }, danger: true },
+                        ].map((item, idx) => (
+                            <button
+                                key={idx}
+                                onClick={item.action}
+                                style={{
+                                    width: '100%',
+                                    padding: '1rem',
+                                    marginBottom: '0.5rem',
+                                    background: 'var(--bg-tertiary)',
+                                    color: item.danger ? 'var(--accent-danger)' : 'var(--text-primary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-lg)',
+                                    fontSize: '0.9375rem',
+                                    fontWeight: '400',
+                                    textAlign: 'center',
+                                    minHeight: '48px'
+                                }}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => setActionSheetSong(null)}
+                            style={{
+                                width: '100%',
+                                padding: '1rem',
+                                marginTop: '0.5rem',
+                                background: 'var(--bg-secondary)',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 'var(--radius-lg)',
+                                fontSize: '0.9375rem',
+                                minHeight: '48px'
+                            }}
+                        >
+                            Annuler
+                        </button>
+                    </div>
                 </div>
             )}
 

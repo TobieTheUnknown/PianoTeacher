@@ -274,6 +274,12 @@ h3 {
   background: var(--border-dark);
 }
 
+/* Pulse animation for connection indicators */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* Selection */
 ::selection {
   background: var(--accent-primary);
@@ -283,6 +289,44 @@ h3 {
 ::-moz-selection {
   background: var(--accent-primary);
   color: var(--bg-primary);
+}
+
+/* Touch target minimum */
+:root {
+  --touch-target-min: 48px;
+}
+
+/* Touch-friendly: replace hover effects on touch devices */
+@media (hover: none) {
+  button:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+  }
+
+  button:active {
+    transform: scale(0.95);
+    background-color: var(--bg-tertiary);
+  }
+
+  .card:hover {
+    border-color: var(--border-color);
+    box-shadow: none;
+  }
+
+  .card:active {
+    transform: scale(0.98);
+    border-color: var(--border-medium);
+  }
+
+  .btn-primary:hover {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.95);
+    background-color: var(--accent-hover);
+  }
 }
 
 /* Responsive */
@@ -301,6 +345,12 @@ h3 {
 
   .card {
     padding: var(--spacing-lg);
+  }
+
+  /* Ensure touch targets on mobile */
+  button {
+    min-height: var(--touch-target-min);
+    padding: 0.625rem 1.25rem;
   }
 }
 

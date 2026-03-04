@@ -219,6 +219,30 @@
   color: #fbbf24;
 }
 
+/* Fullscreen container for mobile */
+.containerFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  overflow: hidden;
+}
+
+.containerFullscreen .canvasContainer {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  height: 100%;
+}
+
+.containerFullscreen .canvasWrapper {
+  max-width: none;
+  aspect-ratio: unset;
+  width: 100%;
+  height: 100%;
+}
+
 /* Canvas Container */
 .canvasContainer {
   position: relative;

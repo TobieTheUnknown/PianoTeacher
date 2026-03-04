@@ -5,7 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 
 import { StorageService } from '../services/StorageService';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases }) {
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases, readOnly = false }) {
     const [isImporting, setIsImporting] = useState(false);
     const [splitMode, setSplitMode] = useState(null);
     const [splitTime, setSplitTime] = useState('');
@@ -226,6 +226,22 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     return (
         <div>
+            {/* Read-only banner on mobile */}
+            {readOnly && (
+                <div style={{
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: 'var(--radius-lg)',
+                    fontSize: '0.875rem',
+                    color: 'var(--text-primary)',
+                    textAlign: 'center'
+                }}>
+                    Mode lecture seule — pour éditer, utilisez la version desktop
+                </div>
+            )}
+
             {/* Song Metadata */}
             <div className="card" style={{
                 marginBottom: '2rem'
@@ -253,10 +269,11 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             fontSize: '0.875rem',
                             fontWeight: '300'
                         }}>
-                            Configurez les informations de votre composition
+                            {readOnly ? 'Visualisation de la partition' : 'Configurez les informations de votre composition'}
                         </p>
                     </div>
 
+                    {!readOnly && (
                     <div style={{
                         display: 'flex',
                         gap: '0.75rem',
@@ -299,6 +316,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             Import/Export
                         </button>
                     </div>
+                    )}
                 </div>
 
                 <div style={{

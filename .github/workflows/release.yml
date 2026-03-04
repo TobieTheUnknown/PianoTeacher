@@ -103,6 +103,27 @@ jobs:
       - name: Initialize Android project
         run: npx tauri android init
 
+      - name: Copy custom Android sources
+        run: |
+          # Copy MidiHelper.kt into the generated Android project
+          GEN_JAVA_DIR="src-tauri/gen/android/app/src/main/java/com/pianoteacher/app"
+          mkdir -p "$GEN_JAVA_DIR"
+          cp src-tauri/android/src/main/java/com/pianoteacher/app/MidiHelper.kt "$GEN_JAVA_DIR/"
+
+          # Merge AndroidManifest.xml permissions into the generated manifest
+          GEN_MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          if [ -f "$GEN_MANIFEST" ]; then
+            # Insert uses-feature lines before the closing </manifest> tag if not already present
+            if ! grep -q "android.hardware.usb.host" "$GEN_MANIFEST"; then
+              sed -i 's|</manifest>|    <uses-feature android:name="android.hardware.usb.host" android:required="false" />\n    <uses-feature android:name="android.software.midi" android:required="false" />\n</manifest>|' "$GEN_MANIFEST"
+            fi
+          fi
+
+          echo "Custom Android sources copied:"
+          ls -la "$GEN_JAVA_DIR/MidiHelper.kt"
+          echo "Manifest permissions:"
+          grep "uses-feature" "$GEN_MANIFEST" || echo "(no uses-feature found)"
+
       - name: Build Android APK (debug-signed)
         run: npx tauri android build --apk true --debug
 
