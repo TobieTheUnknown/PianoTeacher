@@ -181,18 +181,6 @@ mod android {
         pub timestamp: f64,
     }
 
-    pub struct MidiState {
-        pub connected_device_id: Option<String>,
-    }
-
-    impl MidiState {
-        pub fn new() -> Self {
-            Self {
-                connected_device_id: None,
-            }
-        }
-    }
-
     /// Helper to get the Android Activity and call MidiHelper methods via JNI
     fn with_jni<F, R>(callback: F) -> Result<R, String>
     where

@@ -47,13 +47,20 @@ class MidiInputService {
             enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
         };
 
-        // Initialize when DOM is ready (no polling needed for Tauri v2)
+        // Defer initialization to avoid crashing Android WebView on startup.
+        // Use setTimeout(0) so the event loop processes Tauri's internals first.
         if (typeof window !== 'undefined') {
+            const doInit = () => {
+                setTimeout(() => {
+                    this.init().catch(err => {
+                        console.warn('MIDI init failed (non-fatal):', err.message);
+                    });
+                }, 0);
+            };
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => this.init());
+                document.addEventListener('DOMContentLoaded', doInit);
             } else {
-                // DOM already loaded, initialize immediately
-                this.init();
+                doInit();
             }
         }
     }

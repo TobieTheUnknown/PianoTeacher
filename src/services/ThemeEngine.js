@@ -12,60 +12,76 @@ class ThemeEngine {
     constructor() {
         this.STORAGE_KEY = 'piano-teacher-theme';
         this.currentTheme = null;
-        this.defaultTheme = this.getDefaultTheme();
+        this.defaultTheme = null; // Lazy-loaded
     }
 
     /**
      * Récupère le thème par défaut depuis les variables CSS actuelles
+     * Lazily computed to avoid calling getComputedStyle before CSS is loaded
      */
     getDefaultTheme() {
-        const root = document.documentElement;
-        const style = getComputedStyle(root);
+        if (this.defaultTheme) return this.defaultTheme;
 
-        return {
-            name: 'Piano Teacher Default',
-            description: 'Thème sombre premium par défaut',
-            author: 'Piano Teacher',
-            version: '1.0.0',
-            theme: {
-                // Backgrounds
-                'bg-primary': style.getPropertyValue('--bg-primary').trim(),
-                'bg-secondary': style.getPropertyValue('--bg-secondary').trim(),
-                'bg-tertiary': style.getPropertyValue('--bg-tertiary').trim(),
-                'bg-elevated': style.getPropertyValue('--bg-elevated').trim(),
-                'bg-card': style.getPropertyValue('--bg-card').trim(),
+        try {
+            const root = document.documentElement;
+            const style = getComputedStyle(root);
 
-                // Text Colors
-                'text-primary': style.getPropertyValue('--text-primary').trim(),
-                'text-secondary': style.getPropertyValue('--text-secondary').trim(),
-                'text-tertiary': style.getPropertyValue('--text-tertiary').trim(),
-                'text-muted': style.getPropertyValue('--text-muted').trim(),
-                'text-accent': style.getPropertyValue('--text-accent').trim(),
+            this.defaultTheme = {
+                name: 'Piano Teacher Default',
+                description: 'Thème sombre premium par défaut',
+                author: 'Piano Teacher',
+                version: '1.0.0',
+                theme: {
+                    // Backgrounds
+                    'bg-primary': style.getPropertyValue('--bg-primary').trim() || '#0a0a0a',
+                    'bg-secondary': style.getPropertyValue('--bg-secondary').trim() || '#141414',
+                    'bg-tertiary': style.getPropertyValue('--bg-tertiary').trim() || '#1a1a1a',
+                    'bg-elevated': style.getPropertyValue('--bg-elevated').trim() || '#1f1f1f',
+                    'bg-card': style.getPropertyValue('--bg-card').trim() || '#171717',
 
-                // Accent Colors
-                'accent-primary': style.getPropertyValue('--accent-primary').trim(),
-                'accent-secondary': style.getPropertyValue('--accent-secondary').trim(),
-                'accent-tertiary': style.getPropertyValue('--accent-tertiary').trim(),
-                'accent-hover': style.getPropertyValue('--accent-hover').trim(),
-                'accent-success': style.getPropertyValue('--accent-success').trim(),
-                'accent-danger': style.getPropertyValue('--accent-danger').trim(),
-                'accent-warning': style.getPropertyValue('--accent-warning').trim(),
-                'accent-info': style.getPropertyValue('--accent-info').trim(),
+                    // Text Colors
+                    'text-primary': style.getPropertyValue('--text-primary').trim() || '#f5f5f5',
+                    'text-secondary': style.getPropertyValue('--text-secondary').trim() || '#a3a3a3',
+                    'text-tertiary': style.getPropertyValue('--text-tertiary').trim() || '#737373',
+                    'text-muted': style.getPropertyValue('--text-muted').trim() || '#525252',
+                    'text-accent': style.getPropertyValue('--text-accent').trim() || '#e5e5e5',
 
-                // Glass Morphism
-                'glass-bg': style.getPropertyValue('--glass-bg').trim(),
-                'glass-bg-strong': style.getPropertyValue('--glass-bg-strong').trim(),
-                'glass-border': style.getPropertyValue('--glass-border').trim(),
-                'glass-border-strong': style.getPropertyValue('--glass-border-strong').trim(),
+                    // Accent Colors
+                    'accent-primary': style.getPropertyValue('--accent-primary').trim() || '#f5f5f5',
+                    'accent-secondary': style.getPropertyValue('--accent-secondary').trim() || '#a3a3a3',
+                    'accent-tertiary': style.getPropertyValue('--accent-tertiary').trim() || '',
+                    'accent-hover': style.getPropertyValue('--accent-hover').trim() || '#ffffff',
+                    'accent-success': style.getPropertyValue('--accent-success').trim() || '#22c55e',
+                    'accent-danger': style.getPropertyValue('--accent-danger').trim() || '#ef4444',
+                    'accent-warning': style.getPropertyValue('--accent-warning').trim() || '#f59e0b',
+                    'accent-info': style.getPropertyValue('--accent-info').trim() || '#3b82f6',
 
-                // Borders
-                'border-color': style.getPropertyValue('--border-color').trim(),
-                'border-light': style.getPropertyValue('--border-light').trim(),
-                'border-lighter': style.getPropertyValue('--border-lighter').trim(),
-                'border-accent': style.getPropertyValue('--border-accent').trim(),
-                'border-accent-strong': style.getPropertyValue('--border-accent-strong').trim(),
-            }
-        };
+                    // Glass Morphism
+                    'glass-bg': style.getPropertyValue('--glass-bg').trim() || '',
+                    'glass-bg-strong': style.getPropertyValue('--glass-bg-strong').trim() || '',
+                    'glass-border': style.getPropertyValue('--glass-border').trim() || '',
+                    'glass-border-strong': style.getPropertyValue('--glass-border-strong').trim() || '',
+
+                    // Borders
+                    'border-color': style.getPropertyValue('--border-color').trim() || '#262626',
+                    'border-light': style.getPropertyValue('--border-light').trim() || '#1f1f1f',
+                    'border-lighter': style.getPropertyValue('--border-lighter').trim() || '',
+                    'border-accent': style.getPropertyValue('--border-accent').trim() || '#f5f5f5',
+                    'border-accent-strong': style.getPropertyValue('--border-accent-strong').trim() || '',
+                }
+            };
+        } catch (err) {
+            console.debug('ThemeEngine: getComputedStyle not available yet, using hardcoded defaults');
+            this.defaultTheme = {
+                name: 'Piano Teacher Default',
+                description: 'Thème sombre premium par défaut',
+                author: 'Piano Teacher',
+                version: '1.0.0',
+                theme: {}
+            };
+        }
+
+        return this.defaultTheme;
     }
 
     /**
