@@ -15,13 +15,18 @@ let invoke = null;
 let listen = null;
 
 async function loadTauriAPIs() {
-    if (!invoke) {
-        const core = await import('@tauri-apps/api/core');
-        invoke = core.invoke;
-    }
-    if (!listen) {
-        const event = await import('@tauri-apps/api/event');
-        listen = event.listen;
+    try {
+        if (!invoke) {
+            const core = await import('@tauri-apps/api/core');
+            invoke = core.invoke;
+        }
+        if (!listen) {
+            const event = await import('@tauri-apps/api/event');
+            listen = event.listen;
+        }
+    } catch (err) {
+        console.warn('Failed to load Tauri APIs (non-fatal):', err.message);
+        throw err; // Re-throw so initTauriMidi's catch block handles fallback
     }
 }
 
@@ -47,15 +52,8 @@ class MidiInputService {
         this.tauriEventUnlisten = null; // Cleanup function for Tauri event listener
         this.initialized = false; // Track initialization state
 
-        // Settings (stored in localStorage)
-        this.settings = {
-            selectedDeviceId: localStorage.getItem('midi-selected-device') || null,
-            velocitySensitivity: parseFloat(localStorage.getItem('midi-velocity-sensitivity')) || 1.0,
-            latencyCompensation: parseInt(localStorage.getItem('midi-latency')) || 0,
-            noteOnThreshold: parseInt(localStorage.getItem('midi-note-on-threshold')) || 10,
-            midiVolume: parseInt(localStorage.getItem('midi-volume')) || 70, // Default 70%
-            enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
-        };
+        // Settings (stored in localStorage) — wrapped in try/catch for Android WebView safety
+        this.settings = this._loadSettings();
 
         // Defer initialization to avoid crashing Android WebView on startup.
         // Use setTimeout(0) so the event loop processes Tauri's internals first.
@@ -75,55 +73,84 @@ class MidiInputService {
         }
     }
 
+    _loadSettings() {
+        const defaults = {
+            selectedDeviceId: null,
+            velocitySensitivity: 1.0,
+            latencyCompensation: 0,
+            noteOnThreshold: 10,
+            midiVolume: 70,
+            enabledChannels: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+        };
+        try {
+            return {
+                selectedDeviceId: localStorage.getItem('midi-selected-device') || null,
+                velocitySensitivity: parseFloat(localStorage.getItem('midi-velocity-sensitivity')) || 1.0,
+                latencyCompensation: parseInt(localStorage.getItem('midi-latency')) || 0,
+                noteOnThreshold: parseInt(localStorage.getItem('midi-note-on-threshold')) || 10,
+                midiVolume: parseInt(localStorage.getItem('midi-volume')) || 70,
+                enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
+            };
+        } catch (err) {
+            console.warn('Failed to load MIDI settings from localStorage:', err.message);
+            return defaults;
+        }
+    }
+
     async init() {
         if (this.initialized) {
             console.log('MIDI service already initialized');
             return;
         }
 
-        console.log('Initializing MIDI service...');
-        console.log('Tauri detected:', isTauri());
-        console.log('TAURI_PLATFORM:', import.meta.env.TAURI_PLATFORM);
-        console.log('TAURI_FAMILY:', import.meta.env.TAURI_FAMILY);
-
-        // Check if running in Tauri
-        if (isTauri()) {
-            console.log('Detected Tauri environment, using native MIDI');
-            await this.initTauriMidi();
-            this.initialized = true;
-            return;
-        }
-
-        // Fallback to Web MIDI API
-        if (!navigator.requestMIDIAccess) {
-            console.warn('Web MIDI API not supported in this browser');
-            this.isSupported = false;
-            this.initialized = true;
-            return;
-        }
-
-        this.isSupported = true;
-
         try {
-            this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
-            console.log('MIDI Access granted via Web MIDI API');
+            console.log('Initializing MIDI service...');
+            console.log('Tauri detected:', isTauri());
+            console.log('TAURI_PLATFORM:', import.meta.env.TAURI_PLATFORM);
+            console.log('TAURI_FAMILY:', import.meta.env.TAURI_FAMILY);
 
-            // Listen for device connection/disconnection
-            this.midiAccess.onstatechange = (e) => this.handleStateChange(e);
-
-            // Initial scan of devices
-            this.refreshDevices();
-
-            // Auto-connect to previously selected device
-            if (this.settings.selectedDeviceId) {
-                this.selectDevice(this.settings.selectedDeviceId);
+            // Check if running in Tauri
+            if (isTauri()) {
+                console.log('Detected Tauri environment, using native MIDI');
+                await this.initTauriMidi();
+                this.initialized = true;
+                return;
             }
 
-            this.initialized = true;
+            // Fallback to Web MIDI API
+            if (!navigator.requestMIDIAccess) {
+                console.warn('Web MIDI API not supported in this browser');
+                this.isSupported = false;
+                this.initialized = true;
+                return;
+            }
 
-        } catch (error) {
-            console.error('Failed to get MIDI access:', error);
-            this.isSupported = false;
+            this.isSupported = true;
+
+            try {
+                this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+                console.log('MIDI Access granted via Web MIDI API');
+
+                // Listen for device connection/disconnection
+                this.midiAccess.onstatechange = (e) => this.handleStateChange(e);
+
+                // Initial scan of devices
+                this.refreshDevices();
+
+                // Auto-connect to previously selected device
+                if (this.settings.selectedDeviceId) {
+                    this.selectDevice(this.settings.selectedDeviceId);
+                }
+
+                this.initialized = true;
+
+            } catch (error) {
+                console.error('Failed to get MIDI access:', error);
+                this.isSupported = false;
+                this.initialized = true;
+            }
+        } catch (outerError) {
+            console.warn('MIDI init() caught unexpected error (non-fatal):', outerError.message);
             this.initialized = true;
         }
     }

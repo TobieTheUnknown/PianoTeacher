@@ -8,28 +8,44 @@ export function useDeviceContext() {
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1024
   );
-  const [isLandscape, setIsLandscape] = useState(
-    typeof window !== 'undefined'
-      ? window.matchMedia('(orientation: landscape)').matches
-      : false
-  );
+  const [isLandscape, setIsLandscape] = useState(() => {
+    try {
+      return typeof window !== 'undefined'
+        ? window.matchMedia('(orientation: landscape)').matches
+        : false;
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
     };
 
-    const landscapeQuery = window.matchMedia('(orientation: landscape)');
+    let landscapeQuery = null;
     const handleOrientation = (e) => {
       setIsLandscape(e.matches);
     };
 
+    try {
+      landscapeQuery = window.matchMedia('(orientation: landscape)');
+      landscapeQuery.addEventListener('change', handleOrientation);
+    } catch {
+      // matchMedia not available (Android WebView edge case)
+    }
+
     window.addEventListener('resize', handleResize);
-    landscapeQuery.addEventListener('change', handleOrientation);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      landscapeQuery.removeEventListener('change', handleOrientation);
+      if (landscapeQuery) {
+        try {
+          landscapeQuery.removeEventListener('change', handleOrientation);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
     };
   }, []);
 
