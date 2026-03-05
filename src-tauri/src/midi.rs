@@ -196,13 +196,54 @@ mod android {
         callback(&mut env, &activity)
     }
 
+    /// Find an app class using the Activity's class loader.
+    ///
+    /// `env.find_class()` on a native (non-Java) thread only has access to the
+    /// system class loader, which cannot see app-defined classes.  We must go
+    /// through `activity.getClassLoader().loadClass(name)` instead.
+    /// We also clear any pending Java exception so it never leaks as a FATAL.
+    fn find_app_class<'a>(
+        env: &mut JNIEnv<'a>,
+        activity: &JObject,
+        class_name: &str,
+    ) -> Result<jni::objects::JClass<'a>, String> {
+        // Convert JNI-style slashes to Java dots: "com/foo/Bar" -> "com.foo.Bar"
+        let dotted = class_name.replace('/', ".");
+        let j_name = env
+            .new_string(&dotted)
+            .map_err(|e| format!("Failed to create class name string: {}", e))?;
+
+        let class_loader = env
+            .call_method(activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
+            .and_then(|v| v.l())
+            .map_err(|e| {
+                let _ = env.exception_clear();
+                e
+            })
+            .map_err(|e| format!("Failed to get ClassLoader: {}", e))?;
+
+        let class_obj = env
+            .call_method(
+                &class_loader,
+                "loadClass",
+                "(Ljava/lang/String;)Ljava/lang/Class;",
+                &[jni::objects::JValue::Object(&j_name)],
+            )
+            .and_then(|v| v.l())
+            .map_err(|e| {
+                let _ = env.exception_clear();
+                e
+            })
+            .map_err(|e| format!("Class '{}' not found via app ClassLoader: {}", dotted, e))?;
+
+        Ok(jni::objects::JClass::from(class_obj))
+    }
+
     #[tauri::command]
     pub async fn get_midi_devices() -> Result<Vec<MidiDevice>, String> {
         with_jni(|env, activity| {
             // Call MidiHelper.getDevices(activity) static method
-            let helper_class = env
-                .find_class("com/pianoteacher/app/MidiHelper")
-                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+            let helper_class = find_app_class(env, activity, "com/pianoteacher/app/MidiHelper")?;
 
             let result = env
                 .call_static_method(
@@ -236,9 +277,7 @@ mod android {
         let _ = app; // AppHandle is used by the JNI callback registered in MidiHelper
 
         with_jni(|env, activity| {
-            let helper_class = env
-                .find_class("com/pianoteacher/app/MidiHelper")
-                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+            let helper_class = find_app_class(env, activity, "com/pianoteacher/app/MidiHelper")?;
 
             let j_device_id = env
                 .new_string(&device_id)
@@ -258,10 +297,8 @@ mod android {
 
     #[tauri::command]
     pub async fn disconnect_midi_device() -> Result<(), String> {
-        with_jni(|env, _activity| {
-            let helper_class = env
-                .find_class("com/pianoteacher/app/MidiHelper")
-                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+        with_jni(|env, activity| {
+            let helper_class = find_app_class(env, activity, "com/pianoteacher/app/MidiHelper")?;
 
             env.call_static_method(&helper_class, "disconnect", "()V", &[])
                 .map_err(|e| format!("Failed to disconnect: {}", e))?;
@@ -272,10 +309,8 @@ mod android {
 
     #[tauri::command]
     pub async fn get_connected_device() -> Result<Option<String>, String> {
-        with_jni(|env, _activity| {
-            let helper_class = env
-                .find_class("com/pianoteacher/app/MidiHelper")
-                .map_err(|e| format!("MidiHelper class not found: {}", e))?;
+        with_jni(|env, activity| {
+            let helper_class = find_app_class(env, activity, "com/pianoteacher/app/MidiHelper")?;
 
             let result = env
                 .call_static_method(
