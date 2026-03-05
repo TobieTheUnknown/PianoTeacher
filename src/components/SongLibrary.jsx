@@ -7,6 +7,7 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
     const [showLibraryModal, setShowLibraryModal] = useState(false);
     const [mergeOnImport, setMergeOnImport] = useState(false);
     const [actionSheetSong, setActionSheetSong] = useState(null);
+    const [midiImportStatus, setMidiImportStatus] = useState(null); // null | 'loading' | 'success' | 'error'
 
     const loadSongs = useCallback(() => {
         setSongs(StorageService.getSongs());
@@ -28,6 +29,38 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
 
     const handleOpenLibraryModal = () => {
         setShowLibraryModal(true);
+    };
+
+    const handleImportMidi = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setMidiImportStatus('loading');
+        try {
+            const { parseMidiFile } = await import('../services/MidiService');
+            const song = await parseMidiFile(file);
+            StorageService.saveSong(song);
+            loadSongs();
+            setMidiImportStatus('success');
+            setTimeout(() => setMidiImportStatus(null), 3000);
+        } catch (err) {
+            console.error('MIDI import error:', err);
+            setMidiImportStatus('error');
+            setTimeout(() => setMidiImportStatus(null), 3000);
+        }
+        e.target.value = '';
+    };
+
+    const handleExportMidi = async (song, e) => {
+        e?.stopPropagation();
+        try {
+            const result = await StorageService.exportSongAsMidi(song);
+            if (result.success && !result.cancelled && result.path) {
+                alert(`MIDI exporté !\n${result.path}`);
+            }
+        } catch (err) {
+            console.error('MIDI export error:', err);
+            alert('Erreur lors de l\'export MIDI.');
+        }
     };
 
     const handleImportLibraryJson = (e) => {
@@ -211,13 +244,26 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                                 </p>
                             </div>
 
-                            {/* Delete Button */}
+                            {/* Song Actions */}
                             <div style={{
                                 display: 'flex',
                                 justifyContent: 'flex-end',
+                                gap: '0.5rem',
                                 paddingTop: '1rem',
                                 borderTop: '1px solid var(--border-color)'
                             }}>
+                                <button
+                                    onClick={(e) => handleExportMidi(song, e)}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        background: 'transparent',
+                                        color: 'var(--text-secondary)',
+                                        border: '1px solid var(--border-color)',
+                                        fontSize: '0.8125rem'
+                                    }}
+                                >
+                                    MIDI
+                                </button>
                                 <button
                                     onClick={(e) => handleDelete(song.id, e)}
                                     style={{
@@ -350,6 +396,7 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                         {[
                             { label: 'Jouer (Synthesia)', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
                             { label: 'Voir (lecture seule)', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
+                            { label: 'Exporter MIDI', action: async () => { await handleExportMidi(actionSheetSong); setActionSheetSong(null); } },
                             { label: 'Supprimer', action: () => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }, danger: true },
                         ].map((item, idx) => (
                             <button
@@ -523,6 +570,55 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                                         Importer JSON
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* MIDI Section */}
+                        <div style={{
+                            marginBottom: '2rem',
+                            padding: '1.5rem',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border-color)'
+                        }}>
+                            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem', fontWeight: '500' }}>
+                                Import MIDI
+                            </h3>
+                            <p style={{
+                                color: 'var(--text-tertiary)',
+                                marginBottom: '1.25rem',
+                                fontSize: '0.875rem',
+                                lineHeight: '1.6',
+                                fontWeight: '300'
+                            }}>
+                                Importer un fichier .mid pour créer un nouveau morceau dans la bibliothèque
+                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                <div style={{ position: 'relative', display: 'inline-block' }}>
+                                    <input
+                                        type="file"
+                                        accept=".mid,.midi"
+                                        onChange={handleImportMidi}
+                                        disabled={midiImportStatus === 'loading'}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0, left: 0,
+                                            width: '100%', height: '100%',
+                                            opacity: 0,
+                                            cursor: midiImportStatus === 'loading' ? 'not-allowed' : 'pointer',
+                                            zIndex: 10
+                                        }}
+                                    />
+                                    <button disabled={midiImportStatus === 'loading'}>
+                                        {midiImportStatus === 'loading' ? 'Import...' : 'Importer MIDI'}
+                                    </button>
+                                </div>
+                                {midiImportStatus === 'success' && (
+                                    <span style={{ color: 'var(--accent-success)', fontSize: '0.875rem' }}>Importé !</span>
+                                )}
+                                {midiImportStatus === 'error' && (
+                                    <span style={{ color: 'var(--accent-danger)', fontSize: '0.875rem' }}>Erreur d'import</span>
+                                )}
                             </div>
                         </div>
 

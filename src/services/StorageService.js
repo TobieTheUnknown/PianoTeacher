@@ -202,6 +202,82 @@ export const StorageService = {
         return { success: true };
     },
 
+    // Export a single song as a MIDI file
+    exportSongAsMidi: async (song) => {
+        const { Midi } = await import('@tonejs/midi');
+
+        const midi = new Midi();
+        midi.header.setTempo(song.tempo || 120);
+
+        const timeNum = song.timeSignature?.numerator || 4;
+        const bpm = song.tempo || 120;
+        const secPerBeat = 60 / bpm;
+
+        const melodyTrack = midi.addTrack();
+        melodyTrack.name = 'Mélodie';
+        const chordsTrack = midi.addTrack();
+        chordsTrack.name = 'Accords';
+
+        let phraseOffset = 0; // in beats
+
+        for (const phrase of (song.phrases || [])) {
+            for (const note of (phrase.tracks?.melody || [])) {
+                if (note.pitch >= 0 && note.pitch <= 127 && note.duration > 0) {
+                    melodyTrack.addNote({
+                        midi: note.pitch,
+                        time: (phraseOffset + note.startTime) * secPerBeat,
+                        duration: Math.max(0.05, note.duration * secPerBeat),
+                        velocity: 0.8
+                    });
+                }
+            }
+            for (const note of (phrase.tracks?.chords || [])) {
+                if (note.pitch >= 0 && note.pitch <= 127 && note.duration > 0) {
+                    chordsTrack.addNote({
+                        midi: note.pitch,
+                        time: (phraseOffset + note.startTime) * secPerBeat,
+                        duration: Math.max(0.05, note.duration * secPerBeat),
+                        velocity: 0.7
+                    });
+                }
+            }
+            phraseOffset += (phrase.length || 4) * timeNum;
+        }
+
+        const midiArray = midi.toArray();
+        const defaultFilename = `${(song.title || 'export').replace(/[^a-z0-9]/gi, '_')}.mid`;
+
+        if (isTauri()) {
+            try {
+                const { save } = await import('@tauri-apps/plugin-dialog');
+                const { writeBinaryFile } = await import('@tauri-apps/plugin-fs');
+                const filePath = await save({
+                    defaultPath: defaultFilename,
+                    filters: [{ name: 'MIDI', extensions: ['mid', 'midi'] }]
+                });
+                if (filePath) {
+                    await writeBinaryFile(filePath, midiArray);
+                    return { success: true, path: filePath };
+                }
+                return { success: false, cancelled: true };
+            } catch (err) {
+                console.error('Tauri MIDI export failed, falling back to browser:', err);
+            }
+        }
+
+        // Browser / Android fallback
+        const blob = new Blob([midiArray], { type: 'audio/midi' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = defaultFilename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        return { success: true };
+    },
+
     // Import library from JSON object or array
     importLibrary: (data, merge = false) => {
         try {
