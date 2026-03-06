@@ -76,6 +76,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
   const [expectedNotes, setExpectedNotes] = useState(new Set());
   const [songStats, setSongStats] = useState(null);
   const [freePlayMode, setFreePlayMode] = useState(false);
+  const [visualEffects, setVisualEffects] = useState(false);
 
   // Mobile context
   const { isMobile, isLandscape } = useDeviceContext();
@@ -818,6 +819,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
           canvasWidth={canvasDimensions.width || undefined}
           canvasHeight={canvasDimensions.height || undefined}
           mobileKeyRange={mobileKeyRange}
+          visualEffects={visualEffects}
         />
 
         <SynthesiaMobileOverlay
@@ -870,6 +872,8 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
         setWaitMode={setWaitMode}
         freePlayMode={freePlayMode}
         setFreePlayMode={setFreePlayMode}
+        visualEffects={visualEffects}
+        setVisualEffects={setVisualEffects}
         isMetronomeOn={isMetronomeOn}
         setIsMetronomeOn={setIsMetronomeOn}
         metronomeDivision={metronomeDivision}
@@ -905,6 +909,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
         isLoopEnabled={isLoopEnabled}
         loopConfig={loopConfig}
         sessionStats={sessionStats}
+        visualEffects={visualEffects}
       />
 
       {/* Timeline Navigator - Loop Controls */}

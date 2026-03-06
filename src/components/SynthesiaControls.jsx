@@ -31,6 +31,10 @@ const SynthesiaControls = memo(({
   defaultBPM,
   onTempoChange,
 
+  // Visual effects
+  visualEffects,
+  setVisualEffects,
+
   // Loop controls
   selectedPhraseIndex,
   // eslint-disable-next-line no-unused-vars
@@ -163,6 +167,14 @@ const SynthesiaControls = memo(({
             title="Mode libre : jouez sans contrainte, pas de notes manquées"
           >
             {freePlayMode ? '🎵 Libre' : '🎯 Guidé'}
+          </button>
+
+          <button
+            onClick={() => setVisualEffects(!visualEffects)}
+            className={`${styles.modeButton} ${visualEffects ? styles.active : ''}`}
+            title="Activer/désactiver les effets visuels (glow, ombres). Désactiver améliore les performances."
+          >
+            {visualEffects ? '✨ Effets' : '⚡ Perf'}
           </button>
         </div>
 

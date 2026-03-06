@@ -84,6 +84,7 @@ export function SynthesiaView({ song }) {
     const [expectedNotes, setExpectedNotes] = useState(new Set()); // Notes that should be played now
     const [songStats, setSongStats] = useState(null);
     const [freePlayMode, setFreePlayMode] = useState(false); // Mode "sans fausse note" pour improvisation
+    const [visualEffects, setVisualEffects] = useState(false); // Effets visuels (glow, ombres) - off par défaut pour perf
 
     // Count-in state (mesure de préparation)
     const [isInPreRoll, setIsInPreRoll] = useState(false);
@@ -993,8 +994,10 @@ export function SynthesiaView({ song }) {
 
         // 3. Draw HIT LINE (The "Now" line)
         ctx.globalAlpha = 1.0;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#ffffff';
+        if (visualEffects) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ffffff';
+        }
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -1093,7 +1096,7 @@ export function SynthesiaView({ song }) {
                 }
 
                 // Appliquer le glow si nécessaire
-                if (glowColor) {
+                if (glowColor && visualEffects) {
                     ctx.shadowColor = glowColor;
                     ctx.shadowBlur = 10;
                 }
@@ -1112,7 +1115,7 @@ export function SynthesiaView({ song }) {
 
                 // Outline pour expected notes (pulsant)
                 if (isExpectedKey && outlineColor) {
-                    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+                    const pulse = visualEffects ? Math.sin(Date.now() / 200) * 0.3 + 0.7 : 0.8;
                     ctx.strokeStyle = outlineColor;
                     ctx.lineWidth = 3;
                     ctx.globalAlpha = pulse;
@@ -1176,7 +1179,7 @@ export function SynthesiaView({ song }) {
                 }
 
                 // Appliquer le glow si nécessaire
-                if (glowColor) {
+                if (glowColor && visualEffects) {
                     ctx.shadowColor = glowColor;
                     ctx.shadowBlur = 10;
                 }
@@ -1195,7 +1198,7 @@ export function SynthesiaView({ song }) {
 
                 // Outline pour expected notes (pulsant)
                 if (isExpectedKey && outlineColor) {
-                    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+                    const pulse = visualEffects ? Math.sin(Date.now() / 200) * 0.3 + 0.7 : 0.8;
                     ctx.strokeStyle = outlineColor;
                     ctx.lineWidth = 2;
                     ctx.globalAlpha = pulse;
@@ -1314,8 +1317,10 @@ export function SynthesiaView({ song }) {
             // Special effect for hit notes
             if (playStatus === 'correct' || playStatus === 'auto') {
                 ctx.globalAlpha = 0.3; // Fade out hit notes
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = color;
+                if (visualEffects) {
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = color;
+                }
             } else {
                 ctx.globalAlpha = 0.8;
                 ctx.shadowBlur = 0;
@@ -1376,8 +1381,10 @@ export function SynthesiaView({ song }) {
                     color = '#fbbf24'; // Gold for perfect
                     fontSize = 22;
                     // Add sparkle effect for perfect notes
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = '#fbbf24';
+                    if (visualEffects) {
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = '#fbbf24';
+                    }
                 } else if (feedback.accuracy === 'good') {
                     color = '#22c55e'; // Green for good
                     fontSize = 20;
@@ -1427,33 +1434,37 @@ export function SynthesiaView({ song }) {
 
         // Add pulse effect for high combos
         if (sessionStats.currentCombo >= 10) {
-            const pulse = Math.sin(Date.now() / 100) * 0.2 + 0.8;
-            ctx.globalAlpha = pulse;
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#fbbf24';
+            if (visualEffects) {
+                const pulse = Math.sin(Date.now() / 100) * 0.2 + 0.8;
+                ctx.globalAlpha = pulse;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#fbbf24';
+            }
             ctx.fillText('🔥', comboX + 50, comboY - 25);
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
         }
     };
 
-    // Draw enhanced hit line with glow effect (optimized)
+    // Draw enhanced hit line with glow effect
     const drawHitLine = (ctx) => {
         const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
-        // Outer glow - Extended
-        ctx.shadowBlur = 30;
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.lineWidth = 8;
-        ctx.beginPath();
-        ctx.moveTo(0, keyboardY);
-        ctx.lineTo(CANVAS_WIDTH, keyboardY);
-        ctx.stroke();
+        if (visualEffects) {
+            // Outer glow - Extended
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(0, keyboardY);
+            ctx.lineTo(CANVAS_WIDTH, keyboardY);
+            ctx.stroke();
 
-        // Core line (brightest)
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ffffff';
+            // Core line (brightest)
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ffffff';
+        }
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -2117,6 +2128,23 @@ export function SynthesiaView({ song }) {
                         title="Mode libre : jouez sans contrainte, pas de notes manquées"
                     >
                         {freePlayMode ? 'Libre' : 'Guidé'}
+                    </button>
+
+                    <button
+                        onClick={() => setVisualEffects(!visualEffects)}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: visualEffects ? 'var(--gradient-primary)' : 'var(--bg-tertiary)',
+                            color: visualEffects ? 'white' : 'var(--text-primary)',
+                            border: visualEffects ? 'none' : '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            fontSize: '0.875rem'
+                        }}
+                        title="Activer/désactiver les effets visuels (glow, ombres). Désactiver améliore les performances."
+                    >
+                        {visualEffects ? '✨ Effets' : '⚡ Perf'}
                     </button>
                 </div>
 

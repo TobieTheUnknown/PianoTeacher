@@ -47,6 +47,7 @@ const SynthesiaCanvas = memo(({
   canvasWidth: propWidth,
   canvasHeight: propHeight,
   mobileKeyRange,
+  visualEffects = false
 }) => {
   // Use prop dimensions or defaults
   const CANVAS_WIDTH = propWidth || DEFAULT_WIDTH;
@@ -362,32 +363,34 @@ const SynthesiaCanvas = memo(({
     // Falling notes
     const noteColors = getDynamicColors();
 
-    // Spawn particles on newly activated notes
-    activeNotes.forEach(midi => {
-      if (!prevActiveNotesRef.current.has(midi)) {
-        const nx = getNoteX(midi);
-        if (nx !== null) {
-          const isBlack = isBlackKey(midi);
-          const nw = isBlack ? WHITE_KEY_WIDTH * 0.5 : WHITE_KEY_WIDTH - 2;
-          const noteData = allNotes.find(n => n.pitch === midi);
-          const pColor = (noteData?.hand === 'right') ? noteColors.rightHand : noteColors.leftHand;
-          for (let j = 0; j < 7; j++) {
-            particlesRef.current.push({
-              x: nx + nw / 2 + (Math.random() - 0.5) * nw * 1.5,
-              y: NOTE_FALL_HEIGHT,
-              vx: (Math.random() - 0.5) * 4,
-              vy: -Math.random() * 6 - 2,
-              life: 1.0,
-              radius: (Math.random() * 2 + 1.5) * fontScale,
-              color: pColor,
-            });
-          }
-          if (particlesRef.current.length > 100) {
-            particlesRef.current = particlesRef.current.slice(-100);
+    // Spawn particles on newly activated notes (only when effects enabled)
+    if (visualEffects) {
+      activeNotes.forEach(midi => {
+        if (!prevActiveNotesRef.current.has(midi)) {
+          const nx = getNoteX(midi);
+          if (nx !== null) {
+            const isBlack = isBlackKey(midi);
+            const nw = isBlack ? WHITE_KEY_WIDTH * 0.5 : WHITE_KEY_WIDTH - 2;
+            const noteData = allNotes.find(n => n.pitch === midi);
+            const pColor = (noteData?.hand === 'right') ? noteColors.rightHand : noteColors.leftHand;
+            for (let j = 0; j < 7; j++) {
+              particlesRef.current.push({
+                x: nx + nw / 2 + (Math.random() - 0.5) * nw * 1.5,
+                y: NOTE_FALL_HEIGHT,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -Math.random() * 6 - 2,
+                life: 1.0,
+                radius: (Math.random() * 2 + 1.5) * fontScale,
+                color: pColor,
+              });
+            }
+            if (particlesRef.current.length > 100) {
+              particlesRef.current = particlesRef.current.slice(-100);
+            }
           }
         }
-      }
-    });
+      });
+    }
     prevActiveNotesRef.current = new Set(activeNotes);
 
     allNotes.forEach(note => {
@@ -429,6 +432,10 @@ const SynthesiaCanvas = memo(({
 
       if (playStatus === 'correct' || playStatus === 'auto') {
         ctx.globalAlpha = 0.3;
+        if (visualEffects) {
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = color;
+        }
       } else {
         ctx.globalAlpha = 0.9;
       }
@@ -483,7 +490,7 @@ const SynthesiaCanvas = memo(({
         const keyColor = getKeyColor(i, false);
         const isPressed = activeNotes.has(i);
 
-        if (isPressed) {
+        if (isPressed && visualEffects) {
           const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
           ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandLight : noteColors.leftHandLight;
           ctx.shadowBlur = 18;
@@ -513,7 +520,7 @@ const SynthesiaCanvas = memo(({
         const isPressed = activeNotes.has(i);
         const blackKeyHeight = KEYBOARD_HEIGHT * 0.42;
 
-        if (isPressed) {
+        if (isPressed && visualEffects) {
           const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
           ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandDark : noteColors.leftHandDark;
           ctx.shadowBlur = 14;
@@ -537,17 +544,19 @@ const SynthesiaCanvas = memo(({
     }
 
     // Hit line
-    ctx.shadowBlur = 30;
-    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.moveTo(0, keyboardY);
-    ctx.lineTo(CANVAS_WIDTH, keyboardY);
-    ctx.stroke();
+    if (visualEffects) {
+      ctx.shadowBlur = 30;
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(0, keyboardY);
+      ctx.lineTo(CANVAS_WIDTH, keyboardY);
+      ctx.stroke();
 
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#ffffff';
+    }
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -556,7 +565,7 @@ const SynthesiaCanvas = memo(({
     ctx.stroke();
 
     ctx.shadowBlur = 0;
-  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey]);
+  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects]);
 
   // Draw overlay layer (feedback, combo) - changes occasionally
   const drawOverlayLayer = useCallback((ctx) => {
@@ -582,8 +591,10 @@ const SynthesiaCanvas = memo(({
         if (feedback.accuracy === 'perfect') {
           color = '#fbbf24';
           fontSize = Math.round(22 * fontScale);
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = '#fbbf24';
+          if (visualEffects) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#fbbf24';
+          }
         } else if (feedback.accuracy === 'good') {
           color = '#22c55e';
           fontSize = Math.round(20 * fontScale);
@@ -627,24 +638,29 @@ const SynthesiaCanvas = memo(({
       ctx.fillText('COMBO', comboX + comboBoxWidth / 2 - 20 * fontScale, comboY + 5 * fontScale);
     }
 
-    // Particles
-    const particles = particlesRef.current;
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      ctx.globalAlpha = p.life;
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.2;    // gravité
-      p.life -= 0.028;
-      if (p.life <= 0) particles.splice(i, 1);
+    // Particles (only when effects enabled)
+    if (visualEffects) {
+      const particles = particlesRef.current;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.2;    // gravity
+        p.life -= 0.028;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+    } else {
+      // Clear particles when effects disabled
+      particlesRef.current = [];
     }
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
-  }, [feedbackMessages, sessionStats, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, WHITE_KEY_WIDTH, fontScale]);
+  }, [feedbackMessages, sessionStats, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, WHITE_KEY_WIDTH, fontScale, visualEffects]);
 
   // Render loop with throttling for better performance
   useEffect(() => {
@@ -661,7 +677,7 @@ const SynthesiaCanvas = memo(({
 
       if (needsRedraw.current.static) drawLayer('static', drawStaticLayer);
       drawLayer('dynamic', drawDynamicLayer);
-      if (needsRedraw.current.overlay || particlesRef.current.length > 0) drawLayer('overlay', drawOverlayLayer);
+      if (needsRedraw.current.overlay || (visualEffects && particlesRef.current.length > 0)) drawLayer('overlay', drawOverlayLayer);
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -673,7 +689,7 @@ const SynthesiaCanvas = memo(({
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer]);
+  }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, visualEffects]);
 
   // Mark static layer dirty when relevant props change
   useEffect(() => {
@@ -721,7 +737,8 @@ const SynthesiaCanvas = memo(({
     prevProps.isLoopEnabled === nextProps.isLoopEnabled &&
     prevProps.loopConfig === nextProps.loopConfig &&
     prevProps.canvasWidth === nextProps.canvasWidth &&
-    prevProps.canvasHeight === nextProps.canvasHeight
+    prevProps.canvasHeight === nextProps.canvasHeight &&
+    prevProps.visualEffects === nextProps.visualEffects
   );
 });
 
