@@ -48,7 +48,6 @@
 }
 
 .tab:active {
-  transform: scale(0.95);
   background: transparent;
 }
 

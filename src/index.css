@@ -304,7 +304,6 @@ h3 {
   }
 
   button:active {
-    transform: scale(0.95);
     background-color: var(--bg-tertiary);
   }
 
@@ -314,7 +313,6 @@ h3 {
   }
 
   .card:active {
-    transform: scale(0.98);
     border-color: var(--border-medium);
   }
 
@@ -324,7 +322,6 @@ h3 {
   }
 
   .btn-primary:active {
-    transform: scale(0.95);
     background-color: var(--accent-hover);
   }
 }
