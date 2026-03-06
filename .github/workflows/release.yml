@@ -156,14 +156,17 @@ jobs:
             --out "$UNSIGNED_APK" \
             "$ALIGNED_APK"
 
-          # Clean up
+          # Rename to clean name and clean up
+          FINAL_APK="$(dirname "$UNSIGNED_APK")/Piano-Teacher.apk"
+          mv "$UNSIGNED_APK" "$FINAL_APK"
           rm -f "$ALIGNED_APK" /tmp/release.keystore
+          echo "Signed APK: $FINAL_APK"
 
       - name: Find and upload APK
         uses: actions/upload-artifact@v4
         with:
           name: piano-teacher-Android
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/Piano-Teacher.apk
           retention-days: 7
 
   create-release:
