@@ -124,16 +124,40 @@ jobs:
           echo "Manifest permissions:"
           grep "uses-feature" "$GEN_MANIFEST" || echo "(no uses-feature found)"
 
-      - name: Restore consistent debug keystore
-        if: env.ANDROID_DEBUG_KEYSTORE_B64 != ''
+      - name: Decode release keystore
         env:
-          ANDROID_DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
-          mkdir -p ~/.android
-          echo "$ANDROID_DEBUG_KEYSTORE_B64" | base64 --decode > ~/.android/debug.keystore
+          echo "$ANDROID_KEYSTORE" | base64 --decode > /tmp/release.keystore
 
-      - name: Build Android APK (debug-signed)
-        run: npx tauri android build --apk true --debug
+      - name: Build Android APK (release)
+        run: npx tauri android build --apk true
+
+      - name: Sign APK with release key
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          # Find the unsigned APK
+          UNSIGNED_APK=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -1)
+          echo "Found APK: $UNSIGNED_APK"
+
+          # Align the APK
+          ALIGNED_APK="${UNSIGNED_APK%.apk}-aligned.apk"
+          "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/zipalign" -v -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+
+          # Sign with apksigner
+          "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner" sign \
+            --ks /tmp/release.keystore \
+            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+            --out "$UNSIGNED_APK" \
+            "$ALIGNED_APK"
+
+          # Clean up
+          rm -f "$ALIGNED_APK" /tmp/release.keystore
 
       - name: Find and upload APK
         uses: actions/upload-artifact@v4
