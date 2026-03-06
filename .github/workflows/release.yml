@@ -124,6 +124,14 @@ jobs:
           echo "Manifest permissions:"
           grep "uses-feature" "$GEN_MANIFEST" || echo "(no uses-feature found)"
 
+      - name: Restore consistent debug keystore
+        if: env.ANDROID_DEBUG_KEYSTORE_B64 != ''
+        env:
+          ANDROID_DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          mkdir -p ~/.android
+          echo "$ANDROID_DEBUG_KEYSTORE_B64" | base64 --decode > ~/.android/debug.keystore
+
       - name: Build Android APK (debug-signed)
         run: npx tauri android build --apk true --debug
 
