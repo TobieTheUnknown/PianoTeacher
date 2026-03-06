@@ -9,7 +9,7 @@ import { useRef, useEffect, useCallback, useState } from 'react';
  * @param {number} height - Hauteur logique du canvas
  * @returns {Object} Références aux canvas et fonctions de rendu
  */
-export const useCanvasLayers = (width, height) => {
+export const useCanvasLayers = (width, height, { forceDpr } = {}) => {
   // Layer statique: grille, mesures, etc. (rarement mis à jour)
   const staticLayerRef = useRef(null);
 
@@ -36,7 +36,7 @@ export const useCanvasLayers = (width, height) => {
   const setupCanvas = useCallback((canvas, w, h) => {
     if (!canvas) return null;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = forceDpr ?? (window.devicePixelRatio || 1);
     const ctx = canvas.getContext('2d', { alpha: true });
 
     // Set physical (pixel) size
@@ -103,7 +103,7 @@ export const useCanvasLayers = (width, height) => {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d', { alpha: true });
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = forceDpr ?? (window.devicePixelRatio || 1);
 
     // Reset transform and clear
     ctx.setTransform(1, 0, 0, 1, 0, 0);

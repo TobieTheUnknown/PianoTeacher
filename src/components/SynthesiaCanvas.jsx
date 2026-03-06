@@ -86,7 +86,7 @@ const SynthesiaCanvas = memo(({
     markDynamicDirty,
     markOverlayDirty,
     needsRedraw
-  } = useCanvasLayers(CANVAS_WIDTH, CANVAS_HEIGHT);
+  } = useCanvasLayers(CANVAS_WIDTH, CANVAS_HEIGHT, { forceDpr: isMobile ? 1 : undefined });
 
   const lastDrawTimeRef = useRef(0);
   const particlesRef = useRef([]);
@@ -164,6 +164,25 @@ const SynthesiaCanvas = memo(({
     };
   }, [handColors]);
 
+  // Pre-compute darkened colors for black key notes (avoid hex parsing per frame)
+  const darkenedColors = useMemo(() => {
+    const darken = (color, amount = 0.35) => {
+      if (!color.startsWith('#')) return color;
+      const hex = color.replace('#', '');
+      let r = parseInt(hex.substring(0, 2), 16);
+      let g = parseInt(hex.substring(2, 4), 16);
+      let b = parseInt(hex.substring(4, 6), 16);
+      r = Math.floor(r * (1 - amount));
+      g = Math.floor(g * (1 - amount));
+      b = Math.floor(b * (1 - amount));
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    };
+    return {
+      rightHand: darken(handColors.rightHand.primary),
+      leftHand: darken(handColors.leftHand.primary),
+    };
+  }, [handColors]);
+
   // Helper functions
   const isBlackKey = useCallback((midiNote) => {
     const noteInOctave = midiNote % 12;
@@ -174,43 +193,51 @@ const SynthesiaCanvas = memo(({
     return noteXCache.get(midiNote) ?? null;
   }, [noteXCache]);
 
+  // Pre-build pitch->hand lookup for notes near current time (avoids .find() per key per frame)
+  const activeNoteHandMap = useMemo(() => {
+    const map = new Map();
+    const lookAheadTime = 0.5;
+    for (let i = 0; i < allNotes.length; i++) {
+      const note = allNotes[i];
+      const noteStartTime = note.startTime / beatsPerSecond;
+      const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
+      if (currentTime >= noteStartTime - lookAheadTime && currentTime <= noteEndTime + 0.1) {
+        if (!map.has(note.pitch)) {
+          map.set(note.pitch, note.hand);
+        }
+      }
+      // Early exit: notes are sorted by startTime, skip far future
+      if (noteStartTime > currentTime + lookAheadTime + 1) break;
+    }
+    return map;
+  }, [allNotes, beatsPerSecond, currentTime]);
+
   const getKeyColor = useCallback((midiNote, isBlack) => {
     const isPressed = activeNotes.has(midiNote);
-    const recentFeedback = feedbackMessages.find(f => f.noteNum === midiNote);
     const colors = getDynamicColors();
 
-    if (isPressed && recentFeedback) {
-      if (recentFeedback.type === 'correct') {
-        return isBlack ? STATIC_COLORS.blackKeyCorrect : STATIC_COLORS.whiteKeyCorrect;
-      } else if (recentFeedback.type === 'wrong') {
-        return isBlack ? STATIC_COLORS.blackKeyWrong : STATIC_COLORS.whiteKeyWrong;
-      }
-    }
-
     if (isPressed) {
-      // Find if this note is expected and determine which hand
-      const lookAheadTime = 0.5;
-      const expectedNote = allNotes.find(note => {
-        const noteStartTime = note.startTime / beatsPerSecond;
-        const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
-        return note.pitch === midiNote &&
-               currentTime >= noteStartTime - lookAheadTime &&
-               currentTime <= noteEndTime + 0.1;
-      });
-
-      if (expectedNote) {
-        if (expectedNote.hand === 'right') {
-          return isBlack ? colors.rightHandDark : colors.rightHandLight;
-        } else {
-          return isBlack ? colors.leftHandDark : colors.leftHandLight;
+      const recentFeedback = feedbackMessages.find(f => f.noteNum === midiNote);
+      if (recentFeedback) {
+        if (recentFeedback.type === 'correct') {
+          return isBlack ? STATIC_COLORS.blackKeyCorrect : STATIC_COLORS.whiteKeyCorrect;
+        } else if (recentFeedback.type === 'wrong') {
+          return isBlack ? STATIC_COLORS.blackKeyWrong : STATIC_COLORS.whiteKeyWrong;
         }
+      }
+
+      const hand = activeNoteHandMap.get(midiNote);
+      if (hand === 'right') {
+        return isBlack ? colors.rightHandDark : colors.rightHandLight;
+      } else if (hand === 'left') {
+        return isBlack ? colors.leftHandDark : colors.leftHandLight;
       }
 
       return isBlack ? colors.blackKeyPressed : colors.whiteKeyPressed;
     }
 
     return isBlack ? STATIC_COLORS.blackKey : STATIC_COLORS.whiteKey;
-  }, [activeNotes, feedbackMessages, allNotes, beatsPerSecond, currentTime, getDynamicColors]);
+  }, [activeNotes, feedbackMessages, activeNoteHandMap, getDynamicColors]);
 
   const darkenColor = useCallback((color, amount = 0.3) => {
     if (!color.startsWith('#')) return color;
@@ -278,56 +305,57 @@ const SynthesiaCanvas = memo(({
     }
     ctx.globalAlpha = 1.0;
 
-    // Vertical grid lines
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.strokeStyle = '#ffffff';
-    ctx.globalAlpha = 0.1;
+    // Vertical grid lines & black key lanes (skip on mobile for perf)
+    if (!isMobile) {
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.strokeStyle = '#ffffff';
+      ctx.globalAlpha = 0.1;
 
-    for (let i = firstKey; i <= lastKey + 1; i++) {
-      if (!isBlackKey(i)) {
-        const x = getNoteX(i);
-        if (x !== null) {
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, keyboardY);
+      for (let i = firstKey; i <= lastKey + 1; i++) {
+        if (!isBlackKey(i)) {
+          const x = getNoteX(i);
+          if (x !== null) {
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, keyboardY);
+          }
+        }
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+
+      for (let i = firstKey; i <= lastKey; i++) {
+        if (isBlackKey(i)) {
+          const x = getNoteX(i);
+          if (x !== null) {
+            ctx.globalAlpha = 0.03;
+            ctx.fillRect(x, 0, BLACK_KEY_WIDTH, keyboardY);
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#ffffff';
+            ctx.globalAlpha = 0.05;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, keyboardY);
+            ctx.moveTo(x + BLACK_KEY_WIDTH, 0);
+            ctx.lineTo(x + BLACK_KEY_WIDTH, keyboardY);
+            ctx.stroke();
+          }
         }
       }
     }
-    ctx.stroke();
 
-    // Black key lanes
-    ctx.fillStyle = '#ffffff';
-
-    for (let i = firstKey; i <= lastKey; i++) {
-      if (isBlackKey(i)) {
-        const x = getNoteX(i);
-        if (x !== null) {
-          ctx.globalAlpha = 0.03;
-          ctx.fillRect(x, 0, BLACK_KEY_WIDTH, keyboardY);
-
-          ctx.beginPath();
-          ctx.strokeStyle = '#ffffff';
-          ctx.globalAlpha = 0.05;
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, keyboardY);
-          ctx.moveTo(x + BLACK_KEY_WIDTH, 0);
-          ctx.lineTo(x + BLACK_KEY_WIDTH, keyboardY);
-          ctx.stroke();
-        }
-      }
-    }
-
-    // Horizontal beat lines
-    ctx.beginPath();
+    // Horizontal beat lines (mobile: measure lines only)
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
     const firstVisibleBeat = Math.ceil(visibleStartTime / secondsPerBeat);
 
     for (let beat = firstVisibleBeat; beat * secondsPerBeat < visibleEndTime; beat++) {
+      const isMeasureLine = (beat % beatsPerMeasure) === 0;
+      if (isMobile && !isMeasureLine) continue; // Skip beat subdivisions on mobile
+
       const beatTime = beat * secondsPerBeat;
       const timeDiff = beatTime - currentTime;
       const y = NOTE_FALL_HEIGHT * (1 - timeDiff / lookAheadTime);
-      const isMeasureLine = (beat % beatsPerMeasure) === 0;
 
       if (y >= 0 && y <= NOTE_FALL_HEIGHT) {
         ctx.globalAlpha = isMeasureLine ? 0.5 : 0.15;
@@ -341,7 +369,12 @@ const SynthesiaCanvas = memo(({
 
     ctx.globalAlpha = 1.0;
 
-    // Measure numbers
+    // Measure numbers (skip on mobile)
+    if (isMobile) {
+      ctx.globalAlpha = 1.0;
+      // Skip loop zone on mobile too (handled by overlay)
+      return;
+    }
     ctx.textAlign = 'left';
 
     for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
@@ -488,7 +521,9 @@ const SynthesiaCanvas = memo(({
       const noteX = isNoteBlack ? x + (BLACK_KEY_WIDTH - noteWidth) / 2 : x + 1;
 
       if (isNoteBlack && playStatus !== 'correct' && playStatus !== 'missed') {
-        color = darkenColor(color, 0.35);
+        color = isMobile
+          ? (note.hand === 'right' ? darkenedColors.rightHand : darkenedColors.leftHand)
+          : darkenColor(color, 0.35);
       }
 
       ctx.globalAlpha = (playStatus === 'correct' || playStatus === 'auto') ? 0.3 : 0.9;
@@ -515,8 +550,8 @@ const SynthesiaCanvas = memo(({
 
       ctx.globalAlpha = 1.0;
 
-      // Note labels — skip clipping on mobile, just draw text
-      if (height > 15 * fontScale && !skipLabel.has(note.id)) {
+      // Note labels — skip entirely on mobile for performance
+      if (!isMobile && height > 15 * fontScale && !skipLabel.has(note.id)) {
         ctx.fillStyle = '#ffffff';
         const baseName = getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
         const rpt = repeatCount.get(note.id);
@@ -555,13 +590,7 @@ const SynthesiaCanvas = memo(({
 
         if (isMobile) {
           ctx.fillRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
-          // Thin separator line only
-          ctx.strokeStyle = '#999';
-          ctx.lineWidth = 0.5;
-          ctx.beginPath();
-          ctx.moveTo(x, keyboardY);
-          ctx.lineTo(x, keyboardY + KEYBOARD_HEIGHT);
-          ctx.stroke();
+          continue; // Skip labels and strokes on mobile
         } else {
           if (isPressed && visualEffects) {
             const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
@@ -637,10 +666,13 @@ const SynthesiaCanvas = memo(({
     ctx.lineTo(CANVAS_WIDTH, keyboardY);
     ctx.stroke();
     ctx.shadowBlur = 0;
-  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel]);
+  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel]);
 
   // Draw overlay layer (feedback, combo) - changes occasionally
   const drawOverlayLayer = useCallback((ctx) => {
+    // Skip overlay entirely on mobile — mobile overlay component handles UI
+    if (isMobile) return;
+
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
     // Feedback messages
@@ -737,21 +769,17 @@ const SynthesiaCanvas = memo(({
   // Render loop with throttling for better performance
   useEffect(() => {
     let animationFrameId;
-    const frameInterval = isMobile ? 33 : 16; // 30fps mobile, 60fps desktop
 
     const render = (timestamp) => {
-      if (timestamp - lastDrawTimeRef.current < frameInterval) {
-        animationFrameId = requestAnimationFrame(render);
-        return;
-      }
-
       lastDrawTimeRef.current = timestamp;
 
       if (isMobile) {
-        // On mobile: merge static + dynamic into one draw to reduce canvas clears
-        drawLayer('static', drawStaticLayer);
-        drawLayer('dynamic', drawDynamicLayer);
-        if (needsRedraw.current.overlay) drawLayer('overlay', drawOverlayLayer);
+        // On mobile: draw everything into dynamic canvas only (single canvas, DPR=1)
+        drawLayer('dynamic', (ctx) => {
+          drawStaticLayer(ctx);
+          drawDynamicLayer(ctx);
+          drawOverlayLayer(ctx);
+        });
       } else {
         drawLayer('static', drawStaticLayer);
         drawLayer('dynamic', drawDynamicLayer);
@@ -791,7 +819,7 @@ const SynthesiaCanvas = memo(({
         <canvas
           ref={staticLayerRef}
           className={styles.canvas}
-          style={{ zIndex: 1 }}
+          style={{ zIndex: 1, display: isMobile ? 'none' : undefined }}
         />
         <canvas
           ref={dynamicLayerRef}
@@ -801,7 +829,7 @@ const SynthesiaCanvas = memo(({
         <canvas
           ref={overlayLayerRef}
           className={styles.canvas}
-          style={{ zIndex: 3 }}
+          style={{ zIndex: 3, display: isMobile ? 'none' : undefined }}
         />
       </div>
     </div>
