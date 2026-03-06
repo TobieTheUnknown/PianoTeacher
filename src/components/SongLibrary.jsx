@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../services/StorageService';
 import { getFrenchKeyName } from '../models/song';
 
-export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
+export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMobile = false }) {
     const [songs, setSongs] = useState([]);
     const [showLibraryModal, setShowLibraryModal] = useState(false);
     const [mergeOnImport, setMergeOnImport] = useState(false);
     const [actionSheetSong, setActionSheetSong] = useState(null);
     const [midiImportStatus, setMidiImportStatus] = useState(null); // null | 'loading' | 'success' | 'error'
+    const [showFabMenu, setShowFabMenu] = useState(false);
 
     const loadSongs = useCallback(() => {
         setSongs(StorageService.getSongs());
@@ -172,8 +173,8 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                 /* Song Cards Grid */
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                    gap: '1.5rem'
+                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(300px, 1fr))',
+                    gap: isMobile ? '0.75rem' : '1.5rem'
                 }}>
                     {songs.map((song) => (
                         <div
@@ -291,7 +292,7 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                 </div>
             )}
 
-            {/* Mobile FAB */}
+            {/* Mobile FAB with expandable menu */}
             {isMobile && (
                 <div style={{
                     position: 'fixed',
@@ -299,35 +300,65 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                     right: '16px',
                     display: 'flex',
                     flexDirection: 'column',
+                    alignItems: 'flex-end',
                     gap: '0.75rem',
                     zIndex: 50
                 }}>
+                    {showFabMenu && (
+                        <>
+                            <button
+                                onClick={() => { handleOpenLibraryModal(); setShowFabMenu(false); }}
+                                style={{
+                                    height: '44px',
+                                    borderRadius: '22px',
+                                    background: 'var(--bg-elevated)',
+                                    border: '1px solid var(--border-color)',
+                                    color: 'var(--text-primary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0 1rem',
+                                    minHeight: 'unset',
+                                    boxShadow: 'var(--shadow-lg)',
+                                    fontSize: '0.875rem',
+                                    whiteSpace: 'nowrap'
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                Importer
+                            </button>
+                            <button
+                                onClick={() => { onNewSong(); setShowFabMenu(false); }}
+                                style={{
+                                    height: '44px',
+                                    borderRadius: '22px',
+                                    background: 'var(--bg-elevated)',
+                                    border: '1px solid var(--border-color)',
+                                    color: 'var(--text-primary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0 1rem',
+                                    minHeight: 'unset',
+                                    boxShadow: 'var(--shadow-lg)',
+                                    fontSize: '0.875rem',
+                                    whiteSpace: 'nowrap'
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                                Nouveau
+                            </button>
+                        </>
+                    )}
                     <button
-                        onClick={handleOpenLibraryModal}
-                        style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '50%',
-                            background: 'var(--bg-elevated)',
-                            border: '1px solid var(--border-color)',
-                            color: 'var(--text-primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: 0,
-                            minHeight: 'unset',
-                            boxShadow: 'var(--shadow-lg)'
-                        }}
-                        title="Import/Export"
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7 10 12 15 17 10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                    </button>
-                    <button
-                        onClick={onNewSong}
+                        onClick={() => setShowFabMenu(!showFabMenu)}
                         className="btn-primary"
                         style={{
                             width: '56px',
@@ -339,9 +370,11 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                             padding: 0,
                             minHeight: 'unset',
                             boxShadow: 'var(--shadow-xl)',
-                            fontSize: '1.5rem'
+                            fontSize: '1.5rem',
+                            transform: showFabMenu ? 'rotate(45deg)' : 'none',
+                            transition: 'transform 0.2s ease'
                         }}
-                        title="Nouveau"
+                        title="Actions"
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="12" y1="5" x2="12" y2="19" />
@@ -394,7 +427,7 @@ export function SongLibrary({ onLoadSong, onNewSong, isMobile = false }) {
                             {actionSheetSong.title}
                         </h3>
                         {[
-                            { label: 'Jouer (Synthesia)', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
+                            { label: 'Jouer (Synthesia)', action: () => { if (onLoadSongToSynthesia) onLoadSongToSynthesia(actionSheetSong.id); else onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
                             { label: 'Voir (lecture seule)', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
                             { label: 'Exporter MIDI', action: async () => { await handleExportMidi(actionSheetSong); setActionSheetSong(null); } },
                             { label: 'Supprimer', action: () => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }, danger: true },

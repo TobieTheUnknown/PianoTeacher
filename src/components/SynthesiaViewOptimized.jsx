@@ -32,7 +32,7 @@ const GOOD_TOLERANCE = 0.152; // ±152ms
 const NOTE_TOLERANCE = 0.302; // ±302ms
 const WAIT_MODE_THRESHOLD = 0.05;
 
-export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
+export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
   const animationFrameRef = useRef(null);
   const startTimeRef = useRef(null);
   const pausedAtTimeRef = useRef(null);
@@ -825,7 +825,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
         <SynthesiaMobileOverlay
           isPlaying={isPlaying}
           onPlayPause={handlePlayPause}
-          onBack={() => window.history.back()}
+          onBack={onBack || (() => window.history.back())}
           currentTime={currentTime}
           currentBPM={currentBPM}
           defaultBPM={defaultBPM}
@@ -840,6 +840,8 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange }) {
           onPhraseSelect={handlePhraseSelect}
           isMetronomeOn={isMetronomeOn}
           setIsMetronomeOn={setIsMetronomeOn}
+          visualEffects={visualEffects}
+          setVisualEffects={setVisualEffects}
         />
       </div>
     );

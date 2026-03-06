@@ -60,8 +60,12 @@ function App() {
 
   const handleLoadSong = (id) => {
     loadSong(id);
-    // On mobile, go to read-only view instead of editor
-    setMode(isMobile ? 'edit' : 'edit');
+    setMode('edit');
+  };
+
+  const handleLoadSongToSynthesia = (id) => {
+    loadSong(id);
+    setMode('synthesia');
   };
 
   const handleNewSong = () => {
@@ -90,6 +94,7 @@ function App() {
         {mode === 'library' && (
           <SongLibrary
             onLoadSong={handleLoadSong}
+            onLoadSongToSynthesia={handleLoadSongToSynthesia}
             onNewSong={handleNewSong}
             isMobile={isMobile}
           />
@@ -119,6 +124,7 @@ function App() {
           <SynthesiaView
             song={song}
             onFullscreenChange={handleSynthesiaFullscreenChange}
+            onBack={() => setMode('library')}
           />
         )}
         {shouldShowExport && (

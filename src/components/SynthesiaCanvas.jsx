@@ -393,6 +393,27 @@ const SynthesiaCanvas = memo(({
     }
     prevActiveNotesRef.current = new Set(activeNotes);
 
+    // Pre-compute consecutive repetition counts for same pitch
+    const repeatCount = new Map(); // noteId -> count (only first in sequence)
+    const skipLabel = new Set();   // noteIds that are duplicates (hide label)
+    const EPSILON = 0.01; // tolerance for "consecutive" (gap between end and next start)
+    for (let i = 0; i < allNotes.length; i++) {
+      if (skipLabel.has(allNotes[i].id)) continue;
+      let count = 1;
+      let j = i + 1;
+      while (j < allNotes.length) {
+        const curr = allNotes[j - 1];
+        const next = allNotes[j];
+        if (next.pitch !== allNotes[i].pitch || next.hand !== allNotes[i].hand) break;
+        const currEnd = curr.startTime + curr.duration;
+        if (Math.abs(next.startTime - currEnd) > EPSILON) break;
+        skipLabel.add(next.id);
+        count++;
+        j++;
+      }
+      if (count > 1) repeatCount.set(allNotes[i].id, count);
+    }
+
     allNotes.forEach(note => {
       const noteStartTime = note.startTime / beatsPerSecond;
       const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
@@ -455,15 +476,20 @@ const SynthesiaCanvas = memo(({
 
       if (height > 15 * fontScale) {
         ctx.fillStyle = '#ffffff';
-        ctx.font = `bold ${Math.round(12 * fontScale)}px Arial`;
         ctx.textAlign = 'center';
-        const label = getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
-        ctx.save();
-        ctx.beginPath();
-        drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
-        ctx.clip();
-        ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4 * fontScale);
-        ctx.restore();
+        const baseName = getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
+        const rpt = repeatCount.get(note.id);
+        const label = rpt ? `${baseName} x${rpt}` : (skipLabel.has(note.id) ? '' : baseName);
+        if (label) {
+          const fontSize = rpt ? Math.round(10 * fontScale) : Math.round(12 * fontScale);
+          ctx.font = `bold ${fontSize}px Arial`;
+          ctx.save();
+          ctx.beginPath();
+          drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
+          ctx.clip();
+          ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4 * fontScale);
+          ctx.restore();
+        }
       }
     });
 

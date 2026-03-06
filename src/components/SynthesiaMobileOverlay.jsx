@@ -28,6 +28,8 @@ export function SynthesiaMobileOverlay({
   onPhraseSelect,
   isMetronomeOn,
   setIsMetronomeOn,
+  visualEffects,
+  setVisualEffects,
 }) {
   const [visible, setVisible] = useState(true);
   const hideTimerRef = useRef(null);
@@ -188,6 +190,21 @@ export function SynthesiaMobileOverlay({
             </button>
           </div>
         </div>
+
+        {/* Visual Effects */}
+        {setVisualEffects && (
+          <div className={styles.sheetSection}>
+            <div className={styles.sheetLabel}>Effets visuels</div>
+            <div className={styles.sheetRow}>
+              <button
+                className={`${styles.sheetButton} ${visualEffects ? styles.sheetButtonActive : ''}`}
+                onClick={() => setVisualEffects(!visualEffects)}
+              >
+                {visualEffects ? 'Effets ON' : 'Effets OFF (perf)'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
