@@ -52,6 +52,7 @@ const SynthesiaCanvas = memo(({
   // Use prop dimensions or defaults
   const CANVAS_WIDTH = propWidth || DEFAULT_WIDTH;
   const CANVAS_HEIGHT = propHeight || DEFAULT_HEIGHT;
+  const isMobile = !!mobileKeyRange;
   const aspectRatio = CANVAS_WIDTH / CANVAS_HEIGHT;
   const keyboardRatio = aspectRatio < 1.0 ? 0.12 : 0.1875; // portrait → reduce height
   const KEYBOARD_HEIGHT = CANVAS_HEIGHT * keyboardRatio;
@@ -91,6 +92,50 @@ const SynthesiaCanvas = memo(({
   const particlesRef = useRef([]);
   const prevActiveNotesRef = useRef(new Set());
 
+  // Pre-compute consecutive repetition counts (cached, not per-frame)
+  const { repeatCount, skipLabel } = useMemo(() => {
+    const rc = new Map();
+    const sl = new Set();
+    const EPSILON = 0.01;
+    for (let i = 0; i < allNotes.length; i++) {
+      if (sl.has(allNotes[i].id)) continue;
+      let count = 1;
+      let j = i + 1;
+      while (j < allNotes.length) {
+        const curr = allNotes[j - 1];
+        const next = allNotes[j];
+        if (next.pitch !== allNotes[i].pitch || next.hand !== allNotes[i].hand) break;
+        const currEnd = curr.startTime + curr.duration;
+        if (Math.abs(next.startTime - currEnd) > EPSILON) break;
+        sl.add(next.id);
+        count++;
+        j++;
+      }
+      if (count > 1) rc.set(allNotes[i].id, count);
+    }
+    return { repeatCount: rc, skipLabel: sl };
+  }, [allNotes]);
+
+  // Pre-compute getNoteX lookup table
+  const noteXCache = useMemo(() => {
+    const cache = new Map();
+    for (let i = firstKey; i <= lastKey; i++) {
+      const noteInOctave = i % 12;
+      const isBlk = [1, 3, 6, 8, 10].includes(noteInOctave);
+      let whiteKeyIdx = 0;
+      for (let k = firstKey; k < i; k++) {
+        if (![1, 3, 6, 8, 10].includes(k % 12)) whiteKeyIdx++;
+      }
+      if (!isBlk) {
+        cache.set(i, whiteKeyIdx * WHITE_KEY_WIDTH);
+      } else {
+        const bkw = WHITE_KEY_WIDTH * 0.65;
+        cache.set(i, (whiteKeyIdx * WHITE_KEY_WIDTH) - (bkw / 2));
+      }
+    }
+    return cache;
+  }, [firstKey, lastKey, WHITE_KEY_WIDTH]);
+
   // Subscribe to hand color changes from HandColorsService
   const [handColors, setHandColors] = useState(() => handColorsService.getColors());
 
@@ -126,22 +171,8 @@ const SynthesiaCanvas = memo(({
   }, []);
 
   const getNoteX = useCallback((midiNote) => {
-    if (midiNote < firstKey || midiNote > lastKey) return null;
-
-    let whiteKeyIdx = 0;
-    for (let i = firstKey; i < midiNote; i++) {
-      if (!isBlackKey(i)) whiteKeyIdx++;
-    }
-
-    const isNoteBlack = isBlackKey(midiNote);
-
-    if (!isNoteBlack) {
-      return whiteKeyIdx * WHITE_KEY_WIDTH;
-    } else {
-      const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
-      return (whiteKeyIdx * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2);
-    }
-  }, [isBlackKey, firstKey, lastKey, WHITE_KEY_WIDTH]);
+    return noteXCache.get(midiNote) ?? null;
+  }, [noteXCache]);
 
   const getKeyColor = useCallback((midiNote, isBlack) => {
     const isPressed = activeNotes.has(midiNote);
@@ -387,8 +418,8 @@ const SynthesiaCanvas = memo(({
     // Falling notes
     const noteColors = getDynamicColors();
 
-    // Spawn particles on newly activated notes (only when effects enabled)
-    if (visualEffects) {
+    // Spawn particles on newly activated notes (only when effects enabled, desktop only)
+    if (visualEffects && !isMobile) {
       activeNotes.forEach(midi => {
         if (!prevActiveNotesRef.current.has(midi)) {
           const nx = getNoteX(midi);
@@ -417,43 +448,28 @@ const SynthesiaCanvas = memo(({
     }
     prevActiveNotesRef.current = new Set(activeNotes);
 
-    // Pre-compute consecutive repetition counts for same pitch
-    const repeatCount = new Map(); // noteId -> count (only first in sequence)
-    const skipLabel = new Set();   // noteIds that are duplicates (hide label)
-    const EPSILON = 0.01; // tolerance for "consecutive" (gap between end and next start)
-    for (let i = 0; i < allNotes.length; i++) {
-      if (skipLabel.has(allNotes[i].id)) continue;
-      let count = 1;
-      let j = i + 1;
-      while (j < allNotes.length) {
-        const curr = allNotes[j - 1];
-        const next = allNotes[j];
-        if (next.pitch !== allNotes[i].pitch || next.hand !== allNotes[i].hand) break;
-        const currEnd = curr.startTime + curr.duration;
-        if (Math.abs(next.startTime - currEnd) > EPSILON) break;
-        skipLabel.add(next.id);
-        count++;
-        j++;
-      }
-      if (count > 1) repeatCount.set(allNotes[i].id, count);
-    }
+    // Set font once for all note labels
+    const noteFontSize = Math.round(12 * fontScale);
+    const noteSmallFontSize = Math.round(10 * fontScale);
+    ctx.textAlign = 'center';
 
-    allNotes.forEach(note => {
+    for (let ni = 0; ni < allNotes.length; ni++) {
+      const note = allNotes[ni];
       const noteStartTime = note.startTime / beatsPerSecond;
       const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
 
-      if (noteEndTime < currentTime - 1 || noteStartTime > currentTime + lookAheadTime) {
-        return;
+      if (noteEndTime < currentTime - 0.5 || noteStartTime > currentTime + lookAheadTime) {
+        continue;
       }
 
       const x = getNoteX(note.pitch);
-      if (x === null) return;
+      if (x === null) continue;
 
       const startY = NOTE_FALL_HEIGHT * (1 - (noteStartTime - currentTime) / lookAheadTime);
       const endY = NOTE_FALL_HEIGHT * (1 - (noteEndTime - currentTime) / lookAheadTime);
       const height = Math.max(startY - endY, 5);
 
-      if (endY < 0 && startY < 0) return;
+      if (endY < 0 && startY < 0) continue;
 
       const playStatus = playedNotes.get(note.id);
 
@@ -475,50 +491,43 @@ const SynthesiaCanvas = memo(({
         color = darkenColor(color, 0.35);
       }
 
-      if (playStatus === 'correct' || playStatus === 'auto') {
-        ctx.globalAlpha = 0.3;
-        if (visualEffects) {
+      ctx.globalAlpha = (playStatus === 'correct' || playStatus === 'auto') ? 0.3 : 0.9;
+
+      ctx.fillStyle = color;
+
+      if (isMobile) {
+        // Simple rectangles on mobile — no rounded corners, no stroke
+        ctx.fillRect(noteX, endY, noteWidth, height);
+      } else {
+        const radius = Math.max(4, 6 * fontScale);
+        if (visualEffects && (playStatus === 'correct' || playStatus === 'auto')) {
           ctx.shadowBlur = 20;
           ctx.shadowColor = color;
         }
-      } else {
-        ctx.globalAlpha = 0.9;
+        drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
+        ctx.stroke();
       }
-
-      ctx.fillStyle = color;
-      const radius = Math.max(4, 6 * fontScale);
-      drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
-      ctx.fill();
-
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
-      ctx.stroke();
 
       ctx.globalAlpha = 1.0;
-      ctx.shadowBlur = 0;
 
-      if (height > 15 * fontScale) {
+      // Note labels — skip clipping on mobile, just draw text
+      if (height > 15 * fontScale && !skipLabel.has(note.id)) {
         ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
         const baseName = getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
         const rpt = repeatCount.get(note.id);
-        const label = rpt ? `${baseName} x${rpt}` : (skipLabel.has(note.id) ? '' : baseName);
-        if (label) {
-          const fontSize = rpt ? Math.round(10 * fontScale) : Math.round(12 * fontScale);
-          ctx.font = `bold ${fontSize}px Arial`;
-          ctx.save();
-          ctx.beginPath();
-          drawRoundedRect(ctx, noteX, endY, noteWidth, height, radius);
-          ctx.clip();
-          ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4 * fontScale);
-          ctx.restore();
-        }
+        const label = rpt ? `${baseName} x${rpt}` : baseName;
+        ctx.font = `bold ${rpt ? noteSmallFontSize : noteFontSize}px Arial`;
+        ctx.fillText(label, noteX + noteWidth / 2, endY + height / 2 + 4 * fontScale);
       }
-    });
+    }
 
     // Helper: rounded bottom corners only (top sharp, bottom rounded)
-    const drawKeyShape = (x, y, w, h, r) => {
+    const drawKeyShape = isMobile ? null : (x, y, w, h, r) => {
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x + w, y);
@@ -528,6 +537,8 @@ const SynthesiaCanvas = memo(({
       ctx.arcTo(x, y + h, x, y + h - r, r);
       ctx.closePath();
     };
+
+    const blackKeyHeight = KEYBOARD_HEIGHT * 0.42;
 
     // Keyboard - white keys
     ctx.textAlign = 'center';
@@ -540,20 +551,31 @@ const SynthesiaCanvas = memo(({
         const keyColor = getKeyColor(i, false);
         const isPressed = activeNotes.has(i);
 
-        if (isPressed && visualEffects) {
-          const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
-          ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandLight : noteColors.leftHandLight;
-          ctx.shadowBlur = 18;
-        }
-
         ctx.fillStyle = keyColor;
-        drawKeyShape(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT, 4 * fontScale);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = '#cccccc';
-        ctx.lineWidth = 1;
-        drawKeyShape(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT, 4 * fontScale);
-        ctx.stroke();
+
+        if (isMobile) {
+          ctx.fillRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
+          // Thin separator line only
+          ctx.strokeStyle = '#999';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(x, keyboardY);
+          ctx.lineTo(x, keyboardY + KEYBOARD_HEIGHT);
+          ctx.stroke();
+        } else {
+          if (isPressed && visualEffects) {
+            const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
+            ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandLight : noteColors.leftHandLight;
+            ctx.shadowBlur = 18;
+          }
+          drawKeyShape(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT, 4 * fontScale);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#cccccc';
+          ctx.lineWidth = 1;
+          drawKeyShape(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT, 4 * fontScale);
+          ctx.stroke();
+        }
 
         ctx.fillStyle = isPressed ? '#ffffff' : '#555';
         const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
@@ -567,34 +589,36 @@ const SynthesiaCanvas = memo(({
         const x = getNoteX(i);
         if (x === null) continue;
         const keyColor = getKeyColor(i, true);
-        const isPressed = activeNotes.has(i);
-        const blackKeyHeight = KEYBOARD_HEIGHT * 0.42;
-
-        if (isPressed && visualEffects) {
-          const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
-          ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandDark : noteColors.leftHandDark;
-          ctx.shadowBlur = 14;
-        }
 
         ctx.fillStyle = keyColor;
-        drawKeyShape(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight, 3 * fontScale);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        drawKeyShape(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight, 3 * fontScale);
-        ctx.stroke();
 
-        ctx.fillStyle = isPressed ? '#ffffff' : '#ccc';
-        ctx.font = `${Math.round(10 * fontScale)}px Arial`;
-        const label = getFrenchNoteName(i);
-        const shortLabel = label.replace(/[0-9-]/g, '');
-        ctx.fillText(shortLabel, x + BLACK_KEY_WIDTH / 2, keyboardY + blackKeyHeight - 8 * fontScale);
+        if (isMobile) {
+          ctx.fillRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
+        } else {
+          const isPressed = activeNotes.has(i);
+          if (isPressed && visualEffects) {
+            const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
+            ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandDark : noteColors.leftHandDark;
+            ctx.shadowBlur = 14;
+          }
+          drawKeyShape(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight, 3 * fontScale);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#333';
+          ctx.lineWidth = 1;
+          drawKeyShape(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight, 3 * fontScale);
+          ctx.stroke();
+
+          ctx.fillStyle = isPressed ? '#ffffff' : '#ccc';
+          ctx.font = `${Math.round(10 * fontScale)}px Arial`;
+          const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
+          ctx.fillText(label, x + BLACK_KEY_WIDTH / 2, keyboardY + blackKeyHeight - 8 * fontScale);
+        }
       }
     }
 
-    // Hit line
-    if (visualEffects) {
+    // Hit line — simple on mobile
+    if (!isMobile && visualEffects) {
       ctx.shadowBlur = 30;
       ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
@@ -603,7 +627,6 @@ const SynthesiaCanvas = memo(({
       ctx.moveTo(0, keyboardY);
       ctx.lineTo(CANVAS_WIDTH, keyboardY);
       ctx.stroke();
-
       ctx.shadowBlur = 15;
       ctx.shadowColor = '#ffffff';
     }
@@ -613,9 +636,8 @@ const SynthesiaCanvas = memo(({
     ctx.moveTo(0, keyboardY);
     ctx.lineTo(CANVAS_WIDTH, keyboardY);
     ctx.stroke();
-
     ctx.shadowBlur = 0;
-  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects]);
+  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel]);
 
   // Draw overlay layer (feedback, combo) - changes occasionally
   const drawOverlayLayer = useCallback((ctx) => {
@@ -715,19 +737,26 @@ const SynthesiaCanvas = memo(({
   // Render loop with throttling for better performance
   useEffect(() => {
     let animationFrameId;
+    const frameInterval = isMobile ? 33 : 16; // 30fps mobile, 60fps desktop
 
     const render = (timestamp) => {
-      // Throttle to 60fps max
-      if (timestamp - lastDrawTimeRef.current < 16) {
+      if (timestamp - lastDrawTimeRef.current < frameInterval) {
         animationFrameId = requestAnimationFrame(render);
         return;
       }
 
       lastDrawTimeRef.current = timestamp;
 
-      drawLayer('static', drawStaticLayer);
-      drawLayer('dynamic', drawDynamicLayer);
-      if (needsRedraw.current.overlay || (visualEffects && particlesRef.current.length > 0)) drawLayer('overlay', drawOverlayLayer);
+      if (isMobile) {
+        // On mobile: merge static + dynamic into one draw to reduce canvas clears
+        drawLayer('static', drawStaticLayer);
+        drawLayer('dynamic', drawDynamicLayer);
+        if (needsRedraw.current.overlay) drawLayer('overlay', drawOverlayLayer);
+      } else {
+        drawLayer('static', drawStaticLayer);
+        drawLayer('dynamic', drawDynamicLayer);
+        if (needsRedraw.current.overlay || (visualEffects && particlesRef.current.length > 0)) drawLayer('overlay', drawOverlayLayer);
+      }
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -739,7 +768,7 @@ const SynthesiaCanvas = memo(({
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, visualEffects]);
+  }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, visualEffects, isMobile]);
 
   // Mark static layer dirty when relevant props change
   useEffect(() => {
