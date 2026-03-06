@@ -593,10 +593,9 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
       const beatInMeasure = Math.floor(currentBeat % beatsPerMeasure);
       const isAccent = metronomeDivision === 'measure' || beatInMeasure < 0.1;
 
-      audioEngine.playClick(import('tone').then(Tone => Tone.now()), isAccent);
+      audioEngine.playClick(undefined, isAccent);
     }
 
-    audioEngine.stopMetronome();
 
   }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision, beatsPerMeasure]);
 
@@ -842,6 +841,8 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
           setIsMetronomeOn={setIsMetronomeOn}
           visualEffects={visualEffects}
           setVisualEffects={setVisualEffects}
+          waitMode={waitMode}
+          setWaitMode={setWaitMode}
         />
       </div>
     );

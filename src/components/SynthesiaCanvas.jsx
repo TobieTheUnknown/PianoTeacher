@@ -305,24 +305,25 @@ const SynthesiaCanvas = memo(({
     }
     ctx.globalAlpha = 1.0;
 
-    // Vertical grid lines & black key lanes (skip on mobile for perf)
-    if (!isMobile) {
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.strokeStyle = '#ffffff';
-      ctx.globalAlpha = 0.1;
+    // Vertical grid lines (white key separators)
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.strokeStyle = '#ffffff';
+    ctx.globalAlpha = 0.1;
 
-      for (let i = firstKey; i <= lastKey + 1; i++) {
-        if (!isBlackKey(i)) {
-          const x = getNoteX(i);
-          if (x !== null) {
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, keyboardY);
-          }
+    for (let i = firstKey; i <= lastKey + 1; i++) {
+      if (!isBlackKey(i)) {
+        const x = getNoteX(i);
+        if (x !== null) {
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, keyboardY);
         }
       }
-      ctx.stroke();
+    }
+    ctx.stroke();
 
+    // Black key lanes (skip on mobile for perf)
+    if (!isMobile) {
       ctx.fillStyle = '#ffffff';
 
       for (let i = firstKey; i <= lastKey; i++) {
@@ -551,7 +552,7 @@ const SynthesiaCanvas = memo(({
       ctx.globalAlpha = 1.0;
 
       // Note labels — skip entirely on mobile for performance
-      if (!isMobile && height > 15 * fontScale && !skipLabel.has(note.id)) {
+      if (height > (isMobile ? 20 : 15) * fontScale && !skipLabel.has(note.id)) {
         ctx.fillStyle = '#ffffff';
         const baseName = getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
         const rpt = repeatCount.get(note.id);
@@ -590,7 +591,9 @@ const SynthesiaCanvas = memo(({
 
         if (isMobile) {
           ctx.fillRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
-          continue; // Skip labels and strokes on mobile
+          ctx.fillStyle = isPressed ? '#ffffff' : '#555';
+          const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
+          ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
         } else {
           if (isPressed && visualEffects) {
             const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
