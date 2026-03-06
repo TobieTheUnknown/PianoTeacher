@@ -82,7 +82,8 @@ const SynthesiaCanvas = memo(({
     drawLayer,
     markStaticDirty,
     markDynamicDirty,
-    markOverlayDirty
+    markOverlayDirty,
+    needsRedraw
   } = useCanvasLayers(CANVAS_WIDTH, CANVAS_HEIGHT);
 
   const lastDrawTimeRef = useRef(0);
