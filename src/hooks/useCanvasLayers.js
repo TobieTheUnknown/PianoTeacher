@@ -43,12 +43,15 @@ export const useCanvasLayers = (width, height) => {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
 
+    // Set CSS display size to logical dimensions (prevents HiDPI zoom/cursor offset)
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+
     // Scale context so drawing operations use logical coordinates
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Optimisations rendering
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingEnabled = false;
 
     return ctx;
   }, []);

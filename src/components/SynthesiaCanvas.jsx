@@ -428,12 +428,8 @@ const SynthesiaCanvas = memo(({
 
       if (playStatus === 'correct' || playStatus === 'auto') {
         ctx.globalAlpha = 0.3;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = color;
       } else {
         ctx.globalAlpha = 0.9;
-        ctx.shadowBlur = 8 * fontScale;
-        ctx.shadowColor = color;
       }
 
       ctx.fillStyle = color;
@@ -632,12 +628,10 @@ const SynthesiaCanvas = memo(({
 
     // Particles
     const particles = particlesRef.current;
-    ctx.shadowBlur = 6;
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       ctx.globalAlpha = p.life;
       ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
       ctx.fill();
@@ -664,9 +658,9 @@ const SynthesiaCanvas = memo(({
 
       lastDrawTimeRef.current = timestamp;
 
-      drawLayer('static', drawStaticLayer);
+      if (needsRedraw.current.static) drawLayer('static', drawStaticLayer);
       drawLayer('dynamic', drawDynamicLayer);
-      drawLayer('overlay', drawOverlayLayer);
+      if (needsRedraw.current.overlay || particlesRef.current.length > 0) drawLayer('overlay', drawOverlayLayer);
 
       animationFrameId = requestAnimationFrame(render);
     };
