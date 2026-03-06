@@ -74,12 +74,38 @@ const ToolbarComponent = ({
     isRecording,
     onRecordingChange,
 
+    // Tool mode
+    activeTool,
+    onToolChange,
+
     // Fullscreen
     isFullscreen,
     onClose
 }) => {
     return (
         <div className={styles.toolbar}>
+            {/* Tool toggles */}
+            <div className={styles.toolbarSection}>
+                <button
+                    className={`${styles.toolbarButton} ${activeTool === 'draw' ? styles.active : ''}`}
+                    onClick={() => onToolChange('draw')}
+                    aria-pressed={activeTool === 'draw'}
+                    title="Outil Dessiner (ajouter/supprimer des notes)"
+                >
+                    ✏️
+                </button>
+                <button
+                    className={`${styles.toolbarButton} ${activeTool === 'select' ? styles.active : ''}`}
+                    onClick={() => onToolChange('select')}
+                    aria-pressed={activeTool === 'select'}
+                    title="Outil Sélection (rectangle de sélection)"
+                >
+                    ↖
+                </button>
+            </div>
+
+            <div className={styles.toolbarDivider} />
+
             {/* Playback Controls */}
             <PlaybackControls
                 isPlaying={isPlaying}
@@ -247,7 +273,8 @@ const arePropsEqual = (prevProps, nextProps) => {
         prevProps.canUndo === nextProps.canUndo &&
         prevProps.canRedo === nextProps.canRedo &&
         prevProps.isRecording === nextProps.isRecording &&
-        prevProps.isFullscreen === nextProps.isFullscreen
+        prevProps.isFullscreen === nextProps.isFullscreen &&
+        prevProps.activeTool === nextProps.activeTool
     );
 };
 

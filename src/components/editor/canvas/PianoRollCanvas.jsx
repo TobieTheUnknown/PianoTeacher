@@ -88,6 +88,9 @@ const PianoRollCanvas = memo(({
     onLoopRegionChange,
     onContextMenu,
 
+    // Tool mode
+    activeTool = 'draw',
+
     // Scroll sync (controlled mode)
     scrollX: controlledScrollX,
     scrollY: controlledScrollY,
@@ -621,22 +624,25 @@ const PianoRollCanvas = memo(({
                 onNoteDragStart(clickedNote, dragType, e);
             }
         } else {
-            // Start selection rectangle
-            // Ctrl/Cmd = deselect mode
-            setIsDeselectMode(e.ctrlKey || e.metaKey);
-            setSelectionRect({
-                x: coords.gridX,
-                y: coords.gridY,
-                width: 0,
-                height: 0,
-                startX: coords.gridX,
-                startY: coords.gridY,
-                // Store initial scroll to compensate for scroll changes during selection
-                initialScrollX: scrollX,
-                initialScrollY: scrollY
-            });
+            if (activeTool === 'select') {
+                // Start selection rectangle
+                // Ctrl/Cmd = deselect mode
+                setIsDeselectMode(e.ctrlKey || e.metaKey);
+                setSelectionRect({
+                    x: coords.gridX,
+                    y: coords.gridY,
+                    width: 0,
+                    height: 0,
+                    startX: coords.gridX,
+                    startY: coords.gridY,
+                    // Store initial scroll to compensate for scroll changes during selection
+                    initialScrollX: scrollX,
+                    initialScrollY: scrollY
+                });
+            }
+            // 'draw' mode → no selectionRect → mouseup will call onGridClick
         }
-    }, [scrollX, scrollY, cellWidth, cellHeight, keys, notes, totalBeats, selectedIdsSet, onPlayheadSeek, onNoteClick, onNoteDragStart, loopEnabled, loopRegion, onLoopRegionChange]);
+    }, [scrollX, scrollY, cellWidth, cellHeight, keys, notes, totalBeats, selectedIdsSet, onPlayheadSeek, onNoteClick, onNoteDragStart, loopEnabled, loopRegion, onLoopRegionChange, activeTool]);
 
     const handleMouseMove = useCallback((e) => {
         const coords = getGridCoordinates(e, {
@@ -967,7 +973,7 @@ const PianoRollCanvas = memo(({
     }, [
         dragState, selectionRect, notes, keys, cellWidth, cellHeight, scrollX, scrollY,
         gridSize, snapToGridEnabled, onNoteClick, onNoteDragEnd, onSelectionComplete,
-        onGridClick, markOverlayDirty, stopAutoScroll
+        onGridClick, markOverlayDirty, stopAutoScroll, activeTool
     ]);
 
     const handleMouseLeave = useCallback(() => {

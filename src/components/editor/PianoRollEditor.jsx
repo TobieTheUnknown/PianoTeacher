@@ -88,6 +88,9 @@ export function PianoRollEditor({
     // eslint-disable-next-line no-unused-vars
     const [showMinimap, setShowMinimap] = useState(isFullscreen); // Reserved for minimap toggle
 
+    // Tool mode
+    const [activeTool, setActiveTool] = useState('draw');
+
     // Recording state
     const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]);
     const [activeRecordingNotes, setActiveRecordingNotes] = useState([]);
@@ -885,6 +888,8 @@ export function PianoRollEditor({
                 canRedo={historyIndex < history.length - 1}
                 onUndo={undo}
                 onRedo={redo}
+                activeTool={activeTool}
+                onToolChange={setActiveTool}
                 isFullscreen={isFullscreen}
                 onClose={onClose}
                 isRecording={isRecording}
@@ -924,6 +929,7 @@ export function PianoRollEditor({
                     onSelectionComplete={handleSelectionComplete}
                     onPlayheadSeek={handlePlayheadSeek}
                     onLoopRegionChange={setLoopRegion}
+                    activeTool={activeTool}
                     onContextMenu={handleContextMenu}
                     className={styles.canvas}
                 />

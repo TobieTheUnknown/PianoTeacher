@@ -2,12 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
 import { parseMidiFile } from '../services/MidiService';
-
 import { StorageService } from '../services/StorageService';
+import { getFrenchNoteName } from '../models/song';
 
-export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases, readOnly = false }) {
+
+export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases, readOnly = false, isMobile = false }) {
     const [isImporting, setIsImporting] = useState(false);
+    const [isMetaExpanded, setIsMetaExpanded] = useState(false);
     const [splitMode, setSplitMode] = useState(null);
+    const [isSplitModeActive, setIsSplitModeActive] = useState(false);
+    const [splitThreshold, setSplitThreshold] = useState(60);
     const [splitTime, setSplitTime] = useState('');
     const [isBatchSplit, setIsBatchSplit] = useState(false);
     const [showImportExportModal, setShowImportExportModal] = useState(false);
@@ -226,19 +230,19 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     return (
         <div>
-            {/* Read-only banner on mobile */}
-            {readOnly && (
+            {/* Mobile info banner */}
+            {isMobile && (
                 <div style={{
-                    padding: '0.75rem 1rem',
-                    marginBottom: '1rem',
+                    padding: '0.5rem 0.75rem',
+                    marginBottom: '0.75rem',
                     background: 'rgba(59, 130, 246, 0.1)',
                     border: '1px solid rgba(59, 130, 246, 0.3)',
                     borderRadius: 'var(--radius-lg)',
-                    fontSize: '0.875rem',
+                    fontSize: '0.8rem',
                     color: 'var(--text-primary)',
                     textAlign: 'center'
                 }}>
-                    Mode lecture seule — pour éditer, utilisez la version desktop
+                    Mode mobile — édition des métadonnées disponible, piano roll non disponible
                 </div>
             )}
 
@@ -319,7 +323,16 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     )}
                 </div>
 
-                <div style={{
+                {isMobile && (
+                    <div
+                        style={{ cursor: 'pointer', padding: '0.5rem', fontWeight: 'bold', color: 'var(--text-primary)', userSelect: 'none' }}
+                        onClick={() => setIsMetaExpanded(v => !v)}
+                    >
+                        Infos du morceau {isMetaExpanded ? '▲' : '▼'}
+                    </div>
+                )}
+
+                {(!isMobile || isMetaExpanded) && <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
                     gap: '1.5rem'
@@ -451,7 +464,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             </optgroup>
                         </select>
                     </div>
-                </div>
+                </div>}
             </div>
 
             {/* Piano Roll Header */}
@@ -468,12 +481,14 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 }}>
                     Piano Roll
                 </h2>
-                <button
-                    onClick={onAddPhrase}
-                    className="btn-primary"
-                >
-                    Ajouter une phrase
-                </button>
+                {!isMobile && (
+                    <button
+                        onClick={onAddPhrase}
+                        className="btn-primary"
+                    >
+                        Ajouter une phrase
+                    </button>
+                )}
             </div>
 
             {/* Empty State */}
@@ -643,34 +658,38 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 gap: '0.5rem',
                                 flexWrap: 'wrap'
                             }}>
-                                <button onClick={() => handlePlayPhrase(phrase)}>
+                                <button onClick={() => handlePlayPhrase(phrase)} style={isMobile ? { padding: '0.35rem 0.75rem', fontSize: '0.8rem' } : undefined}>
                                     Lecture
                                 </button>
-                                <button onClick={handleStop}>
+                                <button onClick={handleStop} style={isMobile ? { padding: '0.35rem 0.75rem', fontSize: '0.8rem' } : undefined}>
                                     Stop
                                 </button>
-                                <button
-                                    onClick={() => handleStartSplit(phrase.id)}
-                                    disabled={splitMode !== null}
-                                    style={{
-                                        backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                        color: splitMode?.phraseId === phrase.id ? 'white' : 'var(--text-primary)',
-                                        opacity: splitMode !== null && splitMode?.phraseId !== phrase.id ? 0.5 : 1,
-                                        cursor: splitMode !== null && splitMode?.phraseId !== phrase.id ? 'not-allowed' : 'pointer'
-                                    }}
-                                >
-                                    Découper
-                                </button>
-                                <button
-                                    onClick={() => handleMergeWithPrevious(phrase.id)}
-                                    disabled={phraseIndex === 0}
-                                    style={{
-                                        opacity: phraseIndex === 0 ? 0.5 : 1,
-                                        cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer'
-                                    }}
-                                >
-                                    Recoller
-                                </button>
+                                {!isMobile && (
+                                    <>
+                                        <button
+                                            onClick={() => handleStartSplit(phrase.id)}
+                                            disabled={splitMode !== null}
+                                            style={{
+                                                backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                                color: splitMode?.phraseId === phrase.id ? 'white' : 'var(--text-primary)',
+                                                opacity: splitMode !== null && splitMode?.phraseId !== phrase.id ? 0.5 : 1,
+                                                cursor: splitMode !== null && splitMode?.phraseId !== phrase.id ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            Découper
+                                        </button>
+                                        <button
+                                            onClick={() => handleMergeWithPrevious(phrase.id)}
+                                            disabled={phraseIndex === 0}
+                                            style={{
+                                                opacity: phraseIndex === 0 ? 0.5 : 1,
+                                                cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            Recoller
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -789,19 +808,75 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 keySignature={song.key}
                                 tempo={song.tempo}
                                 timeSignature={song.timeSignature || { numerator: 4, denominator: 4 }}
-                                onAddNote={addNoteToPhrase}
-                                onRemoveNote={removeNoteFromPhrase}
-                                onUpdateNote={onUpdateNote}
-                                onUpdatePhraseLength={(newLength) => handleUpdatePhraseLength(phrase.id, newLength)}
-                                onSplit={() => handleStartSplit(phrase.id)}
+                                onAddNote={isMobile ? null : addNoteToPhrase}
+                                onRemoveNote={isMobile ? null : removeNoteFromPhrase}
+                                onUpdateNote={isMobile ? null : onUpdateNote}
+                                onUpdatePhraseLength={isMobile ? null : (newLength) => handleUpdatePhraseLength(phrase.id, newLength)}
+                                onSplit={isMobile ? null : () => handleStartSplit(phrase.id)}
                                 isSplitMode={splitMode?.phraseId === phrase.id}
                                 splitTime={splitTime}
                                 onSplitTimeChange={setSplitTime}
                                 onConfirmSplit={handleConfirmSplit}
                                 onCancelSplit={handleCancelSplit}
                                 isCurrentlyPlaying={playingPhraseId === phrase.id}
+                                readOnly={!!isMobile}
+                                splitThresholdMode={isSplitModeActive}
+                                splitThreshold={splitThreshold}
+                                onSplitThresholdChange={setSplitThreshold}
                             />
                         </div>
+                        {/* Split threshold (mobile only) */}
+                        {isMobile && onUpdateNote && (
+                            <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={() => setIsSplitModeActive(v => !v)}
+                                    style={{
+                                        padding: '0.35rem 0.75rem',
+                                        fontSize: '0.8rem',
+                                        background: isSplitModeActive ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                                        color: isSplitModeActive ? 'white' : 'var(--text-primary)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        fontWeight: '500'
+                                    }}
+                                >
+                                    {isSplitModeActive
+                                        ? `Seuil : ${getFrenchNoteName(splitThreshold)} (${splitThreshold})`
+                                        : '✂ Seuil MG/MD'}
+                                </button>
+                                {isSplitModeActive && (
+                                    <button
+                                        onClick={() => {
+                                            const allNotes = [
+                                                ...phrase.tracks.melody.map(n => ({ ...n, currentTrack: 'melody' })),
+                                                ...phrase.tracks.chords.map(n => ({ ...n, currentTrack: 'chords' }))
+                                            ];
+                                            allNotes.forEach(note => {
+                                                const midiPitch = typeof note.pitch === 'number' ? note.pitch : note.pitch;
+                                                const targetTrack = midiPitch >= splitThreshold ? 'melody' : 'chords';
+                                                if (targetTrack !== note.currentTrack) {
+                                                    onUpdateNote(phrase.id, note.currentTrack, note.id, { track: targetTrack });
+                                                }
+                                            });
+                                            setIsSplitModeActive(false);
+                                        }}
+                                        style={{
+                                            padding: '0.35rem 0.75rem',
+                                            fontSize: '0.8rem',
+                                            background: 'var(--accent-secondary)',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            fontWeight: '500'
+                                        }}
+                                    >
+                                        Appliquer
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
