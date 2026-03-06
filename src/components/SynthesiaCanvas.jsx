@@ -220,6 +220,33 @@ const SynthesiaCanvas = memo(({
     const highlightedMeasures = new Set(song.highlightedMeasures || []);
     const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
 
+    // Alternating measure bands (scroll with notes)
+    const visibleStartTime = currentTime;
+    const visibleEndTime = currentTime + lookAheadTime;
+    const secondsPerBeat = 1 / beatsPerSecond;
+    const firstVisibleMeasure = currentMeasure;
+    const lastVisibleMeasure = Math.ceil(visibleEndTime * beatsPerSecond / beatsPerMeasure);
+
+    for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
+      const measureStartTime = (measure * beatsPerMeasure) / beatsPerSecond;
+      const measureEndTime = ((measure + 1) * beatsPerMeasure) / beatsPerSecond;
+
+      const topY = NOTE_FALL_HEIGHT * (1 - (measureEndTime - currentTime) / lookAheadTime);
+      const bottomY = NOTE_FALL_HEIGHT * (1 - (measureStartTime - currentTime) / lookAheadTime);
+
+      const clampedTop = Math.max(0, topY);
+      const clampedBottom = Math.min(NOTE_FALL_HEIGHT, bottomY);
+
+      if (clampedBottom > clampedTop) {
+        if (measure % 2 === 0) {
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = 0.03;
+          ctx.fillRect(0, clampedTop, CANVAS_WIDTH, clampedBottom - clampedTop);
+        }
+      }
+    }
+    ctx.globalAlpha = 1.0;
+
     // Vertical grid lines
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -263,31 +290,28 @@ const SynthesiaCanvas = memo(({
     ctx.beginPath();
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.3;
-
-    const visibleStartTime = currentTime;
-    const visibleEndTime = currentTime + lookAheadTime;
-    const secondsPerBeat = 1 / beatsPerSecond;
     const firstVisibleBeat = Math.ceil(visibleStartTime / secondsPerBeat);
 
     for (let beat = firstVisibleBeat; beat * secondsPerBeat < visibleEndTime; beat++) {
       const beatTime = beat * secondsPerBeat;
       const timeDiff = beatTime - currentTime;
       const y = NOTE_FALL_HEIGHT * (1 - timeDiff / lookAheadTime);
+      const isMeasureLine = (beat % beatsPerMeasure) === 0;
 
       if (y >= 0 && y <= NOTE_FALL_HEIGHT) {
+        ctx.globalAlpha = isMeasureLine ? 0.5 : 0.15;
+        ctx.lineWidth = isMeasureLine ? 2 : 1;
+        ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(CANVAS_WIDTH, y);
+        ctx.stroke();
       }
     }
 
-    ctx.stroke();
     ctx.globalAlpha = 1.0;
 
     // Measure numbers
     ctx.textAlign = 'left';
-    const firstVisibleMeasure = currentMeasure;
-    const lastVisibleMeasure = Math.ceil((currentTime + lookAheadTime) * beatsPerSecond / beatsPerMeasure);
 
     for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
       const measureTime = (measure * beatsPerMeasure) / beatsPerSecond;
@@ -305,7 +329,7 @@ const SynthesiaCanvas = memo(({
         } else {
           ctx.font = `bold ${Math.round(20 * fontScale)}px Arial`;
           ctx.fillStyle = '#ffffff';
-          ctx.globalAlpha = 0.15;
+          ctx.globalAlpha = 0.25;
         }
 
         ctx.fillText(`${measureNumber}`, 20 * fontScale, y + 7);
@@ -701,7 +725,7 @@ const SynthesiaCanvas = memo(({
 
       lastDrawTimeRef.current = timestamp;
 
-      if (needsRedraw.current.static) drawLayer('static', drawStaticLayer);
+      drawLayer('static', drawStaticLayer);
       drawLayer('dynamic', drawDynamicLayer);
       if (needsRedraw.current.overlay || (visualEffects && particlesRef.current.length > 0)) drawLayer('overlay', drawOverlayLayer);
 

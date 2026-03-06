@@ -5,9 +5,10 @@ import { useState, useEffect, useMemo } from 'react';
  * Used across the app to adapt UI for mobile/desktop
  */
 export function useDeviceContext() {
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1024
-  );
+  const [windowSize, setWindowSize] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1024,
+    height: typeof window !== 'undefined' ? window.innerHeight : 768,
+  }));
   const [isLandscape, setIsLandscape] = useState(() => {
     try {
       return typeof window !== 'undefined'
@@ -20,7 +21,7 @@ export function useDeviceContext() {
 
   useEffect(() => {
     const handleResize = () => {
-      setWindowWidth(window.innerWidth);
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     };
 
     let landscapeQuery = null;
@@ -59,8 +60,10 @@ export function useDeviceContext() {
     return false;
   }, []);
 
-  const isMobile = windowWidth <= 768;
-  const isTablet = windowWidth > 768 && windowWidth <= 1024;
+  // Use shorter dimension so phones stay "mobile" in landscape
+  const shortSide = Math.min(windowSize.width, windowSize.height);
+  const isMobile = shortSide <= 768;
+  const isTablet = !isMobile && Math.min(windowSize.width, windowSize.height) <= 1024;
 
   return { isMobile, isAndroid, isLandscape, isTablet };
 }
