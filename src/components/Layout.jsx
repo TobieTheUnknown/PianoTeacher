@@ -1,10 +1,8 @@
 import React from 'react';
-import { ThemePicker } from './ThemePicker';
 
 export function Layout({ children, hideMobileHeader = false }) {
     return (
         <div className="container" style={{ paddingTop: 'var(--safe-top)' }}>
-            <ThemePicker />
             {!hideMobileHeader && (
                 <header className="app-header" style={{
                     padding: '2rem 0 1.5rem',

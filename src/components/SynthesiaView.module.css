@@ -101,8 +101,8 @@
 
 .metronomeButton.active {
   background: var(--bg-elevated);
-  color: #22c55e;
-  border-color: #22c55e;
+  color: var(--accent-success, #22c55e);
+  border-color: var(--accent-success, #22c55e);
 }
 
 .metronomeDivisions {
@@ -125,7 +125,7 @@
 }
 
 .divisionButton.active {
-  background: var(--primary-color);
+  background: var(--accent-primary);
   color: white;
   border: none;
 }
@@ -148,7 +148,7 @@
 .tempoSlider {
   flex: 1;
   cursor: pointer;
-  accent-color: var(--primary-color);
+  accent-color: var(--accent-primary);
 }
 
 .tempoDisplay {
@@ -203,19 +203,19 @@
 }
 
 .statValue.good {
-  color: #22c55e;
+  color: var(--accent-success, #22c55e);
 }
 
 .statValue.wrong {
-  color: #ef4444;
+  color: var(--accent-danger, #ef4444);
 }
 
 .statValue.missed {
-  color: #f59e0b;
+  color: var(--accent-warning, #f59e0b);
 }
 
 .statValue.combo {
-  color: #22c55e;
+  color: var(--accent-success, #22c55e);
 }
 
 .statValue.comboHigh {
@@ -375,7 +375,7 @@
 }
 
 .handButton.active {
-  background: var(--primary-color);
+  background: var(--accent-primary);
   color: white;
 }
 
@@ -472,7 +472,7 @@
 
 .loopInfo {
   padding: 0.75rem 1.25rem;
-  background: var(--primary-color);
+  background: var(--accent-primary);
   color: white;
   border-radius: var(--radius-md);
   font-size: 0.9rem;

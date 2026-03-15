@@ -37,6 +37,49 @@ export function SynthesiaMobileOverlay({
   const hideTimerRef = useRef(null);
   const [showSheet, setShowSheet] = useState(false);
 
+  // Swipe-to-dismiss state
+  const [swipeY, setSwipeY] = useState(0);
+  const touchStartY = useRef(null);
+  const isDragging = useRef(false);
+
+  const handleSheetTouchStart = useCallback((e) => {
+    touchStartY.current = e.touches[0].clientY;
+    isDragging.current = true;
+  }, []);
+
+  const handleSheetTouchMove = useCallback((e) => {
+    if (!isDragging.current || touchStartY.current === null) return;
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+    // Only allow downward swipe
+    setSwipeY(Math.max(0, deltaY));
+  }, []);
+
+  const handleSheetTouchEnd = useCallback(() => {
+    if (swipeY > 80) {
+      setShowSheet(false);
+    }
+    setSwipeY(0);
+    touchStartY.current = null;
+    isDragging.current = false;
+  }, [swipeY]);
+
+  // Reset swipe offset when sheet closes
+  useEffect(() => {
+    if (!showSheet) setSwipeY(0);
+  }, [showSheet]);
+
+  // Tempo +/- handlers
+  const minBPM = Math.round(defaultBPM * 0.25);
+  const maxBPM = Math.round(defaultBPM * 2);
+
+  const decreaseTempo = useCallback(() => {
+    onTempoChange(Math.max(minBPM, currentBPM - 5));
+  }, [currentBPM, minBPM, onTempoChange]);
+
+  const increaseTempo = useCallback(() => {
+    onTempoChange(Math.min(maxBPM, currentBPM + 5));
+  }, [currentBPM, maxBPM, onTempoChange]);
+
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     setVisible(true);
@@ -110,15 +153,13 @@ export function SynthesiaMobileOverlay({
 
       {/* Bottom left - tempo */}
       <div className={styles.bottomLeft}>
+        <button className={styles.tempoButton} onClick={decreaseTempo}>
+          −
+        </button>
         <span className={styles.tempoLabel}>{currentBPM} BPM</span>
-        <input
-          type="range"
-          className={styles.tempoSlider}
-          min={Math.round(defaultBPM * 0.25)}
-          max={Math.round(defaultBPM * 2)}
-          value={currentBPM}
-          onChange={(e) => onTempoChange(parseInt(e.target.value))}
-        />
+        <button className={styles.tempoButton} onClick={increaseTempo}>
+          +
+        </button>
       </div>
 
       {/* Bottom right - toggles */}
@@ -168,18 +209,24 @@ export function SynthesiaMobileOverlay({
       </div>
 
       {/* Bottom sheet */}
-      <div className={`${styles.bottomSheet} ${showSheet ? styles.bottomSheetOpen : ''}`}>
+      <div
+        className={`${styles.bottomSheet} ${showSheet ? styles.bottomSheetOpen : ''}`}
+        style={showSheet && swipeY > 0 ? { transform: `translateY(${swipeY}px)` } : undefined}
+        onTouchStart={handleSheetTouchStart}
+        onTouchMove={handleSheetTouchMove}
+        onTouchEnd={handleSheetTouchEnd}
+      >
         <div className={styles.sheetHandle} />
 
         {/* Phrase selection */}
         {phraseMeasureRanges && phraseMeasureRanges.length > 0 && (
           <div className={styles.sheetSection}>
             <div className={styles.sheetLabel}>Phrases</div>
-            <div className={styles.sheetRow}>
+            <div className={styles.phraseChipsRow}>
               {phraseMeasureRanges.map((phrase, idx) => (
                 <button
                   key={idx}
-                  className={`${styles.sheetButton} ${selectedPhraseIndex === String(idx) ? styles.sheetButtonActive : ''}`}
+                  className={`${styles.phraseChip} ${selectedPhraseIndex === String(idx) ? styles.sheetButtonActive : ''}`}
                   onClick={() => {
                     onPhraseSelect({ target: { value: String(idx) } });
                     setShowSheet(false);

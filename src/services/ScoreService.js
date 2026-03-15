@@ -140,5 +140,70 @@ export const ScoreService = {
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
-    }
+    },
+
+    /**
+     * Sauvegarde un score pour une phrase spécifique
+     * @param {string} songId - ID du morceau
+     * @param {number} phraseIndex - Index de la phrase
+     * @param {Object} scoreData - Données du score
+     */
+    savePhraseScore: (songId, phraseIndex, scoreData) => {
+        try {
+            const key = `${SCORES_KEY}_phrases`;
+            const allPhraseScores = JSON.parse(localStorage.getItem(key) || '{}');
+            const phraseKey = `${songId}_phrase_${phraseIndex}`;
+            if (!allPhraseScores[phraseKey]) allPhraseScores[phraseKey] = [];
+            allPhraseScores[phraseKey].push({
+                ...scoreData,
+                timestamp: new Date().toISOString(),
+            });
+            // Keep last 20 per phrase
+            if (allPhraseScores[phraseKey].length > 20) {
+                allPhraseScores[phraseKey] = allPhraseScores[phraseKey].slice(-20);
+            }
+            localStorage.setItem(key, JSON.stringify(allPhraseScores));
+        } catch (error) {
+            console.error('Error saving phrase score:', error);
+        }
+    },
+
+    /**
+     * Récupère les statistiques pour une phrase spécifique
+     * @param {string} songId - ID du morceau
+     * @param {number} phraseIndex - Index de la phrase
+     */
+    getPhraseStatistics: (songId, phraseIndex) => {
+        try {
+            const key = `${SCORES_KEY}_phrases`;
+            const allPhraseScores = JSON.parse(localStorage.getItem(key) || '{}');
+            const phraseKey = `${songId}_phrase_${phraseIndex}`;
+            const scores = allPhraseScores[phraseKey] || [];
+            if (scores.length === 0) return null;
+            const accuracies = scores.map(s => s.accuracy || 0);
+            const avgAccuracy = accuracies.reduce((a, b) => a + b, 0) / scores.length;
+            return {
+                averageAccuracy: Math.round(avgAccuracy * 100) / 100,
+                bestAccuracy: Math.max(...accuracies),
+                sessions: scores.length,
+            };
+        } catch (error) {
+            console.error('Error getting phrase statistics:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Récupère les statistiques de toutes les phrases d'un morceau
+     * @param {string} songId - ID du morceau
+     * @param {number} phraseCount - Nombre total de phrases
+     * @returns {Array} Tableau des statistiques par phrase
+     */
+    getAllPhraseStats: (songId, phraseCount) => {
+        const stats = [];
+        for (let i = 0; i < phraseCount; i++) {
+            stats.push(ScoreService.getPhraseStatistics(songId, i));
+        }
+        return stats;
+    },
 };

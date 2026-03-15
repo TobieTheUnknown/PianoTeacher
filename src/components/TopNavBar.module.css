@@ -29,6 +29,7 @@
   font-size: 0.875rem;
   transition: all var(--transition-normal);
   letter-spacing: 0.01em;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -39,6 +40,23 @@
   color: var(--text-primary);
   background: var(--bg-hover);
   border-color: transparent;
+}
+
+.navButton::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: var(--accent-primary);
+  border-radius: 1px;
+  transition: width var(--transition-normal), left var(--transition-normal);
+}
+
+.navButton:hover::after {
+  width: 60%;
+  left: 20%;
 }
 
 .navButtonActive {

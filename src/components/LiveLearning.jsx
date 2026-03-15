@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys, NOTE_NAMES, getEnharmonicNote, getNoteNameFromMidi } from '../models/song';
 import { detectArpeggioMotifs } from '../utils/chordDetection';
 import { audioEngine } from '../services/AudioEngine';
+import { useDeviceContext } from '../hooks/useDeviceContext';
 
 // ── Constant styles extracted outside render ──────────────────────────────────
 
@@ -353,7 +354,7 @@ function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, key
 const MeasureCard = React.memo(function MeasureCard({
     measure, keySignature, isHighlighted, onToggleHighlight, onPlay,
     showDetails, displayNoteName, expandedChordReps, onToggleChordRep,
-    isMelodyExpanded, onToggleMelodyExpand
+    isMelodyExpanded, onToggleMelodyExpand, isMobile
 }) {
     // Pre-sorted melody (stable reference from getMeasuresFromPhrase)
     const sortedMelody = measure.sortedMelody;
@@ -364,7 +365,8 @@ const MeasureCard = React.memo(function MeasureCard({
             ? '3px solid var(--accent-primary)'
             : '2px solid var(--border-color)',
         boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none',
-        minHeight: showDetails ? '200px' : '140px',
+        minHeight: isMobile ? '100px' : (showDetails ? '200px' : '140px'),
+        padding: isMobile ? '0.5rem' : STYLES.measureCardBase.padding,
     };
 
     const numberBadgeStyle = {
@@ -472,7 +474,7 @@ const MeasureCard = React.memo(function MeasureCard({
             <ChordDisplay
                 measure={measure}
                 keySignature={keySignature}
-                showDetails={showDetails}
+                showDetails={isMobile ? false : showDetails}
                 displayNoteName={displayNoteName}
                 expandedChordReps={expandedChordReps}
                 onToggleChordRep={onToggleChordRep}
@@ -492,7 +494,6 @@ const MeasureCard = React.memo(function MeasureCard({
                 }}>
                     {sortedMelody.length > 0 ? (
                         <>
-                            {/* First note - clickable to expand/collapse */}
                             <span
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -504,7 +505,7 @@ const MeasureCard = React.memo(function MeasureCard({
                                 {displayNoteName(sortedMelody[0].pitch, keySignature)}
                             </span>
 
-                            {(isMelodyExpanded || showDetails) ? (
+                            {(isMelodyExpanded || (!isMobile && showDetails)) ? (
                                 sortedMelody.slice(1).map((n, i) => (
                                     <span key={i + 1} style={STYLES.melodyBadgeSecondary}>
                                         {displayNoteName(n.pitch, keySignature)}
@@ -546,6 +547,7 @@ const TipCard = React.memo(function TipCard({ icon, text }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function LiveLearning({ song, onToggleHighlight }) {
+    const { isMobile } = useDeviceContext();
     const [showDetails, setShowDetails] = useState(false);
     const [showOctaves, setShowOctaves] = useState(false);
     const [expandedChords, setExpandedChords] = useState(new Map());
@@ -952,8 +954,8 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
                                         <div style={{
                                             display: 'grid',
-                                            gridTemplateColumns: 'repeat(4, 1fr)',
-                                            gap: '1rem'
+                                            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                                            gap: isMobile ? '0.5rem' : '1rem'
                                         }}>
                                             {group.map((measure) => (
                                                 <MeasureCard
@@ -969,6 +971,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     onToggleChordRep={onToggleChordRep}
                                                     isMelodyExpanded={expandedMelodies.has(measure.number)}
                                                     onToggleMelodyExpand={onToggleMelodyExpand}
+                                                    isMobile={isMobile}
                                                 />
                                             ))}
                                         </div>

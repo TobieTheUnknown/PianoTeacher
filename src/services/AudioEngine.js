@@ -13,8 +13,11 @@ async function loadTone() {
 class AudioEngine {
     constructor() {
         this.sampler = null;
+        this.samplerLoaded = false;
         this.isPlaying = false;
         this.metronomeEnabled = false;
+        this.masterVolume = null;
+        this._volume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0'); // dB
     }
 
     getIsActuallyPlaying() {
@@ -27,10 +30,30 @@ class AudioEngine {
     }
 
     async initialize() {
-        if (this.sampler) return;
+        // If already loading/loaded, return the existing promise
+        if (this._initPromise) return this._initPromise;
+        this._initPromise = this._doInitialize();
+        return this._initPromise;
+    }
+
+    async _doInitialize() {
+        if (this.samplerLoaded) return;
 
         const T = await loadTone();
+
+        // On mobile, create a context optimized for smooth playback (larger audio buffers)
+        // This is the equivalent of increasing buffer size in a DAW — trades ~30ms latency for zero crackling
         await T.start();
+
+        // Adjust lookAhead for mobile (reduces crackling without replacing the context,
+        // which would break Tone.Transport used by playNotes/playPhrase)
+        const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+        if (T.context) {
+            T.context.lookAhead = isMobile ? 0.2 : 0.05;
+        }
+
+        // Master volume node — everything routes through this
+        this.masterVolume = new T.Volume(this._volume).toDestination();
 
         this.metronomeSynth = new T.MembraneSynth({
             pitchDecay: 0.008,
@@ -40,7 +63,7 @@ class AudioEngine {
                 decay: 0.1,
                 sustain: 0
             }
-        }).toDestination();
+        }).connect(this.masterVolume);
 
         return new Promise((resolve) => {
             this.sampler = new T.Sampler({
@@ -80,14 +103,15 @@ class AudioEngine {
                 baseUrl: "/audio/salamander/",
                 onload: () => {
                     console.log("Sampler loaded");
+                    this.samplerLoaded = true;
                     resolve();
                 }
-            }).toDestination();
+            }).connect(this.masterVolume);
         });
     }
 
     playNote(pitch, duration = '8n', time) {
-        if (!this.sampler || !Tone) return;
+        if (!this.sampler || !Tone || !this.samplerLoaded) return;
         const note = typeof pitch === 'number' ? getNoteNameFromMidi(pitch) : pitch;
         this.sampler.triggerAttackRelease(note, duration, time);
     }
@@ -95,6 +119,11 @@ class AudioEngine {
     playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null, beatsPerMeasure = 4) {
         if (!Tone) return;
         this.onPlaybackEnd = onPlaybackEnd;
+
+        // Ensure context is running (mobile browsers suspend it)
+        if (Tone.context.state !== 'running') {
+            Tone.context.resume();
+        }
 
         Tone.Transport.stop();
         if (this._currentPart) {
@@ -160,6 +189,11 @@ class AudioEngine {
 
     playNotes(notes, tempo = 120) {
         if (!Tone) return;
+
+        // Ensure context is running (mobile browsers suspend it)
+        if (Tone.context.state !== 'running') {
+            Tone.context.resume();
+        }
 
         Tone.Transport.stop();
         if (this._currentPart) {
@@ -274,6 +308,31 @@ class AudioEngine {
 
     stopAll() {
         this.stop();
+    }
+
+    /** Volume in dB (-60 to 0). Persisted to localStorage. */
+    getVolume() {
+        return this._volume;
+    }
+
+    setVolume(dB) {
+        this._volume = dB;
+        if (this.masterVolume) {
+            this.masterVolume.volume.value = dB;
+        }
+        localStorage.setItem('piano-teacher-volume', String(dB));
+    }
+
+    /** Volume as 0-100 percentage (convenience) */
+    getVolumePercent() {
+        // -60dB → 0%, 0dB → 100%
+        return Math.round(Math.max(0, Math.min(100, ((this._volume + 60) / 60) * 100)));
+    }
+
+    setVolumePercent(pct) {
+        // 0% → -60dB, 100% → 0dB
+        const dB = pct <= 0 ? -Infinity : (pct / 100) * 60 - 60;
+        this.setVolume(dB);
     }
 }
 

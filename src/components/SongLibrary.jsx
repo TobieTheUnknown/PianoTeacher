@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../services/StorageService';
+import { ScoreService } from '../services/ScoreService';
 import { getFrenchKeyName } from '../models/song';
 
 export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMobile = false }) {
@@ -184,7 +185,8 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                             style={{
                                 cursor: 'pointer',
                                 padding: '1.5rem',
-                                minHeight: isMobile ? '56px' : undefined
+                                minHeight: isMobile ? '56px' : undefined,
+                                position: 'relative'
                             }}
                         >
                             {/* Song Title */}
@@ -244,6 +246,42 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                                     {new Date(song.updatedAt || song.createdAt).toLocaleDateString('fr-FR')}
                                 </p>
                             </div>
+
+                            {/* Accuracy Badge */}
+                            {(() => {
+                                const stats = ScoreService.getSongStatistics(song.id);
+                                if (stats && stats.totalSessions > 0) {
+                                    const dotColor = stats.bestAccuracy >= 80
+                                        ? '#22c55e'
+                                        : stats.bestAccuracy >= 50
+                                            ? '#f59e0b'
+                                            : '#ef4444';
+                                    return (
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: '1rem',
+                                            right: '1rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.375rem',
+                                            fontSize: '0.75rem',
+                                            color: 'var(--text-tertiary)',
+                                            fontWeight: '500'
+                                        }}>
+                                            <span style={{
+                                                width: '8px',
+                                                height: '8px',
+                                                borderRadius: '50%',
+                                                backgroundColor: dotColor,
+                                                display: 'inline-block',
+                                                flexShrink: 0
+                                            }} />
+                                            {Math.round(stats.bestAccuracy)}%
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
 
                             {/* Song Actions */}
                             <div style={{

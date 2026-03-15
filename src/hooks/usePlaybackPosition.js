@@ -31,8 +31,13 @@ export function usePlaybackPosition() {
             const now = performance.now();
 
             if (Tone) {
-                // Read current position from Tone.js Transport
-                const seconds = Tone.Transport.seconds;
+                // Compensate for audio output latency so playhead matches what you hear
+                // baseLatency + outputLatency give the pipeline delay;
+                // add a small manual offset (0.04s) as fallback when outputLatency isn't exposed
+                const baseL = Tone.context.baseLatency || 0;
+                const outputL = Tone.context.outputLatency || 0;
+                const audioLatency = baseL + outputL + (outputL === 0 ? 0.06 : 0);
+                const seconds = Math.max(0, Tone.Transport.seconds - audioLatency);
                 const bpm = Tone.Transport.bpm.value || 120;
                 const beats = (seconds * bpm) / 60;
 

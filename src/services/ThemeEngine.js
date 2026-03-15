@@ -105,7 +105,8 @@ class ThemeEngine {
      * Réinitialise au thème par défaut
      */
     resetToDefault() {
-        this.applyTheme(this.defaultTheme.theme);
+        const defaults = this.getDefaultTheme();
+        this.applyTheme(defaults.theme);
         localStorage.removeItem(this.STORAGE_KEY);
         console.log('🔄 Thème réinitialisé au défaut');
     }
@@ -149,7 +150,7 @@ class ThemeEngine {
             author: 'Custom',
             version: '1.0.0',
             createdAt: new Date().toISOString(),
-            theme: this.currentTheme || this.defaultTheme.theme
+            theme: this.currentTheme || this.getDefaultTheme().theme
         };
 
         const blob = new Blob([JSON.stringify(themeData, null, 2)], { type: 'application/json' });
@@ -384,7 +385,7 @@ class ThemeEngine {
         const loaded = this.loadSavedTheme();
 
         if (!loaded) {
-            this.currentTheme = this.defaultTheme.theme;
+            this.currentTheme = this.getDefaultTheme().theme;
         }
 
         console.log('🎨 Theme Engine initialisé');

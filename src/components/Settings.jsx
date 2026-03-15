@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import themeEngine from '../services/ThemeEngine';
 import { StorageService } from '../services/StorageService';
 import { midiInputService } from '../services/MidiInputService';
+import { audioEngine } from '../services/AudioEngine';
 import handColorsService, { COLOR_PRESETS, SCALE_HIGHLIGHT_PRESETS } from '../services/HandColorsService';
 import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
@@ -15,6 +16,10 @@ export function Settings({ isOpen, onClose }) {
     const [fontSize, setFontSize] = useState(localStorage.getItem('piano-teacher-font-size') || '16');
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
     const fileInputRef = useRef(null);
+    const themeImportRef = useRef(null);
+
+    // Volume
+    const [volume, setVolume] = useState(() => audioEngine.getVolumePercent());
 
     // MIDI states - initialize with current values to avoid cascade on open
     const [midiDevices, setMidiDevices] = useState(() => midiInputService.getDevices());
@@ -285,25 +290,235 @@ export function Settings({ isOpen, onClose }) {
                     flex: 1
                 }}>
                     {activeTab === 'theme' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg, 1.5rem)' }}>
+                            {/* Volume */}
                             <div>
                                 <h3 style={{
                                     fontSize: '1.1rem',
                                     fontWeight: '600',
                                     color: 'var(--text-primary)',
-                                    marginBottom: '1rem'
+                                    marginBottom: 'var(--spacing-sm, 0.5rem)'
                                 }}>
-                                    Couleurs du thème
+                                    Volume
+                                </h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <span style={{ fontSize: '1.1rem' }}>{volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊'}</span>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={volume}
+                                        onChange={(e) => {
+                                            const v = parseInt(e.target.value);
+                                            setVolume(v);
+                                            audioEngine.setVolumePercent(v);
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            cursor: 'pointer',
+                                            accentColor: 'var(--accent-primary)',
+                                        }}
+                                    />
+                                    <span style={{
+                                        minWidth: '3rem',
+                                        textAlign: 'right',
+                                        fontSize: '0.9rem',
+                                        fontWeight: '600',
+                                        color: 'var(--text-primary)',
+                                        fontVariantNumeric: 'tabular-nums',
+                                    }}>
+                                        {volume}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Preset Section */}
+                            <div>
+                                <h3 style={{
+                                    fontSize: '1.1rem',
+                                    fontWeight: '600',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: 'var(--spacing-sm, 0.5rem)'
+                                }}>
+                                    Presets
+                                </h3>
+                                <p style={{
+                                    fontSize: '0.85rem',
+                                    color: 'var(--text-secondary)',
+                                    marginBottom: 'var(--spacing-md, 1rem)'
+                                }}>
+                                    Choisissez un theme preset ou personnalisez les couleurs ci-dessous
+                                </p>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                                    gap: 'var(--spacing-sm, 0.5rem)'
+                                }}>
+                                    {/* Default preset card */}
+                                    <ThemePresetCard
+                                        label="Default"
+                                        bgColor="#0a0a0a"
+                                        accentColor="#f5f5f5"
+                                        onClick={() => {
+                                            themeEngine.resetToDefault();
+                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
+                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
+                                        }}
+                                    />
+                                    {/* Midnight Blue */}
+                                    <ThemePresetCard
+                                        label="Midnight Blue"
+                                        bgColor="#0a0e1a"
+                                        accentColor="#5b7fff"
+                                        onClick={() => {
+                                            themeEngine.applyPreset('midnight-blue');
+                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
+                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
+                                        }}
+                                    />
+                                    {/* Forest Green */}
+                                    <ThemePresetCard
+                                        label="Forest Green"
+                                        bgColor="#0a1410"
+                                        accentColor="#4ecb7f"
+                                        onClick={() => {
+                                            themeEngine.applyPreset('forest-green');
+                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
+                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
+                                        }}
+                                    />
+                                    {/* Rose Gold */}
+                                    <ThemePresetCard
+                                        label="Rose Gold"
+                                        bgColor="#1a0e12"
+                                        accentColor="#e88ab0"
+                                        onClick={() => {
+                                            themeEngine.applyPreset('rose-gold');
+                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
+                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Import / Export Section */}
+                            <div style={{
+                                padding: 'var(--spacing-md, 1rem)',
+                                background: 'var(--bg-tertiary)',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid var(--border-color)'
+                            }}>
+                                <h4 style={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: 'var(--spacing-sm, 0.5rem)'
+                                }}>
+                                    Import / Export
+                                </h4>
+                                <p style={{
+                                    fontSize: '0.85rem',
+                                    color: 'var(--text-secondary)',
+                                    marginBottom: 'var(--spacing-md, 1rem)'
+                                }}>
+                                    Sauvegardez ou chargez un theme personnalise
+                                </p>
+                                <div style={{ display: 'flex', gap: 'var(--spacing-sm, 0.5rem)', flexWrap: 'wrap' }}>
+                                    <button
+                                        onClick={() => themeEngine.exportTheme()}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            transition: 'all var(--transition-fast)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                                            e.currentTarget.style.background = 'var(--bg-primary)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                                            e.currentTarget.style.background = 'var(--bg-secondary)';
+                                        }}
+                                    >
+                                        Exporter le theme
+                                    </button>
+                                    <input
+                                        ref={themeImportRef}
+                                        type="file"
+                                        accept=".json"
+                                        style={{ display: 'none' }}
+                                        onChange={async (e) => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+                                            try {
+                                                await themeEngine.importTheme(file);
+                                                setAccentPrimary(themeEngine.getVariable('accent-primary'));
+                                                setAccentSecondary(themeEngine.getVariable('accent-secondary'));
+                                            } catch (err) {
+                                                alert('Erreur lors de l\'import du theme : ' + err.message);
+                                            }
+                                            // Reset so re-selecting the same file triggers onChange
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                    <button
+                                        onClick={() => themeImportRef.current?.click()}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            transition: 'all var(--transition-fast)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                                            e.currentTarget.style.background = 'var(--bg-primary)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                                            e.currentTarget.style.background = 'var(--bg-secondary)';
+                                        }}
+                                    >
+                                        Importer un theme
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Color pickers */}
+                            <div>
+                                <h3 style={{
+                                    fontSize: '1.1rem',
+                                    fontWeight: '600',
+                                    color: 'var(--text-primary)',
+                                    marginBottom: 'var(--spacing-md, 1rem)'
+                                }}>
+                                    Couleurs du theme
                                 </h3>
                                 <p style={{
                                     fontSize: '0.9rem',
                                     color: 'var(--text-secondary)',
-                                    marginBottom: '1rem'
+                                    marginBottom: 'var(--spacing-md, 1rem)'
                                 }}>
                                     Personnalisez les couleurs d'accent de l'interface
                                 </p>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md, 1rem)' }}>
                                     <ColorPicker
                                         label="Couleur primaire"
                                         value={accentPrimary}
@@ -313,55 +528,6 @@ export function Settings({ isOpen, onClose }) {
                                         label="Couleur secondaire"
                                         value={accentSecondary}
                                         onChange={(value) => handleThemeColorChange('accent-secondary', value)}
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{
-                                padding: '1rem',
-                                background: 'var(--bg-tertiary)',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <h4 style={{
-                                    fontSize: '0.9rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: '0.5rem'
-                                }}>
-                                    💡 Thèmes prédéfinis
-                                </h4>
-                                <p style={{
-                                    fontSize: '0.85rem',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: '1rem'
-                                }}>
-                                    Essayez ces thèmes créés spécialement pour Piano Teacher
-                                </p>
-                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                    <PresetButton
-                                        label="Midnight Blue"
-                                        onClick={() => {
-                                            themeEngine.applyPreset('midnight-blue');
-                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                        }}
-                                    />
-                                    <PresetButton
-                                        label="Forest Green"
-                                        onClick={() => {
-                                            themeEngine.applyPreset('forest-green');
-                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                        }}
-                                    />
-                                    <PresetButton
-                                        label="Rose Gold"
-                                        onClick={() => {
-                                            themeEngine.applyPreset('rose-gold');
-                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                        }}
                                     />
                                 </div>
                             </div>
@@ -388,7 +554,7 @@ export function Settings({ isOpen, onClose }) {
                                     e.currentTarget.style.borderColor = 'var(--border-color)';
                                 }}
                             >
-                                🔄 Réinitialiser le thème par défaut
+                                Reinitialiser le theme par defaut
                             </button>
                         </div>
                     )}
@@ -1282,31 +1448,62 @@ function ColorPicker({ label, value, onChange }) {
     );
 }
 
-function PresetButton({ label, onClick }) {
+function ThemePresetCard({ label, bgColor, accentColor, onClick }) {
     return (
         <button
             onClick={onClick}
             style={{
-                padding: '0.5rem 1rem',
+                padding: 'var(--spacing-sm, 0.5rem)',
                 background: 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
                 border: '1px solid var(--border-color)',
                 borderRadius: 'var(--radius-md)',
                 cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: '500',
-                transition: 'all var(--transition-fast)'
+                transition: 'all var(--transition-fast)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 'var(--spacing-xs, 0.25rem)'
             }}
             onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bg-primary)';
                 e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
             }}
             onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--bg-secondary)';
                 e.currentTarget.style.borderColor = 'var(--border-color)';
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.transform = 'translateY(0)';
             }}
         >
-            {label}
+            <div style={{
+                width: '100%',
+                height: '36px',
+                borderRadius: 'var(--radius-sm, 4px)',
+                background: bgColor,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                border: '1px solid var(--border-color)'
+            }}>
+                <div style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    background: accentColor
+                }} />
+            </div>
+            <span style={{
+                fontSize: '0.8rem',
+                fontWeight: '500',
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%'
+            }}>
+                {label}
+            </span>
         </button>
     );
 }

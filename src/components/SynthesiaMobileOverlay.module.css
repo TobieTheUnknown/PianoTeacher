@@ -123,35 +123,57 @@
   transform: scale(1.05);
 }
 
-/* Bottom-left: tempo slider */
+/* Bottom-left: tempo controls */
 .bottomLeft {
   position: absolute;
   bottom: calc(var(--safe-bottom, 0px) + 16px);
   left: 12px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   pointer-events: auto;
   z-index: 2;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(8px);
-  padding: 0.4rem 0.75rem;
+  padding: 0.25rem;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tempoLabel {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 600;
+  min-width: 52px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.tempoSlider {
-  width: 80px;
-  height: 4px;
-  accent-color: var(--accent-primary);
+.tempoButton {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  padding: 0;
+  min-height: 44px;
+  min-width: 44px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.tempoButton:hover,
+.tempoButton:active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 /* Bottom-right: toggles */
@@ -215,6 +237,7 @@
   z-index: 5;
   transform: translateY(100%);
   transition: transform 0.3s ease;
+  touch-action: none;
 }
 
 .bottomSheetOpen {
@@ -246,6 +269,41 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* Horizontal scrollable phrase chips */
+.phraseChipsRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+
+.phraseChipsRow::-webkit-scrollbar {
+  display: none;
+}
+
+.phraseChip {
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.phraseChip:hover,
+.phraseChip:active {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .sheetButton {
