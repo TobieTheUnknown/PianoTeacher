@@ -212,9 +212,12 @@ const SynthesiaCanvas = memo(({
     return map;
   }, [allNotes, beatsPerSecond, currentTime]);
 
+  // Cache colors object (only changes when handColors change, not per call)
+  const dynamicColors = useMemo(() => getDynamicColors(), [getDynamicColors]);
+
   const getKeyColor = useCallback((midiNote, isBlack) => {
     const isPressed = activeNotes.has(midiNote);
-    const colors = getDynamicColors();
+    const colors = dynamicColors;
 
     if (isPressed) {
       const recentFeedback = feedbackMessages.find(f => f.noteNum === midiNote);
@@ -237,7 +240,7 @@ const SynthesiaCanvas = memo(({
     }
 
     return isBlack ? STATIC_COLORS.blackKey : STATIC_COLORS.whiteKey;
-  }, [activeNotes, feedbackMessages, activeNoteHandMap, getDynamicColors]);
+  }, [activeNotes, feedbackMessages, activeNoteHandMap, dynamicColors]);
 
   const darkenColor = useCallback((color, amount = 0.3) => {
     if (!color.startsWith('#')) return color;
@@ -450,7 +453,7 @@ const SynthesiaCanvas = memo(({
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
     // Falling notes
-    const noteColors = getDynamicColors();
+    const noteColors = dynamicColors;
 
     // Spawn particles on newly activated notes (only when effects enabled, desktop only)
     if (visualEffects && !isMobile) {

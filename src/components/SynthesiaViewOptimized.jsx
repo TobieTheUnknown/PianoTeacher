@@ -697,7 +697,8 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
   // Check if song completed
   useEffect(() => {
     if (allNotes.length > 0 && currentTime > 0) {
-      const lastNoteTime = Math.max(...allNotes.map(n => (n.startTime + n.duration) / beatsPerSecond));
+      const lastNote = allNotes[allNotes.length - 1];
+      const lastNoteTime = (lastNote.startTime + lastNote.duration) / beatsPerSecond;
 
       if (currentTime > lastNoteTime + 1 && !sessionStats.completed) {
         handleSongCompleted();

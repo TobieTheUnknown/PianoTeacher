@@ -21,6 +21,8 @@ export function usePlaybackPosition() {
     // How often to sync state for UI display (ms) - infrequent to avoid re-renders
     const STATE_SYNC_INTERVAL = 500;
 
+    // Poll for play/stop changes at low frequency (4Hz) when idle
+    // Switch to RAF (60fps) only while playing for smooth playhead
     useEffect(() => {
         let mounted = true;
 
@@ -28,12 +30,7 @@ export function usePlaybackPosition() {
             if (!mounted) return;
 
             const Tone = audioEngine.getTone();
-            const now = performance.now();
-
             if (Tone) {
-                // Compensate for audio output latency so playhead matches what you hear
-                // baseLatency + outputLatency give the pipeline delay;
-                // add a small manual offset (0.04s) as fallback when outputLatency isn't exposed
                 const baseL = Tone.context.baseLatency || 0;
                 const outputL = Tone.context.outputLatency || 0;
                 const audioLatency = baseL + outputL + (outputL === 0 ? 0.06 : 0);
@@ -41,26 +38,37 @@ export function usePlaybackPosition() {
                 const bpm = Tone.Transport.bpm.value || 120;
                 const beats = (seconds * bpm) / 60;
 
-                // Always update the ref (no React re-render)
                 positionRef.current = beats;
 
-                // Trigger React state update when isPlaying changes
                 const actuallyPlaying = audioEngine.getIsActuallyPlaying();
                 if (actuallyPlaying !== wasPlayingRef.current) {
                     wasPlayingRef.current = actuallyPlaying;
                     setIsPlaying(actuallyPlaying);
                     setPlaybackPosition(beats);
-                    lastStateUpdateRef.current = now;
                 }
             }
 
-            animationFrameRef.current = requestAnimationFrame(updatePosition);
+            if (wasPlayingRef.current) {
+                animationFrameRef.current = requestAnimationFrame(updatePosition);
+            }
         };
 
-        animationFrameRef.current = requestAnimationFrame(updatePosition);
+        // Low-frequency poll when idle, RAF when playing
+        const pollInterval = setInterval(() => {
+            if (!wasPlayingRef.current) {
+                const actuallyPlaying = audioEngine.getIsActuallyPlaying();
+                if (actuallyPlaying) {
+                    // Transition to RAF loop
+                    wasPlayingRef.current = true;
+                    setIsPlaying(true);
+                    animationFrameRef.current = requestAnimationFrame(updatePosition);
+                }
+            }
+        }, 250);
 
         return () => {
             mounted = false;
+            clearInterval(pollInterval);
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
             }

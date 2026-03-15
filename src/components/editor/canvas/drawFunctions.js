@@ -609,7 +609,7 @@ export const drawLoopRegion = (ctx, {
 
     // Start handle (left-aligned bracket)
     ctx.fillStyle = 'rgba(139, 92, 246, 0.85)';
-    roundRect(ctx, startX, handleY, handleWidth, handleHeight, 2);
+    drawRoundedRect(ctx, startX, handleY, handleWidth, handleHeight, 2);
     ctx.fill();
     // Arrow indicator on start handle
     ctx.fillStyle = '#fff';
@@ -622,7 +622,7 @@ export const drawLoopRegion = (ctx, {
 
     // End handle (right-aligned bracket)
     ctx.fillStyle = 'rgba(139, 92, 246, 0.85)';
-    roundRect(ctx, endX - handleWidth, handleY, handleWidth, handleHeight, 2);
+    drawRoundedRect(ctx, endX - handleWidth, handleY, handleWidth, handleHeight, 2);
     ctx.fill();
     // Arrow indicator on end handle
     ctx.fillStyle = '#fff';
