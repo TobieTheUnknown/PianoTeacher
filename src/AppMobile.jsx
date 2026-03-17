@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
@@ -22,14 +22,31 @@ function AppMobile() {
 
   useMidiAudio();
 
+  // Android back button: push history state on mode change, handle popstate to go back
+  const navigateTo = useCallback((newMode) => {
+    if (newMode !== 'library') {
+      window.history.pushState({ mode: newMode }, '');
+    }
+    setMode(newMode);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setMode('library');
+      setShowSettings(false);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleLoadSongToLearn = (id) => {
     loadSong(id);
-    setMode('learn');
+    navigateTo('learn');
   };
 
   const handleLoadSongToSynthesia = (id) => {
     loadSong(id);
-    setMode('synthesia');
+    navigateTo('synthesia');
   };
 
   const handleSynthesiaFullscreenChange = useCallback((isFullscreen) => {
@@ -51,20 +68,21 @@ function AppMobile() {
           <LiveLearning
             song={song}
             onToggleHighlight={toggleHighlightedMeasure}
+            isMobile={true}
           />
         )}
         {mode === 'synthesia' && (
           <SynthesiaView
             song={song}
             onFullscreenChange={handleSynthesiaFullscreenChange}
-            onBack={() => setMode('library')}
+            onBack={() => navigateTo('library')}
           />
         )}
       </main>
 
       <BottomTabBar
         activeMode={mode}
-        onChangeMode={setMode}
+        onChangeMode={navigateTo}
         visible={!isSynthesiaFullscreen}
         onOpenSettings={() => setShowSettings(true)}
       />
