@@ -6,7 +6,6 @@ const NAV_ITEMS = [
   { id: 'edit', label: 'Éditeur' },
   { id: 'learn', label: 'Apprentissage' },
   { id: 'synthesia', label: 'Synthesia' },
-  { id: 'export', label: 'Export' },
   { id: 'settings', label: 'Réglages' },
 ];
 

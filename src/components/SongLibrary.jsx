@@ -466,8 +466,7 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                         </h3>
                         {[
                             { label: 'Jouer (Synthesia)', action: () => { if (onLoadSongToSynthesia) onLoadSongToSynthesia(actionSheetSong.id); else onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
-                            { label: 'Voir (lecture seule)', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
-                            { label: 'Exporter MIDI', action: async () => { await handleExportMidi(actionSheetSong); setActionSheetSong(null); } },
+                            { label: 'Apprendre', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
                             { label: 'Supprimer', action: () => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }, danger: true },
                         ].map((item, idx) => (
                             <button

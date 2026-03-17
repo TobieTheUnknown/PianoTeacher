@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
 import { LiveLearning } from './components/LiveLearning';
@@ -10,11 +10,6 @@ import { BottomTabBar } from './components/BottomTabBar';
 import { useDeviceContext } from './hooks/useDeviceContext';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
-
-// Lazy-load SheetMusicExporter (pulls in VexFlow 100KB+, not needed on mobile)
-const SheetMusicExporter = React.lazy(() =>
-  import('./components/SheetMusicExporter').then(m => ({ default: m.SheetMusicExporter }))
-);
 
 function App() {
   const {
@@ -77,9 +72,6 @@ function App() {
     setIsSynthesiaFullscreen(isFullscreen);
   }, []);
 
-  // On mobile, hide export tab — accessible from library only
-  const shouldShowExport = !isMobile && mode === 'export';
-
   return (
     <Layout hideMobileHeader={isMobile}>
       {/* Desktop Navigation */}
@@ -126,11 +118,6 @@ function App() {
             onFullscreenChange={handleSynthesiaFullscreenChange}
             onBack={() => setMode('library')}
           />
-        )}
-        {shouldShowExport && (
-          <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Chargement...</div>}>
-            <SheetMusicExporter song={song} />
-          </Suspense>
         )}
       </main>
 

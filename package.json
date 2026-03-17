@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mobile": "VITE_PLATFORM=mobile vite --config vite.mobile.config.js",
+    "build:mobile": "VITE_PLATFORM=mobile vite build --config vite.mobile.config.js",
     "build": "vite build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
