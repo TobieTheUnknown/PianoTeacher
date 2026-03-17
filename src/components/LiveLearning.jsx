@@ -175,7 +175,7 @@ const TimelineBar = React.memo(function TimelineBar({ measure, displayNoteName, 
     );
 });
 
-const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, showDetails, displayNoteName, expandedChordReps, onToggleChordRep }) {
+const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, showDetails, displayNoteName, expandedChordReps, onToggleChordRep, isMobile }) {
     const { isArpeggio, detectedChord, motifInfo, chordGroups, hasChord } = measure;
 
     return (
@@ -203,6 +203,7 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
                         showDetails={showDetails}
                         displayNoteName={displayNoteName}
                         keySignature={keySignature}
+                        isMobile={isMobile}
                     />
                 ) : isArpeggio ? (
                     <ArpeggioSequenceView
@@ -231,11 +232,87 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
     );
 });
 
-function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature }) {
+function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature, isMobile }) {
     const reps = motifInfo?.repetitions || 1;
     const chords = motifInfo?.chords || [detectedChord];
     const totalNotes = measure.chordGroups.length;
     const notesPerCycle = Math.ceil(totalNotes / reps);
+
+    if (isMobile) {
+        // Group consecutive identical chords
+        const groups = [];
+        let i = 0;
+        while (i < reps) {
+            const chord = chords[i] || detectedChord;
+            let count = 1;
+            while (i + count < reps && (chords[i + count] || detectedChord).displayName === chord.displayName) {
+                count++;
+            }
+            groups.push({ chord, count, startIdx: i });
+            i += count;
+        }
+
+        return (
+            <div>
+                {groups.map((group, gIdx) => {
+                    const { chord, count, startIdx } = group;
+                    const isExpanded = expandedChordReps.has(startIdx) || showDetails;
+                    // Collect unique notes across all reps in this group
+                    const seenPitches = new Set();
+                    const uniqueGroups = [];
+                    for (let r = 0; r < count; r++) {
+                        const repIdx = startIdx + r;
+                        const cycleStart = repIdx * notesPerCycle;
+                        const cycleEnd = Math.min(cycleStart + notesPerCycle, totalNotes);
+                        measure.chordGroups.slice(cycleStart, cycleEnd).forEach(cg => {
+                            const pitch = cg.notes[0].pitch;
+                            if (!seenPitches.has(pitch)) {
+                                seenPitches.add(pitch);
+                                uniqueGroups.push(cg);
+                            }
+                        });
+                    }
+
+                    return (
+                        <div key={gIdx} style={{ marginBottom: '0.2rem' }}>
+                            <span
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleChordRep(measure.number, startIdx);
+                                }}
+                                style={STYLES.chordBadge}
+                                title="Cliquer pour voir les notes"
+                            >
+                                {chord.displayName}
+                                {count > 1 && (
+                                    <span style={{ fontSize: '0.7em', marginLeft: '0.3rem', opacity: 0.75 }}>x{count}</span>
+                                )}
+                            </span>
+                            {isExpanded && (
+                                <div style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: '0.2rem',
+                                    alignItems: 'center',
+                                    marginTop: '0.15rem',
+                                    marginLeft: '0.25rem'
+                                }}>
+                                    {uniqueGroups.map((chordGroup, idx) => (
+                                        <span key={idx} style={{
+                                            ...STYLES.noteBadgeSmall,
+                                            border: '1px solid var(--accent-secondary)',
+                                        }}>
+                                            {displayNoteName(chordGroup.notes[0].pitch, keySignature)}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
 
     return (
         <div>
@@ -474,10 +551,11 @@ const MeasureCard = React.memo(function MeasureCard({
             <ChordDisplay
                 measure={measure}
                 keySignature={keySignature}
-                showDetails={isMobile ? false : showDetails}
+                showDetails={showDetails}
                 displayNoteName={displayNoteName}
                 expandedChordReps={expandedChordReps}
                 onToggleChordRep={onToggleChordRep}
+                isMobile={isMobile}
             />
 
             {/* Melody info */}
