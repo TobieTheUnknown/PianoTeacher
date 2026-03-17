@@ -160,15 +160,17 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                     }}>
                         Créez votre premier morceau et commencez votre voyage musical
                     </p>
-                    <button
-                        onClick={onNewSong}
-                        className="btn-primary"
-                        style={{
-                            padding: '0.75rem 2rem'
-                        }}
-                    >
-                        Commencer maintenant
-                    </button>
+                    {onNewSong && (
+                        <button
+                            onClick={onNewSong}
+                            className="btn-primary"
+                            style={{
+                                padding: '0.75rem 2rem'
+                            }}
+                        >
+                            Commencer maintenant
+                        </button>
+                    )}
                 </div>
             ) : (
                 /* Song Cards Grid */
@@ -369,30 +371,32 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                                 </svg>
                                 Importer
                             </button>
-                            <button
-                                onClick={() => { onNewSong(); setShowFabMenu(false); }}
-                                style={{
-                                    height: '44px',
-                                    borderRadius: '22px',
-                                    background: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border-color)',
-                                    color: 'var(--text-primary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0 1rem',
-                                    minHeight: 'unset',
-                                    boxShadow: 'var(--shadow-lg)',
-                                    fontSize: '0.875rem',
-                                    whiteSpace: 'nowrap'
-                                }}
-                            >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                </svg>
-                                Nouveau
-                            </button>
+                            {onNewSong && (
+                                <button
+                                    onClick={() => { onNewSong(); setShowFabMenu(false); }}
+                                    style={{
+                                        height: '44px',
+                                        borderRadius: '22px',
+                                        background: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border-color)',
+                                        color: 'var(--text-primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        padding: '0 1rem',
+                                        minHeight: 'unset',
+                                        boxShadow: 'var(--shadow-lg)',
+                                        fontSize: '0.875rem',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                    </svg>
+                                    Nouveau
+                                </button>
+                            )}
                         </>
                     )}
                     <button
