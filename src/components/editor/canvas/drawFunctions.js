@@ -3,11 +3,11 @@
  * Optimized for performance with minimal DOM operations
  */
 
-import handColorsService from '../../../services/HandColorsService';
+import themeService from '../../../services/ThemeService';
 
-// Function to get dynamic colors from HandColorsService
+// Function to get dynamic colors from ThemeService
 export const getDynamicColors = () => {
-    const colors = handColorsService.getColors();
+    const colors = themeService.getColors();
     const scaleColors = colors.scaleHighlight;
 
     return {

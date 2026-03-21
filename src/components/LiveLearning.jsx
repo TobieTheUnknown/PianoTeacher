@@ -1,8 +1,12 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { getFrenchNoteName, getFrenchKeyName, getPianoRollKeys, NOTE_NAMES, getEnharmonicNote, getNoteNameFromMidi } from '../models/song';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { getFrenchNoteName, getFrenchKeyName, getNoteNameFromMidi } from '../models/song';
 import { detectArpeggioMotifs } from '../utils/chordDetection';
+import { getMeasuresFromPhrase, groupNotesByTime } from '../utils/measureUtils';
 import { audioEngine } from '../services/AudioEngine';
 import { useDeviceContext } from '../hooks/useDeviceContext';
+import themeService from '../services/ThemeService';
+import { CoordinationTimeline } from './learn/CoordinationTimeline';
+import { LearnControls } from './learn/LearnControls';
 
 // ── Constant styles extracted outside render ──────────────────────────────────
 
@@ -26,8 +30,8 @@ const STYLES = {
         background: 'var(--bg-primary)',
         padding: '0.2rem 0.4rem',
         borderRadius: '4px',
-        border: '2px solid var(--accent-primary)',
-        color: 'var(--text-primary)',
+        border: '2px solid var(--hand-right)',
+        color: 'var(--hand-right)',
         fontWeight: 'bold',
         cursor: 'pointer',
         userSelect: 'none',
@@ -37,18 +41,18 @@ const STYLES = {
         background: 'var(--bg-primary)',
         padding: '0.1rem 0.3rem',
         borderRadius: '3px',
-        border: '1px solid var(--accent-primary)',
-        color: 'var(--text-primary)',
+        border: '1px solid var(--hand-right)',
+        color: 'var(--hand-right)',
     },
     chordBadge: {
         fontSize: '0.75rem',
         fontWeight: 'bold',
-        color: 'var(--text-primary)',
+        color: 'var(--hand-left)',
         cursor: 'pointer',
         padding: '0.2rem 0.4rem',
         borderRadius: '4px',
         background: 'var(--bg-primary)',
-        border: '2px solid var(--accent-secondary)',
+        border: '2px solid var(--hand-left)',
         transition: 'all var(--transition-fast)',
         userSelect: 'none',
         display: 'inline-block',
@@ -66,6 +70,8 @@ const STYLES = {
         cursor: 'pointer',
         position: 'relative',
         overflow: 'hidden',
+        height: '100%',
+        boxSizing: 'border-box',
     },
     playButton: {
         flex: 1,
@@ -80,7 +86,7 @@ const STYLES = {
         position: 'absolute',
         top: '0.5rem',
         right: '0.5rem',
-        color: 'white',
+        color: 'var(--text-primary)',
         borderRadius: '50%',
         width: '32px',
         height: '32px',
@@ -91,7 +97,7 @@ const STYLES = {
         fontWeight: 'bold',
         cursor: 'pointer',
         transition: 'all var(--transition-fast)',
-        zIndex: 10,
+        zIndex: 2,
     },
     timelineBar: {
         marginTop: '1rem',
@@ -120,62 +126,51 @@ const STYLES = {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 const TimelineBar = React.memo(function TimelineBar({ measure, displayNoteName, keySignature }) {
-    const { soloMelodyNotes, soloChordNotes, simultaneousTimes } = useMemo(() => {
-        const areSimultaneous = (time1, time2) => Math.abs(time1 - time2) < 0.15;
-        const simTimes = new Set();
-
-        measure.melody.forEach(melodyNote => {
-            measure.chords.forEach(chordNote => {
-                if (areSimultaneous(melodyNote.startTime, chordNote.startTime)) {
-                    simTimes.add(melodyNote.startTime);
-                }
-            });
-        });
-
-        const simTimesArr = Array.from(simTimes);
-        return {
-            soloMelodyNotes: measure.melody.filter(n =>
-                !simTimesArr.some(t => areSimultaneous(n.startTime, t))
-            ),
-            soloChordNotes: measure.chords.filter(n =>
-                !simTimesArr.some(t => areSimultaneous(n.startTime, t))
-            ),
-            simultaneousTimes: simTimesArr,
-        };
-    }, [measure.melody, measure.chords]);
-
     return (
-        <div style={STYLES.timelineBar}>
-            {soloMelodyNotes.map(n => (
-                <div key={`melody-${n.id}`} style={{
-                    ...STYLES.timelineDotBase,
+        <div style={{
+            marginTop: '0.5rem',
+            height: '20px',
+            position: 'relative',
+        }}>
+            {/* MD dots above the bar */}
+            {measure.melody.map(n => (
+                <div key={`md-${n.id}`} style={{
+                    position: 'absolute',
                     left: `${((n.startTime % 4) / 4) * 100}%`,
-                    top: '-3px',
-                    backgroundColor: '#f472b6',
-                }} title={`Main droite: ${displayNoteName(n.pitch, keySignature)}`} />
+                    top: '0px',
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--hand-right)',
+                }} title={`MD: ${displayNoteName(n.pitch, keySignature)}`} />
             ))}
-            {soloChordNotes.map(n => (
-                <div key={`chord-${n.id}`} style={{
-                    ...STYLES.timelineDotBase,
+            {/* Grey bar in the middle */}
+            <div style={{
+                position: 'absolute',
+                top: '9px',
+                left: 0,
+                right: 0,
+                height: '2px',
+                backgroundColor: 'var(--border-medium)',
+                borderRadius: '1px',
+            }} />
+            {/* MG dots below the bar */}
+            {measure.chords.map(n => (
+                <div key={`mg-${n.id}`} style={{
+                    position: 'absolute',
                     left: `${((n.startTime % 4) / 4) * 100}%`,
-                    bottom: '-3px',
-                    backgroundColor: '#60a5fa',
-                }} title={`Main gauche: ${displayNoteName(n.pitch, keySignature)}`} />
-            ))}
-            {simultaneousTimes.map((time, idx) => (
-                <div key={`both-${idx}`} style={{
-                    ...STYLES.timelineDotBase,
-                    left: `${((time % 4) / 4) * 100}%`,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    backgroundColor: '#10b981',
-                }} title="2 mains ensemble" />
+                    bottom: '0px',
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--hand-left)',
+                }} title={`MG: ${displayNoteName(n.pitch, keySignature)}`} />
             ))}
         </div>
     );
 });
 
-const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, showDetails, displayNoteName, expandedChordReps, onToggleChordRep, isMobile }) {
+const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, showDetails, displayNoteName, expandedChordReps, onToggleChordRep, isMobile, handColors }) {
     const { isArpeggio, detectedChord, motifInfo, chordGroups, hasChord } = measure;
 
     return (
@@ -204,12 +199,14 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
                         displayNoteName={displayNoteName}
                         keySignature={keySignature}
                         isMobile={isMobile}
+                        handColors={handColors}
                     />
                 ) : isArpeggio ? (
                     <ArpeggioSequenceView
                         chordGroups={chordGroups}
                         displayNoteName={displayNoteName}
                         keySignature={keySignature}
+                        handColors={handColors}
                     />
                 ) : (
                     <SimultaneousChordsView
@@ -217,6 +214,7 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
                         showDetails={showDetails}
                         displayNoteName={displayNoteName}
                         keySignature={keySignature}
+                        handColors={handColors}
                     />
                 )
             ) : (
@@ -232,7 +230,8 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
     );
 });
 
-function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature, isMobile }) {
+function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature, isMobile, handColors }) {
+    const leftColor = handColors?.left || '#3b82f6';
     const reps = motifInfo?.repetitions || 1;
     const chords = motifInfo?.chords || [detectedChord];
     const totalNotes = measure.chordGroups.length;
@@ -280,7 +279,7 @@ function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordRep
                                     e.stopPropagation();
                                     onToggleChordRep(measure.number, startIdx);
                                 }}
-                                style={STYLES.chordBadge}
+                                style={{ ...STYLES.chordBadge, borderColor: leftColor, color: leftColor }}
                                 title="Cliquer pour voir les notes"
                             >
                                 {chord.displayName}
@@ -330,7 +329,7 @@ function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordRep
                                 e.stopPropagation();
                                 onToggleChordRep(measure.number, repIdx);
                             }}
-                            style={STYLES.chordBadge}
+                            style={{ ...STYLES.chordBadge, borderColor: leftColor, color: leftColor }}
                             title="Cliquer pour voir les notes"
                         >
                             {cycleChord.displayName}
@@ -361,7 +360,8 @@ function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordRep
     );
 }
 
-function ArpeggioSequenceView({ chordGroups, displayNoteName, keySignature }) {
+function ArpeggioSequenceView({ chordGroups, displayNoteName, keySignature, handColors }) {
+    const leftColor = handColors?.left || '#3b82f6';
     return (
         <div style={{
             display: 'flex',
@@ -375,7 +375,7 @@ function ArpeggioSequenceView({ chordGroups, displayNoteName, keySignature }) {
                 return (
                     <span key={idx} style={{
                         ...STYLES.noteBadge,
-                        border: isFirst ? '2px solid var(--accent-secondary)' : '1px solid var(--accent-secondary)',
+                        border: isFirst ? `2px solid ${leftColor}` : `1px solid ${leftColor}`,
                         fontWeight: isFirst ? 'bold' : 'normal',
                     }}>
                         {noteName}
@@ -386,20 +386,23 @@ function ArpeggioSequenceView({ chordGroups, displayNoteName, keySignature }) {
     );
 }
 
-function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, keySignature }) {
+function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, keySignature, handColors }) {
+    const leftColor = handColors?.left || '#3b82f6';
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             {chordGroups.map((chordGroup, idx) => {
                 const chordName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
                 return (
                     <div key={idx}>
-                        <div style={{
-                            fontSize: '1rem',
+                        <span style={{
+                            ...STYLES.noteBadge,
+                            border: `2px solid ${leftColor}`,
+                            color: leftColor,
                             fontWeight: 'bold',
-                            color: 'var(--text-primary)'
+                            display: 'inline-block',
                         }}>
                             {chordName}
-                        </div>
+                        </span>
                         {showDetails && (
                             <div style={{
                                 fontSize: '0.65rem',
@@ -431,18 +434,21 @@ function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, key
 const MeasureCard = React.memo(function MeasureCard({
     measure, keySignature, isHighlighted, onToggleHighlight, onPlay,
     showDetails, displayNoteName, expandedChordReps, onToggleChordRep,
-    isMelodyExpanded, onToggleMelodyExpand, isMobile
+    isMelodyExpanded, onToggleMelodyExpand, isMobile, handColors
 }) {
     // Pre-sorted melody (stable reference from getMeasuresFromPhrase)
     const sortedMelody = measure.sortedMelody;
 
+    const leftColor = handColors?.left || '#60a5fa';
+    const rightColor = handColors?.right || '#f472b6';
+
     const cardStyle = {
         ...STYLES.measureCardBase,
         border: isHighlighted
-            ? '3px solid var(--accent-primary)'
+            ? `3px solid ${rightColor}`
             : '2px solid var(--border-color)',
         boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none',
-        minHeight: isMobile ? '100px' : (showDetails ? '200px' : '140px'),
+        minHeight: isMobile ? 'auto' : (showDetails ? '200px' : '140px'),
         padding: isMobile ? '0.5rem' : STYLES.measureCardBase.padding,
     };
 
@@ -450,7 +456,7 @@ const MeasureCard = React.memo(function MeasureCard({
         ...STYLES.numberBadgeBase,
         background: isHighlighted
             ? 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%)'
-            : 'var(--bg-elevated)',
+            : 'var(--bg-tertiary)',
         border: isHighlighted
             ? '2px solid var(--accent-primary)'
             : '2px solid var(--border-light)',
@@ -508,16 +514,8 @@ const MeasureCard = React.memo(function MeasureCard({
                     }}
                     style={{
                         ...STYLES.playButton,
-                        border: '1px solid var(--accent-secondary)',
-                        color: 'var(--accent-secondary)',
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--accent-secondary)';
-                        e.currentTarget.style.color = 'white';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = 'var(--accent-secondary)';
+                        border: '1px solid var(--hand-left)',
+                        color: 'var(--hand-left)',
                     }}
                     title="Jouer main gauche"
                 >
@@ -530,16 +528,8 @@ const MeasureCard = React.memo(function MeasureCard({
                     }}
                     style={{
                         ...STYLES.playButton,
-                        border: '1px solid var(--accent-primary)',
-                        color: 'var(--accent-primary)',
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
-                        e.currentTarget.style.color = 'white';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = 'var(--accent-primary)';
+                        border: '1px solid var(--hand-right)',
+                        color: 'var(--hand-right)',
                     }}
                     title="Jouer main droite"
                 >
@@ -550,6 +540,7 @@ const MeasureCard = React.memo(function MeasureCard({
             {/* Chord info */}
             <ChordDisplay
                 measure={measure}
+                handColors={handColors}
                 keySignature={keySignature}
                 showDetails={showDetails}
                 displayNoteName={displayNoteName}
@@ -577,7 +568,7 @@ const MeasureCard = React.memo(function MeasureCard({
                                     e.stopPropagation();
                                     onToggleMelodyExpand(measure.number);
                                 }}
-                                style={STYLES.melodyBadgePrimary}
+                                style={{ ...STYLES.melodyBadgePrimary, borderColor: rightColor, color: rightColor }}
                                 title="Cliquer pour voir les notes"
                             >
                                 {displayNoteName(sortedMelody[0].pitch, keySignature)}
@@ -585,7 +576,7 @@ const MeasureCard = React.memo(function MeasureCard({
 
                             {(isMelodyExpanded || (!isMobile && showDetails)) ? (
                                 sortedMelody.slice(1).map((n, i) => (
-                                    <span key={i + 1} style={STYLES.melodyBadgeSecondary}>
+                                    <span key={i + 1} style={{ ...STYLES.melodyBadgeSecondary, borderColor: rightColor }}>
                                         {displayNoteName(n.pitch, keySignature)}
                                     </span>
                                 ))
@@ -630,6 +621,31 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const [showOctaves, setShowOctaves] = useState(false);
     const [expandedChords, setExpandedChords] = useState(new Map());
     const [expandedMelodies, setExpandedMelodies] = useState(new Set());
+    const [focusedMeasure, setFocusedMeasure] = useState(1);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [playbackHand, setPlaybackHand] = useState('both');
+    const [currentBPM, setCurrentBPM] = useState(song?.tempo || 120);
+    const [isLooping, setIsLooping] = useState(false);
+    const [selectedPhraseIndex, setSelectedPhraseIndex] = useState('');
+    const [customRangeStart, setCustomRangeStart] = useState('');
+    const [customRangeEnd, setCustomRangeEnd] = useState('');
+    const [loopConfig, setLoopConfig] = useState(null);
+    const [playingMeasure, setPlayingMeasure] = useState(-1);
+    const [isMetronomeOn, setIsMetronomeOn] = useState(false);
+    const measureRefs = useRef({});
+    const playbackIntervalRef = useRef(null);
+    const playbackStartRef = useRef(null);
+
+    // Hand colors from settings
+    const handColors = useMemo(() => ({
+        left: themeService.getHandColors('left').primary,
+        right: themeService.getHandColors('right').primary,
+    }), []);
+
+    // Reset BPM when song changes
+    useEffect(() => {
+        if (song?.tempo) setCurrentBPM(song.tempo);
+    }, [song?.tempo]);
 
     // Analyze and structure the song data
     const analysis = useMemo(() => {
@@ -740,7 +756,54 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
     // ── Stable callbacks ──────────────────────────────────────────────────────
 
+    // Phrase measure ranges for loop selector
+    const phraseMeasureRanges = useMemo(() => {
+        if (!song || !song.phrases) return [];
+        let startMeasure = 1;
+        return song.phrases.map((phrase) => {
+            const range = {
+                name: phrase.name,
+                startMeasure,
+                endMeasure: startMeasure + phrase.length - 1,
+            };
+            startMeasure += phrase.length;
+            return range;
+        });
+    }, [song]);
+
+    // Build a combined phrase for continuous playback via playPhrase
+    const combinedPhrase = useMemo(() => {
+        if (!song || !song.phrases || song.phrases.length === 0) return null;
+        const melody = [];
+        const chords = [];
+        let beatOffset = 0;
+        song.phrases.forEach(phrase => {
+            phrase.tracks.melody.forEach(n => {
+                melody.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            phrase.tracks.chords.forEach(n => {
+                chords.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            beatOffset += phrase.length * 4; // 4 beats per measure
+        });
+        const totalLength = song.phrases.reduce((sum, p) => sum + p.length, 0);
+        return {
+            tracks: { melody, chords },
+            length: totalLength,
+        };
+    }, [song]);
+
+    // Flat list of all notes for hand filtering
+    const allPlaybackNotes = useMemo(() => {
+        if (!combinedPhrase) return [];
+        return [
+            ...combinedPhrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
+            ...combinedPhrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' })),
+        ];
+    }, [combinedPhrase]);
+
     const handlePlayMeasure = useCallback(async (measure, hand = 'both') => {
+        setFocusedMeasure(measure.number);
         await audioEngine.initialize();
 
         let notesToPlay = [];
@@ -753,9 +816,172 @@ export function LiveLearning({ song, onToggleHighlight }) {
         }
 
         if (notesToPlay.length > 0) {
-            audioEngine.playNotes(notesToPlay, song.tempo);
+            audioEngine.playNotes(notesToPlay, currentBPM);
         }
-    }, [song.tempo]);
+    }, [currentBPM]);
+
+    const startPlaybackTracking = useCallback((startMeasure, endMeasure) => {
+        // Clear any existing interval
+        if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+
+        setPlayingMeasure(startMeasure);
+
+        playbackIntervalRef.current = setInterval(() => {
+            // Use Tone.Transport.seconds for precise sync with audio
+            const transportSeconds = audioEngine.getTransportSeconds();
+            if (transportSeconds <= 0) return; // Transport not started yet
+            const beatsPerSecond = currentBPM / 60;
+            const currentBeat = transportSeconds * beatsPerSecond;
+            const currentMsr = Math.floor(currentBeat / 4) + 1;
+
+            if (currentMsr > endMeasure) {
+                // End of playback
+                if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+                setPlayingMeasure(-1);
+                setIsPlaying(false);
+                audioEngine.stop();
+                audioEngine.stopMetronome();
+                return;
+            }
+
+            setPlayingMeasure(prev => {
+                if (prev !== currentMsr) {
+                    setFocusedMeasure(currentMsr);
+                    return currentMsr;
+                }
+                return prev;
+            });
+        }, 200);
+    }, [currentBPM]);
+
+    const handlePlayPause = useCallback(async () => {
+        if (isPlaying) {
+            audioEngine.stop();
+            audioEngine.stopMetronome();
+            if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+            setIsPlaying(false);
+            setPlayingMeasure(-1);
+        } else {
+            if (!combinedPhrase || !analysis) return;
+            await audioEngine.initialize();
+
+            let endMeasure = analysis.totalMeasures;
+            let effectiveStartMeasure = focusedMeasure;
+
+            if (isLooping && loopConfig) {
+                endMeasure = loopConfig.endMeasure;
+                effectiveStartMeasure = Math.max(focusedMeasure, loopConfig.startMeasure);
+            }
+
+            const startPositionBeats = (effectiveStartMeasure - 1) * 4;
+
+            // Build a filtered phrase if hand selection is not 'both'
+            let phraseToPlay = combinedPhrase;
+            if (playbackHand === 'right') {
+                phraseToPlay = { ...combinedPhrase, tracks: { melody: combinedPhrase.tracks.melody, chords: [] } };
+            } else if (playbackHand === 'left') {
+                phraseToPlay = { ...combinedPhrase, tracks: { melody: [], chords: combinedPhrase.tracks.chords } };
+            }
+
+            const doPlay = () => {
+                audioEngine.playPhrase(
+                    phraseToPlay,
+                    currentBPM,
+                    startPositionBeats,
+                    true, // stopAtEnd
+                    () => {
+                        // onPlaybackEnd callback
+                        setIsPlaying(false);
+                        setPlayingMeasure(-1);
+                        if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+                    },
+                    4 // beatsPerMeasure
+                );
+                if (isMetronomeOn) {
+                    audioEngine.startMetronome(currentBPM, 'quarter');
+                }
+                setIsPlaying(true);
+                setFocusedMeasure(effectiveStartMeasure);
+                startPlaybackTracking(effectiveStartMeasure, endMeasure);
+            };
+
+            // Preroll if metronome is on
+            if (isMetronomeOn) {
+                const msPerBeat = 60000 / currentBPM;
+                for (let i = 0; i < 4; i++) {
+                    setTimeout(() => {
+                        audioEngine.playClick(undefined, i === 0);
+                    }, i * msPerBeat);
+                }
+                setTimeout(doPlay, 4 * msPerBeat);
+            } else {
+                doPlay();
+            }
+        }
+    }, [isPlaying, combinedPhrase, analysis, focusedMeasure, playbackHand, currentBPM, isLooping, loopConfig, isMetronomeOn, startPlaybackTracking]);
+
+    const handleStop = useCallback(() => {
+        audioEngine.stop();
+        audioEngine.stopMetronome();
+        if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+        setIsPlaying(false);
+        setPlayingMeasure(-1);
+    }, []);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+        };
+    }, []);
+
+    const handleTempoChange = useCallback((bpm) => {
+        setCurrentBPM(bpm);
+        if (audioEngine.isPlaying) {
+            audioEngine.setTempo(bpm);
+        }
+    }, []);
+
+    const handleTimelineClick = useCallback((measureNum) => {
+        setFocusedMeasure(measureNum);
+    }, []);
+
+    const handlePhraseSelect = useCallback((e) => {
+        const val = e.target.value;
+        setSelectedPhraseIndex(val);
+        if (val !== '' && val !== 'custom') {
+            const range = phraseMeasureRanges[parseInt(val)];
+            if (range) {
+                setLoopConfig(range);
+                setFocusedMeasure(range.startMeasure);
+            }
+        }
+    }, [phraseMeasureRanges]);
+
+    const handleCustomRangeLoop = useCallback(() => {
+        const start = parseInt(customRangeStart);
+        const end = parseInt(customRangeEnd);
+        if (start && end && start <= end) {
+            setLoopConfig({ startMeasure: start, endMeasure: end });
+            setFocusedMeasure(start);
+        }
+    }, [customRangeStart, customRangeEnd]);
+
+    const handleClearLoop = useCallback(() => {
+        setLoopConfig(null);
+        setSelectedPhraseIndex('');
+        setCustomRangeStart('');
+        setCustomRangeEnd('');
+    }, []);
+
+    // Auto-scroll to focused/playing measure card
+    useEffect(() => {
+        const target = playingMeasure > 0 ? playingMeasure : focusedMeasure;
+        const el = measureRefs.current[target];
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [focusedMeasure, playingMeasure]);
 
     const displayNoteName = useCallback((pitch, keySignature) => {
         const fullName = getFrenchNoteName(pitch, keySignature);
@@ -796,248 +1022,148 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
     return (
         <div className="live-learning" style={{ maxWidth: '1600px', margin: '0 auto' }}>
-            {/* Header */}
+            {/* Compact Header */}
             <div style={{
-                textAlign: 'center',
-                marginBottom: '3rem',
-                padding: '2rem',
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--border-color)'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                marginBottom: '0.75rem',
+                flexWrap: 'wrap',
+                padding: isMobile ? '0.5rem 0' : '0.75rem 0',
             }}>
-                <h2 style={{
-                    fontSize: '2.5rem',
-                    marginBottom: '0.5rem',
-                    background: 'var(--gradient-primary)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
-                }}>
-                    📚 Apprentissage
-                </h2>
-                <p style={{ fontSize: '1.3rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    {song.title}
-                </p>
                 <div style={{
                     display: 'flex',
-                    gap: '2rem',
-                    justifyContent: 'center',
-                    flexWrap: 'wrap',
-                    fontSize: '1rem'
+                    alignItems: 'baseline',
+                    gap: '0.5rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-secondary)',
+                    minWidth: 0,
+                    flex: 1,
                 }}>
-                    <span>🎼 <strong>{getFrenchKeyName(analysis.key)}</strong></span>
-                    <span>⏱️ <strong>{analysis.tempo} BPM</strong></span>
-                    <span>📊 <strong>{analysis.totalMeasures} mesures</strong></span>
+                    <span style={{
+                        fontSize: isMobile ? '1rem' : '1.15rem',
+                        fontWeight: 500,
+                        color: 'var(--text-primary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}>
+                        {song.title}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)' }}>·</span>
+                    <span>{getFrenchKeyName(analysis.key)}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>·</span>
+                    <span>{analysis.tempo} BPM</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                    <button
+                        onClick={() => setShowOctaves(!showOctaves)}
+                        style={{
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.65rem',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-color)',
+                            background: showOctaves ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                            color: showOctaves ? 'var(--bg-primary)' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            minHeight: 'auto',
+                            fontWeight: 500,
+                        }}
+                    >
+                        Oct
+                    </button>
+                    <button
+                        onClick={() => setShowDetails(!showDetails)}
+                        style={{
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.65rem',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-color)',
+                            background: showDetails ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                            color: showDetails ? 'var(--bg-primary)' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            minHeight: 'auto',
+                            fontWeight: 500,
+                        }}
+                    >
+                        Détails
+                    </button>
                 </div>
             </div>
 
-            {/* Quick Reference */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                gap: '1.5rem',
-                marginBottom: '3rem'
-            }}>
-                {/* Notes Used */}
-                <div className="card" style={{ padding: '1.5rem' }}>
-                    <h3 style={{
-                        color: 'var(--accent-primary)',
-                        marginBottom: '1rem',
-                        fontSize: '1.1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        🎹 Notes utilisées ({analysis.uniqueNotes.length})
-                    </h3>
-                    <div style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '0.5rem'
-                    }}>
-                        {analysis.uniqueNotes.map(note => {
-                            const correctNote = getEnharmonicNote(note, analysis.key);
-                            const frenchNote = NOTE_NAMES[correctNote] || correctNote;
-                            return (
-                                <span key={note} style={{
-                                    padding: '0.4rem 0.8rem',
-                                    background: 'var(--bg-tertiary)',
-                                    borderRadius: '6px',
-                                    fontSize: '0.9rem',
-                                    fontWeight: 'bold',
-                                    border: '1px solid var(--border-color)'
-                                }}>
-                                    {frenchNote}
-                                </span>
-                            );
-                        })}
-                    </div>
-                </div>
+            {/* Timeline (PINNED TOP on mobile) */}
+            <CoordinationTimeline
+                measures={analysis.measures}
+                currentMeasureIndex={focusedMeasure - 1}
+                playingMeasureIndex={playingMeasure > 0 ? playingMeasure - 1 : -1}
+                isMobile={isMobile}
+                onMeasureClick={handleTimelineClick}
+                displayNoteName={displayNoteName}
+                keySignature={song.key}
+            />
 
-                {/* Instructions */}
-                <div className="card" style={{ padding: '1.5rem' }}>
-                    <h3 style={{
-                        color: 'var(--accent-primary)',
-                        marginBottom: '1rem',
-                        fontSize: '1.1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        💡 Mode d'emploi
-                    </h3>
-                    <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div>🎵 <strong>Cliquez sur une mesure</strong> pour jouer les deux mains</div>
-                        <div>🎹 <strong>Boutons MG/MD</strong> pour jouer chaque main séparément</div>
-                        <div>🔢 <strong>Cliquez sur le numéro</strong> pour surligner une mesure</div>
-                        <div>👁️ <strong>Activez les détails</strong> pour voir toutes les notes</div>
-                        <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
-                            <strong>Timeline :</strong>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem', marginLeft: '0.5rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{
-                                        width: '10px',
-                                        height: '10px',
-                                        borderRadius: '50%',
-                                        backgroundColor: '#f472b6',
-                                        border: '2px solid var(--bg-elevated)'
-                                    }}></div>
-                                    <span>Main droite (MD)</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{
-                                        width: '10px',
-                                        height: '10px',
-                                        borderRadius: '50%',
-                                        backgroundColor: '#60a5fa',
-                                        border: '2px solid var(--bg-elevated)'
-                                    }}></div>
-                                    <span>Main gauche (MG)</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{
-                                        width: '10px',
-                                        height: '10px',
-                                        borderRadius: '50%',
-                                        backgroundColor: '#10b981',
-                                        border: '2px solid var(--bg-elevated)'
-                                    }}></div>
-                                    <span>2 mains ensemble</span>
-                                </div>
+            {/* Measure Grid (scrolls between pinned elements) */}
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: isMobile ? '1.5rem' : '2.5rem',
+                padding: isMobile ? '0.75rem 0' : '1rem 0',
+                paddingBottom: isMobile ? '180px' : '1rem',
+                position: 'relative',
+                zIndex: 1,
+                isolation: 'isolate',
+            }}>
+                {phrasesWithGroups.map((phrase) => (
+                    <div key={phrase.phraseIndex}>
+                        {phrase.phraseIndex > 0 && (
+                            <div style={{
+                                padding: '0.5rem 1rem',
+                                background: 'var(--bg-tertiary)',
+                                borderLeft: '3px solid var(--accent-primary)',
+                                borderRadius: 'var(--radius-md)',
+                                fontWeight: 500,
+                                fontSize: '0.9rem',
+                                color: 'var(--text-primary)',
+                                marginBottom: '1rem'
+                            }}>
+                                {phrase.phraseName}
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        )}
 
-            {/* Main Timeline View */}
-            <div className="card" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '1.5rem'
-                }}>
-                    <h3 style={{
-                        color: 'var(--accent-primary)',
-                        fontSize: '1.3rem',
-                        margin: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        🎵 Progression complète du morceau
-                    </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '1rem' : '1.5rem' }}>
+                            {phrase.groups.map((group, groupIdx) => (
+                                <div key={groupIdx}>
+                                    <div style={{
+                                        marginBottom: '0.5rem',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-tertiary)',
+                                        fontWeight: 500
+                                    }}>
+                                        Mesures {group[0].number} - {group[group.length - 1].number}
+                                    </div>
 
-                    {/* Toggle Buttons */}
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button
-                            onClick={() => setShowOctaves(!showOctaves)}
-                            style={{
-                                background: showOctaves ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                                color: showOctaves ? 'white' : 'var(--text-primary)',
-                                border: showOctaves ? 'none' : '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                boxShadow: showOctaves ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
-                                padding: '0.75rem 1.5rem',
-                                borderRadius: 'var(--radius-md)',
-                                cursor: 'pointer',
-                                fontSize: '0.9375rem',
-                                fontWeight: '600',
-                                transition: 'all var(--transition-fast)'
-                            }}
-                            title={showOctaves ? 'Masquer les octaves' : 'Afficher les octaves'}
-                        >
-                            <span>🎹</span>
-                            <span>{showOctaves ? 'Octaves' : 'Octaves'}</span>
-                        </button>
-                        <button
-                            onClick={() => setShowDetails(!showDetails)}
-                            style={{
-                                background: showDetails ? 'var(--gradient-primary)' : 'var(--bg-elevated)',
-                                color: showDetails ? 'white' : 'var(--text-primary)',
-                                border: showDetails ? 'none' : '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                boxShadow: showDetails ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
-                                padding: '0.75rem 1.5rem',
-                                borderRadius: 'var(--radius-md)',
-                                cursor: 'pointer',
-                                fontSize: '0.9375rem',
-                                fontWeight: '600',
-                                transition: 'all var(--transition-fast)'
-                            }}
-                        >
-                            <span>{showDetails ? '👁️' : '👁️‍🗨️'}</span>
-                            <span>{showDetails ? 'Masquer les détails' : 'Afficher les détails'}</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Measures grouped by phrase, then by 4 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
-                    {phrasesWithGroups.map((phrase) => (
-                        <div key={phrase.phraseIndex}>
-                            {/* Phrase Header */}
-                            {phrase.phraseIndex > 0 && (
-                                <div style={{
-                                    padding: '0.75rem 1.5rem',
-                                    background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-                                    borderLeft: '4px solid var(--accent-primary)',
-                                    borderRadius: 'var(--radius-md)',
-                                    fontWeight: 'bold',
-                                    fontSize: '1.1rem',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: '1.5rem'
-                                }}>
-                                    🎵 {phrase.phraseName}
-                                </div>
-                            )}
-
-                            {/* Groups of 4 measures */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                                {phrase.groups.map((group, groupIdx) => (
-                                    <div key={groupIdx}>
-                                        <div style={{
-                                            marginBottom: '0.75rem',
-                                            fontSize: '0.9rem',
-                                            color: 'var(--text-secondary)',
-                                            fontWeight: 'bold'
-                                        }}>
-                                            Mesures {group[0].number} - {group[group.length - 1].number}
-                                        </div>
-
-                                        <div style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-                                            gap: isMobile ? '0.5rem' : '1rem'
-                                        }}>
-                                            {group.map((measure) => (
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                                        gap: isMobile ? '0.5rem' : '1rem'
+                                    }}>
+                                        {group.map((measure) => {
+                                            const isBeingPlayed = playingMeasure === measure.number;
+                                            return (
+                                            <div
+                                                key={measure.number}
+                                                ref={el => { measureRefs.current[measure.number] = el; }}
+                                                style={{
+                                                    height: '100%',
+                                                    ...(isBeingPlayed ? {
+                                                        borderRadius: 'var(--radius-md)',
+                                                        boxShadow: '0 0 16px rgba(245,245,245,0.15)',
+                                                        border: '2px solid var(--accent-primary)',
+                                                    } : {}),
+                                                }}
+                                            >
                                                 <MeasureCard
-                                                    key={measure.number}
                                                     measure={measure}
                                                     keySignature={song.key}
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
@@ -1050,133 +1176,51 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     isMelodyExpanded={expandedMelodies.has(measure.number)}
                                                     onToggleMelodyExpand={onToggleMelodyExpand}
                                                     isMobile={isMobile}
+                                                    handColors={handColors}
                                                 />
-                                            ))}
-                                        </div>
+                                            </div>
+                                            );
+                                        })}
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
             </div>
 
-            {/* Tips */}
-            <div className="card" style={{
-                padding: '2rem',
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
-                border: '2px solid var(--accent-primary)'
-            }}>
-                <h3 style={{
-                    color: 'var(--accent-primary)',
-                    marginBottom: '1.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
-                }}>
-                    <span style={{ fontSize: '1.5rem' }}>💡</span>
-                    Conseils d'apprentissage
-                </h3>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                    gap: '1rem'
-                }}>
-                    <TipCard
-                        icon="📍"
-                        text="Surlignez les mesures difficiles pour les retrouver facilement"
-                    />
-                    <TipCard
-                        icon="🎵"
-                        text="Écoutez chaque mesure avant de la jouer pour mémoriser la mélodie"
-                    />
-                    <TipCard
-                        icon="⏱️"
-                        text={`Commencez à ${Math.round(analysis.tempo * 0.6)} BPM puis augmentez progressivement`}
-                    />
-                    <TipCard
-                        icon="🔄"
-                        text="Travaillez par groupes de 4 mesures pour respecter la structure musicale"
-                    />
-                </div>
-            </div>
+            {/* Controls (PINNED BOTTOM on mobile, above tab bar) */}
+            <LearnControls
+                isPlaying={isPlaying}
+                onPlayPause={handlePlayPause}
+                onStop={handleStop}
+                playbackHand={playbackHand}
+                setPlaybackHand={setPlaybackHand}
+                currentBPM={currentBPM}
+                defaultBPM={song.tempo}
+                onTempoChange={handleTempoChange}
+                isLooping={isLooping}
+                onToggleLoop={() => setIsLooping(!isLooping)}
+                focusedMeasure={focusedMeasure}
+                totalMeasures={analysis.totalMeasures}
+                phrases={song.phrases}
+                highlightedMeasures={highlightedMeasures}
+                loopConfig={loopConfig}
+                phraseMeasureRanges={phraseMeasureRanges}
+                onPhraseSelect={handlePhraseSelect}
+                selectedPhraseIndex={selectedPhraseIndex}
+                customRangeStart={customRangeStart}
+                setCustomRangeStart={setCustomRangeStart}
+                customRangeEnd={customRangeEnd}
+                setCustomRangeEnd={setCustomRangeEnd}
+                onCustomRangeLoop={handleCustomRangeLoop}
+                onClearLoop={handleClearLoop}
+                isMobile={isMobile}
+                isMetronomeOn={isMetronomeOn}
+                onToggleMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
+            />
         </div>
     );
 }
 
-// ── Helper functions ──────────────────────────────────────────────────────────
-
-function getMeasuresFromPhrase(phrase) {
-    const measures = [];
-    const EPSILON = 0.001;
-    const keys = getPianoRollKeys(1, 5);
-
-    const getSeparatorForMeasure = (measureIndex) => {
-        const handSeparators = phrase.handSeparators || [];
-        if (handSeparators.length === 0) return null;
-
-        const applicable = handSeparators
-            .filter(s => s.fromMeasure <= measureIndex)
-            .sort((a, b) => b.fromMeasure - a.fromMeasure);
-        return applicable[0] || null;
-    };
-
-    const splitNotesByHand = (notes, separatorPitch) => {
-        if (!separatorPitch) {
-            return {
-                rightHand: notes.filter(n => n.trackName === 'melody'),
-                leftHand: notes.filter(n => n.trackName === 'chords')
-            };
-        }
-
-        const separatorIndex = keys.indexOf(separatorPitch);
-        return {
-            rightHand: notes.filter(n => keys.indexOf(n.pitch) < separatorIndex),
-            leftHand: notes.filter(n => keys.indexOf(n.pitch) >= separatorIndex)
-        };
-    };
-
-    const allNotes = [
-        ...phrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
-        ...phrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' }))
-    ];
-
-    for (let i = 0; i < phrase.length; i++) {
-        const measureStart = i * 4;
-        const measureEnd = (i + 1) * 4;
-
-        const measuresNotes = allNotes.filter(n =>
-            n.startTime >= measureStart - EPSILON &&
-            n.startTime < measureEnd - EPSILON
-        );
-
-        const separator = getSeparatorForMeasure(i);
-        const { rightHand, leftHand } = splitNotesByHand(measuresNotes, separator?.pitch);
-
-        measures.push({
-            melody: rightHand,
-            chords: leftHand
-        });
-    }
-
-    return measures;
-}
-
-function groupNotesByTime(notes) {
-    const groups = [];
-    const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
-
-    sorted.forEach(note => {
-        const lastGroup = groups[groups.length - 1];
-        if (lastGroup && Math.abs(lastGroup.startTime - note.startTime) < 0.1) {
-            lastGroup.notes.push(note);
-        } else {
-            groups.push({
-                startTime: note.startTime,
-                notes: [note]
-            });
-        }
-    });
-
-    return groups;
-}
+// Helper functions extracted to src/utils/measureUtils.js

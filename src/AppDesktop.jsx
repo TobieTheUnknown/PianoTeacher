@@ -55,7 +55,7 @@ function App() {
 
   const handleLoadSong = (id) => {
     loadSong(id);
-    setMode('edit');
+    setMode(isMobile ? 'learn' : 'edit');
   };
 
   const handleLoadSongToSynthesia = (id) => {
@@ -82,7 +82,7 @@ function App() {
         onOpenSettings={() => setShowSettings(true)}
       />
 
-      <main>
+      <main style={isMobile ? { paddingBottom: '64px' } : undefined}>
         {mode === 'library' && (
           <SongLibrary
             onLoadSong={handleLoadSong}

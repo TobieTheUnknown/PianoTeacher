@@ -2,15 +2,15 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
-import ThemeEngine from './services/ThemeEngine.js'
+import themeService from './services/ThemeService.js'
 
 const isMobilePlatform = import.meta.env.VITE_PLATFORM === 'mobile';
 
-// Initialiser le Theme Engine (deferred to avoid Android WebView crash)
+// Initialiser le thème (deferred to avoid Android WebView crash)
 try {
-  ThemeEngine.init();
+  themeService.init();
 } catch (err) {
-  console.warn('ThemeEngine init deferred:', err.message);
+  console.warn('Theme init deferred:', err.message);
 }
 
 // Initialiser les préférences de typographie

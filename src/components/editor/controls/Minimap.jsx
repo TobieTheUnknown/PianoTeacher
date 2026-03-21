@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
-import handColorsService from '../../../services/HandColorsService';
+import themeService from '../../../services/ThemeService';
 import styles from '../PianoRollEditor.module.css';
 
 const MINIMAP_WIDTH = 200;
@@ -19,8 +19,8 @@ export function Minimap({
 
     const scale = MINIMAP_WIDTH / totalBeats;
 
-    // Get dynamic colors from HandColorsService
-    const handColors = useMemo(() => handColorsService.getColors(), []);
+    // Get dynamic colors from ThemeService
+    const handColors = useMemo(() => themeService.getColors(), []);
 
     // Draw minimap
     useEffect(() => {

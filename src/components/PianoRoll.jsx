@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'rea
 import { getPianoRollKeys, getFrenchNoteName, getMidiNumber } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { usePlaybackPosition } from '../hooks/usePlaybackPosition';
-import handColorsService from '../services/HandColorsService';
+import themeService from '../services/ThemeService';
 
 // Lazy load the new PianoRollEditor for fullscreen mode
 const PianoRollEditor = lazy(() => import('./editor/PianoRollEditor').then(module => ({ default: module.PianoRollEditor })));
@@ -84,10 +84,10 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
     const [zoom, setZoom] = useState(0.5); // 0.5 = 50% (default), 1 = 100%, 1.5 = 150%, etc.
 
     // Hand colors from service with reactive updates
-    const [handColors, setHandColors] = useState(() => handColorsService.getColors());
+    const [handColors, setHandColors] = useState(() => themeService.getColors());
 
     useEffect(() => {
-        const unsubscribe = handColorsService.addListener((colors) => {
+        const unsubscribe = themeService.addListener((colors) => {
             setHandColors(colors);
         });
         return unsubscribe;

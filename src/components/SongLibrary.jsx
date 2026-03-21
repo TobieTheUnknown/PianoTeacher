@@ -249,58 +249,22 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                                 </p>
                             </div>
 
-                            {/* Accuracy Badge */}
-                            {(() => {
-                                const stats = ScoreService.getSongStatistics(song.id);
-                                if (stats && stats.totalSessions > 0) {
-                                    const dotColor = stats.bestAccuracy >= 80
-                                        ? '#22c55e'
-                                        : stats.bestAccuracy >= 50
-                                            ? '#f59e0b'
-                                            : '#ef4444';
-                                    return (
-                                        <div style={{
-                                            position: 'absolute',
-                                            bottom: '1rem',
-                                            right: '1rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.375rem',
-                                            fontSize: '0.75rem',
-                                            color: 'var(--text-tertiary)',
-                                            fontWeight: '500'
-                                        }}>
-                                            <span style={{
-                                                width: '8px',
-                                                height: '8px',
-                                                borderRadius: '50%',
-                                                backgroundColor: dotColor,
-                                                display: 'inline-block',
-                                                flexShrink: 0
-                                            }} />
-                                            {Math.round(stats.bestAccuracy)}%
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            })()}
-
                             {/* Song Actions */}
                             <div style={{
                                 display: 'flex',
                                 justifyContent: 'flex-end',
-                                gap: '0.5rem',
-                                paddingTop: '1rem',
+                                gap: '0.35rem',
+                                paddingTop: '0.6rem',
                                 borderTop: '1px solid var(--border-color)'
                             }}>
                                 <button
                                     onClick={(e) => handleExportMidi(song, e)}
                                     style={{
-                                        padding: '0.5rem 1rem',
+                                        padding: '0.3rem 0.6rem',
                                         background: 'transparent',
                                         color: 'var(--text-secondary)',
                                         border: '1px solid var(--border-color)',
-                                        fontSize: '0.8125rem'
+                                        fontSize: '0.7rem'
                                     }}
                                 >
                                     MIDI
@@ -308,11 +272,11 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                                 <button
                                     onClick={(e) => handleDelete(song.id, e)}
                                     style={{
-                                        padding: '0.5rem 1rem',
+                                        padding: '0.3rem 0.6rem',
                                         background: 'transparent',
                                         color: 'var(--accent-danger)',
                                         border: '1px solid var(--accent-danger)',
-                                        fontSize: '0.8125rem'
+                                        fontSize: '0.7rem'
                                     }}
                                     onMouseEnter={(e) => {
                                         e.stopPropagation();

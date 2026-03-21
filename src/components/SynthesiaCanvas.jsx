@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useRef, memo, useState, useMemo } from 'react';
 import { useCanvasLayers } from '../hooks/useCanvasLayers';
 import { getFrenchNoteName } from '../models/song';
-import handColorsService from '../services/HandColorsService';
+import themeService from '../services/ThemeService';
 import styles from './SynthesiaView.module.css';
 
 // Static color constants (non-hand colors)
@@ -54,7 +54,7 @@ const SynthesiaCanvas = memo(({
   const CANVAS_HEIGHT = propHeight || DEFAULT_HEIGHT;
   const isMobile = !!mobileKeyRange;
   const aspectRatio = CANVAS_WIDTH / CANVAS_HEIGHT;
-  const keyboardRatio = aspectRatio < 1.0 ? 0.12 : 0.1875; // portrait → reduce height
+  const keyboardRatio = aspectRatio < 1.0 ? 0.10 : 0.12; // compact keyboard
   const KEYBOARD_HEIGHT = CANVAS_HEIGHT * keyboardRatio;
   const NOTE_FALL_HEIGHT = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
@@ -136,11 +136,11 @@ const SynthesiaCanvas = memo(({
     return cache;
   }, [firstKey, lastKey, WHITE_KEY_WIDTH]);
 
-  // Subscribe to hand color changes from HandColorsService
-  const [handColors, setHandColors] = useState(() => handColorsService.getColors());
+  // Subscribe to hand color changes from ThemeService
+  const [handColors, setHandColors] = useState(() => themeService.getColors());
 
   useEffect(() => {
-    const unsubscribe = handColorsService.addListener((colors) => {
+    const unsubscribe = themeService.addListener((colors) => {
       setHandColors(colors);
       markDynamicDirty(); // Force redraw when colors change
     });

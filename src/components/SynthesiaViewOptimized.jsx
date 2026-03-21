@@ -431,6 +431,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
     } else {
       const currentMeasure = Math.floor((currentTime * beatsPerSecond) / beatsPerMeasure) + 1;
       const loopMeasure = Math.max(1, currentMeasure);
+      // endMeasure is inclusive (loop plays startMeasure through endMeasure)
       setLoopForRange(loopMeasure, loopMeasure, `Mesure ${loopMeasure}`);
     }
   }, [isLoopEnabled, currentTime, beatsPerSecond, beatsPerMeasure, clearLoop, setLoopForRange]);
@@ -850,108 +851,129 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
   }
 
   // Desktop layout
+  const currentMeasure = Math.floor(currentTime * beatsPerSecond / 4) + 1;
+  const canvasSizeRef = useRef(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 800 });
+
+  useEffect(() => {
+    const el = canvasSizeRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) {
+        setCanvasSize({ width: Math.round(width), height: Math.round(height) });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className={styles.container}>
-      {/* Header */}
-      <div className={styles.header}>
-        <h2 className={styles.title}>Mode Synthesia - {song.title}</h2>
-        <SynthesiaStats
-          sessionStats={sessionStats}
-          songStats={songStats}
-          showScores={showScores}
-          onToggleScores={() => setShowScores(!showScores)}
-          songTitle={song.title}
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      overflow: 'hidden',
+      background: 'var(--bg-primary)',
+      padding: 0,
+      gap: 0,
+      alignItems: 'stretch',
+    }}>
+      {/* Timeline Navigator (looper) — top, clipped to timeline only */}
+      <div style={{
+        flexShrink: 0,
+        background: 'var(--bg-card)',
+        borderBottom: '1px solid var(--border-color)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        padding: '0.2rem 0',
+        maxWidth: '1200px',
+        width: '100%',
+        margin: '0 auto',
+        maxHeight: '120px',
+        overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0 0.75rem 0.15rem' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+            {song.title}
+          </span>
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={handleLoopToggle}
+            style={{
+              padding: '0.15rem 0.4rem', fontSize: '0.6rem',
+              borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)',
+              background: isLoopEnabled ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+              color: isLoopEnabled ? 'var(--bg-primary)' : 'var(--text-secondary)',
+              cursor: 'pointer', minHeight: 'auto',
+            }}
+          >
+            🔁 Loop
+          </button>
+        </div>
+        <TimelineNavigator
+          totalDuration={totalDuration}
+          currentTime={currentTime}
+          loopConfig={loopConfig}
+          isLoopEnabled={isLoopEnabled}
+          phrases={song.phrases}
+          beatsPerSecond={beatsPerSecond}
+          onSeek={jumpToTime}
+          onLoopChange={handleLoopChange}
+          onLoopToggle={handleLoopToggle}
+          onPhraseLoopSelect={setLoopForRange}
+          isPlaying={isPlaying}
+          tempo={currentBPM}
         />
       </div>
 
-      {/* Controls */}
-      <SynthesiaControls
-        isPlaying={isPlaying}
-        onPlayPause={handlePlayPause}
-        onReset={handleReset}
-        currentTime={currentTime}
-        handMode={handMode}
-        setHandMode={setHandMode}
-        waitMode={waitMode}
-        setWaitMode={setWaitMode}
-        freePlayMode={freePlayMode}
-        setFreePlayMode={setFreePlayMode}
-        visualEffects={visualEffects}
-        setVisualEffects={setVisualEffects}
-        isMetronomeOn={isMetronomeOn}
-        setIsMetronomeOn={setIsMetronomeOn}
-        metronomeDivision={metronomeDivision}
-        setMetronomeDivision={setMetronomeDivision}
-        currentBPM={currentBPM}
-        defaultBPM={defaultBPM}
-        onTempoChange={handleBPMChange}
-        selectedPhraseIndex={selectedPhraseIndex}
-        setSelectedPhraseIndex={setSelectedPhraseIndex}
-        customRangeStart={customRangeStart}
-        setCustomRangeStart={setCustomRangeStart}
-        customRangeEnd={customRangeEnd}
-        setCustomRangeEnd={setCustomRangeEnd}
-        isLoopEnabled={isLoopEnabled}
-        loopConfig={loopConfig}
-        phraseMeasureRanges={phraseMeasureRanges}
-        totalMeasures={totalMeasures}
-        onPhraseSelect={handlePhraseSelect}
-        onCustomRangeLoop={handleCustomRangeLoop}
-        onClearLoop={clearLoop}
-      />
-
-      {/* Canvas */}
-      <SynthesiaCanvas
-        currentTime={currentTime}
-        activeNotes={activeNotes}
-        playedNotes={playedNotes}
-        feedbackMessages={feedbackMessages}
-        expectedNotes={expectedNotes}
-        allNotes={allNotes}
-        beatsPerSecond={beatsPerSecond}
-        song={song}
-        isLoopEnabled={isLoopEnabled}
-        loopConfig={loopConfig}
-        sessionStats={sessionStats}
-        visualEffects={visualEffects}
-      />
-
-      {/* Timeline Navigator - Loop Controls */}
-      <TimelineNavigator
-        totalDuration={totalDuration}
-        currentTime={currentTime}
-        loopConfig={loopConfig}
-        isLoopEnabled={isLoopEnabled}
-        phrases={song.phrases}
-        beatsPerSecond={beatsPerSecond}
-        onSeek={jumpToTime}
-        onLoopChange={handleLoopChange}
-        onLoopToggle={handleLoopToggle}
-        onPhraseLoopSelect={setLoopForRange}
-        isPlaying={isPlaying}
-        tempo={currentBPM}
-      />
-
-      {/* Legend */}
-      <div className={styles.legend}>
-        <LegendItem color="#60a5fa" label="Main droite (MD)" />
-        <LegendItem color="#f472b6" label="Main gauche (MG)" />
-        <LegendItem color="#22c55e" label="Note correcte" />
-        <LegendItem color="#ef4444" label="Note incorrecte" />
-        <LegendItem color="#f59e0b" label="Note manquée" />
+      {/* Canvas — fills remaining space */}
+      <div ref={canvasSizeRef} style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch', justifyContent: 'center', overflow: 'hidden' }}>
+        <SynthesiaCanvas
+          currentTime={currentTime}
+          activeNotes={activeNotes}
+          playedNotes={playedNotes}
+          feedbackMessages={feedbackMessages}
+          expectedNotes={expectedNotes}
+          allNotes={allNotes}
+          beatsPerSecond={beatsPerSecond}
+          song={song}
+          isLoopEnabled={isLoopEnabled}
+          loopConfig={loopConfig}
+          sessionStats={sessionStats}
+          visualEffects={visualEffects}
+          canvasWidth={canvasSize.width}
+          canvasHeight={canvasSize.height}
+        />
       </div>
 
-      {/* Instructions */}
-      <div className={styles.instructions}>
-        <h3 className={styles.instructionsTitle}>Mode d'emploi</h3>
-        <ul className={styles.instructionsList}>
-          <li>Les notes tombent du haut vers le clavier en bas</li>
-          <li><strong>Ligne de jeu :</strong> Jouez la note quand elle touche le haut du clavier (ligne lumineuse) !</li>
-          <li>Connectez votre clavier MIDI pour jouer en temps réel</li>
-          <li>Cliquez sur le bouton de main active pour passer en <strong>Mode Écoute</strong> (l'ordinateur joue tout)</li>
-          <li><strong>Mode Attente:</strong> La lecture s'arrête jusqu'à ce que vous jouiez la bonne note</li>
-          <li>Vos performances sont enregistrées et affichées dans les statistiques</li>
-        </ul>
+      {/* Controls — bottom */}
+      <div style={{
+        flexShrink: 0,
+        background: 'var(--bg-card)',
+        borderTop: '1px solid var(--border-color)',
+        boxShadow: '0 -2px 8px rgba(0,0,0,0.3)',
+      }}>
+        <SynthesiaControls
+          isPlaying={isPlaying}
+          onPlayPause={handlePlayPause}
+          onReset={handleReset}
+          currentTime={currentTime}
+          handMode={handMode}
+          setHandMode={setHandMode}
+          waitMode={waitMode}
+          setWaitMode={setWaitMode}
+          freePlayMode={freePlayMode}
+          setFreePlayMode={setFreePlayMode}
+          visualEffects={visualEffects}
+          setVisualEffects={setVisualEffects}
+          isMetronomeOn={isMetronomeOn}
+          setIsMetronomeOn={setIsMetronomeOn}
+          metronomeDivision={metronomeDivision}
+          setMetronomeDivision={setMetronomeDivision}
+          currentBPM={currentBPM}
+          defaultBPM={defaultBPM}
+          onTempoChange={handleBPMChange}
+        />
       </div>
     </div>
   );

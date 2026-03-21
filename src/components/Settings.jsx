@@ -1,22 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import themeEngine from '../services/ThemeEngine';
+import themeService from '../services/ThemeService';
 import { StorageService } from '../services/StorageService';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
-import handColorsService, { COLOR_PRESETS, SCALE_HIGHLIGHT_PRESETS } from '../services/HandColorsService';
 import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
 import { useDeviceContext } from '../hooks/useDeviceContext';
 
 export function Settings({ isOpen, onClose }) {
     const { isMobile } = useDeviceContext();
-    const [activeTab, setActiveTab] = useState('theme');
-    const [accentPrimary, setAccentPrimary] = useState(themeEngine.getVariable('accent-primary'));
-    const [accentSecondary, setAccentSecondary] = useState(themeEngine.getVariable('accent-secondary'));
+    const [activeTab, setActiveTab] = useState('general');
     const [fontSize, setFontSize] = useState(localStorage.getItem('piano-teacher-font-size') || '16');
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
+    const [currentTheme, setCurrentTheme] = useState(() => themeService.getThemeName());
     const fileInputRef = useRef(null);
-    const themeImportRef = useRef(null);
 
     // Volume
     const [volume, setVolume] = useState(() => audioEngine.getVolumePercent());
@@ -27,17 +24,6 @@ export function Settings({ isOpen, onClose }) {
     const [midiSettings, setMidiSettings] = useState(() => midiInputService.getSettings());
     const [midiSupported, setMidiSupported] = useState(() => midiInputService.isSupported);
     const [showLatencyCalibration, setShowLatencyCalibration] = useState(false);
-
-    // Hand colors state with listener for external changes
-    const [handColors, setHandColors] = useState(() => handColorsService.getColors());
-
-    // Subscribe to hand colors changes (for synchronization with other components)
-    useEffect(() => {
-        const unsubscribe = handColorsService.addListener((colors) => {
-            setHandColors(colors);
-        });
-        return unsubscribe;
-    }, []);
 
     // MIDI effects - refresh data when modal opens
     // This intentionally syncs external service state on modal open - the setState is necessary
@@ -82,12 +68,6 @@ export function Settings({ isOpen, onClose }) {
 
     if (!isOpen) return null;
 
-    const handleThemeColorChange = (variable, value) => {
-        themeEngine.setVariable(variable, value);
-        if (variable === 'accent-primary') setAccentPrimary(value);
-        if (variable === 'accent-secondary') setAccentSecondary(value);
-    };
-
     const handleFontSizeChange = (size) => {
         setFontSize(size);
         document.documentElement.style.fontSize = `${size}px`;
@@ -96,7 +76,6 @@ export function Settings({ isOpen, onClose }) {
 
     const handleFontFamilyChange = (family) => {
         setFontFamily(family);
-        // Mettre à jour la variable CSS --font-family
         document.documentElement.style.setProperty('--font-family', family);
         localStorage.setItem('piano-teacher-font-family', family);
     };
@@ -106,12 +85,12 @@ export function Settings({ isOpen, onClose }) {
             const result = await StorageService.exportLibrary();
             if (result.success && !result.cancelled) {
                 const message = result.path
-                    ? `✅ Bibliothèque exportée avec succès !\n${result.path}`
-                    : '✅ Bibliothèque exportée avec succès !';
+                    ? `Bibliothèque exportée avec succès !\n${result.path}`
+                    : 'Bibliothèque exportée avec succès !';
                 alert(message);
             }
         } catch (error) {
-            alert('❌ Erreur lors de l\'export : ' + error.message);
+            alert('Erreur lors de l\'export : ' + error.message);
         }
     };
 
@@ -125,22 +104,18 @@ export function Settings({ isOpen, onClose }) {
                 const data = JSON.parse(e.target.result);
                 const merge = window.confirm('Voulez-vous fusionner avec votre bibliothèque existante ?\n\nOK = Fusionner\nAnnuler = Remplacer complètement');
                 StorageService.importLibrary(data, merge);
-                alert('✅ Bibliothèque importée avec succès !');
-                window.location.reload(); // Reload to refresh the library
+                alert('Bibliothèque importée avec succès !');
+                window.location.reload();
             } catch (error) {
-                alert('❌ Erreur lors de l\'import : ' + error.message);
+                alert('Erreur lors de l\'import : ' + error.message);
             }
         };
         reader.readAsText(file);
     };
 
-    const handleResetTheme = () => {
-        if (window.confirm('Voulez-vous vraiment réinitialiser le thème par défaut ?')) {
-            themeEngine.resetToDefault();
-            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-            alert('✅ Thème réinitialisé !');
-        }
+    const handleThemeChange = (theme) => {
+        themeService.setTheme(theme);
+        setCurrentTheme(theme);
     };
 
     // MIDI handlers
@@ -164,10 +139,21 @@ export function Settings({ isOpen, onClose }) {
     };
 
     const handleLatencyCalibrationComplete = (compensation) => {
-        // Apply the calibrated latency compensation
         handleMidiSettingChange('latencyCompensation', compensation);
         setShowLatencyCalibration(false);
     };
+
+    const themeToggleBtnStyle = (active) => ({
+        padding: '0.5rem 1.25rem',
+        background: active ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+        color: active ? 'var(--bg-primary)' : 'var(--text-secondary)',
+        border: active ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+        borderRadius: 'var(--radius-md)',
+        cursor: 'pointer',
+        fontSize: '0.9rem',
+        fontWeight: active ? '600' : '400',
+        transition: 'all var(--transition-fast)'
+    });
 
     return (
         <div
@@ -218,7 +204,7 @@ export function Settings({ isOpen, onClose }) {
                         fontWeight: '600',
                         color: 'var(--text-primary)'
                     }}>
-                        ⚙️ Paramètres
+                        Paramètres
                     </h2>
                     <button
                         onClick={onClose}
@@ -245,7 +231,7 @@ export function Settings({ isOpen, onClose }) {
                     </button>
                 </div>
 
-                {/* Tabs - scrollable on mobile */}
+                {/* Tabs */}
                 <div style={{
                     display: 'flex',
                     gap: '0.5rem',
@@ -257,14 +243,9 @@ export function Settings({ isOpen, onClose }) {
                     scrollbarWidth: 'none'
                 }}>
                     <TabButton
-                        active={activeTab === 'theme'}
-                        onClick={() => setActiveTab('theme')}
-                        label="Thème"
-                    />
-                    <TabButton
-                        active={activeTab === 'typography'}
-                        onClick={() => setActiveTab('typography')}
-                        label="Typo"
+                        active={activeTab === 'general'}
+                        onClick={() => setActiveTab('general')}
+                        label="Général"
                     />
                     <TabButton
                         active={activeTab === 'library'}
@@ -276,11 +257,6 @@ export function Settings({ isOpen, onClose }) {
                         onClick={() => setActiveTab('midi')}
                         label={selectedMidiDevice ? 'MIDI \u25CF' : 'MIDI'}
                     />
-                    <TabButton
-                        active={activeTab === 'colors'}
-                        onClick={() => setActiveTab('colors')}
-                        label="Couleurs"
-                    />
                 </div>
 
                 {/* Content */}
@@ -289,7 +265,7 @@ export function Settings({ isOpen, onClose }) {
                     overflowY: 'auto',
                     flex: 1
                 }}>
-                    {activeTab === 'theme' && (
+                    {activeTab === 'general' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg, 1.5rem)' }}>
                             {/* Volume */}
                             <div>
@@ -332,7 +308,7 @@ export function Settings({ isOpen, onClose }) {
                                 </div>
                             </div>
 
-                            {/* Preset Section */}
+                            {/* Theme Toggle */}
                             <div>
                                 <h3 style={{
                                     fontSize: '1.1rem',
@@ -340,227 +316,37 @@ export function Settings({ isOpen, onClose }) {
                                     color: 'var(--text-primary)',
                                     marginBottom: 'var(--spacing-sm, 0.5rem)'
                                 }}>
-                                    Presets
+                                    Thème
                                 </h3>
-                                <p style={{
-                                    fontSize: '0.85rem',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: 'var(--spacing-md, 1rem)'
-                                }}>
-                                    Choisissez un theme preset ou personnalisez les couleurs ci-dessous
-                                </p>
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                                    gap: 'var(--spacing-sm, 0.5rem)'
-                                }}>
-                                    {/* Default preset card */}
-                                    <ThemePresetCard
-                                        label="Default"
-                                        bgColor="#0a0a0a"
-                                        accentColor="#f5f5f5"
-                                        onClick={() => {
-                                            themeEngine.resetToDefault();
-                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                        }}
-                                    />
-                                    {/* Midnight Blue */}
-                                    <ThemePresetCard
-                                        label="Midnight Blue"
-                                        bgColor="#0a0e1a"
-                                        accentColor="#5b7fff"
-                                        onClick={() => {
-                                            themeEngine.applyPreset('midnight-blue');
-                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                        }}
-                                    />
-                                    {/* Forest Green */}
-                                    <ThemePresetCard
-                                        label="Forest Green"
-                                        bgColor="#0a1410"
-                                        accentColor="#4ecb7f"
-                                        onClick={() => {
-                                            themeEngine.applyPreset('forest-green');
-                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                        }}
-                                    />
-                                    {/* Rose Gold */}
-                                    <ThemePresetCard
-                                        label="Rose Gold"
-                                        bgColor="#1a0e12"
-                                        accentColor="#e88ab0"
-                                        onClick={() => {
-                                            themeEngine.applyPreset('rose-gold');
-                                            setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                            setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                        }}
-                                    />
+                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    {themeService.getThemes().map(({ key, name, handLeft, handRight }) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => handleThemeChange(key)}
+                                            style={{
+                                                ...themeToggleBtnStyle(currentTheme === key),
+                                                background: currentTheme === key
+                                                    ? `linear-gradient(135deg, ${handLeft}, ${handRight})`
+                                                    : 'var(--bg-secondary)',
+                                                color: currentTheme === key ? 'white' : 'var(--text-secondary)',
+                                                borderColor: currentTheme === key ? 'transparent' : 'var(--border-color)',
+                                            }}
+                                        >
+                                            <span style={{
+                                                display: 'inline-block',
+                                                width: '8px',
+                                                height: '8px',
+                                                borderRadius: '50%',
+                                                background: `linear-gradient(135deg, ${handLeft}, ${handRight})`,
+                                                marginRight: '0.3rem',
+                                            }} />
+                                            {name}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
-                            {/* Import / Export Section */}
-                            <div style={{
-                                padding: 'var(--spacing-md, 1rem)',
-                                background: 'var(--bg-tertiary)',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <h4 style={{
-                                    fontSize: '0.9rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: 'var(--spacing-sm, 0.5rem)'
-                                }}>
-                                    Import / Export
-                                </h4>
-                                <p style={{
-                                    fontSize: '0.85rem',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: 'var(--spacing-md, 1rem)'
-                                }}>
-                                    Sauvegardez ou chargez un theme personnalise
-                                </p>
-                                <div style={{ display: 'flex', gap: 'var(--spacing-sm, 0.5rem)', flexWrap: 'wrap' }}>
-                                    <button
-                                        onClick={() => themeEngine.exportTheme()}
-                                        style={{
-                                            padding: '0.5rem 1rem',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            border: '1px solid var(--border-color)',
-                                            borderRadius: 'var(--radius-md)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.85rem',
-                                            fontWeight: '500',
-                                            transition: 'all var(--transition-fast)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.4rem'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                                            e.currentTarget.style.background = 'var(--bg-primary)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                                            e.currentTarget.style.background = 'var(--bg-secondary)';
-                                        }}
-                                    >
-                                        Exporter le theme
-                                    </button>
-                                    <input
-                                        ref={themeImportRef}
-                                        type="file"
-                                        accept=".json"
-                                        style={{ display: 'none' }}
-                                        onChange={async (e) => {
-                                            const file = e.target.files[0];
-                                            if (!file) return;
-                                            try {
-                                                await themeEngine.importTheme(file);
-                                                setAccentPrimary(themeEngine.getVariable('accent-primary'));
-                                                setAccentSecondary(themeEngine.getVariable('accent-secondary'));
-                                            } catch (err) {
-                                                alert('Erreur lors de l\'import du theme : ' + err.message);
-                                            }
-                                            // Reset so re-selecting the same file triggers onChange
-                                            e.target.value = '';
-                                        }}
-                                    />
-                                    <button
-                                        onClick={() => themeImportRef.current?.click()}
-                                        style={{
-                                            padding: '0.5rem 1rem',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            border: '1px solid var(--border-color)',
-                                            borderRadius: 'var(--radius-md)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.85rem',
-                                            fontWeight: '500',
-                                            transition: 'all var(--transition-fast)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.4rem'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                                            e.currentTarget.style.background = 'var(--bg-primary)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                                            e.currentTarget.style.background = 'var(--bg-secondary)';
-                                        }}
-                                    >
-                                        Importer un theme
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Color pickers */}
-                            <div>
-                                <h3 style={{
-                                    fontSize: '1.1rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: 'var(--spacing-md, 1rem)'
-                                }}>
-                                    Couleurs du theme
-                                </h3>
-                                <p style={{
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: 'var(--spacing-md, 1rem)'
-                                }}>
-                                    Personnalisez les couleurs d'accent de l'interface
-                                </p>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md, 1rem)' }}>
-                                    <ColorPicker
-                                        label="Couleur primaire"
-                                        value={accentPrimary}
-                                        onChange={(value) => handleThemeColorChange('accent-primary', value)}
-                                    />
-                                    <ColorPicker
-                                        label="Couleur secondaire"
-                                        value={accentSecondary}
-                                        onChange={(value) => handleThemeColorChange('accent-secondary', value)}
-                                    />
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={handleResetTheme}
-                                style={{
-                                    padding: '0.75rem 1.5rem',
-                                    background: 'var(--bg-tertiary)',
-                                    color: 'var(--text-primary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-md)',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    fontWeight: '500',
-                                    transition: 'all var(--transition-fast)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'var(--bg-secondary)';
-                                    e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'var(--bg-tertiary)';
-                                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                                }}
-                            >
-                                Reinitialiser le theme par defaut
-                            </button>
-                        </div>
-                    )}
-
-                    {activeTab === 'typography' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            {/* Typography */}
                             <div>
                                 <h3 style={{
                                     fontSize: '1.1rem',
@@ -640,22 +426,23 @@ export function Settings({ isOpen, onClose }) {
                                         <span>20px</span>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div style={{
-                                padding: '1rem',
-                                background: 'var(--bg-tertiary)',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <p style={{
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    margin: 0,
-                                    fontFamily: fontFamily
+                                <div style={{
+                                    marginTop: '1rem',
+                                    padding: '1rem',
+                                    background: 'var(--bg-tertiary)',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border-color)'
                                 }}>
-                                    Aperçu : Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                                </p>
+                                    <p style={{
+                                        fontSize: '0.9rem',
+                                        color: 'var(--text-secondary)',
+                                        margin: 0,
+                                        fontFamily: fontFamily
+                                    }}>
+                                        Aperçu : Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -707,7 +494,6 @@ export function Settings({ isOpen, onClose }) {
                                             e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                                         }}
                                     >
-                                        <span style={{ fontSize: '1.2rem' }}>📥</span>
                                         Exporter la bibliothèque
                                     </button>
 
@@ -745,7 +531,6 @@ export function Settings({ isOpen, onClose }) {
                                             e.currentTarget.style.borderColor = 'var(--border-color)';
                                         }}
                                     >
-                                        <span style={{ fontSize: '1.2rem' }}>📤</span>
                                         Importer une bibliothèque
                                     </button>
                                 </div>
@@ -763,7 +548,7 @@ export function Settings({ isOpen, onClose }) {
                                     margin: 0,
                                     lineHeight: '1.5'
                                 }}>
-                                    <strong style={{ color: 'var(--text-primary)' }}>💡 Astuce :</strong> Exportez régulièrement votre bibliothèque pour sauvegarder vos morceaux. L'import vous permettra de restaurer ou fusionner vos données.
+                                    <strong style={{ color: 'var(--text-primary)' }}>Astuce :</strong> Exportez régulièrement votre bibliothèque pour sauvegarder vos morceaux. L'import vous permettra de restaurer ou fusionner vos données.
                                 </p>
                             </div>
                         </div>
@@ -793,7 +578,7 @@ export function Settings({ isOpen, onClose }) {
                                             color: 'var(--text-primary)',
                                             margin: 0
                                         }}>
-                                            ❌ <strong>Web MIDI API non supportée</strong><br />
+                                            <strong>Web MIDI API non supportée</strong><br />
                                             Votre navigateur ne supporte pas les claviers MIDI. Essayez Chrome, Edge ou Opera.
                                         </p>
                                     </div>
@@ -901,7 +686,7 @@ export function Settings({ isOpen, onClose }) {
                                                 color: 'var(--text-primary)',
                                                 marginBottom: '1rem'
                                             }}>
-                                                ⚙️ Paramètres avancés
+                                                Paramètres avancés
                                             </h4>
 
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1000,7 +785,7 @@ export function Settings({ isOpen, onClose }) {
                                                                 e.currentTarget.style.opacity = '1';
                                                             }}
                                                         >
-                                                            🎯 Calibration automatique
+                                                            Calibration automatique
                                                         </button>
                                                     )}
                                                     {showLatencyCalibration && (
@@ -1096,7 +881,7 @@ export function Settings({ isOpen, onClose }) {
                                                     color: 'var(--text-primary)',
                                                     marginBottom: '1rem'
                                                 }}>
-                                                    📊 Visualisation en temps réel
+                                                    Visualisation en temps réel
                                                 </h4>
                                                 <MidiVisualizer compact={false} />
                                             </div>
@@ -1104,263 +889,6 @@ export function Settings({ isOpen, onClose }) {
                                     </>
                                 )}
                             </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'colors' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div>
-                                <h3 style={{
-                                    fontSize: '1.1rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: '1rem'
-                                }}>
-                                    Couleurs des mains
-                                </h3>
-                                <p style={{
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: '1rem'
-                                }}>
-                                    Personnalisez les couleurs pour chaque main (utilisées dans l'éditeur et Synthesia)
-                                </p>
-
-                                <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-                                    {/* Main Gauche */}
-                                    <div style={{ flex: 1, minWidth: '200px' }}>
-                                        <h4 style={{
-                                            fontSize: '0.95rem',
-                                            fontWeight: '600',
-                                            color: 'var(--text-primary)',
-                                            marginBottom: '0.75rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.5rem'
-                                        }}>
-                                            <span style={{
-                                                width: '20px',
-                                                height: '20px',
-                                                borderRadius: '4px',
-                                                background: handColors.leftHand.primary
-                                            }}></span>
-                                            Main Gauche (MG)
-                                        </h4>
-                                        <ColorPicker
-                                            label="Couleur principale"
-                                            value={handColors.leftHand.primary}
-                                            onChange={(value) => {
-                                                handColorsService.setHandColors('left', { primary: value, light: value, dark: value });
-                                                setHandColors(handColorsService.getColors());
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Main Droite */}
-                                    <div style={{ flex: 1, minWidth: '200px' }}>
-                                        <h4 style={{
-                                            fontSize: '0.95rem',
-                                            fontWeight: '600',
-                                            color: 'var(--text-primary)',
-                                            marginBottom: '0.75rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.5rem'
-                                        }}>
-                                            <span style={{
-                                                width: '20px',
-                                                height: '20px',
-                                                borderRadius: '4px',
-                                                background: handColors.rightHand.primary
-                                            }}></span>
-                                            Main Droite (MD)
-                                        </h4>
-                                        <ColorPicker
-                                            label="Couleur principale"
-                                            value={handColors.rightHand.primary}
-                                            onChange={(value) => {
-                                                handColorsService.setHandColors('right', { primary: value, light: value, dark: value });
-                                                setHandColors(handColorsService.getColors());
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Swap button */}
-                                <button
-                                    onClick={() => {
-                                        handColorsService.swapHands();
-                                        setHandColors(handColorsService.getColors());
-                                    }}
-                                    style={{
-                                        marginTop: '1rem',
-                                        padding: '0.5rem 1rem',
-                                        background: 'var(--bg-tertiary)',
-                                        color: 'var(--text-primary)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 'var(--radius-md)',
-                                        cursor: 'pointer',
-                                        fontSize: '0.85rem',
-                                        fontWeight: '500'
-                                    }}
-                                >
-                                    🔄 Échanger les couleurs
-                                </button>
-                            </div>
-
-                            {/* Presets */}
-                            <div style={{
-                                padding: '1rem',
-                                background: 'var(--bg-tertiary)',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <h4 style={{
-                                    fontSize: '0.9rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: '0.5rem'
-                                }}>
-                                    💡 Presets de couleurs
-                                </h4>
-                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                    {Object.entries(COLOR_PRESETS).map(([key, preset]) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => {
-                                                handColorsService.applyPreset(key);
-                                                setHandColors(handColorsService.getColors());
-                                            }}
-                                            style={{
-                                                padding: '0.5rem 1rem',
-                                                background: 'var(--bg-secondary)',
-                                                color: 'var(--text-primary)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.85rem',
-                                                fontWeight: '500',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem'
-                                            }}
-                                        >
-                                            <span style={{
-                                                display: 'flex',
-                                                gap: '2px'
-                                            }}>
-                                                <span style={{
-                                                    width: '12px',
-                                                    height: '12px',
-                                                    borderRadius: '2px',
-                                                    background: preset.leftHand.primary
-                                                }}></span>
-                                                <span style={{
-                                                    width: '12px',
-                                                    height: '12px',
-                                                    borderRadius: '2px',
-                                                    background: preset.rightHand.primary
-                                                }}></span>
-                                            </span>
-                                            {preset.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Scale Highlighting */}
-                            <div>
-                                <h3 style={{
-                                    fontSize: '1.1rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: '1rem'
-                                }}>
-                                    Surbrillance de la gamme
-                                </h3>
-                                <p style={{
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: '1rem'
-                                }}>
-                                    Couleur de surbrillance des notes dans la gamme (Piano Roll)
-                                </p>
-
-                                {/* Advanced color picker for scale highlight */}
-                                <ScaleHighlightColorPicker
-                                    value={handColors.scaleHighlight.inScale}
-                                    onChange={(newColor) => {
-                                        handColorsService.setScaleHighlightColors({ inScale: newColor });
-                                        setHandColors(handColorsService.getColors());
-                                    }}
-                                />
-
-                                {/* Presets */}
-                                <div style={{ marginTop: '1rem' }}>
-                                    <p style={{
-                                        fontSize: '0.85rem',
-                                        color: 'var(--text-secondary)',
-                                        marginBottom: '0.5rem'
-                                    }}>
-                                        Presets rapides :
-                                    </p>
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        {Object.entries(SCALE_HIGHLIGHT_PRESETS).map(([key, preset]) => (
-                                            <button
-                                                key={key}
-                                                onClick={() => {
-                                                    handColorsService.applyScaleHighlightPreset(key);
-                                                    setHandColors(handColorsService.getColors());
-                                                }}
-                                                style={{
-                                                    padding: '0.4rem 0.75rem',
-                                                    background: 'var(--bg-secondary)',
-                                                    color: 'var(--text-primary)',
-                                                    border: '1px solid var(--border-color)',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.8rem',
-                                                    fontWeight: '500',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.4rem'
-                                                }}
-                                            >
-                                                <span style={{
-                                                    width: '14px',
-                                                    height: '14px',
-                                                    borderRadius: '2px',
-                                                    background: preset.inScale,
-                                                    border: '1px solid var(--border-color)'
-                                                }}></span>
-                                                {preset.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Reset button */}
-                            <button
-                                onClick={() => {
-                                    if (window.confirm('Voulez-vous vraiment réinitialiser les couleurs par défaut ?')) {
-                                        handColorsService.resetToDefault();
-                                        setHandColors(handColorsService.getColors());
-                                    }
-                                }}
-                                style={{
-                                    padding: '0.75rem 1.5rem',
-                                    background: 'var(--bg-tertiary)',
-                                    color: 'var(--text-primary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-md)',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    fontWeight: '500'
-                                }}
-                            >
-                                🔄 Réinitialiser les couleurs par défaut
-                            </button>
                         </div>
                     )}
                 </div>
@@ -1399,251 +927,5 @@ function TabButton({ active, onClick, label }) {
         >
             {label}
         </button>
-    );
-}
-
-function ColorPicker({ label, value, onChange }) {
-    return (
-        <div>
-            <label style={{
-                display: 'block',
-                fontSize: '0.9rem',
-                fontWeight: '500',
-                color: 'var(--text-primary)',
-                marginBottom: '0.5rem'
-            }}>
-                {label}
-            </label>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <input
-                    type="color"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    style={{
-                        width: '60px',
-                        height: '40px',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        background: 'transparent'
-                    }}
-                />
-                <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    style={{
-                        flex: 1,
-                        padding: '0.5rem 0.75rem',
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.875rem',
-                        fontFamily: 'monospace'
-                    }}
-                />
-            </div>
-        </div>
-    );
-}
-
-function ThemePresetCard({ label, bgColor, accentColor, onClick }) {
-    return (
-        <button
-            onClick={onClick}
-            style={{
-                padding: 'var(--spacing-sm, 0.5rem)',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                cursor: 'pointer',
-                transition: 'all var(--transition-fast)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 'var(--spacing-xs, 0.25rem)'
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-color)';
-                e.currentTarget.style.boxShadow = 'none';
-                e.currentTarget.style.transform = 'translateY(0)';
-            }}
-        >
-            <div style={{
-                width: '100%',
-                height: '36px',
-                borderRadius: 'var(--radius-sm, 4px)',
-                background: bgColor,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                border: '1px solid var(--border-color)'
-            }}>
-                <div style={{
-                    width: '18px',
-                    height: '18px',
-                    borderRadius: '50%',
-                    background: accentColor
-                }} />
-            </div>
-            <span style={{
-                fontSize: '0.8rem',
-                fontWeight: '500',
-                color: 'var(--text-primary)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '100%'
-            }}>
-                {label}
-            </span>
-        </button>
-    );
-}
-
-/**
- * Compact color picker for scale highlighting with color input and opacity slider
- */
-function ScaleHighlightColorPicker({ value, onChange }) {
-    // Parse current rgba value
-    const parseRgba = (rgbaStr) => {
-        const match = rgbaStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-        if (match) {
-            return {
-                r: parseInt(match[1]),
-                g: parseInt(match[2]),
-                b: parseInt(match[3]),
-                a: match[4] !== undefined ? parseFloat(match[4]) : 1
-            };
-        }
-        return { r: 251, g: 191, b: 36, a: 0.15 }; // Default amber
-    };
-
-    // Convert RGB to hex
-    const rgbToHex = (r, g, b) => {
-        return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
-    };
-
-    // Convert hex to RGB
-    const hexToRgb = (hex) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : { r: 251, g: 191, b: 36 };
-    };
-
-    const rgba = parseRgba(value);
-    const hex = rgbToHex(rgba.r, rgba.g, rgba.b);
-
-    const handleColorChange = (newHex) => {
-        const rgb = hexToRgb(newHex);
-        const newColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${rgba.a})`;
-        onChange(newColor);
-    };
-
-    const handleOpacityChange = (newOpacity) => {
-        const newColor = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${newOpacity})`;
-        onChange(newColor);
-    };
-
-    const previewColor = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {/* Color picker row - same style as ColorPicker */}
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <div style={{
-                    position: 'relative',
-                    width: '60px',
-                    height: '40px'
-                }}>
-                    {/* Checkerboard background for transparency preview */}
-                    <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        borderRadius: 'var(--radius-md)',
-                        background: 'repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 10px 10px',
-                        border: '1px solid var(--border-color)'
-                    }} />
-                    {/* Color overlay */}
-                    <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        borderRadius: 'var(--radius-md)',
-                        background: previewColor,
-                        border: '1px solid var(--border-color)'
-                    }} />
-                    <input
-                        type="color"
-                        value={hex}
-                        onChange={(e) => handleColorChange(e.target.value)}
-                        style={{
-                            position: 'absolute',
-                            inset: 0,
-                            width: '100%',
-                            height: '100%',
-                            opacity: 0,
-                            cursor: 'pointer'
-                        }}
-                    />
-                </div>
-                <input
-                    type="text"
-                    value={hex}
-                    onChange={(e) => handleColorChange(e.target.value)}
-                    style={{
-                        width: '90px',
-                        padding: '0.5rem 0.75rem',
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.875rem',
-                        fontFamily: 'monospace'
-                    }}
-                />
-                <span style={{
-                    fontSize: '0.8rem',
-                    color: 'var(--text-secondary)',
-                    fontFamily: 'monospace'
-                }}>
-                    {Math.round(rgba.a * 100)}%
-                </span>
-            </div>
-
-            {/* Opacity slider */}
-            <div>
-                <label style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '0.85rem',
-                    color: 'var(--text-primary)',
-                    marginBottom: '0.25rem'
-                }}>
-                    <span>Opacité</span>
-                </label>
-                <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={Math.round(rgba.a * 100)}
-                    onChange={(e) => handleOpacityChange(parseInt(e.target.value) / 100)}
-                    style={{
-                        width: '100%',
-                        cursor: 'pointer',
-                        accentColor: 'var(--accent-primary)'
-                    }}
-                />
-            </div>
-        </div>
     );
 }

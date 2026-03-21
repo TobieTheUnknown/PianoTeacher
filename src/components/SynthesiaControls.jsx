@@ -1,292 +1,113 @@
 import React, { memo } from 'react';
-import styles from './SynthesiaView.module.css';
 
-/**
- * Composant mémorisé pour les contrôles de SynthesiaView
- * Évite les re-renders inutiles quand seul le canvas change
- */
 const SynthesiaControls = memo(({
-  // Playback controls
-  isPlaying,
-  onPlayPause,
-  onReset,
-  currentTime,
-
-  // Mode controls
-  handMode,
-  setHandMode,
-  waitMode,
-  setWaitMode,
-  freePlayMode,
-  setFreePlayMode,
-
-  // Metronome
-  isMetronomeOn,
-  setIsMetronomeOn,
-  metronomeDivision,
-  setMetronomeDivision,
-
-  // Tempo
-  currentBPM,
-  defaultBPM,
-  onTempoChange,
-
-  // Visual effects
-  visualEffects,
-  setVisualEffects,
-
-  // Loop controls
-  selectedPhraseIndex,
-  // eslint-disable-next-line no-unused-vars
-  setSelectedPhraseIndex,
-  customRangeStart,
-  setCustomRangeStart,
-  customRangeEnd,
-  setCustomRangeEnd,
-  isLoopEnabled,
-  loopConfig,
-  phraseMeasureRanges,
-  totalMeasures,
-  onPhraseSelect,
-  onCustomRangeLoop,
-  onClearLoop
+  isPlaying, onPlayPause, onReset, currentTime,
+  handMode, setHandMode, waitMode, setWaitMode,
+  freePlayMode, setFreePlayMode,
+  isMetronomeOn, setIsMetronomeOn, metronomeDivision, setMetronomeDivision,
+  currentBPM, defaultBPM, onTempoChange,
+  visualEffects, setVisualEffects,
 }) => {
-  const snapTempo = (value) => {
-    const snapPoints = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-    const bpmSnapPoints = snapPoints.map(p => Math.round(defaultBPM * p));
-
-    let closest = bpmSnapPoints[0];
-    let minDiff = Math.abs(value - closest);
-
-    for (let snapBPM of bpmSnapPoints) {
-      const diff = Math.abs(value - snapBPM);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = snapBPM;
-      }
-    }
-
-    return closest;
+  const percentage = Math.round((currentBPM / defaultBPM) * 100);
+  const changeSpeed = (delta) => {
+    const newPct = Math.max(30, Math.min(150, percentage + delta));
+    onTempoChange(Math.round(defaultBPM * newPct / 100));
   };
 
-  const handleTempoSliderChange = (e) => {
-    const value = parseInt(e.target.value);
-    const snapped = snapTempo(value);
-    onTempoChange(snapped);
+  const btn = {
+    padding: '0.3rem 0.5rem',
+    fontSize: '0.75rem',
+    borderRadius: 'var(--radius-md)',
+    cursor: 'pointer',
+    border: '1px solid var(--border-color)',
+    background: 'var(--bg-secondary)',
+    color: 'var(--text-primary)',
+    minHeight: 'auto',
+    fontWeight: 500,
+  };
+  const btnActive = {
+    ...btn,
+    background: 'var(--accent-primary)',
+    color: 'var(--bg-primary)',
+    borderColor: 'var(--accent-primary)',
   };
 
   return (
-    <>
-      {/* Metronome and Tempo Controls */}
-      <div className={styles.controlsPanel}>
-        {/* Metronome Section */}
-        <div className={styles.metronomeSection}>
-          <button
-            onClick={() => setIsMetronomeOn(!isMetronomeOn)}
-            className={`${styles.metronomeButton} ${isMetronomeOn ? styles.active : ''}`}
-            title="Métronome"
-          >
-            ⏰
-          </button>
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.3rem',
+      flexWrap: 'wrap',
+      padding: '0.4rem 0.75rem',
+    }}>
+      {/* Metronome */}
+      <button onClick={() => setIsMetronomeOn(!isMetronomeOn)}
+        style={isMetronomeOn ? { ...btn, background: 'var(--accent-success, #22c55e)', color: 'white', borderColor: 'var(--accent-success, #22c55e)' } : btn}
+        title="Métronome">⏰</button>
 
-          {isMetronomeOn && (
-            <div className={styles.metronomeDivisions}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginRight: '0.25rem' }}>
-                Division:
-              </span>
-              {['measure', 'half-measure', 'beat'].map((division, idx) => {
-                const labels = ['1', '1/2', '1/4'];
-                return (
-                  <button
-                    key={division}
-                    onClick={() => setMetronomeDivision(division)}
-                    className={`${styles.divisionButton} ${metronomeDivision === division ? styles.active : ''}`}
-                  >
-                    {labels[idx]}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      {isMetronomeOn && ['measure', 'half-measure', 'beat'].map((div, i) => {
+        const labels = ['1', '½', '¼'];
+        return (
+          <button key={div} onClick={() => setMetronomeDivision(div)}
+            style={metronomeDivision === div ? btnActive : btn}>{labels[i]}</button>
+        );
+      })}
 
-        {/* Tempo Section */}
-        <div className={styles.tempoSection}>
-          <span className={styles.tempoLabel}>
-            Tempo:
+      <span style={{ width: '1px', height: '18px', background: 'var(--border-color)' }} />
+
+      {/* Speed [-] 100% [+] */}
+      <button onClick={() => changeSpeed(-10)} style={btn}>−</button>
+      <span style={{
+        fontSize: '0.7rem', fontFamily: 'var(--font-mono)',
+        color: percentage === 100 ? 'var(--text-secondary)' : 'var(--accent-primary)',
+        fontWeight: percentage === 100 ? 400 : 600,
+        minWidth: '28px', textAlign: 'center',
+      }}>{percentage}%</span>
+      <button onClick={() => changeSpeed(10)} style={btn}>+</button>
+
+      <span style={{ width: '1px', height: '18px', background: 'var(--border-color)' }} />
+
+      {/* Play / Reset */}
+      <button onClick={onPlayPause} style={isPlaying ? { ...btn, padding: '0.4rem 0.8rem', fontSize: '0.9rem', background: 'var(--accent-primary)', color: 'var(--bg-primary)', borderColor: 'var(--accent-primary)' } : { ...btn, padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
+        {isPlaying ? '⏸' : '▶'}
+      </button>
+      <button onClick={onReset} style={btn} title="Recommencer">🔄</button>
+
+      <span style={{ width: '1px', height: '18px', background: 'var(--border-color)' }} />
+
+      {/* Modes */}
+      <button onClick={() => setHandMode(handMode === 'watch' ? 'both' : 'watch')}
+        style={handMode === 'watch' ? btnActive : btn} title="Écoute/Pratique">
+        {handMode === 'watch' ? '👀' : '🎹'}
+      </button>
+      <button onClick={() => setWaitMode(!waitMode)} style={waitMode ? btnActive : btn} title="Attente/Continue">
+        {waitMode ? '⏸️' : '▶️'}
+      </button>
+      <button onClick={() => setFreePlayMode(!freePlayMode)} style={freePlayMode ? btnActive : btn} title="Libre/Guidé">
+        {freePlayMode ? '🎵' : '🎯'}
+      </button>
+      <button onClick={() => setVisualEffects(!visualEffects)} style={visualEffects ? btnActive : btn} title="Effets">
+        {visualEffects ? '✨' : '⚡'}
+      </button>
+
+      {/* Hand selection (only in practice mode) */}
+      {handMode !== 'watch' && (
+        <>
+          <span style={{ width: '1px', height: '18px', background: 'var(--border-color)' }} />
+          {['left', 'both', 'right'].map((hand) => {
+            const labels = { left: 'MG', both: '2', right: 'MD' };
+            return (
+              <button key={hand} onClick={() => setHandMode(hand)}
+                style={handMode === hand ? btnActive : btn}>{labels[hand]}</button>
+            );
+          })}
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
           </span>
-          <input
-            type="range"
-            min={Math.round(defaultBPM * 0.25)}
-            max={Math.round(defaultBPM * 2)}
-            value={currentBPM}
-            onChange={handleTempoSliderChange}
-            className={styles.tempoSlider}
-          />
-          <span className={styles.tempoDisplay}>
-            {currentBPM} BPM ({Math.round((currentBPM / defaultBPM) * 100)}%)
-          </span>
-        </div>
-      </div>
-
-      {/* Main Controls */}
-      <div className={styles.mainControls}>
-        <div className={styles.leftControls}>
-          <button
-            onClick={onPlayPause}
-            className={styles.playButton}
-          >
-            {isPlaying ? '⏸️ Pause' : '▶️ Jouer'}
-          </button>
-
-          <button
-            onClick={onReset}
-            className={styles.resetButton}
-          >
-            🔄 Recommencer
-          </button>
-
-          <button
-            onClick={() => setHandMode(handMode === 'watch' ? 'both' : 'watch')}
-            className={`${styles.modeButton} ${handMode === 'watch' ? styles.active : ''}`}
-            title="Basculer entre mode écoute et mode pratique"
-          >
-            {handMode === 'watch' ? '👀 Écoute' : '🎹 Pratique'}
-          </button>
-
-          <button
-            onClick={() => setWaitMode(!waitMode)}
-            className={`${styles.modeButton} ${waitMode ? styles.active : ''}`}
-          >
-            {waitMode ? '⏸️ Attente' : '⏸️ Continue'}
-          </button>
-
-          <button
-            onClick={() => setFreePlayMode(!freePlayMode)}
-            className={`${styles.modeButton} ${freePlayMode ? styles.active : ''}`}
-            title="Mode libre : jouez sans contrainte, pas de notes manquées"
-          >
-            {freePlayMode ? '🎵 Libre' : '🎯 Guidé'}
-          </button>
-
-          <button
-            onClick={() => setVisualEffects(!visualEffects)}
-            className={`${styles.modeButton} ${visualEffects ? styles.active : ''}`}
-            title="Activer/désactiver les effets visuels (glow, ombres). Désactiver améliore les performances."
-          >
-            {visualEffects ? '✨ Effets' : '⚡ Perf'}
-          </button>
-        </div>
-
-        {/* Hand Selection */}
-        {handMode !== 'watch' && (
-          <div className={styles.handSelection}>
-            <span className={styles.handLabel}>
-              Main:
-            </span>
-            <div className={styles.handButtons}>
-              {['left', 'both', 'right'].map((hand) => {
-                const labels = { left: 'Gauche', both: 'Les deux', right: 'Droite' };
-                return (
-                  <button
-                    key={hand}
-                    onClick={() => setHandMode(hand)}
-                    className={`${styles.handButton} ${handMode === hand ? styles.active : ''}`}
-                  >
-                    {labels[hand]}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className={styles.timeDisplay}>
-              {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Navigation & Loop Controls */}
-      <div className={styles.navigationControls}>
-        {/* Phrase Selector */}
-        <div className={styles.phraseSelector}>
-          <label className={styles.selectorLabel}>
-            Phrase / Section
-          </label>
-          <select
-            value={selectedPhraseIndex}
-            onChange={onPhraseSelect}
-            className={styles.select}
-          >
-            <option value="">Sélectionner une phrase...</option>
-            {phraseMeasureRanges.map((phrase, index) => (
-              <option key={index} value={index}>
-                {phrase.name} (mesures {phrase.startMeasure}-{phrase.endMeasure})
-              </option>
-            ))}
-            <option value="custom">--- Range personnalisé ---</option>
-          </select>
-        </div>
-
-        {/* Custom Range Selector */}
-        {selectedPhraseIndex === 'custom' && (
-          <>
-            <div className={styles.customRangeInputs}>
-              <label className={styles.selectorLabel}>
-                De la mesure
-              </label>
-              <input
-                type="number"
-                min="1"
-                max={totalMeasures}
-                value={customRangeStart}
-                onChange={(e) => setCustomRangeStart(e.target.value)}
-                placeholder="1"
-                className={styles.rangeInput}
-              />
-            </div>
-            <div className={styles.customRangeInputs}>
-              <label className={styles.selectorLabel}>
-                À la mesure
-              </label>
-              <input
-                type="number"
-                min={customRangeStart || "1"}
-                max={totalMeasures}
-                value={customRangeEnd}
-                onChange={(e) => setCustomRangeEnd(e.target.value)}
-                placeholder={totalMeasures.toString()}
-                className={styles.rangeInput}
-              />
-            </div>
-            <button
-              onClick={onCustomRangeLoop}
-              disabled={!customRangeStart || !customRangeEnd}
-              className={styles.loopButton}
-            >
-              🔁 Loop
-            </button>
-          </>
-        )}
-
-        {/* Clear Loop Button */}
-        {isLoopEnabled && (
-          <button
-            onClick={onClearLoop}
-            className={styles.clearLoopButton}
-          >
-            ❌ Arrêter
-          </button>
-        )}
-
-        {/* Current Loop Info */}
-        {isLoopEnabled && loopConfig && (
-          <div className={styles.loopInfo}>
-            🔁 {loopConfig.name || `Mesures ${loopConfig.startMeasure}-${loopConfig.endMeasure}`}
-          </div>
-        )}
-      </div>
-    </>
+        </>
+      )}
+    </div>
   );
 });
 

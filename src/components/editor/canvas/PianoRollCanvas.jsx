@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useRef, useState, memo, useMemo } from 'react';
 import { useCanvasLayers } from '../../../hooks/useCanvasLayers';
-import handColorsService from '../../../services/HandColorsService';
+import themeService from '../../../services/ThemeService';
 import {
     drawGrid,
     drawPianoKeys,
@@ -171,7 +171,7 @@ const PianoRollCanvas = memo(({
 
     // Subscribe to hand color changes to trigger redraw
     useEffect(() => {
-        const unsubscribe = handColorsService.addListener(() => {
+        const unsubscribe = themeService.addListener(() => {
             markStaticDirty();  // Grid colors (scale highlighting)
             markDynamicDirty(); // Note colors
         });

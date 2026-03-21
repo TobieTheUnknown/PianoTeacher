@@ -76,6 +76,19 @@
 
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+
+  /* Hand Colors */
+  --hand-left: #3b82f6;
+  --hand-left-light: #60a5fa;
+  --hand-left-dark: #2563eb;
+  --hand-left-selected: #93c5fd;
+  --hand-right: #f43f5e;
+  --hand-right-light: #fb7185;
+  --hand-right-dark: #e11d48;
+  --hand-right-selected: #fda4af;
+  --hand-both: #10b981;
+  --scale-in: rgba(251, 191, 36, 0.15);
+  --scale-out: rgba(30, 30, 40, 0.25);
 }
 
 html {

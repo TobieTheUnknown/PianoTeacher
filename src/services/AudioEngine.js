@@ -158,16 +158,18 @@ class AudioEngine {
             duration: n.duration
         })));
 
-        this._currentPart.start(0);
-
-        if (this.metronomeEnabled && this.metronomeLoop) {
-            this.metronomeLoop.start(0);
-        }
-
+        // Set transport position FIRST (before starting Part)
         let startSeconds = 0;
         if (startPositionBeats !== null && startPositionBeats > 0) {
             startSeconds = (startPositionBeats * 60) / tempo;
             Tone.Transport.seconds = startSeconds;
+        }
+
+        // THEN start Part and Transport
+        this._currentPart.start(0);
+
+        if (this.metronomeEnabled && this.metronomeLoop) {
+            this.metronomeLoop.start(0);
         }
 
         Tone.Transport.start();
@@ -272,6 +274,11 @@ class AudioEngine {
     setTempo(bpm) {
         if (!Tone) return;
         Tone.Transport.bpm.value = bpm;
+    }
+
+    getTransportSeconds() {
+        if (!Tone) return 0;
+        return Tone.Transport.seconds;
     }
 
     stop() {
