@@ -799,6 +799,24 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
     );
   }
 
+  // Desktop-only state (must be declared before any conditional returns)
+  const currentMeasure = Math.floor(currentTime * beatsPerSecond / 4) + 1;
+  const canvasSizeRef = useRef(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 800 });
+
+  useEffect(() => {
+    const el = canvasSizeRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) {
+        setCanvasSize({ width: Math.round(width), height: Math.round(height) });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Mobile fullscreen layout
   if (isMobile) {
     return (
@@ -851,23 +869,6 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
   }
 
   // Desktop layout
-  const currentMeasure = Math.floor(currentTime * beatsPerSecond / 4) + 1;
-  const canvasSizeRef = useRef(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 800 });
-
-  useEffect(() => {
-    const el = canvasSizeRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) {
-        setCanvasSize({ width: Math.round(width), height: Math.round(height) });
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <div style={{
       display: 'flex',

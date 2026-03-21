@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import themeService from '../../services/ThemeService';
 
 const MEASURE_WIDTH_MOBILE = 90;
@@ -17,10 +17,18 @@ export const CoordinationTimeline = React.memo(function CoordinationTimeline({
     const rowHeight = isMobile ? ROW_HEIGHT_MOBILE : ROW_HEIGHT_DESKTOP;
     const noteFontSize = isMobile ? NOTE_FONT_MOBILE : NOTE_FONT_DESKTOP;
 
-    const colors = useMemo(() => ({
+    const [colors, setColors] = useState(() => ({
         left: themeService.getHandColors('left').primary,
         right: themeService.getHandColors('right').primary,
-    }), []);
+    }));
+
+    useEffect(() => {
+        const update = () => setColors({
+            left: themeService.getHandColors('left').primary,
+            right: themeService.getHandColors('right').primary,
+        });
+        return themeService.addListener(update);
+    }, []);
 
     // Scroll to follow the selected/playing measure
     useEffect(() => {

@@ -99,20 +99,6 @@ const STYLES = {
         transition: 'all var(--transition-fast)',
         zIndex: 2,
     },
-    timelineBar: {
-        marginTop: '1rem',
-        height: '4px',
-        backgroundColor: 'var(--bg-primary)',
-        position: 'relative',
-        borderRadius: '2px',
-    },
-    timelineDotBase: {
-        position: 'absolute',
-        width: '10px',
-        height: '10px',
-        borderRadius: '50%',
-        border: '2px solid var(--bg-tertiary)',
-    },
     tipCard: {
         display: 'flex',
         gap: '0.75rem',
@@ -634,13 +620,21 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
     const measureRefs = useRef({});
     const playbackIntervalRef = useRef(null);
-    const playbackStartRef = useRef(null);
+    const playingMeasureRef = useRef(-1);
 
     // Hand colors from settings
-    const handColors = useMemo(() => ({
+    const [handColors, setHandColors] = useState(() => ({
         left: themeService.getHandColors('left').primary,
         right: themeService.getHandColors('right').primary,
-    }), []);
+    }));
+
+    useEffect(() => {
+        const update = () => setHandColors({
+            left: themeService.getHandColors('left').primary,
+            right: themeService.getHandColors('right').primary,
+        });
+        return themeService.addListener(update);
+    }, []);
 
     // Reset BPM when song changes
     useEffect(() => {
@@ -708,34 +702,15 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
     // Group measures by phrase, then by 4 within each phrase
     const phrasesWithGroups = useMemo(() => {
-        if (!song || !song.phrases || song.phrases.length === 0) {
-            return [];
-        }
+        if (!analysis || !song?.phrases) return [];
 
         const result = [];
-        let currentPhraseIndex = 0;
+        let measureIdx = 0;
 
         song.phrases.forEach((phrase, phraseIdx) => {
-            const phraseMeasures = getMeasuresFromPhrase(phrase);
-
-            const measures = phraseMeasures.map((measure, idx) => {
-                const chordGroups = groupNotesByTime(measure.chords);
-                const isArpeggio = chordGroups.length >= 2 && chordGroups.every(g => g.notes.length === 1);
-                const motifInfo = isArpeggio ? detectArpeggioMotifs(chordGroups, song.key) : null;
-                const detectedChord = motifInfo ? motifInfo.chord : null;
-                return {
-                    number: currentPhraseIndex + idx + 1,
-                    chordGroups,
-                    melodyCount: measure.melody.length,
-                    hasChord: chordGroups.length > 0,
-                    melody: measure.melody,
-                    sortedMelody: [...measure.melody].sort((a, b) => a.startTime - b.startTime),
-                    chords: measure.chords,
-                    isArpeggio,
-                    detectedChord,
-                    motifInfo
-                };
-            });
+            const phraseMeasureCount = phrase.length;
+            const measures = analysis.measures.slice(measureIdx, measureIdx + phraseMeasureCount);
+            measureIdx += phraseMeasureCount;
 
             const groups = [];
             for (let i = 0; i < measures.length; i += 4) {
@@ -747,12 +722,10 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 phraseIndex: phraseIdx,
                 groups
             });
-
-            currentPhraseIndex += phraseMeasures.length;
         });
 
         return result;
-    }, [song]);
+    }, [analysis, song]);
 
     // ── Stable callbacks ──────────────────────────────────────────────────────
 
@@ -793,15 +766,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
         };
     }, [song]);
 
-    // Flat list of all notes for hand filtering
-    const allPlaybackNotes = useMemo(() => {
-        if (!combinedPhrase) return [];
-        return [
-            ...combinedPhrase.tracks.melody.map(n => ({ ...n, trackName: 'melody' })),
-            ...combinedPhrase.tracks.chords.map(n => ({ ...n, trackName: 'chords' })),
-        ];
-    }, [combinedPhrase]);
-
     const handlePlayMeasure = useCallback(async (measure, hand = 'both') => {
         setFocusedMeasure(measure.number);
         await audioEngine.initialize();
@@ -837,6 +801,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
             if (currentMsr > endMeasure) {
                 // End of playback
                 if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+                playingMeasureRef.current = -1;
                 setPlayingMeasure(-1);
                 setIsPlaying(false);
                 audioEngine.stop();
@@ -844,13 +809,11 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 return;
             }
 
-            setPlayingMeasure(prev => {
-                if (prev !== currentMsr) {
-                    setFocusedMeasure(currentMsr);
-                    return currentMsr;
-                }
-                return prev;
-            });
+            if (currentMsr !== playingMeasureRef.current) {
+                playingMeasureRef.current = currentMsr;
+                setPlayingMeasure(currentMsr);
+                setFocusedMeasure(currentMsr);
+            }
         }, 200);
     }, [currentBPM]);
 
@@ -861,6 +824,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
             if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
             setIsPlaying(false);
             setPlayingMeasure(-1);
+            playingMeasureRef.current = -1;
         } else {
             if (!combinedPhrase || !analysis) return;
             await audioEngine.initialize();
@@ -892,6 +856,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     () => {
                         // onPlaybackEnd callback
                         setIsPlaying(false);
+                        playingMeasureRef.current = -1;
                         setPlayingMeasure(-1);
                         if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
                     },
@@ -926,6 +891,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
         if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
         setIsPlaying(false);
         setPlayingMeasure(-1);
+        playingMeasureRef.current = -1;
     }, []);
 
     // Cleanup on unmount

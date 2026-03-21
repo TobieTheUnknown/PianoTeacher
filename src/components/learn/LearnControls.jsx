@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import themeService from '../../services/ThemeService';
 
 const SEGMENT_COLORS = [
@@ -37,10 +37,18 @@ const LearnControls = memo(function LearnControls({
     isMetronomeOn,
     onToggleMetronome,
 }) {
-    const colors = useMemo(() => ({
+    const [colors, setColors] = useState(() => ({
         left: themeService.getHandColors('left').primary,
         right: themeService.getHandColors('right').primary,
-    }), []);
+    }));
+
+    useEffect(() => {
+        const update = () => setColors({
+            left: themeService.getHandColors('left').primary,
+            right: themeService.getHandColors('right').primary,
+        });
+        return themeService.addListener(update);
+    }, []);
 
     const percentage = Math.round((currentBPM / defaultBPM) * 100);
 
