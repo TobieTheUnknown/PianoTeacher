@@ -1,58 +1,27 @@
-# 🚀 Piano Teacher v1.5.5 - Optimizations Release
+# Piano Teacher v4.2.0
 
-## ✨ What's New
+## Mode Apprentissage
+- Timeline scrollable avec noms de notes (MG/MD) et suivi de lecture en temps réel
+- Contrôles compacts : play/stop, MG/2/MD, vitesse (%), loop, métronome avec préroll
+- Barre de structure du morceau avec curseur de position
+- Cartes de mesures avec badges colorés par main, hauteur uniforme
+- Liseré lumineux sur la mesure en cours, auto-scroll centré
 
-This release includes major performance and architecture improvements!
+## Mode Synthésia
+- Timeline/looper pinné en haut avec bouton Loop
+- Contrôles compacts pinnés en bas (une ligne)
+- Canvas adaptatif, clavier réduit
+- Vitesse par pourcentage
 
-### Phase 1: Performance Optimizations (3x faster)
-- ✅ Canvas rendering optimized with layers (60 FPS stable)
-- ✅ React components memoized (-90% re-renders)
-- ✅ CSS modules for cleaner code
-- ✅ Vite build optimizations (vendor chunks)
+## Thèmes
+- 7 thèmes : Sombre, Clair, Bleu Nuit, Forêt, Rose Doré, Océan, Crépuscule
+- Couleurs MG/MD unifiées via CSS variables
 
-### Phase 2: Architecture Improvements
-- ✅ Context API (eliminates props drilling)
-- ✅ Lazy loading (-70% initial bundle size)
-- ✅ Error boundaries (robust error handling)
-- ✅ Professional loading states
+## Audio
+- Lecture continue sans gap (playPhrase + Transport Tone.js)
+- Métronome avec préroll 4 temps
 
-## 📊 Performance Improvements
-
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| FPS | 30-40 | 60 stable | +50-100% ✅ |
-| Initial Load | 1200ms | 400ms | -67% ✅ |
-| Bundle Size | 620 kB | 180 kB | -70% ✅ |
-| Re-renders | 100-200/s | 5-10/s | -95% ✅ |
-| Memory | 150-200 MB | 70-90 MB | -55% ✅ |
-
-**Overall: 3-4x better performance!** 🎉
-
-## 📦 Downloads
-
-### Desktop Applications
-- **macOS**: Download the `.dmg` file
-- **Windows**: Download the `.exe` installer
-- **Linux**: Download the `.AppImage` or `.deb` file
-
-### Web Version
-- The web app is included in the `web-dist` artifact
-
-## 📚 Documentation
-
-See the following documentation files for details:
-- `OPTIMIZATIONS_COMPLETE.md` - Complete overview
-- `OPTIMIZATIONS_README.md` - Quick start guide
-- `MIGRATION_GUIDE.md` - Migration guide
-- `PHASE2_OPTIMIZATIONS.md` - Phase 2 details
-
-## 🔧 Technical Details
-
-- 19 files optimized
-- +6,114 lines of optimized code
-- 7 commits with improvements
-- Full backward compatibility maintained
-
-## 🙏 Credits
-
-Optimizations developed with Claude Code
+## Téléchargements
+- **macOS** : fichier `.dmg`
+- **Windows** : installeur `.exe`
+- **Android** : fichier `.apk`
