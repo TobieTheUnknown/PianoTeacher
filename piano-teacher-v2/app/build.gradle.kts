@@ -9,6 +9,9 @@ plugins {
 android {
     namespace = "com.tobietheunknown.pianoteacher"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
+    // NDK/CMake disabled until x86_64 build env available
+    // ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.tobietheunknown.pianoteacher"
@@ -20,16 +23,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
-        }
-
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-                arguments += "-DANDROID_STL=c++_shared"
-            }
-        }
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
@@ -54,13 +47,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
     }
 
     packaging {
@@ -97,9 +83,6 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
-
-    // Oboe (audio low-latency)
-    implementation(libs.oboe)
 
     // DataStore
     implementation(libs.datastore.preferences)
