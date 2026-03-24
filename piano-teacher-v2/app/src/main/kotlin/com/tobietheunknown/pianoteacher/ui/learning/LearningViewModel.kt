@@ -259,20 +259,23 @@ class LearningViewModel(
             PlaybackHand.BOTH  -> (measure.melodyNotes + measure.chordNotes)
         }.sortedBy { it.startTime }
 
-        for (note in notes) {
-            val targetMs = (note.startTime * beatMs).toLong()
-            val elapsed = System.currentTimeMillis() - startTime
-            val wait = targetMs - elapsed
-            if (wait > 0) delay(wait)
-            if (!isActive) { audioEngine.noteOff(-1); return }
-            audioEngine.noteOn(note.pitch)
-        }
+        try {
+            for (note in notes) {
+                val targetMs = (note.startTime * beatMs).toLong()
+                val elapsed = System.currentTimeMillis() - startTime
+                val wait = targetMs - elapsed
+                if (wait > 0) delay(wait)
+                audioEngine.noteOn(note.pitch)
+            }
 
-        // Hold until end of measure then release all
-        val elapsed = System.currentTimeMillis() - startTime
-        val hold = (measureDurationMs - elapsed).coerceAtLeast(0)
-        if (hold > 0) delay(hold)
-        audioEngine.noteOff(-1)
+            // Hold until end of measure
+            val elapsed = System.currentTimeMillis() - startTime
+            val hold = (measureDurationMs - elapsed).coerceAtLeast(0)
+            if (hold > 0) delay(hold)
+        } finally {
+            // Always release notes, even if the coroutine is cancelled
+            audioEngine.noteOff(-1)
+        }
     }
 
     override fun onCleared() {

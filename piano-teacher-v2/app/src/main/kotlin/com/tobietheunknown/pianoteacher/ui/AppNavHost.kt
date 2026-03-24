@@ -84,9 +84,6 @@ fun AppNavHost(intent: Intent? = null) {
             val songId = backStack.arguments?.getString("songId") ?: return@composable
             LearningScreen(
                 songId = songId,
-                onPlayPhrase = { phraseIndex ->
-                    navController.navigate(Screen.Synthesia.route(songId, phraseIndex))
-                },
                 onBack = { navController.popBackStack() }
             )
         }
