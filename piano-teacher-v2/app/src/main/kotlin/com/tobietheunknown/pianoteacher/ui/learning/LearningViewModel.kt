@@ -4,26 +4,31 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.tobietheunknown.pianoteacher.audio.AudioEngine
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Phrase
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.data.repository.SongRepository
 import com.tobietheunknown.pianoteacher.utils.ChordInfo
 import com.tobietheunknown.pianoteacher.utils.detectChordOrArpeggio
-import com.tobietheunknown.pianoteacher.utils.midiToFrench
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-// ─── Measure-level data structures ────────────────────────────────────────────
+// ─── Enums & data structures ──────────────────────────────────────────────────
+
+enum class PlaybackHand { LEFT, BOTH, RIGHT }
 
 data class MeasureData(
-    val index: Int,                    // 0-based within phrase
+    val index: Int,           // 0-based within phrase
     val phraseIndex: Int,
-    val melodyNotes: List<NoteEvent>,  // times relative to measure start
-    val chordNotes: List<NoteEvent>,   // times relative to measure start
-    val melodyNames: List<String>,     // distinct French names of melody pitches
-    val chordInfo: ChordInfo?,         // detected chord (or arpeggio)
-    val measureStart: Double           // beat offset within phrase
+    val globalIndex: Int,     // flat index across all measures in the song
+    val melodyNotes: List<NoteEvent>,
+    val chordNotes: List<NoteEvent>,
+    val chordInfo: ChordInfo?,
+    val measureStart: Double  // beat offset within phrase
 )
 
 data class PhraseSectionData(
@@ -37,7 +42,8 @@ data class PhraseSectionData(
 
 class LearningViewModel(
     private val repo: SongRepository,
-    private val songId: String
+    private val songId: String,
+    private val audioEngine: AudioEngine
 ) : ViewModel() {
 
     val song: StateFlow<Song?> = flow {
@@ -45,16 +51,61 @@ class LearningViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), null)
 
     private val _masteredPhrases = MutableStateFlow<Set<String>>(emptySet())
-    val masteredPhrases: StateFlow<Set<String>> = _masteredPhrases.asStateFlow()
 
     val sections: StateFlow<List<PhraseSectionData>> = song
         .filterNotNull()
         .combine(_masteredPhrases) { s, mastered -> buildSections(s, mastered) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
 
+    /** Flat list of all measures across all phrases, in order */
+    val allMeasures: StateFlow<List<MeasureData>> = sections
+        .map { secs -> secs.flatMap { it.measures } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
+
+    // ─── Playback state ───────────────────────────────────────────────────────
+
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    /** Global measure index currently playing, -1 if stopped */
+    private val _playingMeasureIndex = MutableStateFlow(-1)
+    val playingMeasureIndex: StateFlow<Int> = _playingMeasureIndex.asStateFlow()
+
+    /** Global measure index currently focused (for navigation) */
+    private val _focusedMeasureIndex = MutableStateFlow(0)
+    val focusedMeasureIndex: StateFlow<Int> = _focusedMeasureIndex.asStateFlow()
+
+    private val _playbackHand = MutableStateFlow(PlaybackHand.BOTH)
+    val playbackHand: StateFlow<PlaybackHand> = _playbackHand.asStateFlow()
+
+    private val _tempoPercent = MutableStateFlow(1.0f)
+    val tempoPercent: StateFlow<Float> = _tempoPercent.asStateFlow()
+
+    private val _isLooping = MutableStateFlow(false)
+    val isLooping: StateFlow<Boolean> = _isLooping.asStateFlow()
+
+    private val _loopStart = MutableStateFlow(0)
+    val loopStart: StateFlow<Int> = _loopStart.asStateFlow()
+
+    private val _loopEnd = MutableStateFlow(0)
+    val loopEnd: StateFlow<Int> = _loopEnd.asStateFlow()
+
+    // ─── UI state ─────────────────────────────────────────────────────────────
+
+    private val _showDetails = MutableStateFlow(false)
+    val showDetails: StateFlow<Boolean> = _showDetails.asStateFlow()
+
+    private val _showOctaves = MutableStateFlow(false)
+    val showOctaves: StateFlow<Boolean> = _showOctaves.asStateFlow()
+
+    private var playbackJob: Job? = null
+
     init {
         viewModelScope.launch { _masteredPhrases.value = repo.getMasteredPhrases(songId) }
+        audioEngine.start()
     }
+
+    // ─── UI actions ───────────────────────────────────────────────────────────
 
     fun toggleMastered(phraseId: String) {
         val updated = _masteredPhrases.value.let {
@@ -64,10 +115,177 @@ class LearningViewModel(
         viewModelScope.launch { repo.updateMasteredPhrases(songId, updated) }
     }
 
-    // ─── Measure computation ──────────────────────────────────────────────────
+    fun setHand(hand: PlaybackHand) { _playbackHand.value = hand }
+
+    fun adjustTempo(delta: Float) {
+        _tempoPercent.value = (_tempoPercent.value + delta).coerceIn(0.3f, 1.5f)
+    }
+
+    fun toggleLoop() {
+        val enabling = !_isLooping.value
+        _isLooping.value = enabling
+        if (enabling) {
+            val total = allMeasures.value.size
+            if (total > 0) {
+                val start = _focusedMeasureIndex.value.coerceIn(0, total - 1)
+                _loopStart.value = start
+                _loopEnd.value = (start + 7).coerceIn(start, total - 1)
+            }
+        }
+    }
+
+    fun setLoopRange(start: Int, end: Int) {
+        val total = allMeasures.value.size
+        _loopStart.value = start.coerceIn(0, total - 1)
+        _loopEnd.value = end.coerceIn(start, total - 1)
+    }
+
+    fun toggleDetails() { _showDetails.value = !_showDetails.value }
+    fun toggleOctaves() { _showOctaves.value = !_showOctaves.value }
+    fun focusMeasure(globalIdx: Int) { _focusedMeasureIndex.value = globalIdx }
+
+    // ─── Playback ─────────────────────────────────────────────────────────────
+
+    /** Global Play/Pause: plays from the beginning of the song (loops if enabled) */
+    fun play() {
+        if (_isPlaying.value) { pause(); return }
+        val s = song.value ?: return
+        val measures = allMeasures.value
+        if (measures.isEmpty()) return
+
+        cancelPlayback()
+        _isPlaying.value = true
+
+        playbackJob = viewModelScope.launch {
+            var idx = 0
+
+            while (isActive) {
+                val lo = _loopStart.value
+                val hi = _loopEnd.value.coerceAtMost(measures.size - 1)
+
+                if (_isLooping.value && (idx < lo || idx > hi)) idx = lo
+                if (idx >= measures.size) break
+
+                _playingMeasureIndex.value = idx
+                _focusedMeasureIndex.value = idx
+
+                playMeasureAudio(s, measures[idx])
+
+                if (_isLooping.value && idx >= hi) {
+                    idx = lo
+                } else {
+                    idx++
+                }
+            }
+
+            _isPlaying.value = false
+            _playingMeasureIndex.value = -1
+        }
+    }
+
+    fun pause() {
+        cancelPlayback()
+        audioEngine.noteOff(-1)
+    }
+
+    fun stop() {
+        cancelPlayback()
+        _focusedMeasureIndex.value = 0
+        audioEngine.noteOff(-1)
+    }
+
+    /** Tap on measure card → plays just that single measure, then stops */
+    fun playMeasureSingle(globalIdx: Int) {
+        val s = song.value ?: return
+        val measures = allMeasures.value
+        if (globalIdx !in measures.indices) return
+
+        cancelPlayback()
+        _isPlaying.value = true
+        _focusedMeasureIndex.value = globalIdx
+
+        playbackJob = viewModelScope.launch {
+            _playingMeasureIndex.value = globalIdx
+            playMeasureAudio(s, measures[globalIdx])
+            _isPlaying.value = false
+            _playingMeasureIndex.value = -1
+        }
+    }
+
+    /** Play button on phrase header → plays the full phrase then stops */
+    fun playPhrase(phraseIdx: Int) {
+        val s = song.value ?: return
+        val secs = sections.value
+        if (phraseIdx !in secs.indices) return
+
+        cancelPlayback()
+        _isPlaying.value = true
+
+        playbackJob = viewModelScope.launch {
+            val measures = allMeasures.value
+            val section = secs[phraseIdx]
+            val globalStart = section.measures.firstOrNull()?.globalIndex ?: return@launch
+            val globalEnd = section.measures.lastOrNull()?.globalIndex ?: return@launch
+
+            _focusedMeasureIndex.value = globalStart
+
+            for (idx in globalStart..globalEnd) {
+                if (!isActive) break
+                _playingMeasureIndex.value = idx
+                _focusedMeasureIndex.value = idx
+                playMeasureAudio(s, measures.getOrNull(idx) ?: break)
+            }
+
+            _isPlaying.value = false
+            _playingMeasureIndex.value = -1
+        }
+    }
+
+    private fun cancelPlayback() {
+        playbackJob?.cancel()
+        playbackJob = null
+        _isPlaying.value = false
+        _playingMeasureIndex.value = -1
+    }
+
+    private suspend fun playMeasureAudio(song: Song, measure: MeasureData) {
+        val beatMs = 60_000.0 / (song.tempo * _tempoPercent.value)
+        val measureDurationMs = (song.beatsPerMeasure * beatMs).toLong()
+        val startTime = System.currentTimeMillis()
+
+        val notes = when (_playbackHand.value) {
+            PlaybackHand.LEFT  -> measure.chordNotes
+            PlaybackHand.RIGHT -> measure.melodyNotes
+            PlaybackHand.BOTH  -> (measure.melodyNotes + measure.chordNotes)
+        }.sortedBy { it.startTime }
+
+        for (note in notes) {
+            val targetMs = (note.startTime * beatMs).toLong()
+            val elapsed = System.currentTimeMillis() - startTime
+            val wait = targetMs - elapsed
+            if (wait > 0) delay(wait)
+            if (!isActive) { audioEngine.noteOff(-1); return }
+            audioEngine.noteOn(note.pitch)
+        }
+
+        // Hold until end of measure then release all
+        val elapsed = System.currentTimeMillis() - startTime
+        val hold = (measureDurationMs - elapsed).coerceAtLeast(0)
+        if (hold > 0) delay(hold)
+        audioEngine.noteOff(-1)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        cancelPlayback()
+        audioEngine.release()
+    }
+
+    // ─── Data building ────────────────────────────────────────────────────────
 
     private fun buildSections(song: Song, mastered: Set<String>): List<PhraseSectionData> {
         val bpm = song.beatsPerMeasure.toDouble()
+        var globalIdx = 0
         return song.phrases.mapIndexed { phraseIndex, phrase ->
             val measures = (0 until phrase.length).map { mi ->
                 val start = mi * bpm
@@ -88,14 +306,12 @@ class LearningViewModel(
                     )
                 } else null
 
-                val melodyNames = melody.map { midiToFrench(it.pitch, showOctave = false) }.distinct()
-
                 MeasureData(
                     index = mi,
                     phraseIndex = phraseIndex,
+                    globalIndex = globalIdx++,
                     melodyNotes = melody,
                     chordNotes = chords,
-                    melodyNames = melodyNames,
                     chordInfo = chordInfo,
                     measureStart = start
                 )
@@ -106,7 +322,9 @@ class LearningViewModel(
 
     class Factory(private val context: Context, private val songId: String) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            LearningViewModel(SongRepository(context), songId) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            val engine = AudioEngine(context.applicationContext)
+            return LearningViewModel(SongRepository(context), songId, engine) as T
+        }
     }
 }
