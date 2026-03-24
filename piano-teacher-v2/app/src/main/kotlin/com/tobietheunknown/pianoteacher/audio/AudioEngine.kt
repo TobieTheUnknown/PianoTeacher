@@ -7,7 +7,10 @@ import android.media.MediaFormat
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 
@@ -20,7 +23,8 @@ import java.nio.ByteBuffer
  */
 class AudioEngine(context: Context? = null) {
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
     private var enabled = true
     private var nativeAvailable = false
 
@@ -106,7 +110,7 @@ class AudioEngine(context: Context? = null) {
     }
 
     fun release() {
-        scope.coroutineContext[SupervisorJob()]?.cancel()
+        job.cancel()
         sineEngine.release()
         if (nativeAvailable) {
             try { nativeStop() } catch (_: Exception) { }
@@ -209,4 +213,81 @@ class AudioEngine(context: Context? = null) {
     private external fun nativeNoteOff(pitch: Int)
     private external fun nativeLoadSample(midiNote: Int, pcm: FloatArray, sampleRate: Int, channels: Int)
     private external fun nativeSetReady()
+}
+
+// ─── Sine wave fallback ───────────────────────────────────────────────────────
+
+private class SineEngine {
+    private val sampleRate = 48000
+    private val bufferSize = android.media.AudioTrack.getMinBufferSize(
+        sampleRate,
+        android.media.AudioFormat.CHANNEL_OUT_STEREO,
+        android.media.AudioFormat.ENCODING_PCM_FLOAT
+    ).coerceAtLeast(1024)
+
+    private var track: android.media.AudioTrack? = null
+    private var engineJob: kotlinx.coroutines.Job? = null
+    private val voices = mutableMapOf<Int, Voice>()
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    data class Voice(val pitch: Int, var amplitude: Float, var phase: Float = 0f)
+
+    fun start(): Boolean = try {
+        track = android.media.AudioTrack.Builder()
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .setAudioFormat(
+                android.media.AudioFormat.Builder()
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_STEREO)
+                    .setEncoding(android.media.AudioFormat.ENCODING_PCM_FLOAT)
+                    .build()
+            )
+            .setBufferSizeInBytes(bufferSize * 4)
+            .setTransferMode(android.media.AudioTrack.MODE_STREAM)
+            .build()
+        track?.play()
+        engineJob = scope.launch {
+            val buffer = FloatArray(bufferSize / 2)
+            while (kotlinx.coroutines.isActive) {
+                synchronized(voices) {
+                    val active = voices.values.toList()
+                    for (i in buffer.indices step 2) {
+                        var sample = 0f
+                        active.forEach { v ->
+                            sample += v.amplitude * kotlin.math.sin(v.phase.toDouble()).toFloat()
+                            v.phase += 2f * Math.PI.toFloat() * midiToFreq(v.pitch) / sampleRate
+                            if (v.phase > 2f * Math.PI.toFloat()) v.phase -= 2f * Math.PI.toFloat()
+                        }
+                        sample = sample.coerceIn(-1f, 1f)
+                        buffer[i] = sample; buffer[i + 1] = sample
+                    }
+                }
+                track?.write(buffer, 0, buffer.size, android.media.AudioTrack.WRITE_BLOCKING)
+            }
+        }
+        true
+    } catch (e: Exception) { false }
+
+    fun noteOn(pitch: Int, velocity: Int) {
+        synchronized(voices) { voices[pitch] = Voice(pitch, (velocity / 127f) * 0.25f) }
+    }
+
+    fun noteOff(pitch: Int) {
+        synchronized(voices) { if (pitch < 0) voices.clear() else voices.remove(pitch) }
+    }
+
+    fun stop() {
+        engineJob?.cancel()
+        track?.stop(); track?.release(); track = null
+        synchronized(voices) { voices.clear() }
+    }
+
+    fun release() { scope.cancel(); stop() }
+
+    private fun midiToFreq(midi: Int): Float = 440f * Math.pow(2.0, (midi - 69) / 12.0).toFloat()
 }
