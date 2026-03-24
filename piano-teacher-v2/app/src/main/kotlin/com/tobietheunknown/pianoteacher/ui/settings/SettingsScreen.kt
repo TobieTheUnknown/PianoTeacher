@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,7 +39,7 @@ fun SettingsScreen(
                 title = { Text("Réglages", color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
@@ -56,7 +58,7 @@ fun SettingsScreen(
                 ToggleSetting(
                     label = "Son activé",
                     subtitle = "Joue les samples Salamander via Oboe",
-                    icon = Icons.Default.VolumeUp,
+                    icon = Icons.AutoMirrored.Filled.VolumeUp,
                     checked = prefs.audioEnabled,
                     onToggle = vm::setAudioEnabled
                 )

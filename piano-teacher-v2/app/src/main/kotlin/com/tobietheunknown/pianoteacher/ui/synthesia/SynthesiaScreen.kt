@@ -2,10 +2,14 @@ package com.tobietheunknown.pianoteacher.ui.synthesia
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.NavigateBefore
+import androidx.compose.material.icons.automirrored.filled.NavigateNext
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,7 +20,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,6 +47,7 @@ fun SynthesiaScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
+            .safeDrawingPadding()
     ) {
         SynthesiaTopBar(
             title = state.song?.title ?: "",
@@ -60,10 +64,7 @@ fun SynthesiaScreen(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            SynthesiaCanvas(
-                state = state,
-                onSeek = { beat -> vm.seekToBeat(beat) }
-            )
+            SynthesiaCanvas(state = state)
 
             // Empty state overlay
             val totalNotes = state.song?.phrases
@@ -124,22 +125,8 @@ fun SynthesiaScreen(
 }
 
 @Composable
-private fun SynthesiaCanvas(
-    state: SynthesiaUiState,
-    onSeek: (Double) -> Unit
-) {
-    Canvas(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    // Tap seeks to the tapped beat position
-                    val beatsPerPixel = size.height.toDouble() / VISIBLE_BEATS
-                    val tappedBeat = state.currentBeat + (size.height - offset.y) / beatsPerPixel
-                    onSeek(tappedBeat.coerceIn(0.0, state.totalBeats))
-                }
-            }
-    ) {
+private fun SynthesiaCanvas(state: SynthesiaUiState) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
         val canvasWidth = size.width
         val canvasHeight = size.height
         val noteRangeSize = MIDI_HIGH - MIDI_LOW + 1
@@ -289,7 +276,7 @@ private fun SynthesiaTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -309,14 +296,14 @@ private fun SynthesiaTopBar(
         if (phraseIndex >= 0 && phraseCount > 1) {
             IconButton(onClick = onPrev, enabled = phraseIndex > 0) {
                 Icon(
-                    Icons.Default.NavigateBefore,
+                    Icons.AutoMirrored.Filled.NavigateBefore,
                     "Phrase précédente",
                     tint = if (phraseIndex > 0) Color.White else Color(0xFF334155)
                 )
             }
             IconButton(onClick = onNext, enabled = phraseIndex < phraseCount - 1) {
                 Icon(
-                    Icons.Default.NavigateNext,
+                    Icons.AutoMirrored.Filled.NavigateNext,
                     "Phrase suivante",
                     tint = if (phraseIndex < phraseCount - 1) Color.White else Color(0xFF334155)
                 )
@@ -454,7 +441,7 @@ private fun SynthesiaControls(
                 // Audio toggle
                 IconButton(onClick = onAudioToggle) {
                     Icon(
-                        if (audioEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                        if (audioEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
                         "Audio",
                         tint = if (audioEnabled) Color(0xFF94A3B8) else Color(0xFF475569),
                         modifier = Modifier.size(20.dp)

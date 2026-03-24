@@ -30,7 +30,7 @@ class LibraryViewModel(private val repo: SongRepository) : ViewModel() {
             _importState.value = ImportState.Loading
             _importState.value = when (val result = repo.importFromUri(uri)) {
                 is SongRepository.ImportResult.Success ->
-                    ImportState.Success("« ${result.song.title} » importé")
+                    ImportState.Success("« ${result.song.title} » importé · ${result.song.phrases.size} phrases")
                 is SongRepository.ImportResult.MultiSuccess ->
                     ImportState.Success("${result.songs.size} morceaux importés")
                 is SongRepository.ImportResult.Error ->

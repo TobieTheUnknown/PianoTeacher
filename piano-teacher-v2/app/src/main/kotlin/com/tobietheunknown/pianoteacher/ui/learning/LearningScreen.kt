@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,7 +50,7 @@ fun LearningScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
@@ -57,21 +58,45 @@ fun LearningScreen(
         }
     ) { padding ->
         song?.let { s ->
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(padding)
-            ) {
-                item { SongHeader(song = s) }
+            if (s.phrases.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.MusicOff,
+                            null,
+                            modifier = Modifier.size(48.dp),
+                            tint = Color(0xFF334155)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text("Aucune phrase trouvée", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Supprime ce morceau et réimporte-le",
+                            fontSize = 12.sp,
+                            color = Color(0xFF475569)
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(padding)
+                ) {
+                    item { SongHeader(song = s) }
 
-                itemsIndexed(s.phrases) { index, phrase ->
-                    PhraseCard(
-                        phrase = phrase,
-                        index = index,
-                        isMastered = phrase.id in masteredPhrases,
-                        onPlay = { onPlayPhrase(index) },
-                        onToggleMastered = { vm.toggleMastered(phrase.id) }
-                    )
+                    itemsIndexed(s.phrases) { index, phrase ->
+                        PhraseCard(
+                            phrase = phrase,
+                            index = index,
+                            isMastered = phrase.id in masteredPhrases,
+                            onPlay = { onPlayPhrase(index) },
+                            onToggleMastered = { vm.toggleMastered(phrase.id) }
+                        )
+                    }
                 }
             }
         } ?: Box(
