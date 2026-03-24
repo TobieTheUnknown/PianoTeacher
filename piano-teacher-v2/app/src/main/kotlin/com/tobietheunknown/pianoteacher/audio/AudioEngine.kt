@@ -253,7 +253,7 @@ private class SineEngine {
         track?.play()
         engineJob = scope.launch {
             val buffer = FloatArray(bufferSize / 2)
-            while (kotlinx.coroutines.isActive) {
+            while (isActive) {
                 synchronized(voices) {
                     val active = voices.values.toList()
                     for (i in buffer.indices step 2) {
