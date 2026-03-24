@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.time.Instant
 
@@ -40,7 +42,7 @@ class SongRepository(private val context: Context) {
 
     suspend fun updateMasteredPhrases(songId: String, masteredPhraseIds: Set<String>) =
         withContext(Dispatchers.IO) {
-            dao.updateMasteredPhrases(songId, Json.encodeToString<List<String>>(masteredPhraseIds.toList()))
+            dao.updateMasteredPhrases(songId, Json.encodeToString(ListSerializer(String.serializer()), masteredPhraseIds.toList()))
         }
 
     // ─── Import ───────────────────────────────────────────────────────────────

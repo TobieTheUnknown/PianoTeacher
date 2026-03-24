@@ -4,6 +4,8 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 // ─── Core models (mirrors Piano Teacher v1 JSON format) ───────────────────────
@@ -95,8 +97,8 @@ fun Song.toEntity() = SongEntity(
     keyMode = key.mode,
     timeSignatureNumerator = timeSignature.numerator,
     timeSignatureDenominator = timeSignature.denominator,
-    phrasesJson = Json.encodeToString<List<Phrase>>(phrases),
-    highlightedMeasures = Json.encodeToString<List<Int>>(highlightedMeasures),
+    phrasesJson = Json.encodeToString(ListSerializer(Phrase.serializer()), phrases),
+    highlightedMeasures = Json.encodeToString(ListSerializer(Int.serializer()), highlightedMeasures),
     createdAt = createdAt
 )
 
@@ -107,8 +109,8 @@ fun SongEntity.toDomain() = Song(
     key = KeySignature(keyNote, keyMode),
     tempo = tempo,
     timeSignature = TimeSignature(timeSignatureNumerator, timeSignatureDenominator),
-    phrases = Json.decodeFromString(phrasesJson),
-    highlightedMeasures = Json.decodeFromString(highlightedMeasures),
+    phrases = Json.decodeFromString(ListSerializer(Phrase.serializer()), phrasesJson),
+    highlightedMeasures = Json.decodeFromString(ListSerializer(Int.serializer()), highlightedMeasures),
     createdAt = createdAt
 )
 
