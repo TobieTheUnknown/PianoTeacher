@@ -10,8 +10,7 @@ android {
     namespace = "com.tobietheunknown.pianoteacher"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
-    // NDK/CMake disabled until x86_64 build env available
-    // ndkVersion = "27.2.12479018"
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.tobietheunknown.pianoteacher"
@@ -24,6 +23,17 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += "-DANDROID_STL=c++_shared"
+            }
+        }
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -33,6 +43,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 
@@ -88,6 +105,9 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+
+    // Oboe (low-latency audio)
+    implementation(libs.oboe)
 
     // Debug
     debugImplementation(libs.compose.ui.tooling)
