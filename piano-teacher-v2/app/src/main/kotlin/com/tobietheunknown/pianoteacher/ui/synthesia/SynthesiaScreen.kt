@@ -18,6 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -66,6 +69,7 @@ fun SynthesiaScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .clipToBounds()
         ) {
             SynthesiaCanvas(state = state)
 
@@ -103,6 +107,8 @@ fun SynthesiaScreen(
             pressedKeys = state.pressedKeys,
             expectedKeys = state.expectedKeys,
             wrongKeys = state.wrongKeys,
+            minPitch = state.minPitch,
+            maxPitch = state.maxPitch,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(80.dp)
@@ -113,6 +119,7 @@ fun SynthesiaScreen(
             isLooping = state.isLooping,
             isWaitMode = state.isWaitMode,
             audioEnabled = state.audioEnabled,
+            metronomeEnabled = state.metronomeEnabled,
             playbackSpeed = state.playbackSpeed,
             currentBeat = state.currentBeat,
             totalBeats = state.totalBeats,
@@ -123,6 +130,7 @@ fun SynthesiaScreen(
             onLoopToggle = vm::toggleLoop,
             onWaitModeToggle = vm::toggleWaitMode,
             onAudioToggle = vm::toggleAudio,
+            onMetronomeToggle = vm::toggleMetronome,
             onSeek = vm::seekToBeat,
             onHandChange = vm::setHand
         )
@@ -131,41 +139,93 @@ fun SynthesiaScreen(
 
 @Composable
 private fun SynthesiaCanvas(state: SynthesiaUiState) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
+    // Pre-allocate Paint object outside the draw loop to avoid per-frame allocation
+    val noteTextPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = 28f // will be overridden with sp below
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+    }
+    val measureTextPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.argb(100, 255, 255, 255)
+            textSize = 24f
+            textAlign = android.graphics.Paint.Align.LEFT
+            isAntiAlias = true
+        }
+    }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val noteTextSizePx = with(density) { 10.sp.toPx() }
+    val measureTextSizePx = with(density) { 9.sp.toPx() }
+    val minNoteHeightForText = with(density) { 16.dp.toPx() }
+    val textOffsetY = with(density) { 4.dp.toPx() }
+    val thickStroke = with(density) { 2.dp.toPx() }
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { }
+    ) {
         val canvasWidth = size.width
         val canvasHeight = size.height
-        val noteRangeSize = MIDI_HIGH - MIDI_LOW + 1
+        val minPitch = state.minPitch
+        val maxPitch = state.maxPitch
+        val noteRangeSize = maxPitch - minPitch + 1
         val noteWidth = canvasWidth / noteRangeSize
         val beatsPerPixel = canvasHeight / VISIBLE_BEATS
 
-        // Measure grid lines
+        // Measure and beat grid lines
         state.song?.let { song ->
             val bpm = song.beatsPerMeasure.toDouble()
-            val firstMeasure = (state.currentBeat / bpm).toInt() - 1
-            val lastMeasure = ((state.currentBeat + VISIBLE_BEATS) / bpm).toInt() + 1
+            val firstBeat = (state.currentBeat - 1.0).toInt()
+            val lastBeat = (state.currentBeat + VISIBLE_BEATS + 1.0).toInt()
 
-            for (measure in firstMeasure..lastMeasure) {
-                val measureBeat = measure.toDouble() * bpm
-                val y = canvasHeight - ((measureBeat - state.currentBeat) * beatsPerPixel).toFloat()
+            for (beatIndex in firstBeat..lastBeat) {
+                val beatValue = beatIndex.toDouble()
+                val y = canvasHeight - ((beatValue - state.currentBeat) * beatsPerPixel).toFloat()
                 if (y in 0f..canvasHeight) {
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.07f),
-                        start = Offset(0f, y),
-                        end = Offset(canvasWidth, y),
-                        strokeWidth = 1f
-                    )
+                    val isMeasureBoundary = beatIndex >= 0 && beatIndex % song.beatsPerMeasure == 0
+                    if (isMeasureBoundary) {
+                        // Measure boundary: thicker line, higher alpha
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.15f),
+                            start = Offset(0f, y),
+                            end = Offset(canvasWidth, y),
+                            strokeWidth = thickStroke
+                        )
+                        // Draw measure number on the left
+                        val measureNum = beatIndex / song.beatsPerMeasure + 1
+                        measureTextPaint.textSize = measureTextSizePx
+                        drawContext.canvas.nativeCanvas.drawText(
+                            "$measureNum",
+                            4f,
+                            y - 4f,
+                            measureTextPaint
+                        )
+                    } else {
+                        // Regular beat line
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.05f),
+                            start = Offset(0f, y),
+                            end = Offset(canvasWidth, y),
+                            strokeWidth = 1f
+                        )
+                    }
                 }
             }
         }
 
         // Falling notes (top = future, bottom = hit zone)
+        noteTextPaint.textSize = noteTextSizePx
         state.visibleNotes.forEach { noteWithHand ->
             val note = noteWithHand.note
             val baseColor = if (noteWithHand.isRightHand) CyanMelody else PinkChords
             // Auto-play (backing track) notes are dimmer
             val color = if (noteWithHand.isAutoPlay) baseColor.copy(alpha = 0.35f) else baseColor
 
-            val noteIndex = note.pitch - MIDI_LOW
+            val noteIndex = note.pitch - minPitch
             if (noteIndex < 0 || noteIndex >= noteRangeSize) return@forEach
 
             val x = noteIndex * noteWidth
@@ -181,6 +241,17 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
                 size = Size(noteWidth - 2f, noteHeight),
                 cornerRadius = CornerRadius(3f, 3f)
             )
+
+            // French note name on falling notes (only if note is tall enough)
+            if (noteBottom - noteTop > minNoteHeightForText) {
+                val noteName = com.tobietheunknown.pianoteacher.utils.midiToFrench(noteWithHand.note.pitch, showOctave = false)
+                drawContext.canvas.nativeCanvas.drawText(
+                    noteName,
+                    x + noteWidth / 2f,
+                    noteTop + (noteBottom - noteTop) / 2f + textOffsetY,
+                    noteTextPaint
+                )
+            }
         }
 
         // Hit line (indigo) at bottom
@@ -198,16 +269,18 @@ private fun PianoKeyboard(
     pressedKeys: Set<Int>,
     expectedKeys: Set<Int>,
     wrongKeys: Set<Int>,
+    minPitch: Int = 21,
+    maxPitch: Int = 108,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier.background(Color(0xFF0D0F14))) {
-        val noteCount = MIDI_HIGH - MIDI_LOW + 1
+        val noteCount = maxPitch - minPitch + 1
         val keyWidth = size.width / noteCount
         val keyHeight = size.height
 
         // White keys first
         for (i in 0 until noteCount) {
-            val midi = MIDI_LOW + i
+            val midi = minPitch + i
             if (isBlackKey(midi)) continue
 
             val x = i * keyWidth
@@ -233,7 +306,7 @@ private fun PianoKeyboard(
 
         // Black keys on top
         for (i in 0 until noteCount) {
-            val midi = MIDI_LOW + i
+            val midi = minPitch + i
             if (!isBlackKey(midi)) continue
 
             val x = i * keyWidth - keyWidth * 0.3f
@@ -344,6 +417,7 @@ private fun SynthesiaControls(
     isLooping: Boolean,
     isWaitMode: Boolean,
     audioEnabled: Boolean,
+    metronomeEnabled: Boolean,
     playbackSpeed: Float,
     currentBeat: Double,
     totalBeats: Double,
@@ -354,6 +428,7 @@ private fun SynthesiaControls(
     onLoopToggle: () -> Unit,
     onWaitModeToggle: () -> Unit,
     onAudioToggle: () -> Unit,
+    onMetronomeToggle: () -> Unit,
     onSeek: (Double) -> Unit,
     onHandChange: (PlaybackHand) -> Unit
 ) {
@@ -436,6 +511,15 @@ private fun SynthesiaControls(
 
             // Right: toggles
             Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                // Metronome toggle
+                IconButton(onClick = onMetronomeToggle) {
+                    Text(
+                        "\u2669",
+                        color = if (metronomeEnabled) AmberWarning else Color(0xFF475569),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 // Wait mode toggle
                 IconButton(onClick = onWaitModeToggle) {
                     Icon(

@@ -24,6 +24,9 @@ interface SongDao {
 
     @Query("UPDATE songs SET masteredPhrases = :masteredJson WHERE id = :id")
     suspend fun updateMasteredPhrases(id: String, masteredJson: String)
+
+    @Query("UPDATE songs SET title = :title WHERE id = :id")
+    suspend fun updateTitle(id: String, title: String)
 }
 
 @Database(entities = [SongEntity::class], version = 1, exportSchema = false)

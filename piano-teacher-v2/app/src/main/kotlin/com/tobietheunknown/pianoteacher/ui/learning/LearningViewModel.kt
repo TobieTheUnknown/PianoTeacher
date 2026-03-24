@@ -46,9 +46,8 @@ class LearningViewModel(
     private val audioEngine: AudioEngine
 ) : ViewModel() {
 
-    val song: StateFlow<Song?> = flow {
-        emit(repo.getSong(songId))
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), null)
+    private val _song = MutableStateFlow<Song?>(null)
+    val song: StateFlow<Song?> = _song.asStateFlow()
 
     private val _masteredPhrases = MutableStateFlow<Set<String>>(emptySet())
 
@@ -101,7 +100,10 @@ class LearningViewModel(
     private var playbackJob: Job? = null
 
     init {
-        viewModelScope.launch { _masteredPhrases.value = repo.getMasteredPhrases(songId) }
+        viewModelScope.launch {
+            _song.value = repo.getSong(songId)
+            _masteredPhrases.value = repo.getMasteredPhrases(songId)
+        }
         audioEngine.start()
     }
 
@@ -253,21 +255,22 @@ class LearningViewModel(
         val measureDurationMs = (song.beatsPerMeasure * beatMs).toLong()
         val startTime = System.currentTimeMillis()
 
-        // Build note list: selected hand at full velocity, other hand as backing track
+        // Build note list based on hand selection:
+        // BOTH → play NOTHING (user plays everything via MIDI)
+        // LEFT → play only melody (right hand backing)
+        // RIGHT → play only chords (left hand backing)
         data class PlayNote(val note: NoteEvent, val velocity: Int)
 
         val hand = _playbackHand.value
         val notes = when (hand) {
             PlaybackHand.LEFT -> {
-                measure.chordNotes.map { PlayNote(it, 80) } +
-                measure.melodyNotes.map { PlayNote(it, 35) }  // backing track
+                measure.melodyNotes.map { PlayNote(it, 80) }  // right hand backing
             }
             PlaybackHand.RIGHT -> {
-                measure.melodyNotes.map { PlayNote(it, 80) } +
-                measure.chordNotes.map { PlayNote(it, 35) }   // backing track
+                measure.chordNotes.map { PlayNote(it, 80) }   // left hand backing
             }
             PlaybackHand.BOTH -> {
-                (measure.melodyNotes + measure.chordNotes).map { PlayNote(it, 80) }
+                emptyList()  // no auto-play, user plays everything
             }
         }.sortedBy { it.note.startTime }
 
@@ -288,6 +291,64 @@ class LearningViewModel(
             // Always release notes, even if the coroutine is cancelled
             audioEngine.noteOff(-1)
         }
+    }
+
+    // ─── Song & Phrase editing ───────────────────────────────────────────────
+
+    fun renameSong(newTitle: String) {
+        val s = song.value ?: return
+        _song.value = s.copy(title = newTitle)
+        viewModelScope.launch { repo.updateSongTitle(songId, newTitle) }
+    }
+
+    fun renamePhrase(phraseIndex: Int, newName: String) {
+        val s = song.value ?: return
+        val newPhrases = s.phrases.toMutableList()
+        if (phraseIndex !in newPhrases.indices) return
+        newPhrases[phraseIndex] = newPhrases[phraseIndex].copy(name = newName)
+        val updatedSong = s.copy(phrases = newPhrases)
+        _song.value = updatedSong
+        viewModelScope.launch { repo.updateSong(updatedSong) }
+    }
+
+    fun splitPhraseAtMeasure(globalMeasureIdx: Int, newPhraseName: String?) {
+        val s = song.value ?: return
+        val measures = allMeasures.value
+        val measure = measures.getOrNull(globalMeasureIdx) ?: return
+        val phraseIdx = measure.phraseIndex
+        val localMeasureIdx = measure.index
+        if (localMeasureIdx == 0) return // Can't split at first measure
+
+        val phrase = s.phrases[phraseIdx]
+        val bpm = s.beatsPerMeasure.toDouble()
+        val splitBeat = localMeasureIdx * bpm
+
+        // Split melody and chords
+        val firstMelody = phrase.tracks.melody.filter { it.startTime < splitBeat }
+        val secondMelody = phrase.tracks.melody.filter { it.startTime >= splitBeat }
+            .map { it.copy(startTime = it.startTime - splitBeat) }
+        val firstChords = phrase.tracks.chords.filter { it.startTime < splitBeat }
+        val secondChords = phrase.tracks.chords.filter { it.startTime >= splitBeat }
+            .map { it.copy(startTime = it.startTime - splitBeat) }
+
+        val firstPhrase = phrase.copy(
+            length = localMeasureIdx,
+            tracks = phrase.tracks.copy(melody = firstMelody, chords = firstChords)
+        )
+        val secondPhrase = phrase.copy(
+            id = java.util.UUID.randomUUID().toString(),
+            name = newPhraseName ?: "Phrase ${phraseIdx + 2}",
+            length = phrase.length - localMeasureIdx,
+            tracks = phrase.tracks.copy(melody = secondMelody, chords = secondChords)
+        )
+
+        val newPhrases = s.phrases.toMutableList()
+        newPhrases[phraseIdx] = firstPhrase
+        newPhrases.add(phraseIdx + 1, secondPhrase)
+
+        val updatedSong = s.copy(phrases = newPhrases)
+        _song.value = updatedSong
+        viewModelScope.launch { repo.updateSong(updatedSong) }
     }
 
     override fun onCleared() {

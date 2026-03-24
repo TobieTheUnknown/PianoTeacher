@@ -50,6 +50,14 @@ class SongRepository(private val context: Context) {
             dao.updateMasteredPhrases(songId, Json.encodeToString(ListSerializer(String.serializer()), masteredPhraseIds.toList()))
         }
 
+    suspend fun updateSong(song: Song) = withContext(Dispatchers.IO) {
+        dao.insertSong(song.toEntity()) // REPLACE on conflict
+    }
+
+    suspend fun updateSongTitle(songId: String, title: String) = withContext(Dispatchers.IO) {
+        dao.updateTitle(songId, title)
+    }
+
     // ─── Import ───────────────────────────────────────────────────────────────
 
     sealed class ImportResult {

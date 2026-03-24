@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.tobietheunknown.pianoteacher.audio.AudioEngine
+import com.tobietheunknown.pianoteacher.audio.MetronomeEngine
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Phrase
 import com.tobietheunknown.pianoteacher.data.model.Song
@@ -39,7 +40,10 @@ data class SynthesiaUiState(
     val isWaiting: Boolean = false,         // currently waiting for key input
     val playbackSpeed: Float = 1.0f,
     val audioEnabled: Boolean = true,
-    val selectedHand: PlaybackHand = PlaybackHand.BOTH
+    val selectedHand: PlaybackHand = PlaybackHand.BOTH,
+    val metronomeEnabled: Boolean = false,
+    val minPitch: Int = 21,
+    val maxPitch: Int = 108
 )
 
 class SynthesiaViewModel(
@@ -53,9 +57,11 @@ class SynthesiaViewModel(
     private val _state = MutableStateFlow(SynthesiaUiState())
     val state: StateFlow<SynthesiaUiState> = _state.asStateFlow()
 
+    private val metronome = MetronomeEngine()
     private var playbackJob: Job? = null
     private var pausedAtBeat: Double = 0.0
     private var startTimeMs: Long = 0L
+    private var lastMetronomeBeat = -1
 
     // Cached flattened note lists for full-song mode (Phase 2 perf)
     private var cachedAllMelody: List<NoteEvent>? = null
@@ -83,13 +89,22 @@ class SynthesiaViewModel(
                 cachedAllChords = allChords.sortedBy { it.startTime }
             }
 
+            // Compute dynamic keyboard range from all pitches in the song
+            val allMelody = if (phrase != null) phrase.tracks.melody else song.phrases.flatMap { it.tracks.melody }
+            val allChords = if (phrase != null) phrase.tracks.chords else song.phrases.flatMap { it.tracks.chords }
+            val allPitches = (allMelody + allChords).map { it.pitch }
+            val minPitch = ((allPitches.minOrNull() ?: 21) - 2).coerceIn(21, 108)
+            val maxPitch = ((allPitches.maxOrNull() ?: 108) + 2).coerceIn(21, 108)
+
             _state.update {
                 it.copy(
                     song = song,
                     currentPhraseIndex = initialPhraseIndex,
                     currentPhrase = phrase,
                     songPhraseCount = song.phrases.size,
-                    totalBeats = totalBeats
+                    totalBeats = totalBeats,
+                    minPitch = minPitch,
+                    maxPitch = maxPitch
                 )
             }
             updateVisibleNotes(0.0)
@@ -149,10 +164,24 @@ class SynthesiaViewModel(
 
     private fun play() {
         pausedAtBeat = _state.value.currentBeat
-        startTimeMs = System.currentTimeMillis()
-        _state.update { it.copy(isPlaying = true, isWaiting = false) }
+        lastMetronomeBeat = -1
 
         playbackJob = viewModelScope.launch {
+            // Metronome preroll: play 1 measure of clicks before starting
+            if (_state.value.metronomeEnabled) {
+                val bpm = _state.value.song?.tempo ?: 120
+                val speed = _state.value.playbackSpeed
+                val beatMs = (60_000.0 / bpm / speed).toLong()
+                val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
+                for (i in 0 until beatsPerMeasure) {
+                    metronome.playClick(i == 0)
+                    delay(beatMs)
+                }
+            }
+
+            startTimeMs = System.currentTimeMillis()
+            _state.update { it.copy(isPlaying = true, isWaiting = false) }
+
             while (isActive) {
                 val bpm = _state.value.song?.tempo ?: 120
                 val speed = _state.value.playbackSpeed
@@ -184,6 +213,7 @@ class SynthesiaViewModel(
                         pausedAtBeat = 0.0
                         startTimeMs = System.currentTimeMillis()
                         triggeredNotes.clear()
+                        pendingNoteOffs.clear()
                     } else {
                         _state.update { it.copy(currentBeat = totalBeats, isPlaying = false, isWaiting = false) }
                         // Auto-advance to next phrase if in phrase-per-phrase mode
@@ -202,8 +232,21 @@ class SynthesiaViewModel(
                     updateVisibleNotes(currentBeat)
                     updateExpectedKeys(currentBeat)
                     triggerAutoNotes(currentBeat)
+
+                    // Metronome
+                    if (_state.value.metronomeEnabled) {
+                        val beatInt = kotlin.math.floor(currentBeat).toInt()
+                        if (beatInt != lastMetronomeBeat && beatInt >= 0) {
+                            lastMetronomeBeat = beatInt
+                            val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
+                            metronome.playClick(beatInt % beatsPerMeasure == 0)
+                        }
+                    }
                 }
-                delay(16) // ~60fps — reduced from 8ms to lower CPU usage
+                // Yield then short delay for smooth ~60fps without busy-waiting
+                // Wall-clock timing handles accurate beat positioning
+                yield()
+                delay(8)
             }
         }
     }
@@ -211,6 +254,7 @@ class SynthesiaViewModel(
     private fun pause() {
         playbackJob?.cancel()
         pausedAtBeat = _state.value.currentBeat
+        lastMetronomeBeat = -1
         _state.update { it.copy(isPlaying = false, isWaiting = false) }
         _state.value.visibleNotes.filter { it.isActive }.forEach {
             audioEngine.noteOff(it.note.pitch)
@@ -220,6 +264,8 @@ class SynthesiaViewModel(
     fun restart() {
         pause()
         triggeredNotes.clear()
+        pendingNoteOffs.clear()
+        lastMetronomeBeat = -1
         _state.update { it.copy(currentBeat = 0.0) }
         pausedAtBeat = 0.0
         updateVisibleNotes(0.0)
@@ -229,6 +275,7 @@ class SynthesiaViewModel(
         val wasPlaying = _state.value.isPlaying
         pause()
         triggeredNotes.clear()
+        pendingNoteOffs.clear()
         pausedAtBeat = beat
         _state.update { it.copy(currentBeat = beat) }
         updateVisibleNotes(beat)
@@ -254,6 +301,10 @@ class SynthesiaViewModel(
         val newEnabled = !_state.value.audioEnabled
         _state.update { it.copy(audioEnabled = newEnabled) }
         audioEngine.setEnabled(newEnabled)
+    }
+
+    fun toggleMetronome() {
+        _state.update { it.copy(metronomeEnabled = !it.metronomeEnabled) }
     }
 
     fun setHand(hand: PlaybackHand) {
@@ -282,6 +333,7 @@ class SynthesiaViewModel(
         val phrase = song.phrases.getOrNull(index) ?: return
         pause()
         triggeredNotes.clear()
+        pendingNoteOffs.clear()
         val totalBeats = phrase.length.toDouble() * song.beatsPerMeasure
         _state.update {
             it.copy(
@@ -299,32 +351,40 @@ class SynthesiaViewModel(
 
     private val triggeredNotes = mutableSetOf<String>()
 
+    /** Pending note-offs: (pitch, endBeat) — processed in the main playback loop */
+    private data class PendingNoteOff(val pitch: Int, val endBeat: Double)
+    private val pendingNoteOffs = mutableListOf<PendingNoteOff>()
+
     private fun triggerAutoNotes(currentBeat: Double) {
         if (!_state.value.audioEnabled) return
 
-        val selectedHand = _state.value.selectedHand
-        val tolerance = 0.05
+        val tolerance = 0.02
+
+        // Process pending note-offs in the main loop instead of per-note coroutines
+        val iterator = pendingNoteOffs.iterator()
+        while (iterator.hasNext()) {
+            val pending = iterator.next()
+            if (currentBeat >= pending.endBeat) {
+                audioEngine.noteOff(pending.pitch)
+                iterator.remove()
+            }
+        }
+
         _state.value.visibleNotes.forEach { noteWithHand ->
             val note = noteWithHand.note
             val noteKey = note.id
 
-            // Only auto-trigger if: BOTH mode (play everything) or note is autoPlay (backing track)
-            val shouldTrigger = selectedHand == PlaybackHand.BOTH || noteWithHand.isAutoPlay
+            // Only auto-trigger backing track notes (isAutoPlay)
+            // BOTH mode = no auto-play (user plays everything via MIDI)
+            val shouldTrigger = noteWithHand.isAutoPlay
 
             if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
                 note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
-                // Auto-play notes (backing track) play at reduced velocity
-                val velocity = if (noteWithHand.isAutoPlay) 45 else 70
+                // Auto-play notes (backing track) play at moderate velocity for audibility
+                val velocity = if (noteWithHand.isAutoPlay) 60 else 80
                 audioEngine.noteOn(note.pitch, velocity)
                 triggeredNotes.add(noteKey)
-
-                viewModelScope.launch {
-                    val bpm = _state.value.song?.tempo ?: 120
-                    val speed = _state.value.playbackSpeed
-                    val durationMs = (note.duration * 60_000.0 / bpm / speed).toLong().coerceAtLeast(50L)
-                    delay(durationMs)
-                    audioEngine.noteOff(note.pitch)
-                }
+                pendingNoteOffs.add(PendingNoteOff(note.pitch, note.startTime + note.duration))
             }
 
             if (note.startTime + note.duration < currentBeat - 1.0) {

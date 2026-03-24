@@ -60,6 +60,11 @@ fun LearningScreen(
     val listState = rememberLazyListState()
     val timelineState = rememberLazyListState()
 
+    // Dialog states
+    var showRenameSongDialog by remember { mutableStateOf(false) }
+    var showRenamePhraseDialog by remember { mutableStateOf<Int?>(null) }
+    var showSplitDialog by remember { mutableStateOf<Int?>(null) }
+
     // Auto-scroll both list and timeline when playing measure changes
     LaunchedEffect(playingMeasure) {
         if (playingMeasure >= 0) {
@@ -79,7 +84,7 @@ fun LearningScreen(
             Column {
                 TopAppBar(
                     title = {
-                        Column {
+                        Column(modifier = Modifier.clickable { showRenameSongDialog = true }) {
                             Text(
                                 song?.title ?: "",
                                 fontWeight = FontWeight.Bold,
@@ -144,7 +149,8 @@ fun LearningScreen(
                     onHandChange = vm::setHand,
                     onTempoAdjust = vm::adjustTempo,
                     onToggleLoop = vm::toggleLoop,
-                    onLoopRangeChange = vm::setLoopRange
+                    onLoopRangeChange = vm::setLoopRange,
+                    onSplit = { showSplitDialog = focusedMeasure }
                 )
             }
         }
@@ -180,7 +186,8 @@ fun LearningScreen(
                         PhraseHeader(
                             section = section,
                             onPlay = { vm.playPhrase(section.phraseIndex) },
-                            onToggleMastered = { vm.toggleMastered(section.phrase.id) }
+                            onToggleMastered = { vm.toggleMastered(section.phrase.id) },
+                            onRename = { showRenamePhraseDialog = section.phraseIndex }
                         )
                     }
                     items(section.measures, key = { it.globalIndex }) { measure ->
@@ -205,6 +212,94 @@ fun LearningScreen(
                 }
             }
         }
+    }
+
+    // ─── Dialogs ─────────────────────────────────────────────────────────────
+
+    // Rename song dialog
+    if (showRenameSongDialog && song != null) {
+        var text by remember { mutableStateOf(song!!.title) }
+        AlertDialog(
+            onDismissRequest = { showRenameSongDialog = false },
+            title = { Text("Renommer le morceau") },
+            text = {
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.renameSong(text)
+                    showRenameSongDialog = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameSongDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
+
+    // Rename phrase dialog
+    showRenamePhraseDialog?.let { phraseIdx ->
+        val phrase = song?.phrases?.getOrNull(phraseIdx)
+        if (phrase != null) {
+            var text by remember { mutableStateOf(phrase.name) }
+            AlertDialog(
+                onDismissRequest = { showRenamePhraseDialog = null },
+                title = { Text("Renommer la phrase") },
+                text = {
+                    TextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.renamePhrase(phraseIdx, text)
+                        showRenamePhraseDialog = null
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRenamePhraseDialog = null }) { Text("Annuler") }
+                }
+            )
+        }
+    }
+
+    // Split phrase dialog
+    showSplitDialog?.let { globalIdx ->
+        var text by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showSplitDialog = null },
+            title = { Text("Diviser la phrase") },
+            text = {
+                Column {
+                    Text("Diviser à la mesure ${globalIdx + 1}", fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    TextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        singleLine = true,
+                        label = { Text("Nom de la nouvelle phrase (optionnel)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.splitPhraseAtMeasure(globalIdx, text.ifBlank { null })
+                    showSplitDialog = null
+                }) { Text("Diviser") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSplitDialog = null }) { Text("Annuler") }
+            }
+        )
     }
 }
 
@@ -304,7 +399,7 @@ private fun CoordinationTimeline(
 
                 Column(
                     modifier = Modifier
-                        .width(72.dp)
+                        .width(88.dp)
                         .clip(RoundedCornerShape(5.dp))
                         .background(
                             when {
@@ -364,7 +459,7 @@ private fun TimelineBeatRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(13.dp),
+            .height(18.dp),
         horizontalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         for (beat in 0 until beatsPerMeasure) {
@@ -397,7 +492,8 @@ private fun TimelineBeatRow(
 private fun PhraseHeader(
     section: PhraseSectionData,
     onPlay: () -> Unit,
-    onToggleMastered: () -> Unit
+    onToggleMastered: () -> Unit,
+    onRename: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -418,7 +514,7 @@ private fun PhraseHeader(
             )
         }
 
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).clickable(onClick = onRename)) {
             Text(
                 section.phrase.name,
                 color = Color.White,
@@ -481,14 +577,14 @@ private fun MeasureCard(
                 else Modifier
             )
             .clickable(onClick = onTap)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
         // Measure number badge
         Box(
             modifier = Modifier
-                .size(26.dp)
+                .size(34.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (isPlaying) IndigoAccent else Color.White.copy(alpha = 0.05f)),
             contentAlignment = Alignment.Center
@@ -496,7 +592,7 @@ private fun MeasureCard(
             Text(
                 "${measure.globalIndex + 1}",
                 color = if (isPlaying) Color.White else Color(0xFF64748B),
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -519,7 +615,7 @@ private fun MeasureCard(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("MD:", fontSize = 10.sp, color = CyanMelody.copy(alpha = 0.7f))
+                    Text("MD:", fontSize = 12.sp, color = CyanMelody.copy(alpha = 0.7f))
                     val visible = if (showDetails) names else names.take(4)
                     visible.forEach { NoteChip(it, CyanMelody) }
                     if (!showDetails && names.size > 4) {
@@ -535,7 +631,7 @@ private fun MeasureCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("MG:", fontSize = 10.sp, color = PinkChords.copy(alpha = 0.7f))
+                    Text("MG:", fontSize = 12.sp, color = PinkChords.copy(alpha = 0.7f))
                     ChordChip(
                         chordInfo = measure.chordInfo,
                         chordNotes = measure.chordNotes,
@@ -549,7 +645,7 @@ private fun MeasureCard(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("MG:", fontSize = 10.sp, color = PinkChords.copy(alpha = 0.7f))
+                    Text("MG:", fontSize = 12.sp, color = PinkChords.copy(alpha = 0.7f))
                     measure.chordNotes.map { midiToFrench(it.pitch, showOctaves) }.distinct().take(5)
                         .forEach { NoteChip(it, PinkChords) }
                 }
@@ -653,12 +749,12 @@ private fun MiniTimeline(
 
         melodyNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = CyanMelody, radius = 3f, center = Offset(x, midY - 5f))
+            drawCircle(color = CyanMelody, radius = 4f, center = Offset(x, midY - 5f))
         }
 
         chordNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = PinkChords, radius = 3f, center = Offset(x, midY + 5f))
+            drawCircle(color = PinkChords, radius = 4f, center = Offset(x, midY + 5f))
         }
     }
 }
@@ -679,12 +775,14 @@ private fun TransportBar(
     onHandChange: (PlaybackHand) -> Unit,
     onTempoAdjust: (Float) -> Unit,
     onToggleLoop: () -> Unit,
-    onLoopRangeChange: (Int, Int) -> Unit
+    onLoopRangeChange: (Int, Int) -> Unit,
+    onSplit: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Surface)
+            .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         AnimatedVisibility(visible = isLooping) {
@@ -768,6 +866,21 @@ private fun TransportBar(
                         Icons.Default.Repeat,
                         null,
                         tint = if (isLooping) AmberWarning else Color(0xFF64748B),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onSplit,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White.copy(alpha = 0.07f))
+                ) {
+                    Icon(
+                        Icons.Default.ContentCut,
+                        "Diviser",
+                        tint = Color(0xFF64748B),
                         modifier = Modifier.size(16.dp)
                     )
                 }
