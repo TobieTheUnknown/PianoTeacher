@@ -826,7 +826,7 @@ private fun TransportBar(
             // Hand selector
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 HandButton("MG", hand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
-                HandButton("2", hand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
+                HandButton("🔊", hand == PlaybackHand.BOTH, AmberWarning) { onHandChange(PlaybackHand.BOTH) }
                 HandButton("MD", hand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
             }
 

@@ -507,17 +507,10 @@ private fun SynthesiaControls(
 
             // Hand selector + listen mode
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                SynthesiaHandButton("MG", selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
-                SynthesiaHandButton("2", selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
-                SynthesiaHandButton("MD", selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
-                IconButton(onClick = onListenModeToggle, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.VolumeUp,
-                        "Mode écoute",
-                        tint = if (isListenMode) AmberWarning else Color(0xFF475569),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                SynthesiaHandButton("🔊", isListenMode, AmberWarning) { onListenModeToggle() }
+                SynthesiaHandButton("MG", !isListenMode && selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
+                SynthesiaHandButton("2", !isListenMode && selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
+                SynthesiaHandButton("MD", !isListenMode && selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
             }
 
             // Center: speed
