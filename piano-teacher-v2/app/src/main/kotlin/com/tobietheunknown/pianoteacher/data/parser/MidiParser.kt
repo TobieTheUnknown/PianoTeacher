@@ -184,33 +184,47 @@ object MidiParser {
                 val notes = mutableListOf<RawNote>()
                 var tick = 0L
 
+                var lastStatus = 0
+
                 while (pos < trackEnd) {
                     val delta = readVarLen()
                     tick += delta
-                    val statusByte = data[pos].toInt() and 0xFF
+
+                    // Running status: if byte < 0x80 it's a data byte, reuse lastStatus
+                    val firstByte = data[pos].toInt() and 0xFF
+                    val statusByte: Int
+                    if (firstByte >= 0x80) {
+                        statusByte = firstByte
+                        pos++
+                        if (statusByte < 0xF0) lastStatus = statusByte // channel msgs only
+                    } else {
+                        statusByte = lastStatus // data byte with running status
+                    }
 
                     when {
-                        statusByte == 0xFF -> {
-                            pos++
+                        statusByte == 0xFF -> { // Meta event
                             val metaType = data[pos++].toInt() and 0xFF
                             val metaLen = readVarLen()
                             when (metaType) {
                                 0x51 -> { // Set tempo
-                                    val us = ((data[pos].toInt() and 0xFF) shl 16) or
-                                             ((data[pos+1].toInt() and 0xFF) shl 8) or
-                                             (data[pos+2].toInt() and 0xFF)
-                                    globalTempo = (60_000_000.0 / us).roundToInt()
+                                    if (metaLen >= 3) {
+                                        val us = ((data[pos].toInt() and 0xFF) shl 16) or
+                                                 ((data[pos+1].toInt() and 0xFF) shl 8) or
+                                                 (data[pos+2].toInt() and 0xFF)
+                                        if (us > 0) globalTempo = (60_000_000.0 / us).roundToInt()
+                                    }
                                 }
                                 0x58 -> { // Time signature
-                                    val num = data[pos].toInt() and 0xFF
-                                    val den = 1 shl (data[pos+1].toInt() and 0xFF)
-                                    globalTimeSig = TimeSignature(num, den)
+                                    if (metaLen >= 2) {
+                                        val num = data[pos].toInt() and 0xFF
+                                        val den = 1 shl (data[pos+1].toInt() and 0xFF)
+                                        globalTimeSig = TimeSignature(num, den)
+                                    }
                                 }
                             }
                             pos += metaLen
                         }
                         (statusByte and 0xF0) == 0x90 -> { // Note On
-                            pos++
                             val pitch = data[pos++].toInt() and 0xFF
                             val velocity = data[pos++].toInt() and 0xFF
                             if (velocity > 0) noteOnTimes[pitch] = tick
@@ -219,25 +233,27 @@ object MidiParser {
                             }
                         }
                         (statusByte and 0xF0) == 0x80 -> { // Note Off
-                            pos++
                             val pitch = data[pos++].toInt() and 0xFF
                             pos++ // velocity
                             noteOnTimes.remove(pitch)?.let { start ->
                                 notes.add(RawNote(pitch, start, tick - start))
                             }
                         }
-                        (statusByte and 0xF0) in setOf(0xA0, 0xB0, 0xE0) -> {
-                            pos += 3 // status + 2 data bytes
-                        }
-                        (statusByte and 0xF0) in setOf(0xC0, 0xD0) -> {
-                            pos += 2 // status + 1 data byte
-                        }
+                        statusByte in 0xA0..0xAF -> pos += 2 // Aftertouch
+                        statusByte in 0xB0..0xBF -> pos += 2 // Control Change
+                        statusByte in 0xC0..0xCF -> pos += 1 // Program Change
+                        statusByte in 0xD0..0xDF -> pos += 1 // Channel Pressure
+                        statusByte in 0xE0..0xEF -> pos += 2 // Pitch Bend
                         statusByte == 0xF0 || statusByte == 0xF7 -> { // SysEx
-                            pos++
                             val len = readVarLen(); pos += len
                         }
-                        else -> pos++ // unknown, skip
+                        else -> { /* unknown system msg, already advanced past status */ }
                     }
+                }
+
+                // Close any notes still open at track end (rare but valid)
+                noteOnTimes.forEach { (pitch, startTick) ->
+                    if (tick > startTick) notes.add(RawNote(pitch, startTick, tick - startTick))
                 }
                 pos = trackEnd
                 if (notes.isNotEmpty()) tracks.add(RawTrack(notes))

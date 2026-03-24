@@ -54,7 +54,8 @@ class SynthesiaViewModel(
         viewModelScope.launch {
             // Load song
             val song = repo.getSong(songId) ?: return@launch
-            val phrase = song.phrases.getOrNull(initialPhraseIndex)
+            // phraseIndex < 0 = full song view (all phrases merged)
+            val phrase = if (initialPhraseIndex >= 0) song.phrases.getOrNull(initialPhraseIndex) else null
             val totalBeats = phrase?.let { it.length.toDouble() * song.beatsPerMeasure }
                 ?: (song.totalMeasures.toDouble() * song.beatsPerMeasure)
 

@@ -67,6 +67,13 @@ fun SynthesiaScreen(
                 onTap = { x, y -> vm.onCanvasTap(x, y) }
             )
 
+            // Empty state: song loaded but no notes found
+            val totalNotes = state.song?.phrases
+                ?.sumOf { it.tracks.melody.size + it.tracks.chords.size } ?: -1
+            if (state.song != null && totalNotes == 0) {
+                NoNotesHint(modifier = Modifier.align(Alignment.Center))
+            }
+
             // Playback speed badge
             SpeedBadge(speed = state.playbackSpeed, modifier = Modifier.align(Alignment.TopEnd))
         }
@@ -233,6 +240,21 @@ private fun PianoKeyboard(
 
 private fun isBlackKey(midi: Int): Boolean {
     return when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
+}
+
+@Composable
+private fun NoNotesHint(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Aucune note trouvée", color = Color(0xFF64748B), fontSize = 14.sp)
+        Text(
+            "Vérifie que le fichier MIDI est valide",
+            color = Color(0xFF475569),
+            fontSize = 12.sp
+        )
+    }
 }
 
 @Composable

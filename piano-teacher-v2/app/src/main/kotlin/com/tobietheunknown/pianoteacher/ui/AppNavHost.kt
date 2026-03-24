@@ -18,7 +18,8 @@ import com.tobietheunknown.pianoteacher.ui.settings.SettingsScreen
 sealed class Screen(val route: String) {
     object Library : Screen("library")
     object Synthesia : Screen("synthesia/{songId}/{phraseIndex}") {
-        fun route(songId: String, phraseIndex: Int = 0) = "synthesia/$songId/$phraseIndex"
+        // phraseIndex = -1 → full song view (all phrases merged)
+        fun route(songId: String, phraseIndex: Int = -1) = "synthesia/$songId/$phraseIndex"
     }
     object Learning : Screen("learning/{songId}") {
         fun route(songId: String) = "learning/$songId"

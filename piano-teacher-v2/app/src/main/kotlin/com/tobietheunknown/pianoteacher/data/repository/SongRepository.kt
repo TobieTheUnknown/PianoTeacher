@@ -64,39 +64,46 @@ class SongRepository(private val context: Context) {
             val fileName = uri.lastPathSegment?.substringAfterLast("/") ?: "Untitled"
             val titleFromFile = fileName.substringBeforeLast(".")
 
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                when {
-                    mimeType.contains("midi") || mimeType.contains("mid") ||
-                    fileName.endsWith(".mid", ignoreCase = true) -> {
-                        MidiParser.parse(stream, titleFromFile).fold(
-                            onSuccess = { song ->
-                                saveSong(song)
-                                ImportResult.Success(song)
-                            },
-                            onFailure = { ImportResult.Error("MIDI parse error: ${it.message}") }
-                        )
-                    }
-                    else -> {
-                        // Try JSON (single song or library)
-                        val json = stream.bufferedReader().readText()
-                        val singleResult = SongJsonParser.parse(json)
-                        if (singleResult.isSuccess) {
-                            val song = singleResult.getOrThrow()
-                            saveSong(song)
-                            ImportResult.Success(song)
-                        } else {
-                            val libraryResult = SongJsonParser.parseLibrary(json)
-                            if (libraryResult.isSuccess) {
-                                val songs = libraryResult.getOrThrow()
-                                songs.forEach { saveSong(it) }
-                                ImportResult.MultiSuccess(songs)
-                            } else {
-                                ImportResult.Error("Format non reconnu")
-                            }
-                        }
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return@runCatching ImportResult.Error("Impossible d'ouvrir le fichier")
+
+            // Detect MIDI by mime type, extension, or magic bytes (MThd = 4D 54 68 64)
+            val isMidi = mimeType.contains("midi", ignoreCase = true) ||
+                         mimeType.contains("/mid", ignoreCase = true) ||
+                         fileName.endsWith(".mid", ignoreCase = true) ||
+                         fileName.endsWith(".midi", ignoreCase = true) ||
+                         (bytes.size >= 4 &&
+                          bytes[0] == 0x4D.toByte() && bytes[1] == 0x54.toByte() &&
+                          bytes[2] == 0x68.toByte() && bytes[3] == 0x64.toByte())
+
+            if (isMidi) {
+                val result = MidiParser.parse(bytes.inputStream(), titleFromFile)
+                val song = result.getOrElse {
+                    return@runCatching ImportResult.Error("Erreur MIDI : ${it.message}")
+                }
+                if (song.phrases.isEmpty()) {
+                    return@runCatching ImportResult.Error("Aucune note trouvée dans ce fichier MIDI")
+                }
+                saveSong(song)
+                ImportResult.Success(song)
+            } else {
+                val json = bytes.toString(Charsets.UTF_8)
+                val singleResult = SongJsonParser.parse(json)
+                if (singleResult.isSuccess) {
+                    val song = singleResult.getOrThrow()
+                    saveSong(song)
+                    ImportResult.Success(song)
+                } else {
+                    val libraryResult = SongJsonParser.parseLibrary(json)
+                    if (libraryResult.isSuccess) {
+                        val songs = libraryResult.getOrThrow()
+                        songs.forEach { saveSong(it) }
+                        ImportResult.MultiSuccess(songs)
+                    } else {
+                        ImportResult.Error("Format non reconnu (.mid ou .json attendu)")
                     }
                 }
-            } ?: ImportResult.Error("Impossible d'ouvrir le fichier")
+            }
         }.getOrElse { ImportResult.Error(it.message ?: "Erreur inconnue") }
     }
 }
