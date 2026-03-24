@@ -40,6 +40,11 @@ class SongRepository(private val context: Context) {
         dao.updateLastPlayed(songId, Instant.now().toString())
     }
 
+    suspend fun getMasteredPhrases(songId: String): Set<String> = withContext(Dispatchers.IO) {
+        val entity = dao.getSongById(songId) ?: return@withContext emptySet()
+        Json.decodeFromString(ListSerializer(String.serializer()), entity.masteredPhrases).toSet()
+    }
+
     suspend fun updateMasteredPhrases(songId: String, masteredPhraseIds: Set<String>) =
         withContext(Dispatchers.IO) {
             dao.updateMasteredPhrases(songId, Json.encodeToString(ListSerializer(String.serializer()), masteredPhraseIds.toList()))

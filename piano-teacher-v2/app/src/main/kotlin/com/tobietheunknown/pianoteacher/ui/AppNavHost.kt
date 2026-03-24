@@ -1,8 +1,10 @@
 package com.tobietheunknown.pianoteacher.ui
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -40,8 +42,12 @@ fun AppNavHost(intent: Intent? = null) {
 
     NavHost(navController = navController, startDestination = Screen.Library.route) {
 
-        composable(Screen.Library.route) {
+        composable(Screen.Library.route) { backStack ->
+            val importUriString = backStack.savedStateHandle.getStateFlow<String?>("import_uri", null)
+                .collectAsState()
             LibraryScreen(
+                importUriString = importUriString.value,
+                onImportConsumed = { backStack.savedStateHandle.remove<String>("import_uri") },
                 onSongSelected = { songId ->
                     navController.navigate(Screen.Learning.route(songId))
                 },

@@ -21,6 +21,10 @@ class LearningViewModel(
     private val _masteredPhrases = MutableStateFlow<Set<String>>(emptySet())
     val masteredPhrases: StateFlow<Set<String>> = _masteredPhrases.asStateFlow()
 
+    init {
+        viewModelScope.launch { _masteredPhrases.value = repo.getMasteredPhrases(songId) }
+    }
+
     fun toggleMastered(phraseId: String) {
         val current = _masteredPhrases.value
         val updated = if (phraseId in current) current - phraseId else current + phraseId

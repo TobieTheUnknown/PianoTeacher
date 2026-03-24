@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.ui.theme.*
@@ -30,6 +31,8 @@ import com.tobietheunknown.pianoteacher.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
+    importUriString: String? = null,
+    onImportConsumed: () -> Unit = {},
     onSongSelected: (String) -> Unit,
     onPlaySong: (String) -> Unit,
     onSettings: () -> Unit,
@@ -37,6 +40,14 @@ fun LibraryScreen(
 ) {
     val songs by vm.songs.collectAsState(initial = emptyList())
     val importState by vm.importState.collectAsState()
+
+    // Handle deep link / share intent import
+    LaunchedEffect(importUriString) {
+        importUriString?.let {
+            vm.importFile(Uri.parse(it))
+            onImportConsumed()
+        }
+    }
     var showDeleteDialog by remember { mutableStateOf<Song?>(null) }
 
     val importLauncher = rememberLauncherForActivityResult(
