@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,25 +16,23 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.ui.theme.*
 import kotlin.math.roundToInt
 
 private const val MIDI_LOW = 21    // A0
 private const val MIDI_HIGH = 108  // C8
-internal const val VISIBLE_BEATS = 8.0  // How many beats visible on screen
+internal const val VISIBLE_BEATS = 8.0
 
 @Composable
 fun SynthesiaScreen(
     songId: String,
-    initialPhraseIndex: Int = 0,
+    initialPhraseIndex: Int = -1,
     onBack: () -> Unit,
     vm: SynthesiaViewModel = viewModel(
         factory = SynthesiaViewModel.Factory(LocalContext.current, songId, initialPhraseIndex)
@@ -48,15 +45,16 @@ fun SynthesiaScreen(
             .fillMaxSize()
             .background(Background)
     ) {
-        // Top bar
         SynthesiaTopBar(
             title = state.song?.title ?: "",
-            phraseLabel = state.currentPhrase?.name ?: "",
+            phraseIndex = state.currentPhraseIndex,
+            phraseCount = state.songPhraseCount,
+            isWaiting = state.isWaiting,
             onBack = onBack,
-            onSettings = { /* TODO */ }
+            onPrev = vm::prevPhrase,
+            onNext = vm::nextPhrase
         )
 
-        // Main Synthesia canvas (takes most space)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -64,33 +62,53 @@ fun SynthesiaScreen(
         ) {
             SynthesiaCanvas(
                 state = state,
-                onTap = { x, y -> vm.onCanvasTap(x, y) }
+                onSeek = { beat -> vm.seekToBeat(beat) }
             )
 
-            // Empty state: song loaded but no notes found
+            // Empty state overlay
             val totalNotes = state.song?.phrases
                 ?.sumOf { it.tracks.melody.size + it.tracks.chords.size } ?: -1
             if (state.song != null && totalNotes == 0) {
-                NoNotesHint(modifier = Modifier.align(Alignment.Center))
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Aucune note trouvée", color = Color(0xFF64748B), fontSize = 14.sp)
+                    Text("Vérifie que le fichier MIDI est valide", color = Color(0xFF475569), fontSize = 12.sp)
+                }
             }
 
-            // Playback speed badge
+            // Wait mode indicator
+            if (state.isWaiting) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AmberWarning.copy(alpha = 0.15f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text("En attente…", color = AmberWarning, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
             SpeedBadge(speed = state.playbackSpeed, modifier = Modifier.align(Alignment.TopEnd))
         }
 
-        // Piano keyboard
         PianoKeyboard(
             pressedKeys = state.pressedKeys,
             expectedKeys = state.expectedKeys,
+            wrongKeys = state.wrongKeys,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(80.dp)
         )
 
-        // Controls
         SynthesiaControls(
             isPlaying = state.isPlaying,
             isLooping = state.isLooping,
+            isWaitMode = state.isWaitMode,
+            audioEnabled = state.audioEnabled,
             playbackSpeed = state.playbackSpeed,
             currentBeat = state.currentBeat,
             totalBeats = state.totalBeats,
@@ -98,6 +116,8 @@ fun SynthesiaScreen(
             onRestart = vm::restart,
             onSpeedChange = vm::setSpeed,
             onLoopToggle = vm::toggleLoop,
+            onWaitModeToggle = vm::toggleWaitMode,
+            onAudioToggle = vm::toggleAudio,
             onSeek = vm::seekToBeat
         )
     }
@@ -106,13 +126,18 @@ fun SynthesiaScreen(
 @Composable
 private fun SynthesiaCanvas(
     state: SynthesiaUiState,
-    onTap: (Float, Float) -> Unit
+    onSeek: (Double) -> Unit
 ) {
     Canvas(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                detectTapGestures { offset -> onTap(offset.x, offset.y) }
+                detectTapGestures { offset ->
+                    // Tap seeks to the tapped beat position
+                    val beatsPerPixel = size.height.toDouble() / VISIBLE_BEATS
+                    val tappedBeat = state.currentBeat + (size.height - offset.y) / beatsPerPixel
+                    onSeek(tappedBeat.coerceIn(0.0, state.totalBeats))
+                }
             }
     ) {
         val canvasWidth = size.width
@@ -121,7 +146,7 @@ private fun SynthesiaCanvas(
         val noteWidth = canvasWidth / noteRangeSize
         val beatsPerPixel = canvasHeight / VISIBLE_BEATS
 
-        // Background grid lines (measures) — notes fall DOWN, future = top, past = bottom
+        // Measure grid lines
         state.song?.let { song ->
             val bpm = song.beatsPerMeasure.toDouble()
             val firstMeasure = (state.currentBeat / bpm).toInt() - 1
@@ -141,7 +166,7 @@ private fun SynthesiaCanvas(
             }
         }
 
-        // Draw falling notes (top = future, bottom = hit zone)
+        // Falling notes (top = future, bottom = hit zone)
         state.visibleNotes.forEach { noteWithHand ->
             val note = noteWithHand.note
             val color = if (noteWithHand.isRightHand) CyanMelody else PinkChords
@@ -150,12 +175,10 @@ private fun SynthesiaCanvas(
             if (noteIndex < 0 || noteIndex >= noteRangeSize) return@forEach
 
             val x = noteIndex * noteWidth
-            // Bottom of note = when it should be played (at canvasHeight = hit zone)
             val noteBottom = canvasHeight - ((note.startTime - state.currentBeat) * beatsPerPixel).toFloat()
             val noteHeight = (note.duration * beatsPerPixel).toFloat().coerceAtLeast(4f)
             val noteTop = noteBottom - noteHeight
 
-            // Only draw if any part is on screen
             if (noteTop > canvasHeight || noteBottom < 0) return@forEach
 
             drawRoundRect(
@@ -166,7 +189,7 @@ private fun SynthesiaCanvas(
             )
         }
 
-        // Hit line at the bottom — piano keyboard is just below
+        // Hit line (indigo) at bottom
         drawLine(
             color = IndigoAccent.copy(alpha = 0.6f),
             start = Offset(0f, canvasHeight),
@@ -180,6 +203,7 @@ private fun SynthesiaCanvas(
 private fun PianoKeyboard(
     pressedKeys: Set<Int>,
     expectedKeys: Set<Int>,
+    wrongKeys: Set<Int>,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier.background(Color(0xFF0D0F14))) {
@@ -187,17 +211,20 @@ private fun PianoKeyboard(
         val keyWidth = size.width / noteCount
         val keyHeight = size.height
 
+        // White keys first
         for (i in 0 until noteCount) {
             val midi = MIDI_LOW + i
-            val isBlack = isBlackKey(midi)
-            if (isBlack) continue  // Draw white first
+            if (isBlackKey(midi)) continue
 
             val x = i * keyWidth
             val isPressed = midi in pressedKeys
             val isExpected = midi in expectedKeys
+            val isWrong = midi in wrongKeys
 
             val color = when {
-                isPressed -> CyanMelody
+                isWrong -> Color(0xFFFF6B6B)
+                isPressed && isExpected -> CyanMelody
+                isPressed -> CyanMelody.copy(alpha = 0.7f)
                 isExpected -> AmberWarning.copy(alpha = 0.6f)
                 else -> Color(0xFFE8ECF0)
             }
@@ -210,7 +237,7 @@ private fun PianoKeyboard(
             )
         }
 
-        // Draw black keys on top
+        // Black keys on top
         for (i in 0 until noteCount) {
             val midi = MIDI_LOW + i
             if (!isBlackKey(midi)) continue
@@ -221,9 +248,12 @@ private fun PianoKeyboard(
 
             val isPressed = midi in pressedKeys
             val isExpected = midi in expectedKeys
+            val isWrong = midi in wrongKeys
 
             val color = when {
-                isPressed -> CyanMelody.copy(alpha = 0.85f)
+                isWrong -> Color(0xFFFF6B6B).copy(alpha = 0.9f)
+                isPressed && isExpected -> CyanMelody.copy(alpha = 0.85f)
+                isPressed -> CyanMelody.copy(alpha = 0.6f)
                 isExpected -> AmberWarning.copy(alpha = 0.7f)
                 else -> Color(0xFF1A1A1A)
             }
@@ -238,50 +268,59 @@ private fun PianoKeyboard(
     }
 }
 
-private fun isBlackKey(midi: Int): Boolean {
-    return when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
-}
-
-@Composable
-private fun NoNotesHint(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Aucune note trouvée", color = Color(0xFF64748B), fontSize = 14.sp)
-        Text(
-            "Vérifie que le fichier MIDI est valide",
-            color = Color(0xFF475569),
-            fontSize = 12.sp
-        )
-    }
-}
+private fun isBlackKey(midi: Int): Boolean =
+    when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
 
 @Composable
 private fun SynthesiaTopBar(
     title: String,
-    phraseLabel: String,
+    phraseIndex: Int,
+    phraseCount: Int,
+    isWaiting: Boolean,
     onBack: () -> Unit,
-    onSettings: () -> Unit
+    onPrev: () -> Unit,
+    onNext: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Surface)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
             Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
         }
+
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
-            if (phraseLabel.isNotBlank()) {
-                Text(phraseLabel, fontSize = 12.sp, color = CyanMelody)
+            Text(title, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp, maxLines = 1)
+            if (phraseIndex >= 0 && phraseCount > 0) {
+                Text(
+                    "Phrase ${phraseIndex + 1} / $phraseCount",
+                    fontSize = 11.sp,
+                    color = if (isWaiting) AmberWarning else CyanMelody
+                )
+            } else if (phraseIndex < 0) {
+                Text("Morceau entier", fontSize = 11.sp, color = Color(0xFF64748B))
             }
         }
-        IconButton(onClick = onSettings) {
-            Icon(Icons.Default.Tune, "Réglages", tint = Color(0xFF94A3B8))
+
+        // Phrase navigation (only in phrase-by-phrase mode)
+        if (phraseIndex >= 0 && phraseCount > 1) {
+            IconButton(onClick = onPrev, enabled = phraseIndex > 0) {
+                Icon(
+                    Icons.Default.NavigateBefore,
+                    "Phrase précédente",
+                    tint = if (phraseIndex > 0) Color.White else Color(0xFF334155)
+                )
+            }
+            IconButton(onClick = onNext, enabled = phraseIndex < phraseCount - 1) {
+                Icon(
+                    Icons.Default.NavigateNext,
+                    "Phrase suivante",
+                    tint = if (phraseIndex < phraseCount - 1) Color.White else Color(0xFF334155)
+                )
+            }
         }
     }
 }
@@ -309,6 +348,8 @@ private fun SpeedBadge(speed: Float, modifier: Modifier = Modifier) {
 private fun SynthesiaControls(
     isPlaying: Boolean,
     isLooping: Boolean,
+    isWaitMode: Boolean,
+    audioEnabled: Boolean,
     playbackSpeed: Float,
     currentBeat: Double,
     totalBeats: Double,
@@ -316,13 +357,15 @@ private fun SynthesiaControls(
     onRestart: () -> Unit,
     onSpeedChange: (Float) -> Unit,
     onLoopToggle: () -> Unit,
+    onWaitModeToggle: () -> Unit,
+    onAudioToggle: () -> Unit,
     onSeek: (Double) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Surface)
-            .padding(12.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         // Timeline scrubber
         Slider(
@@ -342,13 +385,16 @@ private fun SynthesiaControls(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: restart + play
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(onClick = onRestart) {
                     Icon(Icons.Default.SkipPrevious, "Début", tint = Color(0xFF94A3B8))
                 }
                 FloatingActionButton(
                     onClick = onPlayPause,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(44.dp),
                     containerColor = IndigoAccent,
                     contentColor = Color.White
                 ) {
@@ -359,35 +405,61 @@ private fun SynthesiaControls(
                 }
             }
 
-            // Speed control
+            // Center: speed
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 IconButton(
-                    onClick = { onSpeedChange((playbackSpeed - 0.1f).coerceIn(0.25f, 2.0f)) }
+                    onClick = { onSpeedChange((playbackSpeed - 0.1f).coerceIn(0.25f, 2.0f)) },
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Text("-", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("-", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 Text(
                     "${(playbackSpeed * 100).roundToInt()}%",
-                    color = Color(0xFF94A3B8),
-                    fontSize = 13.sp
+                    color = if (playbackSpeed == 1.0f) Color(0xFF64748B) else AmberWarning,
+                    fontSize = 12.sp,
+                    modifier = Modifier.widthIn(min = 36.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 IconButton(
-                    onClick = { onSpeedChange((playbackSpeed + 0.1f).coerceIn(0.25f, 2.0f)) }
+                    onClick = { onSpeedChange((playbackSpeed + 0.1f).coerceIn(0.25f, 2.0f)) },
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Text("+", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("+", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 
-            // Loop toggle
-            IconButton(onClick = onLoopToggle) {
-                Icon(
-                    Icons.Default.Repeat,
-                    "Loop",
-                    tint = if (isLooping) CyanMelody else Color(0xFF475569)
-                )
+            // Right: toggles
+            Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                // Wait mode toggle
+                IconButton(onClick = onWaitModeToggle) {
+                    Icon(
+                        Icons.Default.TouchApp,
+                        "Mode attente",
+                        tint = if (isWaitMode) AmberWarning else Color(0xFF475569),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                // Loop toggle
+                IconButton(onClick = onLoopToggle) {
+                    Icon(
+                        Icons.Default.Repeat,
+                        "Boucle",
+                        tint = if (isLooping) CyanMelody else Color(0xFF475569),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                // Audio toggle
+                IconButton(onClick = onAudioToggle) {
+                    Icon(
+                        if (audioEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                        "Audio",
+                        tint = if (audioEnabled) Color(0xFF94A3B8) else Color(0xFF475569),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
