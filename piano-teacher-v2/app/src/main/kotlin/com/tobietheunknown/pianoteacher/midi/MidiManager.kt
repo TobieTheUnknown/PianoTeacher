@@ -66,27 +66,32 @@ class MidiManager(private val context: Context) {
     // ─── BLE MIDI ─────────────────────────────────────────────────────────────
 
     fun startBleScanning() {
-        val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-        val scanner = btManager?.adapter?.bluetoothLeScanner ?: return
+        try {
+            val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            val scanner = btManager?.adapter?.bluetoothLeScanner ?: return
 
-        val filter = ScanFilter.Builder()
-            .setServiceUuid(android.os.ParcelUuid.fromString("03B80E5A-EDE8-4B33-A751-6CE34EC4C700"))
-            .build()
+            val filter = ScanFilter.Builder()
+                .setServiceUuid(android.os.ParcelUuid.fromString("03B80E5A-EDE8-4B33-A751-6CE34EC4C700"))
+                .build()
 
-        val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
+            val settings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build()
 
-        scanner.startScan(listOf(filter), settings, object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                // Connect via MIDI over BLE
-                midiManager?.openBluetoothDevice(
-                    result.device,
-                    { device -> device?.let { connectToDevice(it.info) } },
-                    Handler(Looper.getMainLooper())
-                )
-            }
-        })
+            scanner.startScan(listOf(filter), settings, object : ScanCallback() {
+                override fun onScanResult(callbackType: Int, result: ScanResult) {
+                    try {
+                        midiManager?.openBluetoothDevice(
+                            result.device,
+                            { device -> device?.let { connectToDevice(it.info) } },
+                            Handler(Looper.getMainLooper())
+                        )
+                    } catch (_: SecurityException) { }
+                }
+            })
+        } catch (_: SecurityException) {
+            // BLUETOOTH_SCAN not granted yet — USB MIDI still works
+        }
     }
 
     // ─── MIDI parsing ─────────────────────────────────────────────────────────

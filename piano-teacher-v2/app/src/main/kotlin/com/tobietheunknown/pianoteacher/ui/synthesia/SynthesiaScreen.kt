@@ -114,18 +114,18 @@ private fun SynthesiaCanvas(
         val noteWidth = canvasWidth / noteRangeSize
         val beatsPerPixel = canvasHeight / VISIBLE_BEATS
 
-        // Background grid lines (measures)
+        // Background grid lines (measures) — notes fall DOWN, future = top, past = bottom
         state.song?.let { song ->
-            val bpm = song.beatsPerMeasure
-            val firstBeat = state.currentBeat - 1.0  // 1 beat of lookahead below
-            val lastBeat = firstBeat + VISIBLE_BEATS
+            val bpm = song.beatsPerMeasure.toDouble()
+            val firstMeasure = (state.currentBeat / bpm).toInt() - 1
+            val lastMeasure = ((state.currentBeat + VISIBLE_BEATS) / bpm).toInt() + 1
 
-            for (measure in 0..((lastBeat / bpm).toInt() + 1)) {
+            for (measure in firstMeasure..lastMeasure) {
                 val measureBeat = measure.toDouble() * bpm
-                val y = ((measureBeat - firstBeat) * beatsPerPixel).toFloat()
+                val y = canvasHeight - ((measureBeat - state.currentBeat) * beatsPerPixel).toFloat()
                 if (y in 0f..canvasHeight) {
                     drawLine(
-                        color = Color.White.copy(alpha = 0.05f),
+                        color = Color.White.copy(alpha = 0.07f),
                         start = Offset(0f, y),
                         end = Offset(canvasWidth, y),
                         strokeWidth = 1f
@@ -134,37 +134,37 @@ private fun SynthesiaCanvas(
             }
         }
 
-        // Draw falling notes
+        // Draw falling notes (top = future, bottom = hit zone)
         state.visibleNotes.forEach { noteWithHand ->
             val note = noteWithHand.note
-            val isRightHand = noteWithHand.isRightHand
-            val color = if (isRightHand) CyanMelody else PinkChords
+            val color = if (noteWithHand.isRightHand) CyanMelody else PinkChords
 
             val noteIndex = note.pitch - MIDI_LOW
             if (noteIndex < 0 || noteIndex >= noteRangeSize) return@forEach
 
             val x = noteIndex * noteWidth
-            val noteStartY = ((note.startTime - state.currentBeat) * beatsPerPixel).toFloat()
+            // Bottom of note = when it should be played (at canvasHeight = hit zone)
+            val noteBottom = canvasHeight - ((note.startTime - state.currentBeat) * beatsPerPixel).toFloat()
             val noteHeight = (note.duration * beatsPerPixel).toFloat().coerceAtLeast(4f)
+            val noteTop = noteBottom - noteHeight
 
-            // Only draw if visible
-            if (noteStartY - noteHeight > canvasHeight) return@forEach
-            if (noteStartY < -noteHeight) return@forEach
+            // Only draw if any part is on screen
+            if (noteTop > canvasHeight || noteBottom < 0) return@forEach
 
             drawRoundRect(
                 color = if (noteWithHand.isActive) color else color.copy(alpha = 0.75f),
-                topLeft = Offset(x + 1f, noteStartY - noteHeight),
+                topLeft = Offset(x + 1f, noteTop),
                 size = Size(noteWidth - 2f, noteHeight),
                 cornerRadius = CornerRadius(3f, 3f)
             )
         }
 
-        // Hit line (where notes are "played")
+        // Hit line at the bottom — piano keyboard is just below
         drawLine(
-            color = Color.White.copy(alpha = 0.3f),
-            start = Offset(0f, 0f),
-            end = Offset(canvasWidth, 0f),
-            strokeWidth = 2f
+            color = IndigoAccent.copy(alpha = 0.6f),
+            start = Offset(0f, canvasHeight),
+            end = Offset(canvasWidth, canvasHeight),
+            strokeWidth = 3f
         )
     }
 }
