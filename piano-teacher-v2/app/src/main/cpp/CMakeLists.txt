@@ -16,3 +16,6 @@ target_link_libraries(
     android
     log
 )
+
+# Android 15+ requires ELF LOAD segments aligned to 16KB
+target_link_options(piano_teacher_audio PRIVATE "-Wl,-z,max-page-size=16384")

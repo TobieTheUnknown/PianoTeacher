@@ -55,13 +55,14 @@ public:
 
         if (!mReady) return oboe::DataCallbackResult::Continue;
 
+        // Always acquire sampleMutex BEFORE voiceMutex (same order as noteOn) to avoid ABBA deadlock
+        std::lock_guard<std::mutex> sLock(mSampleMutex);
         std::lock_guard<std::mutex> lock(mVoiceMutex);
 
         for (int vi = 0; vi < MAX_VOICES; vi++) {
             Voice& v = mVoices[vi];
             if (!v.active) continue;
 
-            std::lock_guard<std::mutex> sLock(mSampleMutex);
             auto it = mSamples.find(v.sampleMidi);
             if (it == mSamples.end()) { v.active = false; continue; }
             const SampleData& s = it->second;
