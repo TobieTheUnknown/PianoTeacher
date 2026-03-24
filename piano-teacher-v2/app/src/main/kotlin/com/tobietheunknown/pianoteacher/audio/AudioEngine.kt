@@ -7,35 +7,37 @@ import android.media.MediaFormat
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.nio.ByteBuffer
+import java.io.ByteArrayOutputStream
+import java.nio.ByteOrder
 
 /**
  * Audio engine backed by Oboe (C++/NDK) + Salamander Grand Piano samples.
- * MP3 assets are decoded on the IO dispatcher via MediaExtractor/MediaCodec,
- * then handed off to the native sampler for low-latency playback.
  *
- * Falls back to the pure-Kotlin SineEngine if the native library fails to load.
+ * Strategy:
+ *  1. SamplerEngine (SoundPool) starts immediately → user hears audio right away
+ *  2. Oboe native engine loads Salamander samples in background via MediaCodec
+ *  3. Once Oboe is ready, it takes over (lower latency, better quality)
+ *  4. If native library fails to load, SamplerEngine is the permanent backend
  */
-class AudioEngine(context: Context? = null) {
+class AudioEngine(private val context: Context? = null) {
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+
     private var enabled = true
     private var nativeAvailable = false
+    private var oboeReady = false
 
-    // Kotlin sine fallback (used until native sampler is ready, or if native fails)
-    private val sineEngine = SineEngine()
-    private var samplerReady = false
+    // SoundPool bridge: plays immediately while Oboe loads, and permanent fallback if Oboe unavailable
+    private val samplerEngine: SamplerEngine? = context?.let { SamplerEngine(it) }
 
     companion object {
         private const val TAG = "AudioEngine"
+        private const val MAX_SAMPLE_SECONDS = 8  // Trim samples to 8s — release envelope handles fadeout
 
-        // Salamander Grand Piano sample map: asset name → MIDI note
         private val SAMPLE_MAP = mapOf(
             "A0" to 21, "C1" to 24, "Ds1" to 27, "Fs1" to 30, "A1" to 33,
             "C2" to 36, "Ds2" to 39, "Fs2" to 42, "A2" to 45,
@@ -60,66 +62,66 @@ class AudioEngine(context: Context? = null) {
         nativeAvailable = try {
             nativeStart()
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Falling back to SineEngine")
+            Log.w(TAG, "Native start failed, using SamplerEngine permanently")
             false
         }
 
-        if (context != null && nativeAvailable) {
+        if (context != null) {
             scope.launch {
-                loadSalamander(context)
+                // Step 1: Load SamplerEngine immediately (fast, works right away)
+                samplerEngine?.loadAsync()?.await()
+                Log.i(TAG, "SamplerEngine ready — audio available immediately")
+
+                // Step 2: Load Oboe samples in background (lower latency, better quality)
+                if (nativeAvailable) {
+                    loadOboe(context)
+                }
             }
         }
     }
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
-    fun start(): Boolean {
-        return if (nativeAvailable) true else sineEngine.start()
-    }
+    fun start(): Boolean = true  // Setup happens in init
 
     fun stop() {
-        sineEngine.stop()
-        if (nativeAvailable) {
-            try { nativeNoteOff(-1) } catch (_: Exception) { }
-        }
+        if (nativeAvailable && oboeReady) try { nativeNoteOff(-1) } catch (_: Exception) { }
     }
 
     fun noteOn(pitch: Int, velocity: Int = 80) {
         if (!enabled) return
-        if (nativeAvailable && samplerReady) {
+        if (nativeAvailable && oboeReady) {
             nativeNoteOn(pitch, velocity)
-        } else if (!nativeAvailable) {
-            sineEngine.noteOn(pitch, velocity)
+        } else {
+            samplerEngine?.noteOn(pitch, velocity)
         }
-        // While samplerReady == false, stay silent (avoids sine during load)
     }
 
     fun noteOff(pitch: Int) {
-        if (nativeAvailable) {
+        if (nativeAvailable && oboeReady) {
             try { nativeNoteOff(pitch) } catch (_: Exception) { }
+        } else {
+            if (pitch >= 0) samplerEngine?.noteOff(pitch)
         }
-        sineEngine.noteOff(pitch)
     }
 
     fun setEnabled(value: Boolean) {
         enabled = value
         if (!value) {
-            noteOff(-1)          // stop all
-            sineEngine.stop()
+            if (nativeAvailable && oboeReady) try { nativeNoteOff(-1) } catch (_: Exception) { }
+            else samplerEngine?.let { for (n in 21..108) it.noteOff(n) }
         }
     }
 
     fun release() {
         job.cancel()
-        sineEngine.release()
-        if (nativeAvailable) {
-            try { nativeStop() } catch (_: Exception) { }
-        }
+        samplerEngine?.release()
+        if (nativeAvailable) try { nativeStop() } catch (_: Exception) { }
     }
 
-    // ─── Sample loading ───────────────────────────────────────────────────────
+    // ─── Oboe sample loading ──────────────────────────────────────────────────
 
-    private fun loadSalamander(context: Context) {
+    private fun loadOboe(context: Context) {
         var loaded = 0
         SAMPLE_MAP.forEach { (name, midiNote) ->
             try {
@@ -131,22 +133,22 @@ class AudioEngine(context: Context? = null) {
             }
         }
         nativeSetReady()
-        samplerReady = true
-        Log.i(TAG, "Salamander loaded: $loaded/${SAMPLE_MAP.size} samples")
+        oboeReady = true
+        Log.i(TAG, "Oboe sampler ready: $loaded/${SAMPLE_MAP.size} samples loaded")
     }
 
     private data class PcmData(val samples: FloatArray, val sampleRate: Int, val channels: Int)
 
     /**
-     * Decodes an MP3 asset to interleaved float PCM using MediaExtractor + MediaCodec.
-     * Output is typically 16-bit PCM converted to [-1.0, 1.0] float.
+     * Decodes an MP3 asset to interleaved float PCM.
+     * Uses ByteArrayOutputStream (raw bytes) to avoid Short boxing and GC pressure.
+     * Trims to MAX_SAMPLE_SECONDS to bound memory usage.
      */
     private fun decodeMp3Asset(context: Context, assetPath: String): PcmData {
         val afd = context.assets.openFd(assetPath)
         val extractor = MediaExtractor()
         extractor.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
 
-        // Find audio track
         var trackIndex = -1
         var format: MediaFormat? = null
         for (i in 0 until extractor.trackCount) {
@@ -161,22 +163,24 @@ class AudioEngine(context: Context? = null) {
         val sampleRate = format!!.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
         val mime = format.getString(MediaFormat.KEY_MIME)!!
+        val maxFrames = sampleRate * MAX_SAMPLE_SECONDS
 
         val codec = MediaCodec.createDecoderByType(mime)
         codec.configure(format, null, null, 0)
         codec.start()
 
-        val shorts = ArrayList<Short>(sampleRate * channels * 4)  // ~4s pre-alloc
+        // Raw bytes — no boxing, minimal GC pressure
+        val rawBytes = ByteArrayOutputStream(sampleRate * channels * 2 * 3)
         val bufInfo = MediaCodec.BufferInfo()
         var inputDone = false
         var sawEOS = false
+        var framesDecoded = 0
 
-        while (!sawEOS) {
-            // Feed input
+        while (!sawEOS && framesDecoded < maxFrames) {
             if (!inputDone) {
                 val inIdx = codec.dequeueInputBuffer(10_000L)
                 if (inIdx >= 0) {
-                    val buf: ByteBuffer = codec.getInputBuffer(inIdx)!!
+                    val buf = codec.getInputBuffer(inIdx)!!
                     val n = extractor.readSampleData(buf, 0)
                     if (n < 0) {
                         codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
@@ -187,12 +191,13 @@ class AudioEngine(context: Context? = null) {
                     }
                 }
             }
-            // Drain output
             val outIdx = codec.dequeueOutputBuffer(bufInfo, 10_000L)
             if (outIdx >= 0) {
-                val buf: ByteBuffer = codec.getOutputBuffer(outIdx)!!
-                val sb = buf.asShortBuffer()
-                while (sb.hasRemaining()) shorts.add(sb.get())
+                val buf = codec.getOutputBuffer(outIdx)!!
+                val bytes = ByteArray(bufInfo.size)
+                buf.get(bytes)
+                rawBytes.write(bytes)
+                framesDecoded += bufInfo.size / (2 * channels)
                 codec.releaseOutputBuffer(outIdx, false)
                 if (bufInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawEOS = true
             }
@@ -201,7 +206,12 @@ class AudioEngine(context: Context? = null) {
         codec.stop(); codec.release()
         extractor.release(); afd.close()
 
-        val floats = FloatArray(shorts.size) { shorts[it] / 32768f }
+        // 16-bit LE PCM bytes → float [-1, 1], no boxing
+        val byteArr = rawBytes.toByteArray()
+        val shortBuf = java.nio.ByteBuffer.wrap(byteArr)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .asShortBuffer()
+        val floats = FloatArray(shortBuf.remaining()) { shortBuf.get() / 32768f }
         return PcmData(floats, sampleRate, channels)
     }
 
@@ -213,81 +223,4 @@ class AudioEngine(context: Context? = null) {
     private external fun nativeNoteOff(pitch: Int)
     private external fun nativeLoadSample(midiNote: Int, pcm: FloatArray, sampleRate: Int, channels: Int)
     private external fun nativeSetReady()
-}
-
-// ─── Sine wave fallback ───────────────────────────────────────────────────────
-
-private class SineEngine {
-    private val sampleRate = 48000
-    private val bufferSize = android.media.AudioTrack.getMinBufferSize(
-        sampleRate,
-        android.media.AudioFormat.CHANNEL_OUT_STEREO,
-        android.media.AudioFormat.ENCODING_PCM_FLOAT
-    ).coerceAtLeast(1024)
-
-    private var track: android.media.AudioTrack? = null
-    private var engineJob: kotlinx.coroutines.Job? = null
-    private val voices = mutableMapOf<Int, Voice>()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    data class Voice(val pitch: Int, var amplitude: Float, var phase: Float = 0f)
-
-    fun start(): Boolean = try {
-        track = android.media.AudioTrack.Builder()
-            .setAudioAttributes(
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
-            .setAudioFormat(
-                android.media.AudioFormat.Builder()
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_STEREO)
-                    .setEncoding(android.media.AudioFormat.ENCODING_PCM_FLOAT)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufferSize * 4)
-            .setTransferMode(android.media.AudioTrack.MODE_STREAM)
-            .build()
-        track?.play()
-        engineJob = scope.launch {
-            val buffer = FloatArray(bufferSize / 2)
-            while (isActive) {
-                synchronized(voices) {
-                    val active = voices.values.toList()
-                    for (i in buffer.indices step 2) {
-                        var sample = 0f
-                        active.forEach { v ->
-                            sample += v.amplitude * kotlin.math.sin(v.phase.toDouble()).toFloat()
-                            v.phase += 2f * Math.PI.toFloat() * midiToFreq(v.pitch) / sampleRate
-                            if (v.phase > 2f * Math.PI.toFloat()) v.phase -= 2f * Math.PI.toFloat()
-                        }
-                        sample = sample.coerceIn(-1f, 1f)
-                        buffer[i] = sample; buffer[i + 1] = sample
-                    }
-                }
-                track?.write(buffer, 0, buffer.size, android.media.AudioTrack.WRITE_BLOCKING)
-            }
-        }
-        true
-    } catch (e: Exception) { false }
-
-    fun noteOn(pitch: Int, velocity: Int) {
-        synchronized(voices) { voices[pitch] = Voice(pitch, (velocity / 127f) * 0.25f) }
-    }
-
-    fun noteOff(pitch: Int) {
-        synchronized(voices) { if (pitch < 0) voices.clear() else voices.remove(pitch) }
-    }
-
-    fun stop() {
-        engineJob?.cancel()
-        track?.stop(); track?.release(); track = null
-        synchronized(voices) { voices.clear() }
-    }
-
-    fun release() { scope.cancel(); stop() }
-
-    private fun midiToFreq(midi: Int): Float = 440f * Math.pow(2.0, (midi - 69) / 12.0).toFloat()
 }
