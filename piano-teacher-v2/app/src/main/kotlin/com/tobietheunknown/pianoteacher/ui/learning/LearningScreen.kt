@@ -311,7 +311,7 @@ private fun MeasureCard(measure: MeasureData, beatsPerMeasure: Int) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (measure.chordInfo.isArpeggio) {
-                                Icon(Icons.Default.Piano, null, tint = PinkChords, modifier = Modifier.size(10.dp))
+                                Icon(Icons.Default.MusicNote, null, tint = PinkChords, modifier = Modifier.size(10.dp))
                             }
                             Text(measure.chordInfo.name, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
                             if (measure.chordInfo.isArpeggio) {
