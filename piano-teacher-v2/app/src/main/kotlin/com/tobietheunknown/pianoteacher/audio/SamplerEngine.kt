@@ -7,7 +7,7 @@ import kotlinx.coroutines.*
 
 /**
  * Salamander Grand Piano sampler using SoundPool.
- * Samples are stored in assets/salamander/*.mp3
+ * Samples are stored in assets/salamander/ (mp3 files)
  *
  * Sample map matches the Tone.js/Salamander format used in Piano Teacher v1:
  * C1, C2, C3, C4, C5, C6, C7, C8
