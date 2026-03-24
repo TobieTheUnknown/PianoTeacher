@@ -64,6 +64,7 @@ android {
 
     buildFeatures {
         compose = true
+        prefab = true   // required for find_package(oboe) in CMake
     }
 
     packaging {
