@@ -97,8 +97,8 @@ fun Song.toEntity() = SongEntity(
     keyMode = key.mode,
     timeSignatureNumerator = timeSignature.numerator,
     timeSignatureDenominator = timeSignature.denominator,
-    phrasesJson = Json.encodeToString(phrases),
-    highlightedMeasures = Json.encodeToString(highlightedMeasures),
+    phrasesJson = Json.encodeToString<List<Phrase>>(phrases),
+    highlightedMeasures = Json.encodeToString<List<Int>>(highlightedMeasures),
     createdAt = createdAt
 )
 
@@ -115,8 +115,10 @@ fun SongEntity.toDomain() = Song(
 )
 
 class SongConverters {
+    private val phraseListSerializer = kotlinx.serialization.builtins.ListSerializer(Phrase.serializer())
+
     @TypeConverter
-    fun fromPhraseList(value: List<Phrase>): String = Json.encodeToString(value)
+    fun fromPhraseList(value: List<Phrase>): String = Json.encodeToString(phraseListSerializer, value)
     @TypeConverter
-    fun toPhraseList(value: String): List<Phrase> = Json.decodeFromString(value)
+    fun toPhraseList(value: String): List<Phrase> = Json.decodeFromString(phraseListSerializer, value)
 }

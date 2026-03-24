@@ -92,7 +92,7 @@ fun SettingsScreen(
                 ToggleSetting(
                     label = "Touches attendues",
                     subtitle = "Surligne les prochaines touches à jouer",
-                    icon = Icons.Default.Piano,
+                    icon = Icons.Default.MusicNote,
                     checked = prefs.showExpectedKeys,
                     onToggle = vm::setShowExpectedKeys
                 )
@@ -104,7 +104,7 @@ fun SettingsScreen(
                     ToggleSetting(
                         label = "Feedback intelligent",
                         subtitle = "Analyse on-device tes performances",
-                        icon = Icons.Default.AutoAwesome,
+                        icon = Icons.Default.Stars,
                         checked = prefs.geminiEnabled,
                         onToggle = vm::setGeminiEnabled
                     )

@@ -185,7 +185,7 @@ private fun SongCard(
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent)
                     ) {
-                        Icon(Icons.Default.Book, null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.LibraryBooks, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Apprendre")
                     }

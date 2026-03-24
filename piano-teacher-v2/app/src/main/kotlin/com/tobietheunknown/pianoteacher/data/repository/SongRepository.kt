@@ -40,7 +40,7 @@ class SongRepository(private val context: Context) {
 
     suspend fun updateMasteredPhrases(songId: String, masteredPhraseIds: Set<String>) =
         withContext(Dispatchers.IO) {
-            dao.updateMasteredPhrases(songId, Json.encodeToString(masteredPhraseIds.toList()))
+            dao.updateMasteredPhrases(songId, Json.encodeToString<List<String>>(masteredPhraseIds.toList()))
         }
 
     // ─── Import ───────────────────────────────────────────────────────────────

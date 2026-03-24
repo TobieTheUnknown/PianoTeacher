@@ -30,7 +30,7 @@ import kotlin.math.roundToInt
 
 private const val MIDI_LOW = 21    // A0
 private const val MIDI_HIGH = 108  // C8
-private const val VISIBLE_BEATS = 8.0  // How many beats visible on screen
+internal const val VISIBLE_BEATS = 8.0  // How many beats visible on screen
 
 @Composable
 fun SynthesiaScreen(
