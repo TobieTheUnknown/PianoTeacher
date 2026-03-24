@@ -2,8 +2,7 @@ package com.tobietheunknown.pianoteacher.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverter
-import androidx.room.TypeConverters
+
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -71,7 +70,6 @@ data class Song(
 // ─── Room Entity ──────────────────────────────────────────────────────────────
 
 @Entity(tableName = "songs")
-@TypeConverters(SongConverters::class)
 data class SongEntity(
     @PrimaryKey val id: String,
     val title: String,
@@ -114,11 +112,3 @@ fun SongEntity.toDomain() = Song(
     createdAt = createdAt
 )
 
-class SongConverters {
-    private val phraseListSerializer = kotlinx.serialization.builtins.ListSerializer(Phrase.serializer())
-
-    @TypeConverter
-    fun fromPhraseList(value: List<Phrase>): String = Json.encodeToString(phraseListSerializer, value)
-    @TypeConverter
-    fun toPhraseList(value: String): List<Phrase> = Json.decodeFromString(phraseListSerializer, value)
-}
