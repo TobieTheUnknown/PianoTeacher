@@ -13,6 +13,7 @@
         android:maxSdkVersion="30" />
 
     <application
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="true"
         android:label="Piano Teacher"
         android:icon="@drawable/ic_launcher"

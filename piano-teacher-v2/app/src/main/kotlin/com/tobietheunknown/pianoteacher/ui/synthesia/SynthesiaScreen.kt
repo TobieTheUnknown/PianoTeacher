@@ -2,6 +2,8 @@ package com.tobietheunknown.pianoteacher.ui.synthesia
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
 import kotlin.math.roundToInt
 
@@ -113,13 +116,15 @@ fun SynthesiaScreen(
             playbackSpeed = state.playbackSpeed,
             currentBeat = state.currentBeat,
             totalBeats = state.totalBeats,
+            selectedHand = state.selectedHand,
             onPlayPause = vm::togglePlayPause,
             onRestart = vm::restart,
             onSpeedChange = vm::setSpeed,
             onLoopToggle = vm::toggleLoop,
             onWaitModeToggle = vm::toggleWaitMode,
             onAudioToggle = vm::toggleAudio,
-            onSeek = vm::seekToBeat
+            onSeek = vm::seekToBeat,
+            onHandChange = vm::setHand
         )
     }
 }
@@ -156,7 +161,9 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
         // Falling notes (top = future, bottom = hit zone)
         state.visibleNotes.forEach { noteWithHand ->
             val note = noteWithHand.note
-            val color = if (noteWithHand.isRightHand) CyanMelody else PinkChords
+            val baseColor = if (noteWithHand.isRightHand) CyanMelody else PinkChords
+            // Auto-play (backing track) notes are dimmer
+            val color = if (noteWithHand.isAutoPlay) baseColor.copy(alpha = 0.35f) else baseColor
 
             val noteIndex = note.pitch - MIDI_LOW
             if (noteIndex < 0 || noteIndex >= noteRangeSize) return@forEach
@@ -340,13 +347,15 @@ private fun SynthesiaControls(
     playbackSpeed: Float,
     currentBeat: Double,
     totalBeats: Double,
+    selectedHand: PlaybackHand,
     onPlayPause: () -> Unit,
     onRestart: () -> Unit,
     onSpeedChange: (Float) -> Unit,
     onLoopToggle: () -> Unit,
     onWaitModeToggle: () -> Unit,
     onAudioToggle: () -> Unit,
-    onSeek: (Double) -> Unit
+    onSeek: (Double) -> Unit,
+    onHandChange: (PlaybackHand) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -390,6 +399,13 @@ private fun SynthesiaControls(
                         if (isPlaying) "Pause" else "Play"
                     )
                 }
+            }
+
+            // Hand selector
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                SynthesiaHandButton("MG", selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
+                SynthesiaHandButton("2", selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
+                SynthesiaHandButton("MD", selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
             }
 
             // Center: speed
@@ -449,5 +465,28 @@ private fun SynthesiaControls(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SynthesiaHandButton(label: String, selected: Boolean, activeColor: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) activeColor.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+            .then(
+                if (selected) Modifier.border(1.dp, activeColor, RoundedCornerShape(6.dp))
+                else Modifier
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            color = if (selected) activeColor else Color(0xFF64748B),
+            fontWeight = FontWeight.Bold
+        )
     }
 }

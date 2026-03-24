@@ -17,9 +17,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-// ─── Enums & data structures ──────────────────────────────────────────────────
+import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 
-enum class PlaybackHand { LEFT, BOTH, RIGHT }
+// ─── Data structures ─────────────────────────────────────────────────────────
 
 data class MeasureData(
     val index: Int,           // 0-based within phrase
@@ -253,19 +253,31 @@ class LearningViewModel(
         val measureDurationMs = (song.beatsPerMeasure * beatMs).toLong()
         val startTime = System.currentTimeMillis()
 
-        val notes = when (_playbackHand.value) {
-            PlaybackHand.LEFT  -> measure.chordNotes
-            PlaybackHand.RIGHT -> measure.melodyNotes
-            PlaybackHand.BOTH  -> (measure.melodyNotes + measure.chordNotes)
-        }.sortedBy { it.startTime }
+        // Build note list: selected hand at full velocity, other hand as backing track
+        data class PlayNote(val note: NoteEvent, val velocity: Int)
+
+        val hand = _playbackHand.value
+        val notes = when (hand) {
+            PlaybackHand.LEFT -> {
+                measure.chordNotes.map { PlayNote(it, 80) } +
+                measure.melodyNotes.map { PlayNote(it, 35) }  // backing track
+            }
+            PlaybackHand.RIGHT -> {
+                measure.melodyNotes.map { PlayNote(it, 80) } +
+                measure.chordNotes.map { PlayNote(it, 35) }   // backing track
+            }
+            PlaybackHand.BOTH -> {
+                (measure.melodyNotes + measure.chordNotes).map { PlayNote(it, 80) }
+            }
+        }.sortedBy { it.note.startTime }
 
         try {
-            for (note in notes) {
-                val targetMs = (note.startTime * beatMs).toLong()
+            for (pn in notes) {
+                val targetMs = (pn.note.startTime * beatMs).toLong()
                 val elapsed = System.currentTimeMillis() - startTime
                 val wait = targetMs - elapsed
                 if (wait > 0) delay(wait)
-                audioEngine.noteOn(note.pitch)
+                audioEngine.noteOn(pn.note.pitch, pn.velocity)
             }
 
             // Hold until end of measure

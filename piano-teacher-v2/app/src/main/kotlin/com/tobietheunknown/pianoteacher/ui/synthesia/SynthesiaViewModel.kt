@@ -11,13 +11,15 @@ import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.data.repository.SongRepository
 import com.tobietheunknown.pianoteacher.midi.MidiEvent
 import com.tobietheunknown.pianoteacher.midi.MidiManager
+import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
 data class NoteWithHand(
     val note: NoteEvent,
     val isRightHand: Boolean,
-    val isActive: Boolean = false
+    val isActive: Boolean = false,
+    val isAutoPlay: Boolean = false
 )
 
 data class SynthesiaUiState(
@@ -36,7 +38,8 @@ data class SynthesiaUiState(
     val isWaitMode: Boolean = false,        // pause until correct keys pressed
     val isWaiting: Boolean = false,         // currently waiting for key input
     val playbackSpeed: Float = 1.0f,
-    val audioEnabled: Boolean = true
+    val audioEnabled: Boolean = true,
+    val selectedHand: PlaybackHand = PlaybackHand.BOTH
 )
 
 class SynthesiaViewModel(
@@ -54,6 +57,10 @@ class SynthesiaViewModel(
     private var pausedAtBeat: Double = 0.0
     private var startTimeMs: Long = 0L
 
+    // Cached flattened note lists for full-song mode (Phase 2 perf)
+    private var cachedAllMelody: List<NoteEvent>? = null
+    private var cachedAllChords: List<NoteEvent>? = null
+
     init {
         viewModelScope.launch {
             val song = repo.getSong(songId) ?: return@launch
@@ -61,6 +68,20 @@ class SynthesiaViewModel(
             val phrase = if (initialPhraseIndex >= 0) song.phrases.getOrNull(initialPhraseIndex) else null
             val totalBeats = phrase?.let { it.length.toDouble() * song.beatsPerMeasure }
                 ?: (song.totalMeasures.toDouble() * song.beatsPerMeasure)
+
+            // Cache flattened note lists for full-song mode
+            if (initialPhraseIndex < 0) {
+                var offset = 0.0
+                val allMelody = mutableListOf<NoteEvent>()
+                val allChords = mutableListOf<NoteEvent>()
+                song.phrases.forEach { p ->
+                    p.tracks.melody.forEach { n -> allMelody.add(n.copy(startTime = n.startTime + offset)) }
+                    p.tracks.chords.forEach { n -> allChords.add(n.copy(startTime = n.startTime + offset)) }
+                    offset += p.length.toDouble() * song.beatsPerMeasure
+                }
+                cachedAllMelody = allMelody.sortedBy { it.startTime }
+                cachedAllChords = allChords.sortedBy { it.startTime }
+            }
 
             _state.update {
                 it.copy(
@@ -182,7 +203,7 @@ class SynthesiaViewModel(
                     updateExpectedKeys(currentBeat)
                     triggerAutoNotes(currentBeat)
                 }
-                delay(8) // ~120fps
+                delay(16) // ~60fps — reduced from 8ms to lower CPU usage
             }
         }
     }
@@ -235,6 +256,12 @@ class SynthesiaViewModel(
         audioEngine.setEnabled(newEnabled)
     }
 
+    fun setHand(hand: PlaybackHand) {
+        _state.update { it.copy(selectedHand = hand) }
+        // Refresh visible notes to recalculate isAutoPlay
+        updateVisibleNotes(_state.value.currentBeat)
+    }
+
     // ─── Phrase navigation ────────────────────────────────────────────────────
 
     fun nextPhrase() {
@@ -275,14 +302,20 @@ class SynthesiaViewModel(
     private fun triggerAutoNotes(currentBeat: Double) {
         if (!_state.value.audioEnabled) return
 
+        val selectedHand = _state.value.selectedHand
         val tolerance = 0.05
         _state.value.visibleNotes.forEach { noteWithHand ->
             val note = noteWithHand.note
             val noteKey = note.id
 
-            if (!triggeredNotes.contains(noteKey) &&
+            // Only auto-trigger if: BOTH mode (play everything) or note is autoPlay (backing track)
+            val shouldTrigger = selectedHand == PlaybackHand.BOTH || noteWithHand.isAutoPlay
+
+            if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
                 note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
-                audioEngine.noteOn(note.pitch, 70)
+                // Auto-play notes (backing track) play at reduced velocity
+                val velocity = if (noteWithHand.isAutoPlay) 45 else 70
+                audioEngine.noteOn(note.pitch, velocity)
                 triggeredNotes.add(noteKey)
 
                 viewModelScope.launch {
@@ -305,6 +338,7 @@ class SynthesiaViewModel(
     private fun updateVisibleNotes(currentBeat: Double) {
         val song = _state.value.song ?: return
         val phrase = _state.value.currentPhrase
+        val selectedHand = _state.value.selectedHand
 
         val melodyNotes: List<NoteEvent>
         val chordNotes: List<NoteEvent>
@@ -313,28 +347,48 @@ class SynthesiaViewModel(
             melodyNotes = phrase.tracks.melody
             chordNotes = phrase.tracks.chords
         } else {
-            var offset = 0.0
-            val allMelody = mutableListOf<NoteEvent>()
-            val allChords = mutableListOf<NoteEvent>()
-            song.phrases.forEach { p ->
-                p.tracks.melody.forEach { n -> allMelody.add(n.copy(startTime = n.startTime + offset)) }
-                p.tracks.chords.forEach { n -> allChords.add(n.copy(startTime = n.startTime + offset)) }
-                offset += p.length.toDouble() * song.beatsPerMeasure
-            }
-            melodyNotes = allMelody
-            chordNotes = allChords
+            // Use cached lists for full-song mode
+            melodyNotes = cachedAllMelody ?: return
+            chordNotes = cachedAllChords ?: return
         }
 
         val lookAhead = VISIBLE_BEATS + 1.0
+        val windowStart = currentBeat - 0.5
+        val windowEnd = currentBeat + lookAhead
         val visible = mutableListOf<NoteWithHand>()
 
-        melodyNotes
-            .filter { it.startTime + it.duration > currentBeat - 0.5 && it.startTime < currentBeat + lookAhead }
-            .forEach { visible.add(NoteWithHand(it, true, it.startTime <= currentBeat && it.startTime + it.duration > currentBeat)) }
+        // Helper to find visible notes using binary search on sorted lists
+        fun addVisibleNotes(notes: List<NoteEvent>, isRightHand: Boolean) {
+            // For cached (sorted) lists, use binary search; for phrase lists, scan linearly
+            val isSorted = (phrase == null)
+            val startIdx = if (isSorted) {
+                // Find first note that could be visible: startTime + duration > windowStart
+                // We search for startTime near windowStart, then scan back for long notes
+                var lo = 0; var hi = notes.size
+                while (lo < hi) {
+                    val mid = (lo + hi) / 2
+                    if (notes[mid].startTime < windowStart - 20.0) lo = mid + 1 else hi = mid
+                }
+                lo
+            } else 0
 
-        chordNotes
-            .filter { it.startTime + it.duration > currentBeat - 0.5 && it.startTime < currentBeat + lookAhead }
-            .forEach { visible.add(NoteWithHand(it, false, it.startTime <= currentBeat && it.startTime + it.duration > currentBeat)) }
+            for (i in startIdx until notes.size) {
+                val n = notes[i]
+                if (n.startTime >= windowEnd) break
+                if (n.startTime + n.duration > windowStart) {
+                    val isActive = n.startTime <= currentBeat && n.startTime + n.duration > currentBeat
+                    val isAutoPlay = when (selectedHand) {
+                        PlaybackHand.BOTH -> false
+                        PlaybackHand.RIGHT -> !isRightHand  // left hand notes are auto-play
+                        PlaybackHand.LEFT -> isRightHand     // right hand notes are auto-play
+                    }
+                    visible.add(NoteWithHand(n, isRightHand, isActive, isAutoPlay))
+                }
+            }
+        }
+
+        addVisibleNotes(melodyNotes, true)
+        addVisibleNotes(chordNotes, false)
 
         _state.update { it.copy(visibleNotes = visible) }
     }
@@ -342,7 +396,7 @@ class SynthesiaViewModel(
     private fun updateExpectedKeys(currentBeat: Double) {
         val tolerance = 0.15
         val expected = _state.value.visibleNotes
-            .filter { it.note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance) }
+            .filter { !it.isAutoPlay && it.note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance) }
             .map { it.note.pitch }
             .toSet()
         _state.update { it.copy(expectedKeys = expected) }
