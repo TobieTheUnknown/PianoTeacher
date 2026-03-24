@@ -14,6 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -183,12 +186,42 @@ fun LearningScreen(
 
                 sections.forEach { section ->
                     item(key = "header_${section.phraseIndex}") {
-                        PhraseHeader(
-                            section = section,
-                            onPlay = { vm.playPhrase(section.phraseIndex) },
-                            onToggleMastered = { vm.toggleMastered(section.phrase.id) },
-                            onRename = { showRenamePhraseDialog = section.phraseIndex }
-                        )
+                        if (section.phraseIndex > 0 && sections.size > 1) {
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    if (value == SwipeToDismissBoxValue.EndToStart) {
+                                        vm.deletePhrase(section.phraseIndex)
+                                        true
+                                    } else false
+                                }
+                            )
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                backgroundContent = {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize().background(Color(0xFFEF4444)),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Icon(Icons.Default.Delete, "Supprimer", tint = Color.White, modifier = Modifier.padding(end = 16.dp))
+                                    }
+                                },
+                                enableDismissFromStartToEnd = false
+                            ) {
+                                PhraseHeader(
+                                    section = section,
+                                    onPlay = { vm.playPhrase(section.phraseIndex) },
+                                    onToggleMastered = { vm.toggleMastered(section.phrase.id) },
+                                    onRename = { showRenamePhraseDialog = section.phraseIndex }
+                                )
+                            }
+                        } else {
+                            PhraseHeader(
+                                section = section,
+                                onPlay = { vm.playPhrase(section.phraseIndex) },
+                                onToggleMastered = { vm.toggleMastered(section.phrase.id) },
+                                onRename = { showRenamePhraseDialog = section.phraseIndex }
+                            )
+                        }
                     }
                     items(section.measures, key = { it.globalIndex }) { measure ->
                         MeasureCard(
@@ -734,7 +767,7 @@ private fun MiniTimeline(
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(18.dp)
+            .height(24.dp)
     ) {
         val w = size.width
         val h = size.height
@@ -749,12 +782,12 @@ private fun MiniTimeline(
 
         melodyNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = CyanMelody, radius = 4f, center = Offset(x, midY - 5f))
+            drawCircle(color = CyanMelody, radius = 6f, center = Offset(x, midY - 6f))
         }
 
         chordNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = PinkChords, radius = 4f, center = Offset(x, midY + 5f))
+            drawCircle(color = PinkChords, radius = 6f, center = Offset(x, midY + 6f))
         }
     }
 }
@@ -785,13 +818,6 @@ private fun TransportBar(
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        AnimatedVisibility(visible = isLooping) {
-            Column {
-                LoopRangeRow(loopStart, loopEnd, totalMeasures, onLoopRangeChange)
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -852,21 +878,6 @@ private fun TransportBar(
                         null,
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = onToggleLoop,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isLooping) AmberWarning.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f))
-                ) {
-                    Icon(
-                        Icons.Default.Repeat,
-                        null,
-                        tint = if (isLooping) AmberWarning else Color(0xFF64748B),
-                        modifier = Modifier.size(16.dp)
                     )
                 }
 

@@ -120,9 +120,13 @@ fun SynthesiaScreen(
             isWaitMode = state.isWaitMode,
             audioEnabled = state.audioEnabled,
             metronomeEnabled = state.metronomeEnabled,
+            isListenMode = state.isListenMode,
             playbackSpeed = state.playbackSpeed,
             currentBeat = state.currentBeat,
             totalBeats = state.totalBeats,
+            loopStartBeat = state.loopStartBeat,
+            loopEndBeat = state.loopEndBeat,
+            beatsPerMeasure = state.song?.beatsPerMeasure ?: 4,
             selectedHand = state.selectedHand,
             onPlayPause = vm::togglePlayPause,
             onRestart = vm::restart,
@@ -131,8 +135,10 @@ fun SynthesiaScreen(
             onWaitModeToggle = vm::toggleWaitMode,
             onAudioToggle = vm::toggleAudio,
             onMetronomeToggle = vm::toggleMetronome,
+            onListenModeToggle = vm::toggleListenMode,
             onSeek = vm::seekToBeat,
-            onHandChange = vm::setHand
+            onHandChange = vm::setHand,
+            onLoopRangeChange = vm::setLoopRange
         )
     }
 }
@@ -418,9 +424,13 @@ private fun SynthesiaControls(
     isWaitMode: Boolean,
     audioEnabled: Boolean,
     metronomeEnabled: Boolean,
+    isListenMode: Boolean,
     playbackSpeed: Float,
     currentBeat: Double,
     totalBeats: Double,
+    loopStartBeat: Double,
+    loopEndBeat: Double,
+    beatsPerMeasure: Int,
     selectedHand: PlaybackHand,
     onPlayPause: () -> Unit,
     onRestart: () -> Unit,
@@ -429,8 +439,10 @@ private fun SynthesiaControls(
     onWaitModeToggle: () -> Unit,
     onAudioToggle: () -> Unit,
     onMetronomeToggle: () -> Unit,
+    onListenModeToggle: () -> Unit,
     onSeek: (Double) -> Unit,
-    onHandChange: (PlaybackHand) -> Unit
+    onHandChange: (PlaybackHand) -> Unit,
+    onLoopRangeChange: (Double, Double) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -449,6 +461,23 @@ private fun SynthesiaControls(
             ),
             modifier = Modifier.fillMaxWidth()
         )
+
+        // Loop range slider
+        if (isLooping && totalBeats > 0) {
+            RangeSlider(
+                value = loopStartBeat.toFloat()..loopEndBeat.toFloat(),
+                onValueChange = { range ->
+                    onLoopRangeChange(range.start.toDouble(), range.endInclusive.toDouble())
+                },
+                valueRange = 0f..totalBeats.toFloat(),
+                steps = ((totalBeats / beatsPerMeasure).toInt() - 1).coerceAtLeast(0),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("m.${(loopStartBeat / beatsPerMeasure).toInt() + 1}", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                Text("m.${(loopEndBeat / beatsPerMeasure).toInt() + 1}", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -476,11 +505,19 @@ private fun SynthesiaControls(
                 }
             }
 
-            // Hand selector
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Hand selector + listen mode
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 SynthesiaHandButton("MG", selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
                 SynthesiaHandButton("2", selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
                 SynthesiaHandButton("MD", selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
+                IconButton(onClick = onListenModeToggle, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.VolumeUp,
+                        "Mode écoute",
+                        tint = if (isListenMode) AmberWarning else Color(0xFF475569),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             // Center: speed

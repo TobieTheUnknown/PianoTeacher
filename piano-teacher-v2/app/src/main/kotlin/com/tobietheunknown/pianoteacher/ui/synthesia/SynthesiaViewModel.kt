@@ -43,7 +43,10 @@ data class SynthesiaUiState(
     val selectedHand: PlaybackHand = PlaybackHand.BOTH,
     val metronomeEnabled: Boolean = false,
     val minPitch: Int = 21,
-    val maxPitch: Int = 108
+    val maxPitch: Int = 108,
+    val isListenMode: Boolean = false,
+    val loopStartBeat: Double = 0.0,
+    val loopEndBeat: Double = 0.0
 )
 
 class SynthesiaViewModel(
@@ -208,9 +211,10 @@ class SynthesiaViewModel(
                 val currentBeat = pausedAtBeat + elapsedMs * beatsPerMs
                 val totalBeats = _state.value.totalBeats
 
-                if (currentBeat >= totalBeats) {
+                val loopEnd = if (_state.value.isLooping && _state.value.loopEndBeat > 0) _state.value.loopEndBeat else totalBeats
+                if (currentBeat >= loopEnd) {
                     if (_state.value.isLooping) {
-                        pausedAtBeat = 0.0
+                        pausedAtBeat = _state.value.loopStartBeat
                         startTimeMs = System.currentTimeMillis()
                         triggeredNotes.clear()
                         pendingNoteOffs.clear()
@@ -290,7 +294,21 @@ class SynthesiaViewModel(
     }
 
     fun toggleLoop() {
-        _state.update { it.copy(isLooping = !it.isLooping) }
+        val enabling = !_state.value.isLooping
+        _state.update {
+            if (enabling) {
+                it.copy(isLooping = true, loopStartBeat = 0.0, loopEndBeat = it.totalBeats)
+            } else {
+                it.copy(isLooping = false)
+            }
+        }
+    }
+
+    fun setLoopRange(startBeat: Double, endBeat: Double) {
+        _state.update { it.copy(
+            loopStartBeat = startBeat.coerceIn(0.0, it.totalBeats),
+            loopEndBeat = endBeat.coerceIn(startBeat, it.totalBeats)
+        )}
     }
 
     fun toggleWaitMode() {
@@ -305,6 +323,10 @@ class SynthesiaViewModel(
 
     fun toggleMetronome() {
         _state.update { it.copy(metronomeEnabled = !it.metronomeEnabled) }
+    }
+
+    fun toggleListenMode() {
+        _state.update { it.copy(isListenMode = !it.isListenMode) }
     }
 
     fun setHand(hand: PlaybackHand) {
@@ -374,14 +396,14 @@ class SynthesiaViewModel(
             val note = noteWithHand.note
             val noteKey = note.id
 
-            // Only auto-trigger backing track notes (isAutoPlay)
-            // BOTH mode = no auto-play (user plays everything via MIDI)
-            val shouldTrigger = noteWithHand.isAutoPlay
+            // Listen mode: auto-play ALL notes
+            // Normal mode: only auto-trigger backing track notes (isAutoPlay)
+            val shouldTrigger = _state.value.isListenMode || noteWithHand.isAutoPlay
 
             if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
                 note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
-                // Auto-play notes (backing track) play at moderate velocity for audibility
-                val velocity = if (noteWithHand.isAutoPlay) 60 else 80
+                // Listen mode notes play at 80, backing track at 60
+                val velocity = if (_state.value.isListenMode && !noteWithHand.isAutoPlay) 80 else if (noteWithHand.isAutoPlay) 60 else 80
                 audioEngine.noteOn(note.pitch, velocity)
                 triggeredNotes.add(noteKey)
                 pendingNoteOffs.add(PendingNoteOff(note.pitch, note.startTime + note.duration))
@@ -454,6 +476,10 @@ class SynthesiaViewModel(
     }
 
     private fun updateExpectedKeys(currentBeat: Double) {
+        if (_state.value.isListenMode) {
+            _state.update { it.copy(expectedKeys = emptySet()) }
+            return
+        }
         val tolerance = 0.15
         val expected = _state.value.visibleNotes
             .filter { !it.isAutoPlay && it.note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance) }

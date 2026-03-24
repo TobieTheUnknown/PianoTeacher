@@ -18,7 +18,7 @@ class MetronomeEngine {
             val t = i.toDouble() / sampleRate
             val envelope = if (i < clickSamples / 4) i.toFloat() / (clickSamples / 4)
                           else 1f - (i - clickSamples / 4).toFloat() / (clickSamples * 3 / 4)
-            samples[i] = (Short.MAX_VALUE * envelope * Math.sin(2.0 * Math.PI * freq * t)).toInt().toShort()
+            samples[i] = (Short.MAX_VALUE * 0.15 * envelope * Math.sin(2.0 * Math.PI * freq * t)).toInt().toShort()
         }
         return samples
     }

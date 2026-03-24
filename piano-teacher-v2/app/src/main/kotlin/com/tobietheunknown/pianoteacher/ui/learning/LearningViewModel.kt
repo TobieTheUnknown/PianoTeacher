@@ -270,7 +270,7 @@ class LearningViewModel(
                 measure.chordNotes.map { PlayNote(it, 80) }   // left hand backing
             }
             PlaybackHand.BOTH -> {
-                emptyList()  // no auto-play, user plays everything
+                (measure.melodyNotes + measure.chordNotes).map { PlayNote(it, 80) }
             }
         }.sortedBy { it.note.startTime }
 
@@ -309,6 +309,31 @@ class LearningViewModel(
         val updatedSong = s.copy(phrases = newPhrases)
         _song.value = updatedSong
         viewModelScope.launch { repo.updateSong(updatedSong) }
+    }
+
+    fun deletePhrase(phraseIndex: Int) {
+        val s = _song.value ?: return
+        if (s.phrases.size <= 1 || phraseIndex == 0) return
+
+        val prev = s.phrases[phraseIndex - 1]
+        val target = s.phrases[phraseIndex]
+        val bpm = s.beatsPerMeasure.toDouble()
+        val offset = prev.length * bpm
+
+        val mergedMelody = prev.tracks.melody + target.tracks.melody.map { it.copy(startTime = it.startTime + offset) }
+        val mergedChords = prev.tracks.chords + target.tracks.chords.map { it.copy(startTime = it.startTime + offset) }
+        val mergedPhrase = prev.copy(
+            length = prev.length + target.length,
+            tracks = prev.tracks.copy(melody = mergedMelody, chords = mergedChords)
+        )
+
+        val newPhrases = s.phrases.toMutableList()
+        newPhrases[phraseIndex - 1] = mergedPhrase
+        newPhrases.removeAt(phraseIndex)
+
+        val updated = s.copy(phrases = newPhrases)
+        _song.value = updated
+        viewModelScope.launch { repo.updateSong(updated) }
     }
 
     fun splitPhraseAtMeasure(globalMeasureIdx: Int, newPhraseName: String?) {
@@ -367,12 +392,13 @@ class LearningViewModel(
                 val start = mi * bpm
                 val end = (mi + 1) * bpm
 
+                val isLastMeasure = mi == phrase.length - 1
                 val melody = phrase.tracks.melody
-                    .filter { it.startTime >= start && it.startTime < end }
+                    .filter { it.startTime >= start && (if (isLastMeasure) it.startTime <= end else it.startTime < end) }
                     .map { it.copy(startTime = it.startTime - start) }
 
                 val chords = phrase.tracks.chords
-                    .filter { it.startTime >= start && it.startTime < end }
+                    .filter { it.startTime >= start && (if (isLastMeasure) it.startTime <= end else it.startTime < end) }
                     .map { it.copy(startTime = it.startTime - start) }
 
                 val chordInfo = if (chords.isNotEmpty()) {
