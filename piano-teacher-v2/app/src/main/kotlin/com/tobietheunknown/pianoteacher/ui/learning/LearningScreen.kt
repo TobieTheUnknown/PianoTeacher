@@ -712,7 +712,7 @@ private fun ChordChip(
             Spacer(Modifier.height(2.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 val cycleNotes = firstArpeggioCycle(chordNotes)
-                    .map { midiToFrench(it.pitch, showOctaves) }
+                    .map { note -> midiToFrench(note.pitch, showOctaves) }
                 cycleNotes.forEach { NoteChip(it, PinkChords) }
             }
         }

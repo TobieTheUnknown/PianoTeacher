@@ -105,7 +105,7 @@ fun SettingsScreen(
                     "Redémarre l'app pour appliquer le thème",
                     fontSize = 11.sp,
                     color = Color(0xFF475569),
-                    modifier = Modifier.padding(horizontal = 16.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                 )
             }
 

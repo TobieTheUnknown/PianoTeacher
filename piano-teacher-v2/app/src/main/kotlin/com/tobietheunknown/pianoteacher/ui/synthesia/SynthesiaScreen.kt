@@ -196,16 +196,12 @@ fun SynthesiaScreen(
             }
 
             // Landscape overlay controls
-            if (isLandscape) {
-                AnimatedVisibility(
-                    visible = showOverlay,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
-                    modifier = Modifier.align(Alignment.BottomCenter)
+            if (isLandscape && showOverlay) {
+                androidx.compose.material3.Surface(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 ) {
-                    Surface(color = Color.Black.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth()) {
-                        controlsBlock()
-                    }
+                    controlsBlock()
                 }
             }
         }
