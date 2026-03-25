@@ -22,8 +22,8 @@ struct SampleData {
 };
 
 static const int MAX_VOICES = 16;
-// Release multiplier per-sample: ~80ms at 48kHz (0.9997^3840 ≈ 0.316)
-static const float RELEASE_PER_SAMPLE = 0.9997f;
+// Release multiplier per-sample: default ~160ms decay (was 0.9997 = ~80ms)
+static float gReleasePer = 0.9998f;
 
 struct Voice {
     int pitch = -1;
@@ -90,7 +90,7 @@ public:
                 out[f * 2 + 1] = std::clamp(out[f * 2 + 1] + right * gain, -1.0f, 1.0f);
 
                 if (v.releasing) {
-                    v.releaseMult *= RELEASE_PER_SAMPLE;
+                    v.releaseMult *= gReleasePer;
                     if (v.releaseMult < 0.001f) { v.active = false; break; }
                 }
 
@@ -268,6 +268,12 @@ Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSetReady(JNIEnv*, 
         gEngine->mReady = true;
         LOGI("Sampler ready, %d samples loaded", (int)gEngine->mSamples.size());
     }
+}
+
+JNIEXPORT void JNICALL
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSetRelease(
+    JNIEnv* /*env*/, jobject /*thiz*/, jfloat releasePer) {
+    gReleasePer = releasePer;
 }
 
 } // extern "C"

@@ -1,5 +1,9 @@
 package com.tobietheunknown.pianoteacher.ui.settings
 
+import android.Manifest
+import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tobietheunknown.pianoteacher.audio.AudioEngine
 import com.tobietheunknown.pianoteacher.audio.MetronomeEngine
 import com.tobietheunknown.pianoteacher.ui.theme.*
 
@@ -39,6 +44,8 @@ fun SettingsScreen(
     var selectedTheme by remember { mutableStateOf(ThemePrefs.getTheme(context)) }
     var metronomeVolume by remember { mutableIntStateOf(ThemePrefs.getMetronomeVolume(context)) }
     val previewMetronome = remember { MetronomeEngine() }
+    val audioEngine = remember { AudioEngine() }
+    var releaseLevel by remember { mutableIntStateOf(ThemePrefs.getReleaseLevel(context)) }
 
     Scaffold(
         containerColor = Background,
@@ -120,6 +127,46 @@ fun SettingsScreen(
                 )
             }
 
+            // Sustain / Release
+            SettingsSection(title = "Sustain") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Tune, null, tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
+                    Text("Résonance", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    listOf("Court" to 0, "Normal" to 1, "Long" to 2).forEach { (label, level) ->
+                        val isSelected = releaseLevel == level
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) IndigoAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+                                .then(
+                                    if (isSelected) Modifier.border(1.dp, IndigoAccent, RoundedCornerShape(6.dp))
+                                    else Modifier
+                                )
+                                .clickable {
+                                    releaseLevel = level
+                                    ThemePrefs.setReleaseLevel(context, level)
+                                    audioEngine.setRelease(level)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                label,
+                                fontSize = 12.sp,
+                                color = if (isSelected) IndigoAccent else Color(0xFF64748B),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
             // Metronome volume
             SettingsSection(title = "Métronome") {
                 Row(
@@ -165,10 +212,31 @@ fun SettingsScreen(
             SettingsSection(title = "MIDI") {
                 ToggleSetting(
                     label = "MIDI Bluetooth",
-                    subtitle = "Connexion BLE MIDI (plus de batterie)",
+                    subtitle = "Scanner les claviers BLE MIDI",
                     icon = Icons.Default.Bluetooth,
                     checked = prefs.bleMidiEnabled,
-                    onToggle = vm::setBleMidiEnabled
+                    onToggle = { enabled ->
+                        if (enabled) {
+                            val activity = context as? Activity
+                            if (activity != null) {
+                                val needed = buildList {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        if (activity.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)
+                                            add(Manifest.permission.BLUETOOTH_SCAN)
+                                        if (activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
+                                            add(Manifest.permission.BLUETOOTH_CONNECT)
+                                    } else {
+                                        if (activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                                            add(Manifest.permission.ACCESS_FINE_LOCATION)
+                                    }
+                                }
+                                if (needed.isNotEmpty()) {
+                                    activity.requestPermissions(needed.toTypedArray(), 100)
+                                }
+                            }
+                        }
+                        vm.setBleMidiEnabled(enabled)
+                    }
                 )
                 ToggleSetting(
                     label = "MIDI USB",

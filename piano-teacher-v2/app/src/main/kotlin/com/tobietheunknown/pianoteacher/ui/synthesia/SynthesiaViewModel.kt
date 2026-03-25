@@ -539,13 +539,17 @@ class SynthesiaViewModel(
         private val phraseIndex: Int
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = SynthesiaViewModel(
-            repo = SongRepository(context),
-            songId = songId,
-            initialPhraseIndex = phraseIndex,
-            midiManager = MidiManager(context),
-            audioEngine = AudioEngine(context),
-            initialMetronomeVolume = ThemePrefs.getMetronomeVolume(context)
-        ) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            val engine = AudioEngine(context)
+            engine.setRelease(ThemePrefs.getReleaseLevel(context))
+            return SynthesiaViewModel(
+                repo = SongRepository(context),
+                songId = songId,
+                initialPhraseIndex = phraseIndex,
+                midiManager = MidiManager(context),
+                audioEngine = engine,
+                initialMetronomeVolume = ThemePrefs.getMetronomeVolume(context)
+            ) as T
+        }
     }
 }

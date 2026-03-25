@@ -30,7 +30,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         currentIntent = intent
-        requestBlePermissionsIfNeeded()
+        // BLE permissions are now requested from Settings when BLE MIDI is toggled on
+        // requestBlePermissionsIfNeeded()
 
         ThemeState.init(this)
 

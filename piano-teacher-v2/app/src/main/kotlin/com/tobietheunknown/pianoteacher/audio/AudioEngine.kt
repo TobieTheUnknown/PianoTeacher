@@ -223,4 +223,12 @@ class AudioEngine(private val context: Context? = null) {
     private external fun nativeNoteOff(pitch: Int)
     private external fun nativeLoadSample(midiNote: Int, pcm: FloatArray, sampleRate: Int, channels: Int)
     private external fun nativeSetReady()
+    private external fun nativeSetRelease(releasePer: Float)
+
+    fun setRelease(level: Int) {
+        val value = when (level) { 0 -> 0.9996f; 2 -> 0.9999f; else -> 0.9998f }
+        if (nativeAvailable) {
+            try { nativeSetRelease(value) } catch (_: Exception) { }
+        }
+    }
 }

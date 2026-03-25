@@ -53,6 +53,7 @@ object ThemePrefs {
     private const val PREF_NAME = "piano_teacher_prefs"
     private const val KEY_THEME = "app_theme"
     private const val KEY_METRO_VOL = "metronome_volume"
+    private const val KEY_RELEASE = "release_level"
 
     fun getTheme(context: Context): AppTheme {
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -69,6 +70,14 @@ object ThemePrefs {
 
     fun setMetronomeVolume(context: Context, level: Int) {
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit().putInt(KEY_METRO_VOL, level.coerceIn(0, 2)).apply()
+    }
+
+    fun getReleaseLevel(context: Context): Int {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).getInt(KEY_RELEASE, 1) // 0=short, 1=normal, 2=long
+    }
+
+    fun setReleaseLevel(context: Context, level: Int) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit().putInt(KEY_RELEASE, level.coerceIn(0, 2)).apply()
     }
 }
 

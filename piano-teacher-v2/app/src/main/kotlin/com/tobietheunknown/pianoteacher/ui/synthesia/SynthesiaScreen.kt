@@ -53,7 +53,10 @@ import com.tobietheunknown.pianoteacher.ui.theme.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import kotlin.math.roundToInt
+
+private data class HitEffect(val x: Float, val color: Color, val timestamp: Long)
 
 private const val MIDI_LOW = 21    // A0
 private const val MIDI_HIGH = 108  // C8
@@ -154,6 +157,28 @@ fun SynthesiaScreen(
         )
     }
 
+    // Hit effect tracking
+    val hitEffects = remember { mutableStateListOf<HitEffect>() }
+    val previouslyActive = remember { mutableSetOf<String>() }
+
+    LaunchedEffect(state.visibleNotes) {
+        val now = System.currentTimeMillis()
+        for (noteWithHand in state.visibleNotes) {
+            if (noteWithHand.isActive) {
+                val key = noteWithHand.note.id
+                if (key !in previouslyActive) {
+                    previouslyActive.add(key)
+                    val noteIndex = noteWithHand.note.pitch - state.minPitch
+                    val noteRangeSize = state.maxPitch - state.minPitch + 1
+                    val color = if (noteWithHand.isRightHand) CyanMelody else PinkChords
+                    hitEffects.add(HitEffect(noteIndex.toFloat() / noteRangeSize, color, now))
+                }
+            }
+        }
+        previouslyActive.removeAll { key -> state.visibleNotes.none { it.note.id == key && it.isActive } }
+        hitEffects.removeAll { now - it.timestamp > 400 }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -180,6 +205,7 @@ fun SynthesiaScreen(
                 ) {
                     SynthesiaCanvas(
                         state = state,
+                        hitEffects = hitEffects,
                         onVisibleBeatsChange = vm::setVisibleBeats
                     )
 
@@ -248,6 +274,7 @@ fun SynthesiaScreen(
 @Composable
 private fun SynthesiaCanvas(
     state: SynthesiaUiState,
+    hitEffects: SnapshotStateList<HitEffect> = mutableStateListOf(),
     onVisibleBeatsChange: (Double) -> Unit = {}
 ) {
     // Pre-allocate Paint object outside the draw loop to avoid per-frame allocation
@@ -444,6 +471,28 @@ private fun SynthesiaCanvas(
             end = Offset(canvasWidth, canvasHeight),
             strokeWidth = 4f
         )
+
+        // Hit effects
+        val now = System.currentTimeMillis()
+        for (effect in hitEffects) {
+            val age = (now - effect.timestamp) / 400f
+            if (age > 1f) continue
+            val x = effect.x * canvasWidth
+            val radius = 6f + age * 24f
+            val alpha = (1f - age) * 0.5f
+            drawCircle(
+                color = effect.color.copy(alpha = alpha),
+                radius = radius,
+                center = Offset(x, canvasHeight)
+            )
+            // Horizontal glow
+            drawLine(
+                color = effect.color.copy(alpha = alpha * 0.3f),
+                start = Offset(x - radius * 2, canvasHeight),
+                end = Offset(x + radius * 2, canvasHeight),
+                strokeWidth = 4f
+            )
+        }
     }
 }
 
