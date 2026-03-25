@@ -1,5 +1,7 @@
 package com.tobietheunknown.pianoteacher.utils
 
+import com.tobietheunknown.pianoteacher.data.model.NoteEvent
+
 // ─── Note names ───────────────────────────────────────────────────────────────
 
 private val NOTE_NAMES_FR = arrayOf(
