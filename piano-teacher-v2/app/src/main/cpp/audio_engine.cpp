@@ -235,7 +235,9 @@ private:
     std::shared_ptr<oboe::AudioStream> mStream;
     Voice mVoices[MAX_VOICES] = {};
     std::mutex mVoiceMutex;
+public:
     int mOutputSampleRate = 48000;
+private:
     int mNextVoice = 0;
 
     int findNearestSample(int pitch) const {
