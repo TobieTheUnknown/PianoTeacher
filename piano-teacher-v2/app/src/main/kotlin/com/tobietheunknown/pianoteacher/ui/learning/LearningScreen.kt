@@ -21,8 +21,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -197,9 +199,13 @@ fun LearningScreen(
                             )
                             SwipeToDismissBox(
                                 state = dismissState,
+                                modifier = Modifier.clipToBounds(),
                                 backgroundContent = {
                                     Box(
-                                        modifier = Modifier.fillMaxSize().background(Color(0xFFEF4444)),
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFFEF4444)),
                                         contentAlignment = Alignment.CenterEnd
                                     ) {
                                         Icon(Icons.Default.Delete, "Supprimer", tint = Color.White, modifier = Modifier.padding(end = 16.dp))
@@ -432,7 +438,7 @@ private fun CoordinationTimeline(
 
                 Column(
                     modifier = Modifier
-                        .width(88.dp)
+                        .width(100.dp)
                         .clip(RoundedCornerShape(5.dp))
                         .background(
                             when {
@@ -492,7 +498,7 @@ private fun TimelineBeatRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(18.dp),
+            .height(22.dp),
         horizontalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         for (beat in 0 until beatsPerMeasure) {
@@ -508,7 +514,7 @@ private fun TimelineBeatRow(
                 if (beatNotes.isNotEmpty()) {
                     Text(
                         text = midiToFrench(beatNotes.first().pitch, showOctaves),
-                        fontSize = 5.5.sp,
+                        fontSize = 7.5.sp,
                         color = color,
                         maxLines = 1,
                         overflow = TextOverflow.Clip
@@ -610,7 +616,7 @@ private fun MeasureCard(
                 else Modifier
             )
             .clickable(onClick = onTap)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -642,8 +648,7 @@ private fun MeasureCard(
 
             // Melody (MD)
             if (measure.melodyNotes.isNotEmpty()) {
-                val pitches = measure.melodyNotes.map { it.pitch }.distinct()
-                val names = pitches.map { midiToFrench(it, showOctaves) }
+                val names = measure.melodyNotes.map { midiToFrench(it.pitch, showOctaves) }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -679,7 +684,7 @@ private fun MeasureCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("MG:", fontSize = 12.sp, color = PinkChords.copy(alpha = 0.7f))
-                    measure.chordNotes.map { midiToFrench(it.pitch, showOctaves) }.distinct().take(5)
+                    measure.chordNotes.map { midiToFrench(it.pitch, showOctaves) }.take(5)
                         .forEach { NoteChip(it, PinkChords) }
                 }
             }
@@ -724,7 +729,7 @@ private fun ChordChip(
         if (showDetails && chordNotes.isNotEmpty()) {
             Spacer(Modifier.height(2.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                chordNotes.map { midiToFrench(it.pitch, showOctaves) }.distinct().take(6)
+                chordNotes.map { midiToFrench(it.pitch, showOctaves) }.take(6)
                     .forEach { NoteChip(it, PinkChords) }
             }
         }
@@ -739,7 +744,7 @@ private fun NoteChip(name: String, color: Color) {
             .background(color.copy(alpha = 0.1f))
             .padding(horizontal = 4.dp, vertical = 1.dp)
     ) {
-        Text(name, fontSize = 9.sp, color = color, fontWeight = FontWeight.Medium)
+        Text(name, fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -764,10 +769,21 @@ private fun MiniTimeline(
     chordNotes: List<NoteEvent>,
     beatsPerMeasure: Double
 ) {
+    val noteTextPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.argb(153, 255, 255, 255) // White alpha 0.6
+            textSize = 24f // overridden below
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+    }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val textSizePx = with(density) { 8.sp.toPx() }
+
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(24.dp)
+            .height(30.dp)
     ) {
         val w = size.width
         val h = size.height
@@ -780,14 +796,32 @@ private fun MiniTimeline(
             strokeWidth = 1.5f
         )
 
+        noteTextPaint.textSize = textSizePx
+
         melodyNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = CyanMelody, radius = 6f, center = Offset(x, midY - 6f))
+            drawCircle(color = CyanMelody, radius = 8f, center = Offset(x, midY - 8f))
+            // Note name above the dot
+            val noteName = midiToFrench(note.pitch, showOctave = false)
+            drawContext.canvas.nativeCanvas.drawText(
+                noteName,
+                x,
+                midY - 8f - 10f, // above the dot
+                noteTextPaint
+            )
         }
 
         chordNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = PinkChords, radius = 6f, center = Offset(x, midY + 6f))
+            drawCircle(color = PinkChords, radius = 8f, center = Offset(x, midY + 8f))
+            // Note name below the dot
+            val noteName = midiToFrench(note.pitch, showOctave = false)
+            drawContext.canvas.nativeCanvas.drawText(
+                noteName,
+                x,
+                midY + 8f + textSizePx + 2f, // below the dot
+                noteTextPaint
+            )
         }
     }
 }

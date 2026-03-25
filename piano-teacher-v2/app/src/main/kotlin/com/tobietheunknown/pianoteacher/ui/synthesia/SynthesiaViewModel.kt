@@ -41,7 +41,7 @@ data class SynthesiaUiState(
     val playbackSpeed: Float = 1.0f,
     val audioEnabled: Boolean = true,
     val selectedHand: PlaybackHand = PlaybackHand.BOTH,
-    val metronomeEnabled: Boolean = false,
+    val metronomeSubdivision: Int = 0,  // 0=off, 1=quarter notes, 2=eighth notes
     val minPitch: Int = 21,
     val maxPitch: Int = 108,
     val isListenMode: Boolean = false,
@@ -171,7 +171,7 @@ class SynthesiaViewModel(
 
         playbackJob = viewModelScope.launch {
             // Metronome preroll: play 1 measure of clicks before starting
-            if (_state.value.metronomeEnabled) {
+            if (_state.value.metronomeSubdivision > 0) {
                 val bpm = _state.value.song?.tempo ?: 120
                 val speed = _state.value.playbackSpeed
                 val beatMs = (60_000.0 / bpm / speed).toLong()
@@ -238,12 +238,15 @@ class SynthesiaViewModel(
                     triggerAutoNotes(currentBeat)
 
                     // Metronome
-                    if (_state.value.metronomeEnabled) {
-                        val beatInt = kotlin.math.floor(currentBeat).toInt()
-                        if (beatInt != lastMetronomeBeat && beatInt >= 0) {
-                            lastMetronomeBeat = beatInt
+                    val subdivision = _state.value.metronomeSubdivision
+                    if (subdivision > 0) {
+                        val multiplier = if (subdivision == 2) 2 else 1
+                        val tickIndex = kotlin.math.floor(currentBeat * multiplier).toInt()
+                        if (tickIndex != lastMetronomeBeat && tickIndex >= 0) {
+                            lastMetronomeBeat = tickIndex
                             val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
-                            metronome.playClick(beatInt % beatsPerMeasure == 0)
+                            val isAccent = tickIndex % (beatsPerMeasure * multiplier) == 0
+                            metronome.playClick(isAccent)
                         }
                     }
                 }
@@ -322,7 +325,7 @@ class SynthesiaViewModel(
     }
 
     fun toggleMetronome() {
-        _state.update { it.copy(metronomeEnabled = !it.metronomeEnabled) }
+        _state.update { it.copy(metronomeSubdivision = (it.metronomeSubdivision + 1) % 3) }
     }
 
     fun toggleListenMode() {
@@ -392,18 +395,22 @@ class SynthesiaViewModel(
             }
         }
 
-        _state.value.visibleNotes.forEach { noteWithHand ->
+        val state = _state.value
+        state.visibleNotes.forEach { noteWithHand ->
             val note = noteWithHand.note
             val noteKey = note.id
 
+            // Skip notes at or past loop end when looping
+            if (state.isLooping && state.loopEndBeat > 0 && note.startTime >= state.loopEndBeat) return@forEach
+
             // Listen mode: auto-play ALL notes
             // Normal mode: only auto-trigger backing track notes (isAutoPlay)
-            val shouldTrigger = _state.value.isListenMode || noteWithHand.isAutoPlay
+            val shouldTrigger = state.isListenMode || noteWithHand.isAutoPlay
 
             if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
                 note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
                 // Listen mode notes play at 80, backing track at 60
-                val velocity = if (_state.value.isListenMode && !noteWithHand.isAutoPlay) 80 else if (noteWithHand.isAutoPlay) 60 else 80
+                val velocity = if (state.isListenMode && !noteWithHand.isAutoPlay) 80 else if (noteWithHand.isAutoPlay) 60 else 80
                 audioEngine.noteOn(note.pitch, velocity)
                 triggeredNotes.add(noteKey)
                 pendingNoteOffs.add(PendingNoteOff(note.pitch, note.startTime + note.duration))

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -103,10 +104,20 @@ fun SynthesiaScreen(
             SpeedBadge(speed = state.playbackSpeed, modifier = Modifier.align(Alignment.TopEnd))
         }
 
+        // Compute active autoplay pitches (notes currently sounding) with hand info
+        val activeRightPitches = remember(state.visibleNotes) {
+            state.visibleNotes.filter { it.isActive && it.isRightHand }.map { it.note.pitch }.toSet()
+        }
+        val activeLeftPitches = remember(state.visibleNotes) {
+            state.visibleNotes.filter { it.isActive && !it.isRightHand }.map { it.note.pitch }.toSet()
+        }
+
         PianoKeyboard(
             pressedKeys = state.pressedKeys,
             expectedKeys = state.expectedKeys,
             wrongKeys = state.wrongKeys,
+            activeRightPitches = activeRightPitches,
+            activeLeftPitches = activeLeftPitches,
             minPitch = state.minPitch,
             maxPitch = state.maxPitch,
             modifier = Modifier
@@ -119,7 +130,7 @@ fun SynthesiaScreen(
             isLooping = state.isLooping,
             isWaitMode = state.isWaitMode,
             audioEnabled = state.audioEnabled,
-            metronomeEnabled = state.metronomeEnabled,
+            metronomeSubdivision = state.metronomeSubdivision,
             isListenMode = state.isListenMode,
             playbackSpeed = state.playbackSpeed,
             currentBeat = state.currentBeat,
@@ -172,6 +183,7 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
     Canvas(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0xFF080A0E))
             .graphicsLayer { }
     ) {
         val canvasWidth = size.width
@@ -181,6 +193,26 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
         val noteRangeSize = maxPitch - minPitch + 1
         val noteWidth = canvasWidth / noteRangeSize
         val beatsPerPixel = canvasHeight / VISIBLE_BEATS
+
+        // Column lanes for each MIDI pitch
+        for (pitch in minPitch..maxPitch) {
+            val noteIndex = pitch - minPitch
+            val x = noteIndex * noteWidth
+            val isBlack = pitch % 12 in listOf(1, 3, 6, 8, 10)
+            // Background fill
+            drawRect(
+                color = if (isBlack) Color.White.copy(alpha = 0.012f) else Color.White.copy(alpha = 0.025f),
+                topLeft = Offset(x, 0f),
+                size = Size(noteWidth, canvasHeight)
+            )
+            // Separator line at left boundary
+            drawLine(
+                color = Color.White.copy(alpha = 0.04f),
+                start = Offset(x, 0f),
+                end = Offset(x, canvasHeight),
+                strokeWidth = 0.5f
+            )
+        }
 
         // Measure and beat grid lines
         state.song?.let { song ->
@@ -241,8 +273,14 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
 
             if (noteTop > canvasHeight || noteBottom < 0) return@forEach
 
+            // Gradient: brighter at bottom (near hit line)
+            val noteColor = if (noteWithHand.isActive) color else color.copy(alpha = 0.75f)
             drawRoundRect(
-                color = if (noteWithHand.isActive) color else color.copy(alpha = 0.75f),
+                brush = Brush.verticalGradient(
+                    colors = listOf(noteColor.copy(alpha = noteColor.alpha * 0.6f), noteColor),
+                    startY = noteTop,
+                    endY = noteBottom
+                ),
                 topLeft = Offset(x + 1f, noteTop),
                 size = Size(noteWidth - 2f, noteHeight),
                 cornerRadius = CornerRadius(3f, 3f)
@@ -260,12 +298,24 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
             }
         }
 
-        // Hit line (indigo) at bottom
+        // Hit line (indigo) at bottom — glow behind, then main line
         drawLine(
-            color = IndigoAccent.copy(alpha = 0.6f),
+            color = IndigoAccent.copy(alpha = 0.15f),
             start = Offset(0f, canvasHeight),
             end = Offset(canvasWidth, canvasHeight),
-            strokeWidth = 3f
+            strokeWidth = 12f
+        )
+        drawLine(
+            color = IndigoAccent.copy(alpha = 0.3f),
+            start = Offset(0f, canvasHeight),
+            end = Offset(canvasWidth, canvasHeight),
+            strokeWidth = 8f
+        )
+        drawLine(
+            color = IndigoAccent.copy(alpha = 0.8f),
+            start = Offset(0f, canvasHeight),
+            end = Offset(canvasWidth, canvasHeight),
+            strokeWidth = 4f
         )
     }
 }
@@ -275,6 +325,8 @@ private fun PianoKeyboard(
     pressedKeys: Set<Int>,
     expectedKeys: Set<Int>,
     wrongKeys: Set<Int>,
+    activeRightPitches: Set<Int> = emptySet(),
+    activeLeftPitches: Set<Int> = emptySet(),
     minPitch: Int = 21,
     maxPitch: Int = 108,
     modifier: Modifier = Modifier
@@ -293,11 +345,15 @@ private fun PianoKeyboard(
             val isPressed = midi in pressedKeys
             val isExpected = midi in expectedKeys
             val isWrong = midi in wrongKeys
+            val isActiveRight = midi in activeRightPitches
+            val isActiveLeft = midi in activeLeftPitches
 
             val color = when {
                 isWrong -> Color(0xFFFF6B6B)
                 isPressed && isExpected -> CyanMelody
                 isPressed -> CyanMelody.copy(alpha = 0.7f)
+                isActiveRight -> CyanMelody.copy(alpha = 0.7f)
+                isActiveLeft -> PinkChords.copy(alpha = 0.7f)
                 isExpected -> AmberWarning.copy(alpha = 0.6f)
                 else -> Color(0xFFE8ECF0)
             }
@@ -317,16 +373,20 @@ private fun PianoKeyboard(
 
             val x = i * keyWidth - keyWidth * 0.3f
             val blackWidth = keyWidth * 0.6f
-            val blackHeight = keyHeight * 0.62f
+            val blackHeight = keyHeight * 7f / 12f
 
             val isPressed = midi in pressedKeys
             val isExpected = midi in expectedKeys
             val isWrong = midi in wrongKeys
+            val isActiveRight = midi in activeRightPitches
+            val isActiveLeft = midi in activeLeftPitches
 
             val color = when {
                 isWrong -> Color(0xFFFF6B6B).copy(alpha = 0.9f)
                 isPressed && isExpected -> CyanMelody.copy(alpha = 0.85f)
                 isPressed -> CyanMelody.copy(alpha = 0.6f)
+                isActiveRight -> CyanMelody.copy(alpha = 0.7f)
+                isActiveLeft -> PinkChords.copy(alpha = 0.7f)
                 isExpected -> AmberWarning.copy(alpha = 0.7f)
                 else -> Color(0xFF1A1A1A)
             }
@@ -423,7 +483,7 @@ private fun SynthesiaControls(
     isLooping: Boolean,
     isWaitMode: Boolean,
     audioEnabled: Boolean,
-    metronomeEnabled: Boolean,
+    metronomeSubdivision: Int,
     isListenMode: Boolean,
     playbackSpeed: Float,
     currentBeat: Double,
@@ -541,11 +601,19 @@ private fun SynthesiaControls(
 
             // Right: toggles
             Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                // Metronome toggle
+                // Metronome toggle (cycles: off → quarter → eighth → off)
                 IconButton(onClick = onMetronomeToggle) {
                     Text(
-                        "\u2669",
-                        color = if (metronomeEnabled) AmberWarning else Color(0xFF475569),
+                        when (metronomeSubdivision) {
+                            1 -> "\u2669"    // ♩ quarter notes
+                            2 -> "\u266A\u266A" // ♪♪ eighth notes
+                            else -> "\u2669"  // show quarter note symbol even when off
+                        },
+                        color = when (metronomeSubdivision) {
+                            1 -> AmberWarning
+                            2 -> Color(0xFFFFB300) // bright amber
+                            else -> Color(0xFF475569) // gray when off
+                        },
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )

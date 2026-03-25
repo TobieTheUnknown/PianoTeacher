@@ -274,13 +274,28 @@ class LearningViewModel(
             }
         }.sortedBy { it.note.startTime }
 
+        // Build a merged timeline of noteOn and noteOff events for precise timing
+        data class AudioEvent(val timeMs: Long, val pitch: Int, val velocity: Int, val isOn: Boolean)
+        val events = mutableListOf<AudioEvent>()
+        for (pn in notes) {
+            val onMs = (pn.note.startTime * beatMs).toLong()
+            val offMs = ((pn.note.startTime + pn.note.duration) * beatMs).toLong()
+                .coerceAtMost(measureDurationMs)
+            events.add(AudioEvent(onMs, pn.note.pitch, pn.velocity, true))
+            events.add(AudioEvent(offMs, pn.note.pitch, 0, false))
+        }
+        events.sortBy { it.timeMs }
+
         try {
-            for (pn in notes) {
-                val targetMs = (pn.note.startTime * beatMs).toLong()
+            for (ev in events) {
                 val elapsed = System.currentTimeMillis() - startTime
-                val wait = targetMs - elapsed
+                val wait = ev.timeMs - elapsed
                 if (wait > 0) delay(wait)
-                audioEngine.noteOn(pn.note.pitch, pn.velocity)
+                if (ev.isOn) {
+                    audioEngine.noteOn(ev.pitch, ev.velocity)
+                } else {
+                    audioEngine.noteOff(ev.pitch)
+                }
             }
 
             // Hold until end of measure
@@ -288,7 +303,7 @@ class LearningViewModel(
             val hold = (measureDurationMs - elapsed).coerceAtLeast(0)
             if (hold > 0) delay(hold)
         } finally {
-            // Always release notes, even if the coroutine is cancelled
+            // Always release remaining notes, even if the coroutine is cancelled
             audioEngine.noteOff(-1)
         }
     }
