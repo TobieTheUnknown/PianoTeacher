@@ -584,7 +584,7 @@ private fun MeasureCard(
     val borderColor = when {
         isPlaying -> IndigoAccent
         isFocused -> Color.White.copy(alpha = 0.12f)
-        else -> Color.Transparent
+        else -> Color.White.copy(alpha = 0.08f)
     }
     val bgColor = when {
         isPlaying -> IndigoAccent.copy(alpha = 0.07f)
@@ -596,13 +596,9 @@ private fun MeasureCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 3.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
-            .then(
-                if (isPlaying || isFocused)
-                    Modifier.border(1.dp, borderColor, RoundedCornerShape(8.dp))
-                else Modifier
-            )
+            .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (bgColor != Color.Transparent) bgColor else Surface)
             .clickable(onClick = onTap)
             .padding(horizontal = 16.dp, vertical = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

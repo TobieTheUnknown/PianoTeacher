@@ -84,12 +84,17 @@ fun SynthesiaScreen(
             window.attributes = window.attributes.apply {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            )
         }
         onDispose {
             if (window != null) {
                 WindowCompat.setDecorFitsSystemWindows(window, true)
                 val controller = WindowInsetsControllerCompat(window, window.decorView)
                 controller.show(WindowInsetsCompat.Type.systemBars())
+                window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
             }
         }
     }
@@ -273,7 +278,7 @@ private fun SynthesiaCanvas(
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF080A0E))
+            .background(Background)
             .graphicsLayer { }
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
@@ -453,7 +458,7 @@ private fun PianoKeyboard(
     maxPitch: Int = 108,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier.background(Color(0xFF0D0F14))) {
+    Canvas(modifier = modifier.background(Background)) {
         val keyHeight = size.height
         val whiteKeyMidis = (minPitch..maxPitch).filter { !isBlackKey(it) }
         val whiteKeyWidth = size.width / whiteKeyMidis.size.coerceAtLeast(1)
