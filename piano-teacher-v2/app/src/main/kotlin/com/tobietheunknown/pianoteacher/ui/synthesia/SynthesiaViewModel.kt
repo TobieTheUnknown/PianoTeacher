@@ -430,8 +430,8 @@ class SynthesiaViewModel(
 
             if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
                 note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
-                // Listen mode notes play at 80, backing track at 60
-                val velocity = if (state.isListenMode && !noteWithHand.isAutoPlay) 80 else if (noteWithHand.isAutoPlay) 60 else 80
+                // Listen mode: all notes at 80. Practice mode: backing track at 60
+                val velocity = if (state.isListenMode) 80 else if (noteWithHand.isAutoPlay) 60 else 80
                 audioEngine.noteOn(note.pitch, velocity)
                 triggeredNotes.add(noteKey)
                 pendingNoteOffs.add(PendingNoteOff(note.pitch, note.startTime + note.duration))
