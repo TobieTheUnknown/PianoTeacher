@@ -76,7 +76,7 @@ fun SettingsScreen(
                         selected = selectedTheme == AppTheme.DARK,
                         onClick = {
                             selectedTheme = AppTheme.DARK
-                            ThemePrefs.setTheme(context, AppTheme.DARK)
+                            ThemeState.set(context, AppTheme.DARK)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -86,7 +86,7 @@ fun SettingsScreen(
                         selected = selectedTheme == AppTheme.MIDNIGHT_BLUE,
                         onClick = {
                             selectedTheme = AppTheme.MIDNIGHT_BLUE
-                            ThemePrefs.setTheme(context, AppTheme.MIDNIGHT_BLUE)
+                            ThemeState.set(context, AppTheme.MIDNIGHT_BLUE)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -96,7 +96,7 @@ fun SettingsScreen(
                         selected = selectedTheme == AppTheme.PASTEL_COZY,
                         onClick = {
                             selectedTheme = AppTheme.PASTEL_COZY
-                            ThemePrefs.setTheme(context, AppTheme.PASTEL_COZY)
+                            ThemeState.set(context, AppTheme.PASTEL_COZY)
                         },
                         modifier = Modifier.weight(1f)
                     )

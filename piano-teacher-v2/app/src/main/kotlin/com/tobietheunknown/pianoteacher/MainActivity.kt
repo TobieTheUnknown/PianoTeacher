@@ -14,7 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.tobietheunknown.pianoteacher.ui.theme.PianoTeacherTheme
-import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
+import com.tobietheunknown.pianoteacher.ui.theme.ThemeState
 import com.tobietheunknown.pianoteacher.ui.theme.getThemeColors
 import com.tobietheunknown.pianoteacher.ui.AppNavHost
 
@@ -32,9 +32,10 @@ class MainActivity : ComponentActivity() {
         currentIntent = intent
         requestBlePermissionsIfNeeded()
 
+        ThemeState.init(this)
+
         setContent {
-            val theme = remember { ThemePrefs.getTheme(this@MainActivity) }
-            var currentTheme by remember { mutableStateOf(theme) }
+            val currentTheme by ThemeState.current
             val colors = getThemeColors(currentTheme)
             PianoTeacherTheme(colors = colors) {
                 Surface(modifier = Modifier.fillMaxSize()) {

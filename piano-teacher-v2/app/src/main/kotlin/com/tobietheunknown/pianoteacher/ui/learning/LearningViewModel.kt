@@ -234,6 +234,54 @@ class LearningViewModel(
         }
     }
 
+    /** Tap on per-hand button → plays only one hand for that measure */
+    fun playMeasureHandSingle(globalIdx: Int, playRight: Boolean) {
+        val s = song.value ?: return
+        val measures = allMeasures.value
+        if (globalIdx !in measures.indices) return
+
+        cancelPlayback()
+        _isPlaying.value = true
+
+        playbackJob = viewModelScope.launch {
+            _playingMeasureIndex.value = globalIdx
+            _focusedMeasureIndex.value = globalIdx
+            val measure = measures[globalIdx]
+            val beatMs = 60_000.0 / (s.tempo * _tempoPercent.value)
+            val measureDurationMs = (s.beatsPerMeasure * beatMs).toLong()
+            val startTime = System.currentTimeMillis()
+
+            val notes = if (playRight) measure.melodyNotes else measure.chordNotes
+
+            data class AudioEvent(val timeMs: Long, val pitch: Int, val isOn: Boolean)
+            val events = mutableListOf<AudioEvent>()
+            for (n in notes) {
+                val onMs = (n.startTime * beatMs).toLong()
+                val offMs = ((n.startTime + n.duration) * beatMs).toLong().coerceAtMost(measureDurationMs)
+                events.add(AudioEvent(onMs, n.pitch, true))
+                events.add(AudioEvent(offMs, n.pitch, false))
+            }
+            events.sortBy { it.timeMs }
+
+            try {
+                for (ev in events) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    val wait = ev.timeMs - elapsed
+                    if (wait > 0) delay(wait)
+                    if (ev.isOn) audioEngine.noteOn(ev.pitch, 80) else audioEngine.noteOff(ev.pitch)
+                }
+                val elapsed = System.currentTimeMillis() - startTime
+                val hold = (measureDurationMs - elapsed).coerceAtLeast(0)
+                if (hold > 0) delay(hold)
+            } finally {
+                audioEngine.noteOff(-1)
+            }
+
+            _isPlaying.value = false
+            _playingMeasureIndex.value = -1
+        }
+    }
+
     /** Play button on phrase header → plays the full phrase then stops */
     fun playPhrase(phraseIdx: Int) {
         val s = song.value ?: return

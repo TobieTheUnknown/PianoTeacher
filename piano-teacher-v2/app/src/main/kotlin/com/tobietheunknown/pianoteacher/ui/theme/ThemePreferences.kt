@@ -2,6 +2,7 @@ package com.tobietheunknown.pianoteacher.ui.theme
 
 import android.content.Context
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 
 enum class AppTheme { DARK, MIDNIGHT_BLUE, PASTEL_COZY }
@@ -68,5 +69,18 @@ object ThemePrefs {
 
     fun setMetronomeVolume(context: Context, level: Int) {
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit().putInt(KEY_METRO_VOL, level.coerceIn(0, 2)).apply()
+    }
+}
+
+object ThemeState {
+    val current = mutableStateOf(AppTheme.DARK)
+
+    fun init(context: Context) {
+        current.value = ThemePrefs.getTheme(context)
+    }
+
+    fun set(context: Context, theme: AppTheme) {
+        ThemePrefs.setTheme(context, theme)
+        current.value = theme
     }
 }

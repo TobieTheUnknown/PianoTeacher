@@ -207,12 +207,10 @@ fun LearningScreen(
                             useFlats = useFlats,
                             onTap = { vm.playMeasureSingle(measure.globalIndex); vm.focusMeasure(measure.globalIndex) },
                             onPlayMD = {
-                                vm.setHand(PlaybackHand.RIGHT)
-                                vm.playMeasureSingle(measure.globalIndex)
+                                vm.playMeasureHandSingle(measure.globalIndex, playRight = true)
                             },
                             onPlayMG = {
-                                vm.setHand(PlaybackHand.LEFT)
-                                vm.playMeasureSingle(measure.globalIndex)
+                                vm.playMeasureHandSingle(measure.globalIndex, playRight = false)
                             }
                         )
                     }
@@ -659,6 +657,7 @@ private fun MeasureCard(
                         chordNotes = measure.chordNotes,
                         showDetails = showDetails,
                         showOctaves = showOctaves,
+                        useFlats = useFlats,
                         arpeggioResult = measure.arpeggioMotif
                     )
                 }
@@ -692,6 +691,7 @@ private fun ChordChip(
     chordNotes: List<NoteEvent>,
     showDetails: Boolean,
     showOctaves: Boolean,
+    useFlats: Boolean = false,
     arpeggioResult: ArpeggioMotifResult? = null
 ) {
     Column {
@@ -706,22 +706,25 @@ private fun ChordChip(
                 )
                 Spacer(Modifier.height(2.dp))
             }
-            // Chord badges
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                arpeggioResult.chords.forEach { cwr ->
-                    ArpeggioChordBadge(cwr)
-                }
-            }
-            // Expandable note detail
-            if (showDetails && chordNotes.isNotEmpty()) {
-                Spacer(Modifier.height(2.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    val cycleNotes = firstArpeggioCycle(chordNotes)
-                        .map { note -> midiToFrench(note.pitch, showOctaves, arpeggioResult.chords.firstOrNull()?.bassNote != null) }
-                    cycleNotes.forEach { NoteChip(it, PinkChords) }
+            // Chord badges — vertically stacked
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (cwr in arpeggioResult.chords) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        ArpeggioChordBadge(cwr)
+                        if (showDetails) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                cwr.cycleNotes.forEach { pitch ->
+                                    NoteChip(
+                                        midiToFrench(pitch, showOctaves, useFlats),
+                                        PinkChords
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else {
@@ -752,7 +755,7 @@ private fun ChordChip(
                 Spacer(Modifier.height(2.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     val cycleNotes = firstArpeggioCycle(chordNotes)
-                        .map { note -> midiToFrench(note.pitch, showOctaves) }
+                        .map { note -> midiToFrench(note.pitch, showOctaves, useFlats) }
                     cycleNotes.forEach { NoteChip(it, PinkChords) }
                 }
             }
