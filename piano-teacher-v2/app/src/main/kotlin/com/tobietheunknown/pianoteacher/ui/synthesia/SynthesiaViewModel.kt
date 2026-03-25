@@ -396,12 +396,14 @@ class SynthesiaViewModel(
         }
 
         val state = _state.value
-        state.visibleNotes.forEach { noteWithHand ->
+        val notes = state.visibleNotes
+        for (i in notes.indices) {
+            val noteWithHand = notes[i]
             val note = noteWithHand.note
             val noteKey = note.id
 
             // Skip notes at or past loop end when looping
-            if (state.isLooping && state.loopEndBeat > 0 && note.startTime >= state.loopEndBeat) return@forEach
+            if (state.isLooping && state.loopEndBeat > 0 && note.startTime >= state.loopEndBeat) continue
 
             // Listen mode: auto-play ALL notes
             // Normal mode: only auto-trigger backing track notes (isAutoPlay)
@@ -424,6 +426,9 @@ class SynthesiaViewModel(
 
     // ─── State updates ────────────────────────────────────────────────────────
 
+    // Pre-allocated list reused across frames to reduce GC pressure
+    private val visibleBuffer = mutableListOf<NoteWithHand>()
+
     private fun updateVisibleNotes(currentBeat: Double) {
         val song = _state.value.song ?: return
         val phrase = _state.value.currentPhrase
@@ -444,7 +449,7 @@ class SynthesiaViewModel(
         val lookAhead = VISIBLE_BEATS + 1.0
         val windowStart = currentBeat - 0.5
         val windowEnd = currentBeat + lookAhead
-        val visible = mutableListOf<NoteWithHand>()
+        visibleBuffer.clear()
 
         // Helper to find visible notes using binary search on sorted lists
         fun addVisibleNotes(notes: List<NoteEvent>, isRightHand: Boolean) {
@@ -471,7 +476,7 @@ class SynthesiaViewModel(
                         PlaybackHand.RIGHT -> !isRightHand  // left hand notes are auto-play
                         PlaybackHand.LEFT -> isRightHand     // right hand notes are auto-play
                     }
-                    visible.add(NoteWithHand(n, isRightHand, isActive, isAutoPlay))
+                    visibleBuffer.add(NoteWithHand(n, isRightHand, isActive, isAutoPlay))
                 }
             }
         }
@@ -479,19 +484,27 @@ class SynthesiaViewModel(
         addVisibleNotes(melodyNotes, true)
         addVisibleNotes(chordNotes, false)
 
+        // Create a snapshot list for the state (state must be immutable)
+        val visible = ArrayList(visibleBuffer)
         _state.update { it.copy(visibleNotes = visible) }
     }
 
     private fun updateExpectedKeys(currentBeat: Double) {
         if (_state.value.isListenMode) {
-            _state.update { it.copy(expectedKeys = emptySet()) }
+            if (_state.value.expectedKeys.isNotEmpty()) {
+                _state.update { it.copy(expectedKeys = emptySet()) }
+            }
             return
         }
         val tolerance = 0.15
-        val expected = _state.value.visibleNotes
-            .filter { !it.isAutoPlay && it.note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance) }
-            .map { it.note.pitch }
-            .toSet()
+        val notes = _state.value.visibleNotes
+        val expected = mutableSetOf<Int>()
+        for (i in notes.indices) {
+            val n = notes[i]
+            if (!n.isAutoPlay && n.note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
+                expected.add(n.note.pitch)
+            }
+        }
         _state.update { it.copy(expectedKeys = expected) }
     }
 

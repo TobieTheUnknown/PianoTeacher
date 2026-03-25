@@ -14,17 +14,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -188,46 +183,12 @@ fun LearningScreen(
 
                 sections.forEach { section ->
                     item(key = "header_${section.phraseIndex}") {
-                        if (section.phraseIndex > 0 && sections.size > 1) {
-                            val dismissState = rememberSwipeToDismissBoxState(
-                                confirmValueChange = { value ->
-                                    if (value == SwipeToDismissBoxValue.EndToStart) {
-                                        vm.deletePhrase(section.phraseIndex)
-                                        true
-                                    } else false
-                                }
-                            )
-                            SwipeToDismissBox(
-                                state = dismissState,
-                                modifier = Modifier.clipToBounds(),
-                                backgroundContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFFEF4444)),
-                                        contentAlignment = Alignment.CenterEnd
-                                    ) {
-                                        Icon(Icons.Default.Delete, "Supprimer", tint = Color.White, modifier = Modifier.padding(end = 16.dp))
-                                    }
-                                },
-                                enableDismissFromStartToEnd = false
-                            ) {
-                                PhraseHeader(
-                                    section = section,
-                                    onPlay = { vm.playPhrase(section.phraseIndex) },
-                                    onToggleMastered = { vm.toggleMastered(section.phrase.id) },
-                                    onRename = { showRenamePhraseDialog = section.phraseIndex }
-                                )
-                            }
-                        } else {
-                            PhraseHeader(
-                                section = section,
-                                onPlay = { vm.playPhrase(section.phraseIndex) },
-                                onToggleMastered = { vm.toggleMastered(section.phrase.id) },
-                                onRename = { showRenamePhraseDialog = section.phraseIndex }
-                            )
-                        }
+                        PhraseHeader(
+                            section = section,
+                            onPlay = { vm.playPhrase(section.phraseIndex) },
+                            onToggleMastered = { vm.toggleMastered(section.phrase.id) },
+                            onRename = { showRenamePhraseDialog = section.phraseIndex }
+                        )
                     }
                     items(section.measures, key = { it.globalIndex }) { measure ->
                         MeasureCard(
@@ -286,6 +247,7 @@ fun LearningScreen(
         val phrase = song?.phrases?.getOrNull(phraseIdx)
         if (phrase != null) {
             var text by remember { mutableStateOf(phrase.name) }
+            val canDelete = phraseIdx > 0 && (song?.phrases?.size ?: 0) > 1
             AlertDialog(
                 onDismissRequest = { showRenamePhraseDialog = null },
                 title = { Text("Renommer la phrase") },
@@ -298,10 +260,24 @@ fun LearningScreen(
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = {
-                        vm.renamePhrase(phraseIdx, text)
-                        showRenamePhraseDialog = null
-                    }) { Text("OK") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                vm.deletePhrase(phraseIdx)
+                                showRenamePhraseDialog = null
+                            },
+                            enabled = canDelete
+                        ) {
+                            Text(
+                                "Supprimer",
+                                color = if (canDelete) Color(0xFFEF4444) else Color(0xFF64748B)
+                            )
+                        }
+                        TextButton(onClick = {
+                            vm.renamePhrase(phraseIdx, text)
+                            showRenamePhraseDialog = null
+                        }) { Text("OK") }
+                    }
                 },
                 dismissButton = {
                     TextButton(onClick = { showRenamePhraseDialog = null }) { Text("Annuler") }
@@ -616,14 +592,14 @@ private fun MeasureCard(
                 else Modifier
             )
             .clickable(onClick = onTap)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
         // Measure number badge
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(38.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (isPlaying) IndigoAccent else Color.White.copy(alpha = 0.05f)),
             contentAlignment = Alignment.Center
@@ -653,7 +629,7 @@ private fun MeasureCard(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("MD:", fontSize = 12.sp, color = CyanMelody.copy(alpha = 0.7f))
+                    Text("MD:", fontSize = 14.sp, color = CyanMelody.copy(alpha = 0.7f))
                     val visible = if (showDetails) names else names.take(4)
                     visible.forEach { NoteChip(it, CyanMelody) }
                     if (!showDetails && names.size > 4) {
@@ -669,7 +645,7 @@ private fun MeasureCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("MG:", fontSize = 12.sp, color = PinkChords.copy(alpha = 0.7f))
+                    Text("MG:", fontSize = 14.sp, color = PinkChords.copy(alpha = 0.7f))
                     ChordChip(
                         chordInfo = measure.chordInfo,
                         chordNotes = measure.chordNotes,
@@ -683,7 +659,7 @@ private fun MeasureCard(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("MG:", fontSize = 12.sp, color = PinkChords.copy(alpha = 0.7f))
+                    Text("MG:", fontSize = 14.sp, color = PinkChords.copy(alpha = 0.7f))
                     measure.chordNotes.map { midiToFrench(it.pitch, showOctaves) }.take(5)
                         .forEach { NoteChip(it, PinkChords) }
                 }
@@ -721,7 +697,12 @@ private fun ChordChip(
             if (chordInfo.isArpeggio) {
                 Icon(Icons.Default.MusicNote, null, tint = PinkChords, modifier = Modifier.size(9.dp))
             }
-            Text(chordInfo.name, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
+            val displayName = if (chordInfo.bassNote != null) {
+                "${chordInfo.name} / ${chordInfo.bassNote}"
+            } else {
+                chordInfo.name
+            }
+            Text(displayName, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
             if (chordInfo.isArpeggio) {
                 Text("arp.", fontSize = 9.sp, color = PinkChords.copy(alpha = 0.6f))
             }
@@ -729,8 +710,10 @@ private fun ChordChip(
         if (showDetails && chordNotes.isNotEmpty()) {
             Spacer(Modifier.height(2.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                chordNotes.map { midiToFrench(it.pitch, showOctaves) }.take(6)
-                    .forEach { NoteChip(it, PinkChords) }
+                val uniqueByPitchClass = chordNotes
+                    .distinctBy { it.pitch % 12 }
+                    .map { midiToFrench(it.pitch, showOctaves) }
+                uniqueByPitchClass.forEach { NoteChip(it, PinkChords) }
             }
         }
     }
@@ -744,7 +727,7 @@ private fun NoteChip(name: String, color: Color) {
             .background(color.copy(alpha = 0.1f))
             .padding(horizontal = 4.dp, vertical = 1.dp)
     ) {
-        Text(name, fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium)
+        Text(name, fontSize = 13.sp, color = color, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -769,21 +752,10 @@ private fun MiniTimeline(
     chordNotes: List<NoteEvent>,
     beatsPerMeasure: Double
 ) {
-    val noteTextPaint = remember {
-        android.graphics.Paint().apply {
-            color = android.graphics.Color.argb(153, 255, 255, 255) // White alpha 0.6
-            textSize = 24f // overridden below
-            textAlign = android.graphics.Paint.Align.CENTER
-            isAntiAlias = true
-        }
-    }
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val textSizePx = with(density) { 8.sp.toPx() }
-
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(30.dp)
+            .height(40.dp)
     ) {
         val w = size.width
         val h = size.height
@@ -796,32 +768,14 @@ private fun MiniTimeline(
             strokeWidth = 1.5f
         )
 
-        noteTextPaint.textSize = textSizePx
-
         melodyNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
             drawCircle(color = CyanMelody, radius = 8f, center = Offset(x, midY - 8f))
-            // Note name above the dot
-            val noteName = midiToFrench(note.pitch, showOctave = false)
-            drawContext.canvas.nativeCanvas.drawText(
-                noteName,
-                x,
-                midY - 8f - 10f, // above the dot
-                noteTextPaint
-            )
         }
 
         chordNotes.forEach { note ->
             val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
             drawCircle(color = PinkChords, radius = 8f, center = Offset(x, midY + 8f))
-            // Note name below the dot
-            val noteName = midiToFrench(note.pitch, showOctave = false)
-            drawContext.canvas.nativeCanvas.drawText(
-                noteName,
-                x,
-                midY + 8f + textSizePx + 2f, // below the dot
-                noteTextPaint
-            )
         }
     }
 }

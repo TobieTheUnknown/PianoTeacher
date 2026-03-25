@@ -5,7 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
@@ -26,10 +28,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.res.Configuration
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
@@ -49,6 +53,8 @@ fun SynthesiaScreen(
     )
 ) {
     val state by vm.state.collectAsState()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     Column(
         modifier = Modifier
@@ -56,7 +62,7 @@ fun SynthesiaScreen(
             .background(Background)
             .safeDrawingPadding()
     ) {
-        SynthesiaTopBar(
+        if (!isLandscape) SynthesiaTopBar(
             title = state.song?.title ?: "",
             phraseIndex = state.currentPhraseIndex,
             phraseCount = state.songPhraseCount,
@@ -190,28 +196,40 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
         val canvasHeight = size.height
         val minPitch = state.minPitch
         val maxPitch = state.maxPitch
-        val noteRangeSize = maxPitch - minPitch + 1
-        val noteWidth = canvasWidth / noteRangeSize
+        val whiteKeyMidis = (minPitch..maxPitch).filter { midi -> midi % 12 !in listOf(1, 3, 6, 8, 10) }
+        val whiteKeyCount = whiteKeyMidis.size.coerceAtLeast(1)
+        val whiteKeyWidth = canvasWidth / whiteKeyCount
         val beatsPerPixel = canvasHeight / VISIBLE_BEATS
 
-        // Column lanes for each MIDI pitch
+        // Column lanes for each MIDI pitch using white-key-based layout
         for (pitch in minPitch..maxPitch) {
-            val noteIndex = pitch - minPitch
-            val x = noteIndex * noteWidth
             val isBlack = pitch % 12 in listOf(1, 3, 6, 8, 10)
+            val x: Float
+            val laneWidth: Float
+            if (!isBlack) {
+                val whiteIndex = whiteKeyMidis.indexOf(pitch)
+                x = whiteIndex * whiteKeyWidth
+                laneWidth = whiteKeyWidth
+            } else {
+                val whitesBefore = (minPitch until pitch).count { it % 12 !in listOf(1, 3, 6, 8, 10) }
+                x = whitesBefore * whiteKeyWidth - whiteKeyWidth * 0.3f
+                laneWidth = whiteKeyWidth * 0.6f
+            }
             // Background fill
             drawRect(
                 color = if (isBlack) Color.White.copy(alpha = 0.012f) else Color.White.copy(alpha = 0.025f),
                 topLeft = Offset(x, 0f),
-                size = Size(noteWidth, canvasHeight)
+                size = Size(laneWidth, canvasHeight)
             )
-            // Separator line at left boundary
-            drawLine(
-                color = Color.White.copy(alpha = 0.04f),
-                start = Offset(x, 0f),
-                end = Offset(x, canvasHeight),
-                strokeWidth = 0.5f
-            )
+            // Separator line at left boundary (white keys only)
+            if (!isBlack) {
+                drawLine(
+                    color = Color.White.copy(alpha = 0.04f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, canvasHeight),
+                    strokeWidth = 0.5f
+                )
+            }
         }
 
         // Measure and beat grid lines
@@ -255,23 +273,37 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
             }
         }
 
-        // Falling notes (top = future, bottom = hit zone)
+        // Falling notes (top = future, bottom = hit zone) — use white-key-based layout
         noteTextPaint.textSize = noteTextSizePx
-        state.visibleNotes.forEach { noteWithHand ->
+        val visibleNotes = state.visibleNotes
+        for (i in visibleNotes.indices) {
+            val noteWithHand = visibleNotes[i]
             val note = noteWithHand.note
             val baseColor = if (noteWithHand.isRightHand) CyanMelody else PinkChords
             // Auto-play (backing track) notes are dimmer
             val color = if (noteWithHand.isAutoPlay) baseColor.copy(alpha = 0.35f) else baseColor
 
-            val noteIndex = note.pitch - minPitch
-            if (noteIndex < 0 || noteIndex >= noteRangeSize) return@forEach
+            val pitch = note.pitch
+            if (pitch < minPitch || pitch > maxPitch) continue
 
-            val x = noteIndex * noteWidth
+            val isBlack = pitch % 12 in listOf(1, 3, 6, 8, 10)
+            val x: Float
+            val noteWidth: Float
+            if (!isBlack) {
+                val whiteIndex = whiteKeyMidis.indexOf(pitch)
+                x = whiteIndex * whiteKeyWidth
+                noteWidth = whiteKeyWidth
+            } else {
+                val whitesBefore = (minPitch until pitch).count { it % 12 !in listOf(1, 3, 6, 8, 10) }
+                x = whitesBefore * whiteKeyWidth - whiteKeyWidth * 0.3f
+                noteWidth = whiteKeyWidth * 0.6f
+            }
+
             val noteBottom = canvasHeight - ((note.startTime - state.currentBeat) * beatsPerPixel).toFloat()
             val noteHeight = (note.duration * beatsPerPixel).toFloat().coerceAtLeast(4f)
             val noteTop = noteBottom - noteHeight
 
-            if (noteTop > canvasHeight || noteBottom < 0) return@forEach
+            if (noteTop > canvasHeight || noteBottom < 0) continue
 
             // Gradient: brighter at bottom (near hit line)
             val noteColor = if (noteWithHand.isActive) color else color.copy(alpha = 0.75f)
@@ -332,71 +364,43 @@ private fun PianoKeyboard(
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier.background(Color(0xFF0D0F14))) {
-        val noteCount = maxPitch - minPitch + 1
-        val keyWidth = size.width / noteCount
         val keyHeight = size.height
+        val whiteKeyMidis = (minPitch..maxPitch).filter { !isBlackKey(it) }
+        val whiteKeyWidth = size.width / whiteKeyMidis.size.coerceAtLeast(1)
 
-        // White keys first
-        for (i in 0 until noteCount) {
-            val midi = minPitch + i
-            if (isBlackKey(midi)) continue
-
-            val x = i * keyWidth
-            val isPressed = midi in pressedKeys
-            val isExpected = midi in expectedKeys
-            val isWrong = midi in wrongKeys
-            val isActiveRight = midi in activeRightPitches
-            val isActiveLeft = midi in activeLeftPitches
-
+        // Pass 1: White keys
+        whiteKeyMidis.forEachIndexed { whiteIndex, midi ->
+            val x = whiteIndex * whiteKeyWidth
             val color = when {
-                isWrong -> Color(0xFFFF6B6B)
-                isPressed && isExpected -> CyanMelody
-                isPressed -> CyanMelody.copy(alpha = 0.7f)
-                isActiveRight -> CyanMelody.copy(alpha = 0.7f)
-                isActiveLeft -> PinkChords.copy(alpha = 0.7f)
-                isExpected -> AmberWarning.copy(alpha = 0.6f)
+                midi in wrongKeys -> Color(0xFFFF6B6B)
+                midi in pressedKeys && midi in expectedKeys -> CyanMelody
+                midi in pressedKeys -> CyanMelody.copy(alpha = 0.7f)
+                midi in activeRightPitches -> CyanMelody.copy(alpha = 0.7f)
+                midi in activeLeftPitches -> PinkChords.copy(alpha = 0.7f)
+                midi in expectedKeys -> AmberWarning.copy(alpha = 0.6f)
                 else -> Color(0xFFE8ECF0)
             }
-
-            drawRoundRect(
-                color = color,
-                topLeft = Offset(x + 0.5f, 0f),
-                size = Size(keyWidth - 1f, keyHeight),
-                cornerRadius = CornerRadius(2f, 2f)
-            )
+            drawRoundRect(color, Offset(x + 0.5f, 0f), Size(whiteKeyWidth - 1f, keyHeight), CornerRadius(2f))
         }
 
-        // Black keys on top
-        for (i in 0 until noteCount) {
-            val midi = minPitch + i
+        // Pass 2: Black keys (shorter, positioned between white keys)
+        val blackHeight = keyHeight * 7f / 12f
+        for (midi in minPitch..maxPitch) {
             if (!isBlackKey(midi)) continue
-
-            val x = i * keyWidth - keyWidth * 0.3f
-            val blackWidth = keyWidth * 0.6f
-            val blackHeight = keyHeight * 7f / 12f
-
-            val isPressed = midi in pressedKeys
-            val isExpected = midi in expectedKeys
-            val isWrong = midi in wrongKeys
-            val isActiveRight = midi in activeRightPitches
-            val isActiveLeft = midi in activeLeftPitches
+            val whitesBefore = (minPitch until midi).count { !isBlackKey(it) }
+            val x = whitesBefore * whiteKeyWidth - whiteKeyWidth * 0.3f
+            val bw = whiteKeyWidth * 0.6f
 
             val color = when {
-                isWrong -> Color(0xFFFF6B6B).copy(alpha = 0.9f)
-                isPressed && isExpected -> CyanMelody.copy(alpha = 0.85f)
-                isPressed -> CyanMelody.copy(alpha = 0.6f)
-                isActiveRight -> CyanMelody.copy(alpha = 0.7f)
-                isActiveLeft -> PinkChords.copy(alpha = 0.7f)
-                isExpected -> AmberWarning.copy(alpha = 0.7f)
+                midi in wrongKeys -> Color(0xFFFF6B6B).copy(alpha = 0.9f)
+                midi in pressedKeys && midi in expectedKeys -> CyanMelody.copy(alpha = 0.85f)
+                midi in pressedKeys -> CyanMelody.copy(alpha = 0.6f)
+                midi in activeRightPitches -> CyanMelody.copy(alpha = 0.7f)
+                midi in activeLeftPitches -> PinkChords.copy(alpha = 0.7f)
+                midi in expectedKeys -> AmberWarning.copy(alpha = 0.7f)
                 else -> Color(0xFF1A1A1A)
             }
-
-            drawRoundRect(
-                color = color,
-                topLeft = Offset(x, 0f),
-                size = Size(blackWidth, blackHeight),
-                cornerRadius = CornerRadius(2f, 2f)
-            )
+            drawRoundRect(color, Offset(x, 0f), Size(bw, blackHeight), CornerRadius(2f))
         }
     }
 }
@@ -508,6 +512,7 @@ private fun SynthesiaControls(
         modifier = Modifier
             .fillMaxWidth()
             .background(Surface)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         // Timeline scrubber

@@ -15,7 +15,8 @@ fun midiToFrench(midi: Int, showOctave: Boolean = true): String {
 // ─── Chord detection ──────────────────────────────────────────────────────────
 
 data class ChordInfo(
-    val name: String,       // "Lam", "Do", "Sol7"…
+    val name: String,       // "RÉm", "DO", "SOL7"…
+    val bassNote: String? = null,
     val isArpeggio: Boolean = false
 )
 
@@ -28,24 +29,30 @@ fun detectChord(pitches: Collection<Int>): ChordInfo? {
     // Try each pitch class as potential root
     for (root in pcs.sorted()) {
         val intervals = pcs.map { ((it - root + 12) % 12) }.sorted()
-        val name = matchChord(intervals, root) ?: continue
-        return ChordInfo(name)
+        val result = matchChord(intervals, root) ?: continue
+        // Determine bass note (lowest pitch)
+        val lowestPitch = pitches.min()
+        val lowestPc = lowestPitch % 12
+        val bassNote = if (lowestPc != root) midiToFrench(lowestPitch, false) else null
+        return ChordInfo(name = result, bassNote = bassNote)
     }
     return null
 }
 
 private fun matchChord(intervals: List<Int>, root: Int): String? {
     val n = NOTE_NAMES_FR[root]
+    val upper = n.uppercase()
+    val lower = n.lowercase()
     return when {
-        intervals.containsAll(listOf(0, 4, 7, 10)) -> "${n}7"
-        intervals.containsAll(listOf(0, 3, 7, 10)) -> "${n}m7"
-        intervals.containsAll(listOf(0, 4, 7, 11)) -> "${n}M7"
-        intervals.containsAll(listOf(0, 3, 7))     -> "${n}m"
-        intervals.containsAll(listOf(0, 4, 7))     -> n
-        intervals.containsAll(listOf(0, 3, 6))     -> "${n}dim"
-        intervals.containsAll(listOf(0, 4, 8))     -> "${n}aug"
-        intervals.containsAll(listOf(0, 5, 7))     -> "${n}sus4"
-        intervals.containsAll(listOf(0, 2, 7))     -> "${n}sus2"
+        intervals.containsAll(listOf(0, 4, 7, 10)) -> "${upper}7"
+        intervals.containsAll(listOf(0, 3, 7, 10)) -> "${lower}7"
+        intervals.containsAll(listOf(0, 4, 7, 11)) -> "${upper}M7"
+        intervals.containsAll(listOf(0, 3, 7))     -> lower
+        intervals.containsAll(listOf(0, 4, 7))     -> upper
+        intervals.containsAll(listOf(0, 3, 6))     -> "${lower}dim"
+        intervals.containsAll(listOf(0, 4, 8))     -> "${upper}aug"
+        intervals.containsAll(listOf(0, 5, 7))     -> "${upper}sus4"
+        intervals.containsAll(listOf(0, 2, 7))     -> "${upper}sus2"
         else -> null
     }
 }
