@@ -1,9 +1,16 @@
 package com.tobietheunknown.pianoteacher.ui.synthesia
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -37,11 +45,14 @@ import android.content.res.Configuration
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private const val MIDI_LOW = 21    // A0
 private const val MIDI_HIGH = 108  // C8
-internal const val VISIBLE_BEATS = 8.0
+internal const val VISIBLE_BEATS = 5.0
 
 @Composable
 fun SynthesiaScreen(
@@ -56,81 +67,33 @@ fun SynthesiaScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-            .safeDrawingPadding()
-    ) {
-        if (!isLandscape) SynthesiaTopBar(
-            title = state.song?.title ?: "",
-            phraseIndex = state.currentPhraseIndex,
-            phraseCount = state.songPhraseCount,
-            isWaiting = state.isWaiting,
-            onBack = onBack,
-            onPrev = vm::prevPhrase,
-            onNext = vm::nextPhrase
-        )
+    // State for landscape overlay
+    var showOverlay by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var hideJob by remember { mutableStateOf<Job?>(null) }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clipToBounds()
-        ) {
-            SynthesiaCanvas(state = state)
-
-            // Empty state overlay
-            val totalNotes = state.song?.phrases
-                ?.sumOf { it.tracks.melody.size + it.tracks.chords.size } ?: -1
-            if (state.song != null && totalNotes == 0) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Aucune note trouvée", color = Color(0xFF64748B), fontSize = 14.sp)
-                    Text("Vérifie que le fichier MIDI est valide", color = Color(0xFF475569), fontSize = 12.sp)
+    val tapModifier = if (isLandscape) {
+        Modifier.pointerInput(Unit) {
+            detectTapGestures {
+                showOverlay = !showOverlay
+                hideJob?.cancel()
+                if (showOverlay) {
+                    hideJob = scope.launch { delay(4000); showOverlay = false }
                 }
             }
-
-            // Wait mode indicator
-            if (state.isWaiting) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AmberWarning.copy(alpha = 0.15f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("En attente…", color = AmberWarning, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-
-            SpeedBadge(speed = state.playbackSpeed, modifier = Modifier.align(Alignment.TopEnd))
         }
+    } else Modifier
 
-        // Compute active autoplay pitches (notes currently sounding) with hand info
-        val activeRightPitches = remember(state.visibleNotes) {
-            state.visibleNotes.filter { it.isActive && it.isRightHand }.map { it.note.pitch }.toSet()
-        }
-        val activeLeftPitches = remember(state.visibleNotes) {
-            state.visibleNotes.filter { it.isActive && !it.isRightHand }.map { it.note.pitch }.toSet()
-        }
+    // Compute active autoplay pitches (notes currently sounding) with hand info
+    val activeRightPitches = remember(state.visibleNotes) {
+        state.visibleNotes.filter { it.isActive && it.isRightHand }.map { it.note.pitch }.toSet()
+    }
+    val activeLeftPitches = remember(state.visibleNotes) {
+        state.visibleNotes.filter { it.isActive && !it.isRightHand }.map { it.note.pitch }.toSet()
+    }
 
-        PianoKeyboard(
-            pressedKeys = state.pressedKeys,
-            expectedKeys = state.expectedKeys,
-            wrongKeys = state.wrongKeys,
-            activeRightPitches = activeRightPitches,
-            activeLeftPitches = activeLeftPitches,
-            minPitch = state.minPitch,
-            maxPitch = state.maxPitch,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
-        )
-
+    @Composable
+    fun controlsBlock() {
         SynthesiaControls(
             isPlaying = state.isPlaying,
             isLooping = state.isLooping,
@@ -158,10 +121,107 @@ fun SynthesiaScreen(
             onLoopRangeChange = vm::setLoopRange
         )
     }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .safeDrawingPadding()
+    ) {
+        if (!isLandscape) SynthesiaTopBar(
+            title = state.song?.title ?: "",
+            phraseIndex = state.currentPhraseIndex,
+            phraseCount = state.songPhraseCount,
+            isWaiting = state.isWaiting,
+            onBack = onBack,
+            onPrev = vm::prevPhrase,
+            onNext = vm::nextPhrase
+        )
+
+        Box(modifier = Modifier.fillMaxWidth().weight(1f).then(tapModifier)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clipToBounds()
+                ) {
+                    SynthesiaCanvas(
+                        state = state,
+                        onVisibleBeatsChange = vm::setVisibleBeats
+                    )
+
+                    // Empty state overlay
+                    val totalNotes = state.song?.phrases
+                        ?.sumOf { it.tracks.melody.size + it.tracks.chords.size } ?: -1
+                    if (state.song != null && totalNotes == 0) {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Aucune note trouvée", color = Color(0xFF64748B), fontSize = 14.sp)
+                            Text("Vérifie que le fichier MIDI est valide", color = Color(0xFF475569), fontSize = 12.sp)
+                        }
+                    }
+
+                    // Wait mode indicator
+                    if (state.isWaiting) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(8.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AmberWarning.copy(alpha = 0.15f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text("En attente…", color = AmberWarning, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+
+                    SpeedBadge(speed = state.playbackSpeed, modifier = Modifier.align(Alignment.TopEnd))
+                }
+
+                PianoKeyboard(
+                    pressedKeys = state.pressedKeys,
+                    expectedKeys = state.expectedKeys,
+                    wrongKeys = state.wrongKeys,
+                    activeRightPitches = activeRightPitches,
+                    activeLeftPitches = activeLeftPitches,
+                    minPitch = state.minPitch,
+                    maxPitch = state.maxPitch,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                )
+            }
+
+            // Landscape overlay controls
+            if (isLandscape) {
+                AnimatedVisibility(
+                    visible = showOverlay,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    Surface(color = Color.Black.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth()) {
+                        controlsBlock()
+                    }
+                }
+            }
+        }
+
+        // In portrait, show controls normally (not as overlay)
+        if (!isLandscape) {
+            controlsBlock()
+        }
+    }
 }
 
 @Composable
-private fun SynthesiaCanvas(state: SynthesiaUiState) {
+private fun SynthesiaCanvas(
+    state: SynthesiaUiState,
+    onVisibleBeatsChange: (Double) -> Unit = {}
+) {
     // Pre-allocate Paint object outside the draw loop to avoid per-frame allocation
     val noteTextPaint = remember {
         android.graphics.Paint().apply {
@@ -186,11 +246,18 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
     val textOffsetY = with(density) { 4.dp.toPx() }
     val thickStroke = with(density) { 2.dp.toPx() }
 
+    val currentVisibleBeats = state.visibleBeats
     Canvas(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF080A0E))
             .graphicsLayer { }
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    val newBeats = (currentVisibleBeats / zoom.toDouble()).coerceIn(3.0, 12.0)
+                    onVisibleBeatsChange(newBeats)
+                }
+            }
     ) {
         val canvasWidth = size.width
         val canvasHeight = size.height
@@ -199,7 +266,7 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
         val whiteKeyMidis = (minPitch..maxPitch).filter { midi -> midi % 12 !in listOf(1, 3, 6, 8, 10) }
         val whiteKeyCount = whiteKeyMidis.size.coerceAtLeast(1)
         val whiteKeyWidth = canvasWidth / whiteKeyCount
-        val beatsPerPixel = canvasHeight / VISIBLE_BEATS
+        val beatsPerPixel = canvasHeight / state.visibleBeats
 
         // Column lanes for each MIDI pitch using white-key-based layout
         for (pitch in minPitch..maxPitch) {
@@ -236,7 +303,7 @@ private fun SynthesiaCanvas(state: SynthesiaUiState) {
         state.song?.let { song ->
             val bpm = song.beatsPerMeasure.toDouble()
             val firstBeat = (state.currentBeat - 1.0).toInt()
-            val lastBeat = (state.currentBeat + VISIBLE_BEATS + 1.0).toInt()
+            val lastBeat = (state.currentBeat + state.visibleBeats + 1.0).toInt()
 
             for (beatIndex in firstBeat..lastBeat) {
                 val beatValue = beatIndex.toDouble()

@@ -31,6 +31,7 @@ import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
+import com.tobietheunknown.pianoteacher.utils.firstArpeggioCycle
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
 import androidx.compose.foundation.Canvas
 
@@ -710,10 +711,9 @@ private fun ChordChip(
         if (showDetails && chordNotes.isNotEmpty()) {
             Spacer(Modifier.height(2.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                val uniqueByPitchClass = chordNotes
-                    .distinctBy { it.pitch % 12 }
+                val cycleNotes = firstArpeggioCycle(chordNotes)
                     .map { midiToFrench(it.pitch, showOctaves) }
-                uniqueByPitchClass.forEach { NoteChip(it, PinkChords) }
+                cycleNotes.forEach { NoteChip(it, PinkChords) }
             }
         }
     }

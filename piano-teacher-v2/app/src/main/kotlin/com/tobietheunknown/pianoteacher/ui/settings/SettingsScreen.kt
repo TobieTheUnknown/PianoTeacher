@@ -1,6 +1,7 @@
 package com.tobietheunknown.pianoteacher.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tobietheunknown.pianoteacher.audio.MetronomeEngine
 import com.tobietheunknown.pianoteacher.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,8 +33,12 @@ fun SettingsScreen(
         factory = SettingsViewModel.Factory(LocalContext.current)
     )
 ) {
+    val context = LocalContext.current
     val prefs by vm.prefs.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
+    var selectedTheme by remember { mutableStateOf(ThemePrefs.getTheme(context)) }
+    var metronomeVolume by remember { mutableIntStateOf(ThemePrefs.getMetronomeVolume(context)) }
+    val previewMetronome = remember { MetronomeEngine() }
 
     Scaffold(
         containerColor = Background,
@@ -56,6 +62,53 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Theme picker
+            SettingsSection(title = "Thème") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ThemeCard(
+                        label = "Sombre",
+                        colors = DarkTheme,
+                        selected = selectedTheme == AppTheme.DARK,
+                        onClick = {
+                            selectedTheme = AppTheme.DARK
+                            ThemePrefs.setTheme(context, AppTheme.DARK)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    ThemeCard(
+                        label = "Midnight",
+                        colors = MidnightBlueTheme,
+                        selected = selectedTheme == AppTheme.MIDNIGHT_BLUE,
+                        onClick = {
+                            selectedTheme = AppTheme.MIDNIGHT_BLUE
+                            ThemePrefs.setTheme(context, AppTheme.MIDNIGHT_BLUE)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    ThemeCard(
+                        label = "Pastel",
+                        colors = PastelCozyTheme,
+                        selected = selectedTheme == AppTheme.PASTEL_COZY,
+                        onClick = {
+                            selectedTheme = AppTheme.PASTEL_COZY
+                            ThemePrefs.setTheme(context, AppTheme.PASTEL_COZY)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Text(
+                    "Redémarre l'app pour appliquer le thème",
+                    fontSize = 11.sp,
+                    color = Color(0xFF475569),
+                    modifier = Modifier.padding(horizontal = 16.dp, bottom = 12.dp)
+                )
+            }
+
             // Audio section
             SettingsSection(title = "Audio") {
                 ToggleSetting(
@@ -65,6 +118,47 @@ fun SettingsScreen(
                     checked = prefs.audioEnabled,
                     onToggle = vm::setAudioEnabled
                 )
+            }
+
+            // Metronome volume
+            SettingsSection(title = "Métronome") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.MusicNote, null, tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
+                    Text("Volume", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    listOf("Bas" to 0, "Moyen" to 1, "Fort" to 2).forEach { (label, level) ->
+                        val isSelected = metronomeVolume == level
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) IndigoAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+                                .then(
+                                    if (isSelected) Modifier.border(1.dp, IndigoAccent, RoundedCornerShape(6.dp))
+                                    else Modifier
+                                )
+                                .clickable {
+                                    metronomeVolume = level
+                                    ThemePrefs.setMetronomeVolume(context, level)
+                                    previewMetronome.setVolume(level)
+                                    previewMetronome.playClick(true)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                label,
+                                fontSize = 12.sp,
+                                color = if (isSelected) IndigoAccent else Color(0xFF64748B),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             }
 
             // MIDI section
@@ -168,6 +262,56 @@ private fun SettingsSection(title: String, content: @Composable ColumnScope.() -
         )
         HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
         content()
+    }
+}
+
+@Composable
+private fun ThemeCard(
+    label: String,
+    colors: ThemeColors,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(colors.background)
+            .then(
+                if (selected) Modifier.border(2.dp, colors.accent, RoundedCornerShape(10.dp))
+                else Modifier.border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+            )
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(colors.melodyColor)
+            )
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(colors.chordsColor)
+            )
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(colors.accent)
+            )
+        }
+        Text(
+            label,
+            fontSize = 11.sp,
+            color = if (selected) colors.accent else Color(0xFF94A3B8),
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 

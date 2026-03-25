@@ -13,6 +13,7 @@ import com.tobietheunknown.pianoteacher.data.repository.SongRepository
 import com.tobietheunknown.pianoteacher.midi.MidiEvent
 import com.tobietheunknown.pianoteacher.midi.MidiManager
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
+import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -46,7 +47,8 @@ data class SynthesiaUiState(
     val maxPitch: Int = 108,
     val isListenMode: Boolean = false,
     val loopStartBeat: Double = 0.0,
-    val loopEndBeat: Double = 0.0
+    val loopEndBeat: Double = 0.0,
+    val visibleBeats: Double = 5.0
 )
 
 class SynthesiaViewModel(
@@ -54,13 +56,14 @@ class SynthesiaViewModel(
     private val songId: String,
     private val initialPhraseIndex: Int,
     private val midiManager: MidiManager,
-    private val audioEngine: AudioEngine
+    private val audioEngine: AudioEngine,
+    private val initialMetronomeVolume: Int = 1
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SynthesiaUiState())
     val state: StateFlow<SynthesiaUiState> = _state.asStateFlow()
 
-    private val metronome = MetronomeEngine()
+    private val metronome = MetronomeEngine().apply { setVolume(initialMetronomeVolume) }
     private var playbackJob: Job? = null
     private var pausedAtBeat: Double = 0.0
     private var startTimeMs: Long = 0L
@@ -332,6 +335,10 @@ class SynthesiaViewModel(
         _state.update { it.copy(isListenMode = !it.isListenMode) }
     }
 
+    fun setVisibleBeats(beats: Double) {
+        _state.update { it.copy(visibleBeats = beats.coerceIn(3.0, 12.0)) }
+    }
+
     fun setHand(hand: PlaybackHand) {
         _state.update { it.copy(selectedHand = hand) }
         // Refresh visible notes to recalculate isAutoPlay
@@ -446,7 +453,7 @@ class SynthesiaViewModel(
             chordNotes = cachedAllChords ?: return
         }
 
-        val lookAhead = VISIBLE_BEATS + 1.0
+        val lookAhead = _state.value.visibleBeats + 1.0
         val windowStart = currentBeat - 0.5
         val windowEnd = currentBeat + lookAhead
         visibleBuffer.clear()
@@ -525,7 +532,8 @@ class SynthesiaViewModel(
             songId = songId,
             initialPhraseIndex = phraseIndex,
             midiManager = MidiManager(context),
-            audioEngine = AudioEngine(context)
+            audioEngine = AudioEngine(context),
+            initialMetronomeVolume = ThemePrefs.getMetronomeVolume(context)
         ) as T
     }
 }

@@ -9,8 +9,16 @@ class MetronomeEngine {
     private val clickDurationMs = 30
     private val clickSamples = sampleRate * clickDurationMs / 1000
 
+    private var amplitude = 0.25
+
     private var accentClick: ShortArray = generateClick(880.0) // Beat 1
     private var normalClick: ShortArray = generateClick(440.0) // Other beats
+
+    fun setVolume(level: Int) {
+        amplitude = when (level) { 0 -> 0.12; 2 -> 0.40; else -> 0.25 }
+        accentClick = generateClick(880.0)
+        normalClick = generateClick(440.0)
+    }
 
     private fun generateClick(freq: Double): ShortArray {
         val samples = ShortArray(clickSamples)
@@ -18,7 +26,7 @@ class MetronomeEngine {
             val t = i.toDouble() / sampleRate
             val envelope = if (i < clickSamples / 4) i.toFloat() / (clickSamples / 4)
                           else 1f - (i - clickSamples / 4).toFloat() / (clickSamples * 3 / 4)
-            samples[i] = (Short.MAX_VALUE * 0.25 * envelope * Math.sin(2.0 * Math.PI * freq * t)).toInt().toShort()
+            samples[i] = (Short.MAX_VALUE * amplitude * envelope * Math.sin(2.0 * Math.PI * freq * t)).toInt().toShort()
         }
         return samples
     }

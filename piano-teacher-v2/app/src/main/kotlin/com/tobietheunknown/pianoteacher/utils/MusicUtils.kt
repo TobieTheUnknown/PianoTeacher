@@ -58,6 +58,33 @@ private fun matchChord(intervals: List<Int>, root: Int): String? {
 }
 
 /**
+ * Find the first cycle of an arpeggio pattern by pitch-class set repetition.
+ * If the notes are short enough (<=4), returns all of them.
+ * Otherwise, finds the smallest cycle length where every cycle has the same pitch-class set.
+ */
+fun firstArpeggioCycle(notes: List<NoteEvent>): List<NoteEvent> {
+    val total = notes.size
+    if (total <= 4) return notes // Short enough to show all
+
+    val pitchClasses = notes.map { it.pitch % 12 }
+    val uniqueCount = pitchClasses.toSet().size
+
+    for (cycleLen in maxOf(3, uniqueCount)..total / 2) {
+        if (total % cycleLen != 0) continue
+        val patternSet = pitchClasses.take(cycleLen).toSet()
+        val patternSorted = patternSet.sorted().joinToString(",")
+        var matches = true
+        for (rep in 1 until total / cycleLen) {
+            val repSet = mutableSetOf<Int>()
+            for (j in 0 until cycleLen) repSet.add(pitchClasses[rep * cycleLen + j])
+            if (repSet.sorted().joinToString(",") != patternSorted) { matches = false; break }
+        }
+        if (matches) return notes.take(cycleLen)
+    }
+    return notes // No repeating pattern found
+}
+
+/**
  * Detects chord from a sequence of notes, treating them as an arpeggio
  * if the time spread is > [arpeggioThreshold] beats.
  */
