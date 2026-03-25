@@ -192,7 +192,7 @@ class SynthesiaViewModel(
                 val beatMs = (60_000.0 / bpm / speed).toLong()
                 val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
                 for (i in 0 until beatsPerMeasure) {
-                    metronome.playClick(i == 0, volumeMultiplier = 1.8f)
+                    audioEngine.playClick(i == 0, amplitude = 0.7f)
                     delay(beatMs)
                 }
             }
@@ -261,7 +261,7 @@ class SynthesiaViewModel(
                             lastMetronomeBeat = tickIndex
                             val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
                             val isAccent = tickIndex % (beatsPerMeasure * multiplier) == 0
-                            metronome.playClick(isAccent)
+                            audioEngine.playClick(isAccent)
                         }
                     }
                 }

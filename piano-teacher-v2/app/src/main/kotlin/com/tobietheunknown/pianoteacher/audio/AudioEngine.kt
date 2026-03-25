@@ -224,11 +224,19 @@ class AudioEngine(private val context: Context? = null) {
     private external fun nativeLoadSample(midiNote: Int, pcm: FloatArray, sampleRate: Int, channels: Int)
     private external fun nativeSetReady()
     private external fun nativeSetRelease(releasePer: Float)
+    private external fun nativePlayClick(isAccent: Boolean, amplitude: Float)
 
     fun setRelease(level: Int) {
         val value = when (level) { 0 -> 0.9996f; 2 -> 0.9999f; else -> 0.9998f }
         if (nativeAvailable) {
             try { nativeSetRelease(value) } catch (_: Exception) { }
+        }
+    }
+
+    /** Play a metronome click via the native Oboe audio callback (zero Java AudioTrack overhead) */
+    fun playClick(isAccent: Boolean, amplitude: Float = 0.45f) {
+        if (nativeAvailable && oboeReady) {
+            try { nativePlayClick(isAccent, amplitude) } catch (_: Exception) { }
         }
     }
 }

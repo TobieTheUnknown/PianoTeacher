@@ -25,6 +25,19 @@ static const int MAX_VOICES = 16;
 // Release multiplier per-sample: default ~160ms decay (was 0.9997 = ~80ms)
 static float gReleasePer = 0.9998f;
 
+// ─── Metronome click (synthesized in audio callback, zero Java overhead) ─────
+
+struct ClickState {
+    bool active = false;
+    int pos = 0;          // current sample position
+    int totalSamples = 0; // click duration in samples
+    double freq = 440.0;  // Hz
+    float amplitude = 0.45f;
+};
+
+static ClickState gClick;
+static int gClickDurationMs = 25; // short click
+
 struct Voice {
     int pitch = -1;
     int sampleMidi = -1;  // index into mSamples
@@ -95,6 +108,29 @@ public:
                 }
 
                 v.pos += v.rate;
+            }
+        }
+
+        // ─── Metronome click (mixed into output) ─────────────────────────
+        if (gClick.active) {
+            int sr = mOutputSampleRate;
+            for (int f = 0; f < numFrames && gClick.pos < gClick.totalSamples; f++) {
+                float t = (float)gClick.pos / (float)sr;
+                float env;
+                int attack = gClick.totalSamples / 6;
+                int decay = gClick.totalSamples - attack;
+                if (gClick.pos < attack) {
+                    env = (float)gClick.pos / (float)attack;
+                } else {
+                    env = 1.0f - (float)(gClick.pos - attack) / (float)decay;
+                }
+                float sample = gClick.amplitude * env * (float)std::sin(2.0 * M_PI * gClick.freq * t);
+                out[f * 2]     = std::clamp(out[f * 2]     + sample, -1.0f, 1.0f);
+                out[f * 2 + 1] = std::clamp(out[f * 2 + 1] + sample, -1.0f, 1.0f);
+                gClick.pos++;
+            }
+            if (gClick.pos >= gClick.totalSamples) {
+                gClick.active = false;
             }
         }
 
@@ -274,6 +310,17 @@ JNIEXPORT void JNICALL
 Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSetRelease(
     JNIEnv* /*env*/, jobject /*thiz*/, jfloat releasePer) {
     gReleasePer = releasePer;
+}
+
+JNIEXPORT void JNICALL
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativePlayClick(
+    JNIEnv* /*env*/, jobject /*thiz*/, jboolean isAccent, jfloat amplitude) {
+    int sr = gEngine ? gEngine->mOutputSampleRate : 48000;
+    gClick.freq = isAccent ? 880.0 : 440.0;
+    gClick.amplitude = amplitude;
+    gClick.totalSamples = sr * gClickDurationMs / 1000;
+    gClick.pos = 0;
+    gClick.active = true;
 }
 
 } // extern "C"
