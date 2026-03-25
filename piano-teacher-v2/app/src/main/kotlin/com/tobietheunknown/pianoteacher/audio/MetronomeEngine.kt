@@ -15,7 +15,7 @@ class MetronomeEngine {
     private var normalClick: ShortArray = generateClick(440.0) // Other beats
 
     fun setVolume(level: Int) {
-        amplitude = when (level) { 0 -> 0.12; 2 -> 0.40; else -> 0.25 }
+        amplitude = when (level) { 0 -> 0.25; 2 -> 0.70; else -> 0.45 }
         accentClick = generateClick(880.0)
         normalClick = generateClick(440.0)
     }
@@ -31,8 +31,13 @@ class MetronomeEngine {
         return samples
     }
 
-    fun playClick(isAccent: Boolean) {
-        val data = if (isAccent) accentClick else normalClick
+    fun playClick(isAccent: Boolean, volumeMultiplier: Float = 1.0f) {
+        val data = if (volumeMultiplier != 1.0f) {
+            val src = if (isAccent) accentClick else normalClick
+            ShortArray(src.size) { (src[it] * volumeMultiplier).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort() }
+        } else {
+            if (isAccent) accentClick else normalClick
+        }
         val bufferSize = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val track = AudioTrack(
             AudioManager.STREAM_MUSIC, sampleRate,

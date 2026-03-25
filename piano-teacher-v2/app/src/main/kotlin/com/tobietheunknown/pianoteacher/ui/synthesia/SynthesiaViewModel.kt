@@ -14,6 +14,7 @@ import com.tobietheunknown.pianoteacher.midi.MidiEvent
 import com.tobietheunknown.pianoteacher.midi.MidiManager
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
+import com.tobietheunknown.pianoteacher.utils.detectKeySignature
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -48,7 +49,8 @@ data class SynthesiaUiState(
     val isListenMode: Boolean = false,
     val loopStartBeat: Double = 0.0,
     val loopEndBeat: Double = 0.0,
-    val visibleBeats: Double = 5.0
+    val visibleBeats: Double = 5.0,
+    val useFlats: Boolean = false
 )
 
 class SynthesiaViewModel(
@@ -102,6 +104,15 @@ class SynthesiaViewModel(
             val minPitch = ((allPitches.minOrNull() ?: 21) - 2).coerceIn(21, 108)
             val maxPitch = ((allPitches.maxOrNull() ?: 108) + 2).coerceIn(21, 108)
 
+            // Detect key signature for enharmonic note naming
+            val allNotesForKey = (allMelody + allChords)
+            val useFlats = if (allNotesForKey.isNotEmpty()) {
+                detectKeySignature(
+                    pitches = allNotesForKey.map { it.pitch },
+                    durations = allNotesForKey.map { it.duration }
+                ).useFlats
+            } else false
+
             _state.update {
                 it.copy(
                     song = song,
@@ -110,7 +121,8 @@ class SynthesiaViewModel(
                     songPhraseCount = song.phrases.size,
                     totalBeats = totalBeats,
                     minPitch = minPitch,
-                    maxPitch = maxPitch
+                    maxPitch = maxPitch,
+                    useFlats = useFlats
                 )
             }
             updateVisibleNotes(0.0)
@@ -180,7 +192,7 @@ class SynthesiaViewModel(
                 val beatMs = (60_000.0 / bpm / speed).toLong()
                 val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
                 for (i in 0 until beatsPerMeasure) {
-                    metronome.playClick(i == 0)
+                    metronome.playClick(i == 0, volumeMultiplier = 1.8f)
                     delay(beatMs)
                 }
             }

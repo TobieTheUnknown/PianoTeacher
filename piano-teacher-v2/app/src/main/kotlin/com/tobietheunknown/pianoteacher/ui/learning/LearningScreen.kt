@@ -31,6 +31,8 @@ import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
+import com.tobietheunknown.pianoteacher.utils.ArpeggioMotifResult
+import com.tobietheunknown.pianoteacher.utils.ChordWithReps
 import com.tobietheunknown.pianoteacher.utils.firstArpeggioCycle
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
 import androidx.compose.foundation.Canvas
@@ -57,6 +59,8 @@ fun LearningScreen(
     val loopEnd by vm.loopEnd.collectAsState()
     val showDetails by vm.showDetails.collectAsState()
     val showOctaves by vm.showOctaves.collectAsState()
+    val keySignature by vm.keySignature.collectAsState()
+    val useFlats = keySignature?.useFlats ?: false
 
     val listState = rememberLazyListState()
     val timelineState = rememberLazyListState()
@@ -129,6 +133,7 @@ fun LearningScreen(
                         playingMeasureIndex = playingMeasure,
                         focusedMeasureIndex = focusedMeasure,
                         showOctaves = showOctaves,
+                        useFlats = useFlats,
                         listState = timelineState,
                         onMeasureTap = { vm.playMeasureSingle(it); vm.focusMeasure(it) }
                     )
@@ -199,6 +204,7 @@ fun LearningScreen(
                             isFocused = measure.globalIndex == focusedMeasure,
                             showDetails = showDetails,
                             showOctaves = showOctaves,
+                            useFlats = useFlats,
                             onTap = { vm.playMeasureSingle(measure.globalIndex); vm.focusMeasure(measure.globalIndex) },
                             onPlayMD = {
                                 vm.setHand(PlaybackHand.RIGHT)
@@ -377,6 +383,7 @@ private fun CoordinationTimeline(
     playingMeasureIndex: Int,
     focusedMeasureIndex: Int,
     showOctaves: Boolean,
+    useFlats: Boolean = false,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onMeasureTap: (Int) -> Unit
 ) {
@@ -448,14 +455,16 @@ private fun CoordinationTimeline(
                         notes = measure.melodyNotes,
                         color = CyanMelody,
                         beatsPerMeasure = beatsPerMeasure,
-                        showOctaves = showOctaves
+                        showOctaves = showOctaves,
+                        useFlats = useFlats
                     )
                     Spacer(Modifier.height(1.dp))
                     TimelineBeatRow(
                         notes = measure.chordNotes,
                         color = PinkChords,
                         beatsPerMeasure = beatsPerMeasure,
-                        showOctaves = showOctaves
+                        showOctaves = showOctaves,
+                        useFlats = useFlats
                     )
                 }
             }
@@ -470,7 +479,8 @@ private fun TimelineBeatRow(
     notes: List<NoteEvent>,
     color: Color,
     beatsPerMeasure: Int,
-    showOctaves: Boolean
+    showOctaves: Boolean,
+    useFlats: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -490,7 +500,7 @@ private fun TimelineBeatRow(
             ) {
                 if (beatNotes.isNotEmpty()) {
                     Text(
-                        text = midiToFrench(beatNotes.first().pitch, showOctaves),
+                        text = midiToFrench(beatNotes.first().pitch, showOctaves, useFlats),
                         fontSize = 7.5.sp,
                         color = color,
                         maxLines = 1,
@@ -566,6 +576,7 @@ private fun MeasureCard(
     isFocused: Boolean,
     showDetails: Boolean,
     showOctaves: Boolean,
+    useFlats: Boolean = false,
     onTap: () -> Unit,
     onPlayMD: () -> Unit,
     onPlayMG: () -> Unit
@@ -625,7 +636,7 @@ private fun MeasureCard(
 
             // Melody (MD)
             if (measure.melodyNotes.isNotEmpty()) {
-                val names = measure.melodyNotes.map { midiToFrench(it.pitch, showOctaves) }
+                val names = measure.melodyNotes.map { midiToFrench(it.pitch, showOctaves, useFlats) }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -651,7 +662,8 @@ private fun MeasureCard(
                         chordInfo = measure.chordInfo,
                         chordNotes = measure.chordNotes,
                         showDetails = showDetails,
-                        showOctaves = showOctaves
+                        showOctaves = showOctaves,
+                        arpeggioResult = measure.arpeggioMotif
                     )
                 }
             } else if (measure.chordNotes.isNotEmpty()) {
@@ -661,7 +673,7 @@ private fun MeasureCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("MG:", fontSize = 14.sp, color = PinkChords.copy(alpha = 0.7f))
-                    measure.chordNotes.map { midiToFrench(it.pitch, showOctaves) }.take(5)
+                    measure.chordNotes.map { midiToFrench(it.pitch, showOctaves, useFlats) }.take(5)
                         .forEach { NoteChip(it, PinkChords) }
                 }
             }
@@ -683,38 +695,99 @@ private fun ChordChip(
     chordInfo: com.tobietheunknown.pianoteacher.utils.ChordInfo,
     chordNotes: List<NoteEvent>,
     showDetails: Boolean,
-    showOctaves: Boolean
+    showOctaves: Boolean,
+    arpeggioResult: ArpeggioMotifResult? = null
 ) {
     Column {
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(PinkChords.copy(alpha = 0.12f))
-                .border(1.dp, PinkChords.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (chordInfo.isArpeggio) {
-                Icon(Icons.Default.MusicNote, null, tint = PinkChords, modifier = Modifier.size(9.dp))
+        if (arpeggioResult != null && arpeggioResult.chords.isNotEmpty()) {
+            // Header (e.g. "Accords (arp. 16 notes, 4x4)")
+            if (arpeggioResult.isArpeggio) {
+                Text(
+                    arpeggioResult.header,
+                    fontSize = 9.sp,
+                    color = PinkChords.copy(alpha = 0.5f),
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(2.dp))
             }
-            val displayName = if (chordInfo.bassNote != null) {
-                "${chordInfo.name} / ${chordInfo.bassNote}"
-            } else {
-                chordInfo.name
+            // Chord badges
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                arpeggioResult.chords.forEach { cwr ->
+                    ArpeggioChordBadge(cwr)
+                }
             }
-            Text(displayName, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
-            if (chordInfo.isArpeggio) {
-                Text("arp.", fontSize = 9.sp, color = PinkChords.copy(alpha = 0.6f))
+            // Expandable note detail
+            if (showDetails && chordNotes.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val cycleNotes = firstArpeggioCycle(chordNotes)
+                        .map { note -> midiToFrench(note.pitch, showOctaves, arpeggioResult.chords.firstOrNull()?.bassNote != null) }
+                    cycleNotes.forEach { NoteChip(it, PinkChords) }
+                }
+            }
+        } else {
+            // Fallback to simple display
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(PinkChords.copy(alpha = 0.12f))
+                    .border(1.dp, PinkChords.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (chordInfo.isArpeggio) {
+                    Icon(Icons.Default.MusicNote, null, tint = PinkChords, modifier = Modifier.size(9.dp))
+                }
+                val displayName = if (chordInfo.bassNote != null) {
+                    "${chordInfo.name} / ${chordInfo.bassNote}"
+                } else {
+                    chordInfo.name
+                }
+                Text(displayName, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
+                if (chordInfo.isArpeggio) {
+                    Text("arp.", fontSize = 9.sp, color = PinkChords.copy(alpha = 0.6f))
+                }
+            }
+            if (showDetails && chordNotes.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val cycleNotes = firstArpeggioCycle(chordNotes)
+                        .map { note -> midiToFrench(note.pitch, showOctaves) }
+                    cycleNotes.forEach { NoteChip(it, PinkChords) }
+                }
             }
         }
-        if (showDetails && chordNotes.isNotEmpty()) {
-            Spacer(Modifier.height(2.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                val cycleNotes = firstArpeggioCycle(chordNotes)
-                    .map { note -> midiToFrench(note.pitch, showOctaves) }
-                cycleNotes.forEach { NoteChip(it, PinkChords) }
-            }
+    }
+}
+
+@Composable
+private fun ArpeggioChordBadge(cwr: ChordWithReps) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(PinkChords.copy(alpha = 0.12f))
+            .border(1.dp, PinkChords.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Chord name
+        Text(cwr.name, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
+        // Suffix (sus2, 7, etc.)
+        if (cwr.suffix.isNotEmpty()) {
+            Text(cwr.suffix, fontSize = 9.sp, color = PinkChords.copy(alpha = 0.7f))
+        }
+        // Bass note
+        if (cwr.bassNote != null) {
+            Text("/${cwr.bassNote}", fontSize = 10.sp, color = PinkChords.copy(alpha = 0.6f))
+        }
+        // Repetitions
+        if (cwr.repetitions > 1) {
+            Text("x${cwr.repetitions}", fontSize = 9.sp, color = PinkChords.copy(alpha = 0.5f))
         }
     }
 }

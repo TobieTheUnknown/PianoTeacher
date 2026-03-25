@@ -41,7 +41,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
 import android.content.res.Configuration
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
@@ -66,6 +71,28 @@ fun SynthesiaScreen(
     val state by vm.state.collectAsState()
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    // Full immersive mode for landscape
+    val context = LocalContext.current
+    val window = (context as? Activity)?.window
+    DisposableEffect(isLandscape) {
+        if (isLandscape && window != null) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        onDispose {
+            if (window != null) {
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                val controller = WindowInsetsControllerCompat(window, window.decorView)
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
 
     // State for landscape overlay
     var showOverlay by remember { mutableStateOf(false) }
@@ -242,7 +269,7 @@ private fun SynthesiaCanvas(
     val textOffsetY = with(density) { 4.dp.toPx() }
     val thickStroke = with(density) { 2.dp.toPx() }
 
-    val currentVisibleBeats = state.visibleBeats
+    val currentBeats by rememberUpdatedState(state.visibleBeats)
     Canvas(
         modifier = Modifier
             .fillMaxSize()
@@ -250,7 +277,7 @@ private fun SynthesiaCanvas(
             .graphicsLayer { }
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
-                    val newBeats = (currentVisibleBeats / zoom.toDouble()).coerceIn(3.0, 12.0)
+                    val newBeats = (currentBeats / zoom.toDouble()).coerceIn(3.0, 12.0)
                     onVisibleBeatsChange(newBeats)
                 }
             }
@@ -383,7 +410,7 @@ private fun SynthesiaCanvas(
 
             // French note name on falling notes (only if note is tall enough)
             if (noteBottom - noteTop > minNoteHeightForText) {
-                val noteName = com.tobietheunknown.pianoteacher.utils.midiToFrench(noteWithHand.note.pitch, showOctave = false)
+                val noteName = com.tobietheunknown.pianoteacher.utils.midiToFrench(noteWithHand.note.pitch, showOctave = false, useFlats = state.useFlats)
                 drawContext.canvas.nativeCanvas.drawText(
                     noteName,
                     x + noteWidth / 2f,

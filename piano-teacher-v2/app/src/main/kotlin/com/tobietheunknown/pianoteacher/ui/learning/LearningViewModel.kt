@@ -9,8 +9,12 @@ import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Phrase
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.data.repository.SongRepository
+import com.tobietheunknown.pianoteacher.utils.ArpeggioMotifResult
 import com.tobietheunknown.pianoteacher.utils.ChordInfo
+import com.tobietheunknown.pianoteacher.utils.KeySignature
+import com.tobietheunknown.pianoteacher.utils.detectArpeggioMotifs
 import com.tobietheunknown.pianoteacher.utils.detectChordOrArpeggio
+import com.tobietheunknown.pianoteacher.utils.detectKeySignature
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -28,6 +32,7 @@ data class MeasureData(
     val melodyNotes: List<NoteEvent>,
     val chordNotes: List<NoteEvent>,
     val chordInfo: ChordInfo?,
+    val arpeggioMotif: ArpeggioMotifResult? = null,
     val measureStart: Double  // beat offset within phrase
 )
 
@@ -49,11 +54,14 @@ class LearningViewModel(
     private val _song = MutableStateFlow<Song?>(null)
     val song: StateFlow<Song?> = _song.asStateFlow()
 
+    private val _keySignature = MutableStateFlow<KeySignature?>(null)
+    val keySignature: StateFlow<KeySignature?> = _keySignature.asStateFlow()
+
     private val _masteredPhrases = MutableStateFlow<Set<String>>(emptySet())
 
-    val sections: StateFlow<List<PhraseSectionData>> = song
-        .filterNotNull()
-        .combine(_masteredPhrases) { s, mastered -> buildSections(s, mastered) }
+    val sections: StateFlow<List<PhraseSectionData>> = combine(
+        song.filterNotNull(), _masteredPhrases, _keySignature
+    ) { s, mastered, keySig -> buildSections(s, mastered, keySig) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
 
     /** Flat list of all measures across all phrases, in order */
@@ -101,8 +109,20 @@ class LearningViewModel(
 
     init {
         viewModelScope.launch {
-            _song.value = repo.getSong(songId)
+            val s = repo.getSong(songId)
+            _song.value = s
             _masteredPhrases.value = repo.getMasteredPhrases(songId)
+
+            // Detect key signature from all notes in the song
+            if (s != null) {
+                val allNotes = s.phrases.flatMap { it.tracks.melody + it.tracks.chords }
+                if (allNotes.isNotEmpty()) {
+                    _keySignature.value = detectKeySignature(
+                        pitches = allNotes.map { it.pitch },
+                        durations = allNotes.map { it.duration }
+                    )
+                }
+            }
         }
         audioEngine.start()
     }
@@ -399,8 +419,9 @@ class LearningViewModel(
 
     // ─── Data building ────────────────────────────────────────────────────────
 
-    private fun buildSections(song: Song, mastered: Set<String>): List<PhraseSectionData> {
+    private fun buildSections(song: Song, mastered: Set<String>, keySig: KeySignature? = null): List<PhraseSectionData> {
         val bpm = song.beatsPerMeasure.toDouble()
+        val useFlats = keySig?.useFlats ?: false
         var globalIdx = 0
         return song.phrases.mapIndexed { phraseIndex, phrase ->
             val measures = (0 until phrase.length).map { mi ->
@@ -419,8 +440,13 @@ class LearningViewModel(
                 val chordInfo = if (chords.isNotEmpty()) {
                     detectChordOrArpeggio(
                         pitches = chords.map { it.pitch },
-                        startTimes = chords.map { it.startTime }
+                        startTimes = chords.map { it.startTime },
+                        useFlats = useFlats
                     )
+                } else null
+
+                val arpeggioMotif = if (chords.isNotEmpty()) {
+                    detectArpeggioMotifs(chords, useFlats)
                 } else null
 
                 MeasureData(
@@ -430,6 +456,7 @@ class LearningViewModel(
                     melodyNotes = melody,
                     chordNotes = chords,
                     chordInfo = chordInfo,
+                    arpeggioMotif = arpeggioMotif,
                     measureStart = start
                 )
             }

@@ -102,7 +102,7 @@ fun SettingsScreen(
                     )
                 }
                 Text(
-                    "Redémarre l'app pour appliquer le thème",
+                    "Le thème s'applique immédiatement",
                     fontSize = 11.sp,
                     color = Color(0xFF475569),
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
@@ -181,13 +181,6 @@ fun SettingsScreen(
 
             // Synthesia section
             SettingsSection(title = "Synthesia") {
-                ToggleSetting(
-                    label = "Couleurs MG/MD",
-                    subtitle = "Cyan = main droite, Rose = main gauche",
-                    icon = Icons.Default.Palette,
-                    checked = prefs.handColorsEnabled,
-                    onToggle = vm::setHandColorsEnabled
-                )
                 ToggleSetting(
                     label = "Touches attendues",
                     subtitle = "Surligne les prochaines touches à jouer",

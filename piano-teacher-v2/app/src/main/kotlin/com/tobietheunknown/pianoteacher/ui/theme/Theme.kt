@@ -6,16 +6,21 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 // ─── Piano Teacher Color Palette ─────────────────────────────────────────────
-// Colors used in Canvas draw calls (non-composable) must be plain vals.
-// Theme-aware colors are accessed via LocalThemeColors.current in @Composable scope.
+// Mutable theme state that survives recomposition and is readable from Canvas (non-composable) contexts.
+object ActiveTheme {
+    var colors: ThemeColors = DarkTheme
+        private set
 
-val Background = Color(0xFF0D0F14)
-val Surface = Color(0xFF151820)
-val SurfaceVariant = Color(0xFF1C1F2A)
+    fun apply(theme: ThemeColors) { colors = theme }
+}
 
-val CyanMelody = Color(0xFF22D3EE)
-val PinkChords = Color(0xFFEC4899)
-val IndigoAccent = Color(0xFF6366F1)
+val Background: Color get() = ActiveTheme.colors.background
+val Surface: Color get() = ActiveTheme.colors.surface
+val SurfaceVariant: Color get() = Color(0xFF1C1F2A)
+
+val CyanMelody: Color get() = ActiveTheme.colors.melodyColor
+val PinkChords: Color get() = ActiveTheme.colors.chordsColor
+val IndigoAccent: Color get() = ActiveTheme.colors.accent
 
 val GreenSuccess = Color(0xFF10B981)
 val AmberWarning = Color(0xFFFBBF24)
@@ -49,9 +54,17 @@ fun PianoTeacherTheme(
     colors: ThemeColors = DarkTheme,
     content: @Composable () -> Unit
 ) {
+    ActiveTheme.apply(colors)
+    val colorScheme = DarkColorScheme.copy(
+        primary = colors.accent,
+        secondary = colors.melodyColor,
+        tertiary = colors.chordsColor,
+        background = colors.background,
+        surface = colors.surface
+    )
     CompositionLocalProvider(LocalThemeColors provides colors) {
         MaterialTheme(
-            colorScheme = DarkColorScheme,
+            colorScheme = colorScheme,
             typography = Typography(),
             content = content
         )
