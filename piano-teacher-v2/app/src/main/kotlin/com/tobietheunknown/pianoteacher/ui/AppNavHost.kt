@@ -11,15 +11,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tobietheunknown.pianoteacher.ui.library.LibraryScreen
-import com.tobietheunknown.pianoteacher.ui.synthesia.SynthesiaScreen
+import com.tobietheunknown.pianoteacher.ui.practice.PracticeScreen
 import com.tobietheunknown.pianoteacher.ui.learning.LearningScreen
 import com.tobietheunknown.pianoteacher.ui.settings.SettingsScreen
 
 sealed class Screen(val route: String) {
     object Library : Screen("library")
-    object Synthesia : Screen("synthesia/{songId}/{phraseIndex}") {
+    object Practice : Screen("practice/{songId}/{phraseIndex}") {
         // phraseIndex = -1 → full song view (all phrases merged)
-        fun route(songId: String, phraseIndex: Int = -1) = "synthesia/$songId/$phraseIndex"
+        fun route(songId: String, phraseIndex: Int = -1) = "practice/$songId/$phraseIndex"
     }
     object Learning : Screen("learning/{songId}") {
         fun route(songId: String) = "learning/$songId"
@@ -53,7 +53,7 @@ fun AppNavHost(intent: Intent? = null) {
                     navController.navigate(Screen.Learning.route(songId))
                 },
                 onPlaySong = { songId ->
-                    navController.navigate(Screen.Synthesia.route(songId))
+                    navController.navigate(Screen.Practice.route(songId))
                 },
                 onSettings = {
                     navController.navigate(Screen.Settings.route)
@@ -62,7 +62,7 @@ fun AppNavHost(intent: Intent? = null) {
         }
 
         composable(
-            route = Screen.Synthesia.route,
+            route = Screen.Practice.route,
             arguments = listOf(
                 navArgument("songId") { type = NavType.StringType },
                 navArgument("phraseIndex") { type = NavType.IntType; defaultValue = 0 }
@@ -70,7 +70,7 @@ fun AppNavHost(intent: Intent? = null) {
         ) { backStack ->
             val songId = backStack.arguments?.getString("songId") ?: return@composable
             val phraseIndex = backStack.arguments?.getInt("phraseIndex") ?: 0
-            SynthesiaScreen(
+            PracticeScreen(
                 songId = songId,
                 initialPhraseIndex = phraseIndex,
                 onBack = { navController.popBackStack() }

@@ -208,7 +208,7 @@ private fun SongCard(
                     ) {
                         Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp), tint = CyanMelody)
                         Spacer(Modifier.width(4.dp))
-                        Text("Synthesia", color = CyanMelody)
+                        Text("Piano Practice", color = CyanMelody)
                     }
                     IconButton(onClick = onDelete) {
                         Icon(Icons.Default.Delete, null, tint = RedError.copy(alpha = 0.6f))

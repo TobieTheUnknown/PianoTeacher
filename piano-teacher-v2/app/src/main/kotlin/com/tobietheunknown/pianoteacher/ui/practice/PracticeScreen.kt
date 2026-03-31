@@ -1,4 +1,4 @@
-package com.tobietheunknown.pianoteacher.ui.synthesia
+package com.tobietheunknown.pianoteacher.ui.practice
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -63,12 +63,12 @@ private const val MIDI_HIGH = 108  // C8
 internal const val VISIBLE_BEATS = 5.0
 
 @Composable
-fun SynthesiaScreen(
+fun PracticeScreen(
     songId: String,
     initialPhraseIndex: Int = -1,
     onBack: () -> Unit,
-    vm: SynthesiaViewModel = viewModel(
-        factory = SynthesiaViewModel.Factory(LocalContext.current, songId, initialPhraseIndex)
+    vm: PracticeViewModel = viewModel(
+        factory = PracticeViewModel.Factory(LocalContext.current, songId, initialPhraseIndex)
     )
 ) {
     val state by vm.state.collectAsState()
@@ -129,7 +129,7 @@ fun SynthesiaScreen(
 
     @Composable
     fun controlsBlock() {
-        SynthesiaControls(
+        PracticeControls(
             isPlaying = state.isPlaying,
             isLooping = state.isLooping,
             isWaitMode = state.isWaitMode,
@@ -185,7 +185,7 @@ fun SynthesiaScreen(
             .background(Background)
             .safeDrawingPadding()
     ) {
-        if (!isLandscape) SynthesiaTopBar(
+        if (!isLandscape) PracticeTopBar(
             title = state.song?.title ?: "",
             phraseIndex = state.currentPhraseIndex,
             phraseCount = state.songPhraseCount,
@@ -203,7 +203,7 @@ fun SynthesiaScreen(
                         .weight(1f)
                         .clipToBounds()
                 ) {
-                    SynthesiaCanvas(
+                    PracticeCanvas(
                         state = state,
                         hitEffects = hitEffects,
                         onVisibleBeatsChange = vm::setVisibleBeats
@@ -272,8 +272,8 @@ fun SynthesiaScreen(
 }
 
 @Composable
-private fun SynthesiaCanvas(
-    state: SynthesiaUiState,
+private fun PracticeCanvas(
+    state: PracticeUiState,
     hitEffects: SnapshotStateList<HitEffect> = mutableStateListOf(),
     onVisibleBeatsChange: (Double) -> Unit = {}
 ) {
@@ -553,7 +553,7 @@ private fun isBlackKey(midi: Int): Boolean =
     when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
 
 @Composable
-private fun SynthesiaTopBar(
+private fun PracticeTopBar(
     title: String,
     phraseIndex: Int,
     phraseCount: Int,
@@ -626,7 +626,7 @@ private fun SpeedBadge(speed: Float, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SynthesiaControls(
+private fun PracticeControls(
     isPlaying: Boolean,
     isLooping: Boolean,
     isWaitMode: Boolean,
@@ -716,10 +716,10 @@ private fun SynthesiaControls(
 
             // Hand selector + listen mode
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                SynthesiaHandButton("🔊", isListenMode, AmberWarning) { onListenModeToggle() }
-                SynthesiaHandButton("MG", !isListenMode && selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
-                SynthesiaHandButton("2", !isListenMode && selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
-                SynthesiaHandButton("MD", !isListenMode && selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
+                PracticeHandButton("🔊", isListenMode, AmberWarning) { onListenModeToggle() }
+                PracticeHandButton("MG", !isListenMode && selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
+                PracticeHandButton("2", !isListenMode && selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
+                PracticeHandButton("MD", !isListenMode && selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
             }
 
             // Center: speed
@@ -800,7 +800,7 @@ private fun SynthesiaControls(
 }
 
 @Composable
-private fun SynthesiaHandButton(label: String, selected: Boolean, activeColor: Color, onClick: () -> Unit) {
+private fun PracticeHandButton(label: String, selected: Boolean, activeColor: Color, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))

@@ -247,8 +247,8 @@ fun SettingsScreen(
                 )
             }
 
-            // Synthesia section
-            SettingsSection(title = "Synthesia") {
+            // Piano Practice section
+            SettingsSection(title = "Piano Practice") {
                 ToggleSetting(
                     label = "Touches attendues",
                     subtitle = "Surligne les prochaines touches à jouer",

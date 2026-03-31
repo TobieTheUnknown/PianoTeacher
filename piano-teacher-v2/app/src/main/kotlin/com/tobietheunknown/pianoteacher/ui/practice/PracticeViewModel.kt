@@ -1,4 +1,4 @@
-package com.tobietheunknown.pianoteacher.ui.synthesia
+package com.tobietheunknown.pianoteacher.ui.practice
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -25,7 +25,7 @@ data class NoteWithHand(
     val isAutoPlay: Boolean = false
 )
 
-data class SynthesiaUiState(
+data class PracticeUiState(
     val song: Song? = null,
     val currentPhraseIndex: Int = 0,
     val currentPhrase: Phrase? = null,
@@ -53,7 +53,7 @@ data class SynthesiaUiState(
     val useFlats: Boolean = false
 )
 
-class SynthesiaViewModel(
+class PracticeViewModel(
     private val repo: SongRepository,
     private val songId: String,
     private val initialPhraseIndex: Int,
@@ -62,8 +62,8 @@ class SynthesiaViewModel(
     private val initialMetronomeVolume: Int = 1
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SynthesiaUiState())
-    val state: StateFlow<SynthesiaUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(PracticeUiState())
+    val state: StateFlow<PracticeUiState> = _state.asStateFlow()
 
     private val metronome = MetronomeEngine().apply { setVolume(initialMetronomeVolume) }
     private var playbackJob: Job? = null
@@ -542,7 +542,7 @@ class SynthesiaViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val engine = AudioEngine(context)
             engine.setRelease(ThemePrefs.getReleaseLevel(context))
-            return SynthesiaViewModel(
+            return PracticeViewModel(
                 repo = SongRepository(context),
                 songId = songId,
                 initialPhraseIndex = phraseIndex,
