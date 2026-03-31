@@ -205,13 +205,7 @@ fun LearningScreen(
                             showDetails = showDetails,
                             showOctaves = showOctaves,
                             useFlats = useFlats,
-                            onTap = { vm.playMeasureSingle(measure.globalIndex); vm.focusMeasure(measure.globalIndex) },
-                            onPlayMD = {
-                                vm.playMeasureHandSingle(measure.globalIndex, playRight = true)
-                            },
-                            onPlayMG = {
-                                vm.playMeasureHandSingle(measure.globalIndex, playRight = false)
-                            }
+                            onTap = { vm.playMeasureSingle(measure.globalIndex); vm.focusMeasure(measure.globalIndex) }
                         )
                     }
                 }
@@ -575,9 +569,7 @@ private fun MeasureCard(
     showDetails: Boolean,
     showOctaves: Boolean,
     useFlats: Boolean = false,
-    onTap: () -> Unit,
-    onPlayMD: () -> Unit,
-    onPlayMG: () -> Unit
+    onTap: () -> Unit
 ) {
     val borderColor = when {
         isPlaying -> IndigoAccent
@@ -674,14 +666,6 @@ private fun MeasureCard(
             }
         }
 
-        // Per-hand play buttons
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            horizontalAlignment = Alignment.End
-        ) {
-            SmallPlayButton("▶MD", CyanMelody, onPlayMD)
-            SmallPlayButton("▶MG", PinkChords, onPlayMG)
-        }
     }
 }
 
@@ -803,18 +787,6 @@ private fun NoteChip(name: String, color: Color) {
     }
 }
 
-@Composable
-private fun SmallPlayButton(label: String, color: Color, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.12f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 5.dp, vertical = 2.dp)
-    ) {
-        Text(label, fontSize = 9.sp, color = color, fontWeight = FontWeight.Medium)
-    }
-}
 
 // ─── Mini timeline canvas ─────────────────────────────────────────────────────
 
