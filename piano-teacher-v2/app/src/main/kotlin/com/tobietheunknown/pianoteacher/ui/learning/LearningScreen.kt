@@ -196,17 +196,31 @@ fun LearningScreen(
                             onRename = { showRenamePhraseDialog = section.phraseIndex }
                         )
                     }
-                    items(section.measures, key = { it.globalIndex }) { measure ->
-                        MeasureCard(
-                            measure = measure,
-                            beatsPerMeasure = song!!.beatsPerMeasure.toDouble(),
-                            isPlaying = measure.globalIndex == playingMeasure,
-                            isFocused = measure.globalIndex == focusedMeasure,
-                            showDetails = showDetails,
-                            showOctaves = showOctaves,
-                            useFlats = useFlats,
-                            onTap = { vm.playMeasureSingle(measure.globalIndex); vm.focusMeasure(measure.globalIndex) }
-                        )
+                    items(
+                        items = section.measures.chunked(2),
+                        key = { chunk -> chunk.first().globalIndex }
+                    ) { chunk ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            chunk.forEach { measure ->
+                                MeasureCard(
+                                    measure = measure,
+                                    modifier = Modifier.weight(1f),
+                                    beatsPerMeasure = song!!.beatsPerMeasure.toDouble(),
+                                    isPlaying = measure.globalIndex == playingMeasure,
+                                    isFocused = measure.globalIndex == focusedMeasure,
+                                    showDetails = showDetails,
+                                    showOctaves = showOctaves,
+                                    useFlats = useFlats,
+                                    onTap = { vm.playMeasureSingle(measure.globalIndex); vm.focusMeasure(measure.globalIndex) }
+                                )
+                            }
+                            if (chunk.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -563,6 +577,7 @@ private fun PhraseHeader(
 @Composable
 private fun MeasureCard(
     measure: MeasureData,
+    modifier: Modifier = Modifier,
     beatsPerMeasure: Double,
     isPlaying: Boolean,
     isFocused: Boolean,
@@ -583,14 +598,12 @@ private fun MeasureCard(
     }
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp)
+        modifier = modifier
             .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(if (bgColor != Color.Transparent) bgColor else Surface)
             .clickable(onClick = onTap)
-            .padding(horizontal = 16.dp, vertical = 20.dp),
+            .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -628,10 +641,10 @@ private fun MeasureCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("MD:", fontSize = 14.sp, color = CyanMelody.copy(alpha = 0.7f))
-                    val visible = if (showDetails) names else names.take(4)
+                    val visible = if (showDetails) names else names.take(2)
                     visible.forEach { NoteChip(it, CyanMelody) }
-                    if (!showDetails && names.size > 4) {
-                        Text("+${names.size - 4}", fontSize = 9.sp, color = Color(0xFF475569))
+                    if (!showDetails && names.size > 2) {
+                        Text("+${names.size - 2}", fontSize = 9.sp, color = Color(0xFF475569))
                     }
                 }
             }
@@ -806,7 +819,7 @@ private fun MiniTimeline(
         val midY = h / 2f
 
         drawLine(
-            color = Color(0xFF1E293B),
+            color = Color(0xFF475569),
             start = Offset(0f, midY),
             end = Offset(w, midY),
             strokeWidth = 1.5f
