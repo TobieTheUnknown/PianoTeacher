@@ -41,21 +41,27 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_apk
-        with:
-          releaseDirectory: piano-teacher-v2/app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY_BASE64 }}
-          alias: ${{ secrets.SIGNING_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.SIGNING_KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "35.0.0"
-
-      - name: Rename signed APK
         run: |
-          mv "${{ steps.sign_apk.outputs.signedReleaseFile }}" \
-             piano-teacher-v2/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk
+          # Decode keystore
+          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 --decode > /tmp/keystore.p12
+
+          # Find unsigned APK
+          UNSIGNED=$(find piano-teacher-v2/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "Signing: $UNSIGNED"
+
+          # Sign with apksigner
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools/ | sort -V | tail -1)
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/apksigner sign \
+            --ks /tmp/keystore.p12 \
+            --ks-type PKCS12 \
+            --ks-pass "pass:${{ secrets.SIGNING_KEY_STORE_PASSWORD }}" \
+            --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" \
+            --key-pass "pass:${{ secrets.SIGNING_KEY_PASSWORD }}" \
+            --out piano-teacher-v2/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk \
+            "$UNSIGNED"
+
+          echo "Signed APK:"
+          ls -lh piano-teacher-v2/app/build/outputs/apk/release/piano-practice-*.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
