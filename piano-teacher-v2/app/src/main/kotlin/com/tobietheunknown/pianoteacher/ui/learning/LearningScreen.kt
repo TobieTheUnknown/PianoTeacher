@@ -1,5 +1,9 @@
 package com.tobietheunknown.pianoteacher.ui.learning
 
+import android.app.Activity
+import android.content.res.Configuration
+import android.view.WindowManager
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,15 +24,19 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
@@ -37,7 +45,6 @@ import com.tobietheunknown.pianoteacher.utils.ArpeggioMotifResult
 import com.tobietheunknown.pianoteacher.utils.ChordWithReps
 import com.tobietheunknown.pianoteacher.utils.firstArpeggioCycle
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
-import androidx.compose.foundation.Canvas
 import kotlin.math.abs
 
 // ─── Diatonic pitch helpers ───────────────────────────────────────────────────
@@ -125,6 +132,36 @@ fun LearningScreen(
         factory = LearningViewModel.Factory(LocalContext.current, songId)
     )
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    // Full immersive mode for landscape
+    val context = LocalContext.current
+    val window = (context as? Activity)?.window
+    DisposableEffect(isLandscape) {
+        if (isLandscape && window != null) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            )
+        }
+        onDispose {
+            if (window != null) {
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                val controller = WindowInsetsControllerCompat(window, window.decorView)
+                controller.show(WindowInsetsCompat.Type.systemBars())
+                window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+            }
+        }
+    }
+
     val song by vm.song.collectAsState()
     val sections by vm.sections.collectAsState()
     val allMeasures by vm.allMeasures.collectAsState()
@@ -208,58 +245,59 @@ fun LearningScreen(
     Scaffold(
         containerColor = Background,
         topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Column(modifier = Modifier.clickable { showRenameSongDialog = true }) {
-                            Text(
-                                song?.title ?: "",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text("Apprentissage", fontSize = 12.sp, color = Color(0xFF94A3B8))
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
-                        }
-                    },
-                    actions = {
-                        TextButton(onClick = vm::cycleClefMode) {
-                            Text(
-                                when (clefMode) {
-                                    ClefMode.STANDARD -> "Sol+Fa"
-                                    ClefMode.TREBLE_X2 -> "Sol×2"
-                                    ClefMode.AUTO -> "Auto"
-                                },
-                                color = IndigoAccent,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        TextButton(onClick = vm::toggleOctaves) {
-                            Text(
-                                "Oct",
-                                color = if (showOctaves) IndigoAccent else Color(0xFF64748B),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        TextButton(onClick = vm::toggleDetails) {
-                            Text(
-                                "Détails",
-                                color = if (showDetails) IndigoAccent else Color(0xFF64748B),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
-                )
-
+            if (!isLandscape) {
+                Column {
+                    TopAppBar(
+                        title = {
+                            Column(modifier = Modifier.clickable { showRenameSongDialog = true }) {
+                                Text(
+                                    song?.title ?: "",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text("Apprentissage", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+                            }
+                        },
+                        actions = {
+                            TextButton(onClick = vm::cycleClefMode) {
+                                Text(
+                                    when (clefMode) {
+                                        ClefMode.STANDARD -> "Sol+Fa"
+                                        ClefMode.TREBLE_X2 -> "Sol×2"
+                                        ClefMode.AUTO -> "Auto"
+                                    },
+                                    color = IndigoAccent,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            TextButton(onClick = vm::toggleOctaves) {
+                                Text(
+                                    "Oct",
+                                    color = if (showOctaves) IndigoAccent else Color(0xFF64748B),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            TextButton(onClick = vm::toggleDetails) {
+                                Text(
+                                    "Détails",
+                                    color = if (showDetails) IndigoAccent else Color(0xFF64748B),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
+                    )
+                }
             }
         },
         bottomBar = {
@@ -269,7 +307,8 @@ fun LearningScreen(
                         activeRightPitches = focusedMeasureData?.melodyNotes?.map { it.pitch }?.toSet() ?: emptySet(),
                         activeLeftPitches = focusedMeasureData?.chordNotes?.map { it.pitch }?.toSet() ?: emptySet(),
                         focusOctave = pianoFocusOctave,
-                        modifier = Modifier.fillMaxWidth().height(90.dp)
+                        isLandscape = isLandscape,
+                        modifier = Modifier.fillMaxWidth().height(if (isLandscape) 56.dp else 90.dp)
                     )
                     TransportBar(
                         isPlaying = isPlaying,
@@ -287,7 +326,12 @@ fun LearningScreen(
                         onToggleLoop = vm::toggleLoop,
                         onLoopRangeChange = vm::setLoopRange,
                         onToggleMetronome = vm::toggleMetronome,
-                        onSplit = { showSplitDialog = focusedMeasure }
+                        onSplit = { showSplitDialog = focusedMeasure },
+                        isLandscape = isLandscape,
+                        showDetails = showDetails,
+                        onToggleDetails = vm::toggleDetails,
+                        clefMode = clefMode,
+                        onCycleClef = vm::cycleClefMode
                     )
                 }
             }
@@ -334,7 +378,12 @@ fun LearningScreen(
                             selectClef(prev.melodyNotes, useFlats).name != selectClef(measure.melodyNotes, useFlats).name ||
                             selectClef(prev.chordNotes, useFlats).name != selectClef(measure.chordNotes, useFlats).name
                         })
-                        val itemFrac = if (showClefs) 0.65f else 0.5f
+                        val itemFrac = when {
+                            isLandscape && showClefs -> 0.35f
+                            isLandscape -> 0.25f
+                            showClefs -> 0.65f
+                            else -> 0.5f
+                        }
                         Column(
                             modifier = Modifier
                                 .fillParentMaxWidth(itemFrac)
@@ -344,14 +393,16 @@ fun LearningScreen(
                                     vm.playMeasureSingle(measure.globalIndex)
                                 }
                         ) {
-                            MiniMeasureCard(
-                                measure = measure,
-                                beatsPerMeasure = song!!.beatsPerMeasure,
-                                isPlaying = isPlaying,
-                                isFocused = isFocused,
-                                useFlats = useFlats,
-                                modifier = Modifier.fillMaxWidth().height(80.dp)
-                            )
+                            if (!isLandscape) {
+                                MiniMeasureCard(
+                                    measure = measure,
+                                    beatsPerMeasure = song!!.beatsPerMeasure,
+                                    isPlaying = isPlaying,
+                                    isFocused = isFocused,
+                                    useFlats = useFlats,
+                                    modifier = Modifier.fillMaxWidth().height(80.dp)
+                                )
+                            }
                             GrandStaffCanvas(
                                 melodyNotes = measure.melodyNotes,
                                 chordNotes = measure.chordNotes,
@@ -363,21 +414,24 @@ fun LearningScreen(
                                 measureNumber = measure.globalIndex + 1,
                                 clefMode = clefMode,
                                 lowerOctaveShift = lowerStaffOctaveShift,
+                                isLandscape = isLandscape,
                                 modifier = Modifier.fillMaxWidth().weight(1f)
                             )
                         }
                     }
                 }
-                // NoteLabelsStrip en overlay semi-transparent ancré en bas du canvas
-                NoteLabelsStrip(
-                    measure = focusedMeasureData,
-                    useFlats = useFlats,
-                    showOctaves = showOctaves,
-                    showDetails = showDetails,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                )
+                // NoteLabelsStrip: always in portrait, toggle via Détails in landscape
+                if (!isLandscape || showDetails) {
+                    NoteLabelsStrip(
+                        measure = focusedMeasureData,
+                        useFlats = useFlats,
+                        showOctaves = showOctaves,
+                        showDetails = showDetails,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                    )
+                }
             }
         }
     }
@@ -571,6 +625,7 @@ private fun GrandStaffCanvas(
     measureNumber: Int,
     clefMode: ClefMode = ClefMode.STANDARD,
     lowerOctaveShift: Int = 0,
+    isLandscape: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -593,7 +648,8 @@ private fun GrandStaffCanvas(
 
         // 2 staves of 4 lineSpacings + gap of 2 lineSpacings = 10 lineSpacings total
         val totalAvail   = h - topPad - bottomPad
-        val staffH       = (totalAvail / 2.5f).coerceAtMost(STAFF_H_MAX_DP.dp.toPx())
+        val staffHMax    = if (isLandscape) 70.dp.toPx() else STAFF_H_MAX_DP.dp.toPx()
+        val staffH       = (totalAvail / 2.5f).coerceAtMost(staffHMax)
         val lineSpacing  = staffH / 4f
         val gap          = lineSpacing * 2f  // exactly 2 line spacings → middle C falls between staves
         val totalStavesH = staffH * 2 + gap
@@ -838,11 +894,14 @@ private fun LearningPianoKeyboard(
     activeRightPitches: Set<Int>,
     activeLeftPitches: Set<Int>,
     focusOctave: Int,
+    isLandscape: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val numOctaves = PIANO_MAX_OCT - PIANO_MIN_OCT + 1
     val listState = rememberLazyListState()
     val snapBehavior = rememberSnapFlingBehavior(listState)
+    // Landscape: show ~4 octaves at once, portrait: 2
+    val octaveFrac = if (isLandscape) 0.25f else 0.5f
 
     LaunchedEffect(focusOctave) {
         val idx = (focusOctave - PIANO_MIN_OCT).coerceIn(0, numOctaves - 1)
@@ -860,7 +919,7 @@ private fun LearningPianoKeyboard(
                 cMidi = (PIANO_MIN_OCT + i) * 12,
                 activeRightPitches = activeRightPitches,
                 activeLeftPitches = activeLeftPitches,
-                modifier = Modifier.fillParentMaxWidth(0.5f).fillParentMaxHeight()
+                modifier = Modifier.fillParentMaxWidth(octaveFrac).fillParentMaxHeight()
             )
         }
     }
@@ -996,7 +1055,12 @@ private fun TransportBar(
     onToggleLoop: () -> Unit,
     onLoopRangeChange: (Int, Int) -> Unit,
     onToggleMetronome: () -> Unit,
-    onSplit: () -> Unit = {}
+    onSplit: () -> Unit = {},
+    isLandscape: Boolean = false,
+    showDetails: Boolean = false,
+    onToggleDetails: () -> Unit = {},
+    clefMode: ClefMode = ClefMode.STANDARD,
+    onCycleClef: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1010,11 +1074,19 @@ private fun TransportBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Hand selector
+            // Hand selector + clef mode
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 HandButton("MG", hand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
                 HandButton("🔊", hand == PlaybackHand.BOTH, AmberWarning) { onHandChange(PlaybackHand.BOTH) }
                 HandButton("MD", hand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
+                HandButton(
+                    when (clefMode) {
+                        ClefMode.STANDARD -> "Sol+Fa"
+                        ClefMode.TREBLE_X2 -> "Sol×2"
+                        ClefMode.AUTO -> "Auto"
+                    },
+                    selected = true, activeColor = IndigoAccent, onClick = onCycleClef
+                )
             }
 
             // Tempo control + métronome (gauche) + loop (droite)
@@ -1041,6 +1113,15 @@ private fun TransportBar(
 
             // Playback controls
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isLandscape) {
+                    IconButton(
+                        onClick = onToggleDetails,
+                        modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
+                            .background(if (showDetails) IndigoAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f))
+                    ) {
+                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                    }
+                }
                 IconButton(
                     onClick = onStop,
                     modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.07f))
