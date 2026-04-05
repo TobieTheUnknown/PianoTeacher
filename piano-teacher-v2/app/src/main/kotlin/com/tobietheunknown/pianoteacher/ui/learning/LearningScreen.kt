@@ -195,17 +195,6 @@ fun LearningScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
                 )
 
-                if (allMeasures.isNotEmpty()) {
-                    StaffMiniStrip(
-                        allMeasures = allMeasures,
-                        song = song,
-                        playingMeasureIndex = playingMeasure,
-                        focusedMeasureIndex = focusedMeasure,
-                        useFlats = useFlats,
-                        listState = listState,
-                        onMeasureTap = { vm.playMeasureSingle(it); vm.focusMeasure(it) }
-                    )
-                }
             }
         },
         bottomBar = {
@@ -271,7 +260,6 @@ fun LearningScreen(
             ) {
                 LazyRow(
                     state = listState,
-                    contentPadding = PaddingValues(start = CLEF_SIDEBAR_W),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(
@@ -279,14 +267,9 @@ fun LearningScreen(
                         key = { allMeasures[it].globalIndex }
                     ) { idx ->
                         val measure = allMeasures[idx]
-                        GrandStaffCanvas(
-                            melodyNotes = measure.melodyNotes,
-                            chordNotes = measure.chordNotes,
-                            beatsPerMeasure = song!!.beatsPerMeasure,
-                            useFlats = useFlats,
-                            isPlaying = measure.globalIndex == playingMeasure,
-                            isFocused = measure.globalIndex == focusedMeasure,
-                            measureNumber = measure.globalIndex + 1,
+                        val isPlaying = measure.globalIndex == playingMeasure
+                        val isFocused = measure.globalIndex == focusedMeasure
+                        Column(
                             modifier = Modifier
                                 .fillParentMaxWidth(0.5f)
                                 .fillParentMaxHeight()
@@ -294,16 +277,29 @@ fun LearningScreen(
                                     vm.focusMeasure(measure.globalIndex)
                                     vm.playMeasureSingle(measure.globalIndex)
                                 }
-                        )
+                        ) {
+                            MiniMeasureCard(
+                                measure = measure,
+                                beatsPerMeasure = song!!.beatsPerMeasure,
+                                isPlaying = isPlaying,
+                                isFocused = isFocused,
+                                useFlats = useFlats,
+                                modifier = Modifier.fillMaxWidth().height(80.dp)
+                            )
+                            GrandStaffCanvas(
+                                melodyNotes = measure.melodyNotes,
+                                chordNotes = measure.chordNotes,
+                                beatsPerMeasure = song!!.beatsPerMeasure,
+                                useFlats = useFlats,
+                                showClefs = idx == 0,
+                                isPlaying = isPlaying,
+                                isFocused = isFocused,
+                                measureNumber = measure.globalIndex + 1,
+                                modifier = Modifier.fillMaxWidth().weight(1f)
+                            )
+                        }
                     }
                 }
-                // Fixed clef sidebar — stays visible while measures scroll
-                GrandClefSidebar(
-                    modifier = Modifier
-                        .width(CLEF_SIDEBAR_W)
-                        .fillMaxHeight()
-                        .align(Alignment.CenterStart)
-                )
             }
         }
     }
@@ -543,12 +539,62 @@ private fun TimelineBeatRow(
     }
 }
 
+// ─── Mini measure card (top portion of each combined item) ───────────────────
+
+@Composable
+private fun MiniMeasureCard(
+    measure: MeasureData,
+    beatsPerMeasure: Int,
+    isPlaying: Boolean,
+    isFocused: Boolean,
+    useFlats: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+            .background(
+                when {
+                    isPlaying -> IndigoAccent.copy(alpha = 0.18f)
+                    isFocused -> Color.White.copy(alpha = 0.05f)
+                    else -> Surface
+                }
+            )
+            .border(
+                width = if (isPlaying) 1.dp else if (isFocused) 0.5.dp else 0.dp,
+                color = if (isPlaying) IndigoAccent else if (isFocused) Color.White.copy(alpha = 0.15f) else Color.Transparent,
+                shape = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp)
+            )
+            .padding(horizontal = 4.dp, vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            "${measure.globalIndex + 1}",
+            fontSize = 9.sp,
+            color = if (isPlaying) IndigoAccent else Color(0xFF475569),
+            fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
+        )
+        Spacer(Modifier.height(2.dp))
+        TimelineBeatRow(
+            notes = measure.melodyNotes,
+            color = CyanMelody,
+            beatsPerMeasure = beatsPerMeasure,
+            showOctaves = false,
+            useFlats = useFlats
+        )
+        Spacer(Modifier.height(1.dp))
+        TimelineBeatRow(
+            notes = measure.chordNotes,
+            color = PinkChords,
+            beatsPerMeasure = beatsPerMeasure,
+            showOctaves = false,
+            useFlats = useFlats
+        )
+    }
+}
+
 // ─── Grand staff canvas ───────────────────────────────────────────────────────
 
-// Width of the fixed clef sidebar (shared between sidebar and LazyRow contentPadding)
-private val CLEF_SIDEBAR_W = 36.dp
-
-// Shared layout constants — must match between GrandStaffCanvas and GrandClefSidebar
 private const val STAFF_NUM_AREA_DP = 22f
 private const val STAFF_BOTTOM_PAD_DP = 8f
 private const val STAFF_GAP_DP = 48f
@@ -560,6 +606,7 @@ private fun GrandStaffCanvas(
     chordNotes: List<NoteEvent>,
     beatsPerMeasure: Int,
     useFlats: Boolean,
+    showClefs: Boolean,
     isPlaying: Boolean,
     isFocused: Boolean,
     measureNumber: Int,
@@ -589,8 +636,11 @@ private fun GrandStaffCanvas(
         val totalStavesH = staffH * 2 + gap
         val stavesOriginY = topPad + (availH - totalStavesH) / 2f
         val lineSpacing  = staffH / 4f
-        val startPad     = 8.dp.toPx()
-        val dotR         = lineSpacing * 0.40f
+
+        // Space reserved for clef glyph on first measure
+        val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) else 0f
+        val startPad = 8.dp.toPx()
+        val dotR     = lineSpacing * 0.32f
 
         // ── Measure number ─────────────────────────────────────────────────
         val numStyle = TextStyle(
@@ -617,21 +667,48 @@ private fun GrandStaffCanvas(
         staffTops.forEachIndexed { si, staffTop ->
             val lineTop = staffTop
 
+            // ── Staff lines ──────────────────────────────────────────────
             for (li in 0..4) {
                 val y = lineTop + li * lineSpacing
                 val isKey = (staffLines[si][4 - li] == staffKeys[si])
                 drawLine(
-                    color = if (isKey) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.32f),
+                    color = if (isKey) Color.White.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.32f),
                     start = Offset(0f, y),
                     end   = Offset(w, y),
-                    strokeWidth = if (isKey) 1.4f else 0.9f
+                    strokeWidth = if (isKey) 1.1f else 0.9f
                 )
             }
 
+            // ── Clef glyph (first measure only) ─────────────────────────
+            if (showClefs) {
+                val isTreble = si == 0
+                val clefChar = if (isTreble) "\uD834\uDD1E" else "\uD834\uDD22"
+                val clefFontPx = if (isTreble) staffH * 0.533f else staffH * 0.64f
+                val clefStyle = TextStyle(
+                    fontSize = (clefFontPx / density).sp,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+                val clefLayout = textMeasurer.measure(clefChar, clefStyle)
+
+                // li index of key line from top:
+                //   Treble G4 → li=3 (staffLines[0][4-3]=staffLines[0][1]=39=G4)
+                //   Bass   F3 → li=1 (staffLines[1][4-1]=staffLines[1][3]=31=F3)
+                val keyLiFromTop = if (isTreble) 3 else 1
+                val keyY = lineTop + keyLiFromTop * lineSpacing
+
+                // Anchor fraction from top of glyph where the key line passes through
+                val anchorFrac = if (isTreble) 0.62f else 0.20f
+                val clefY = keyY - clefLayout.size.height * anchorFrac
+
+                drawText(clefLayout, topLeft = Offset(4.dp.toPx(), clefY))
+            }
+
+            // ── Notes ────────────────────────────────────────────────────
             val topDiatonic = if (si == 0) TREBLE_TOP else BASS_TOP
 
             val allNotes: List<Pair<NoteEvent, Color>> =
-                melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) } + chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
+                melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) } +
+                chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
 
             allNotes.forEach { (note, color) ->
                 val d = midiToDiatonic(note.pitch, useFlats)
@@ -639,75 +716,34 @@ private fun GrandStaffCanvas(
                 if ((si == 0) != inTreble) return@forEach
 
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
-                val x = startPad + frac * (w - startPad - dotR * 2f)
+                val x = clefW + startPad + frac * (w - clefW - startPad - dotR * 2f)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
 
                 drawCircle(color = color, radius = dotR, center = Offset(x, y))
 
+                // Accidental (#/b) — above the note, horizontally centered
                 if (isBlackKey(note.pitch)) {
                     val label = if (useFlats) "b" else "#"
                     val labelLayout = textMeasurer.measure(
                         label,
-                        TextStyle(fontSize = 7.sp, color = color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
+                        TextStyle(fontSize = 9.sp, color = color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
                     )
-                    drawText(labelLayout, topLeft = Offset(x + dotR * 0.45f, y - dotR * 1.1f))
+                    drawText(labelLayout, topLeft = Offset(
+                        x - labelLayout.size.width / 2f,
+                        y - dotR - labelLayout.size.height - 1.dp.toPx()
+                    ))
                 }
             }
         }
 
-        // ── Bar line ───────────────────────────────────────────────────────
+        // ── Bar line (with small top/bottom margin) ────────────────────────
+        val barMargin = 4.dp.toPx()
         drawLine(
             color = Color.White.copy(alpha = 0.28f),
-            start = Offset(w - 1f, stavesOriginY),
-            end   = Offset(w - 1f, stavesOriginY + totalStavesH),
+            start = Offset(w - 1f, stavesOriginY + barMargin),
+            end   = Offset(w - 1f, stavesOriginY + totalStavesH - barMargin),
             strokeWidth = 1f
         )
-    }
-}
-
-// ─── Fixed clef sidebar ───────────────────────────────────────────────────────
-
-@Composable
-private fun GrandClefSidebar(modifier: Modifier = Modifier) {
-    val textMeasurer = rememberTextMeasurer()
-    Canvas(modifier = modifier.background(Background)) {
-        val h = size.height
-
-        val numAreaH  = STAFF_NUM_AREA_DP.dp.toPx()
-        val topPad    = numAreaH + 8.dp.toPx()
-        val bottomPad = STAFF_BOTTOM_PAD_DP.dp.toPx()
-        val gap       = STAFF_GAP_DP.dp.toPx()
-
-        val availH       = h - topPad - bottomPad - gap
-        val staffH       = (availH / 2f).coerceAtMost(STAFF_H_MAX_DP.dp.toPx())
-        val totalStavesH = staffH * 2 + gap
-        val stavesOriginY = topPad + (availH - totalStavesH) / 2f
-        val lineSpacing  = staffH / 4f
-
-        val trebleTop = stavesOriginY
-        val bassTop   = stavesOriginY + staffH + gap
-
-        // ── Treble clef (𝄞) — size ÷ 1/3 from 0.80 → 0.533 ──────────────
-        val trebleFontPx = staffH * 0.533f
-        val trebleLayout = textMeasurer.measure(
-            "\uD834\uDD1E",
-            TextStyle(fontSize = (trebleFontPx / density).sp, color = Color.White.copy(alpha = 0.65f))
-        )
-        // Anchor: G4 line = line index 1 from bottom = (4-1)=3rd from top
-        val trebleKeyY = trebleTop + 3 * lineSpacing
-        val trebleClefY = trebleKeyY - trebleLayout.size.height * 0.60f
-        drawText(trebleLayout, topLeft = Offset(2.dp.toPx(), trebleClefY))
-
-        // ── Bass clef (𝄢) — shift up 0.75px ─────────────────────────────
-        val bassFontPx = staffH * 0.64f
-        val bassLayout = textMeasurer.measure(
-            "\uD834\uDD22",
-            TextStyle(fontSize = (bassFontPx / density).sp, color = Color.White.copy(alpha = 0.65f))
-        )
-        // Anchor: F3 line = line index 3 from bottom = (4-3)=1st from top
-        val bassKeyY = bassTop + 1 * lineSpacing
-        val bassClefY = bassKeyY - bassLayout.size.height * 0.24f - 0.75f
-        drawText(bassLayout, topLeft = Offset(2.dp.toPx(), bassClefY))
     }
 }
 
@@ -723,6 +759,7 @@ private fun NoteLabelsStrip(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .height(56.dp)
             .background(Surface)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
