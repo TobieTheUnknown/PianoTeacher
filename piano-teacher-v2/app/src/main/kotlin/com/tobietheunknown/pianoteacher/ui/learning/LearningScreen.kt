@@ -1151,11 +1151,13 @@ private fun TransportBar(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Hand selector + clef mode
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Left: Hand selector + clef mode (landscape only)
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 HandButton("MG", hand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
                 HandButton(
                     if (listenMode && hand == PlaybackHand.BOTH) "🔊" else "2🎹",
@@ -1166,7 +1168,7 @@ private fun TransportBar(
                     else onHandChange(PlaybackHand.BOTH)
                 }
                 HandButton("MD", hand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
-                if (!isLandscape) {
+                if (isLandscape) {
                     HandButton(
                         when (clefMode) {
                             ClefMode.STANDARD -> "Sol+Fa"
@@ -1178,8 +1180,12 @@ private fun TransportBar(
                 }
             }
 
-            // Tempo control + métronome (gauche) + loop (droite)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            // Center: Tempo control + métronome + loop + wait
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
                 IconButton(onClick = onToggleMetronome, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else Color(0xFF475569), modifier = Modifier.size(14.dp))
                 }
@@ -1204,20 +1210,23 @@ private fun TransportBar(
                 }
             }
 
-            // Playback controls
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Right: Playback controls (no individual backgrounds except Play)
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 if (isLandscape) {
                     IconButton(
                         onClick = onToggleDetails,
-                        modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp))
-                            .background(if (showDetails) IndigoAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f))
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else Color(0xFF64748B), modifier = Modifier.size(14.dp))
                     }
                 }
                 IconButton(
                     onClick = onStop,
-                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.07f))
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Icon(Icons.Default.Stop, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
                 }
@@ -1229,7 +1238,7 @@ private fun TransportBar(
                 }
                 IconButton(
                     onClick = onSplit,
-                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.07f))
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Icon(Icons.Default.ContentCut, "Diviser", tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
                 }
