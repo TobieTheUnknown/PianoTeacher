@@ -23,6 +23,8 @@ import kotlinx.coroutines.launch
 
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 
+enum class ClefMode { STANDARD, TREBLE_X2, AUTO }
+
 // ─── Data structures ─────────────────────────────────────────────────────────
 
 data class MeasureData(
@@ -100,6 +102,16 @@ class LearningViewModel(
     private val _metronomeEnabled = MutableStateFlow(false)
     val metronomeEnabled: StateFlow<Boolean> = _metronomeEnabled.asStateFlow()
     fun toggleMetronome() { _metronomeEnabled.value = !_metronomeEnabled.value }
+
+    private val _clefMode = MutableStateFlow(ClefMode.STANDARD)
+    val clefMode: StateFlow<ClefMode> = _clefMode.asStateFlow()
+    fun cycleClefMode() {
+        _clefMode.value = when (_clefMode.value) {
+            ClefMode.STANDARD -> ClefMode.TREBLE_X2
+            ClefMode.TREBLE_X2 -> ClefMode.AUTO
+            ClefMode.AUTO -> ClefMode.STANDARD
+        }
+    }
 
     // ─── UI state ─────────────────────────────────────────────────────────────
 

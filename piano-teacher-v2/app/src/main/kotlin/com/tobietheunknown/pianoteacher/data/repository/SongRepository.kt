@@ -58,6 +58,20 @@ class SongRepository(private val context: Context) {
         dao.updateTitle(songId, title)
     }
 
+    suspend fun importFromAssets(assetName: String, title: String): ImportResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val input = context.assets.open(assetName)
+            val song = MidiParser.parse(input, title).getOrElse {
+                return@runCatching ImportResult.Error("Erreur MIDI : ${it.message}")
+            }
+            if (song.phrases.isEmpty()) {
+                return@runCatching ImportResult.Error("Aucune note trouvée")
+            }
+            saveSong(song)
+            ImportResult.Success(song)
+        }.getOrElse { ImportResult.Error(it.message ?: "Erreur inconnue") }
+    }
+
     // ─── Import ───────────────────────────────────────────────────────────────
 
     sealed class ImportResult {

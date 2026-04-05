@@ -52,37 +52,67 @@ private fun midiToDiatonic(pitch: Int, useFlats: Boolean = false): Int {
     return octave * 7 + step
 }
 
-// Standard staff line positions (diatonic degrees)
-private val TREBLE_LINES    = intArrayOf(37, 39, 41, 43, 45)  // E4, G4, B4, D5, F5
-private val TREBLE_KEY_LINE = 39   // G4
-
-private val BASS_LINES      = intArrayOf(25, 27, 29, 31, 33)  // G2, B2, D3, F3, A3
-private val BASS_KEY_LINE   = 31   // F3
-
-// Treble fixed range
-private const val TREBLE_BOTTOM = 37  // E4
-private const val TREBLE_TOP    = 45  // F5
-private const val TREBLE_RANGE  = 8
-
-// Bass fixed range
-private const val BASS_BOTTOM   = 25  // G2
-private const val BASS_TOP      = 33  // A3
-private const val BASS_RANGE    = 8
-
-private fun noteY(
-    pitch: Int,
-    bottomDiatonic: Int,
-    range: Int,
-    staffTop: Float,
-    staffH: Float,
-    useFlats: Boolean = false
-): Float {
-    val pos = (midiToDiatonic(pitch, useFlats) - bottomDiatonic).toFloat() / range.toFloat()
-    return staffTop + staffH * (1f - pos) + staffH / 16f
-}
-
 private fun isBlackKey(midi: Int): Boolean =
     when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
+
+// ─── Staff clef configuration ────────────────────────────────────────────────
+
+private data class StaffClefConfig(
+    val name: String,
+    val glyph: String,
+    val keyDiatonic: Int,
+    val keyLineFromTop: Int,
+    val lines: IntArray,       // 5 diatonic values, BOTTOM to TOP
+    val anchorFrac: Float,
+    val fontScale: Float,
+    val extraYOffset: Float = 0f  // dp
+)
+
+private val TREBLE_CLEF = StaffClefConfig(
+    name = "Sol", glyph = "\uD834\uDD1E",
+    keyDiatonic = 39, keyLineFromTop = 3,
+    lines = intArrayOf(37, 39, 41, 43, 45),  // E4, G4, B4, D5, F5
+    anchorFrac = 0.62f, fontScale = 0.533f
+)
+
+private val BASS_CLEF = StaffClefConfig(
+    name = "Fa", glyph = "\uD834\uDD22",
+    keyDiatonic = 31, keyLineFromTop = 1,
+    lines = intArrayOf(25, 27, 29, 31, 33),  // G2, B2, D3, F3, A3
+    anchorFrac = 0.20f, fontScale = 0.64f, extraYOffset = 8f
+)
+
+private val ALTO_CLEF = StaffClefConfig(
+    name = "Ut3", glyph = "\uD834\uDD21",
+    keyDiatonic = 35, keyLineFromTop = 2,
+    lines = intArrayOf(31, 33, 35, 37, 39),  // F3, A3, C4, E4, G4
+    anchorFrac = 0.50f, fontScale = 0.55f
+)
+
+private val TENOR_CLEF = StaffClefConfig(
+    name = "Ut4", glyph = "\uD834\uDD21",
+    keyDiatonic = 35, keyLineFromTop = 1,
+    lines = intArrayOf(29, 31, 33, 35, 37),  // D3, F3, A3, C4, E4
+    anchorFrac = 0.50f, fontScale = 0.55f
+)
+
+private val ALL_CLEFS = listOf(TREBLE_CLEF, BASS_CLEF, ALTO_CLEF, TENOR_CLEF)
+
+private fun selectClef(notes: List<NoteEvent>, useFlats: Boolean): StaffClefConfig {
+    if (notes.isEmpty()) return TREBLE_CLEF
+    val diatonics = notes.map { midiToDiatonic(it.pitch, useFlats) }
+    return ALL_CLEFS.minByOrNull { clef ->
+        val top = clef.lines.last()
+        val bottom = clef.lines.first()
+        diatonics.sumOf { d ->
+            when {
+                d > top -> (d - top + 1) / 2
+                d < bottom -> (bottom - d + 1) / 2
+                else -> 0
+            }
+        }
+    } ?: TREBLE_CLEF
+}
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -110,6 +140,7 @@ fun LearningScreen(
     val showOctaves by vm.showOctaves.collectAsState()
     val keySignature by vm.keySignature.collectAsState()
     val isMetronomeEnabled by vm.metronomeEnabled.collectAsState()
+    val clefMode by vm.clefMode.collectAsState()
     val useFlats = keySignature?.useFlats ?: false
 
     val listState = rememberLazyListState()
@@ -179,6 +210,18 @@ fun LearningScreen(
                         }
                     },
                     actions = {
+                        TextButton(onClick = vm::cycleClefMode) {
+                            Text(
+                                when (clefMode) {
+                                    ClefMode.STANDARD -> "Sol+Fa"
+                                    ClefMode.TREBLE_X2 -> "Sol×2"
+                                    ClefMode.AUTO -> "Auto"
+                                },
+                                color = IndigoAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         TextButton(onClick = vm::toggleOctaves) {
                             Text(
                                 "Oct",
@@ -296,6 +339,7 @@ fun LearningScreen(
                                 isPlaying = isPlaying,
                                 isFocused = isFocused,
                                 measureNumber = measure.globalIndex + 1,
+                                clefMode = clefMode,
                                 modifier = Modifier.fillMaxWidth().weight(1f)
                             )
                         }
@@ -490,7 +534,6 @@ private fun MiniMeasureCard(
 
 private const val STAFF_NUM_AREA_DP = 22f
 private const val STAFF_BOTTOM_PAD_DP = 8f
-private const val STAFF_GAP_DP = 48f
 private const val STAFF_H_MAX_DP = 120f
 
 @Composable
@@ -503,6 +546,7 @@ private fun GrandStaffCanvas(
     isPlaying: Boolean,
     isFocused: Boolean,
     measureNumber: Int,
+    clefMode: ClefMode = ClefMode.STANDARD,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -522,18 +566,48 @@ private fun GrandStaffCanvas(
         val numAreaH  = STAFF_NUM_AREA_DP.dp.toPx()
         val topPad    = numAreaH + 8.dp.toPx()
         val bottomPad = STAFF_BOTTOM_PAD_DP.dp.toPx()
-        val gap       = STAFF_GAP_DP.dp.toPx()
 
-        val availH       = h - topPad - bottomPad - gap
-        val staffH       = (availH / 2f).coerceAtMost(STAFF_H_MAX_DP.dp.toPx())
-        val totalStavesH = staffH * 2 + gap
-        val stavesOriginY = topPad + (availH - totalStavesH) / 2f
+        // 2 staves of 4 lineSpacings + gap of 2 lineSpacings = 10 lineSpacings total
+        val totalAvail   = h - topPad - bottomPad
+        val staffH       = (totalAvail / 2.5f).coerceAtMost(STAFF_H_MAX_DP.dp.toPx())
         val lineSpacing  = staffH / 4f
+        val gap          = lineSpacing * 2f  // exactly 2 line spacings → middle C falls between staves
+        val totalStavesH = staffH * 2 + gap
+        val stavesOriginY = topPad + (totalAvail - totalStavesH) / 2f
 
-        // clefW: zone réservée pour les clefs à gauche (avant les lignes de portée)
         val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) else 0f
-        val barPad   = 10.dp.toPx()  // marge notes / séparateur de mesure (des deux côtés)
+        val barPad   = 10.dp.toPx()
         val dotR     = lineSpacing * 0.32f
+
+        // ── Resolve clefs + note assignment per mode ──────────────────────
+        val upperClef: StaffClefConfig
+        val lowerClef: StaffClefConfig
+        val upperNotes: List<Pair<NoteEvent, Color>>
+        val lowerNotes: List<Pair<NoteEvent, Color>>
+
+        when (clefMode) {
+            ClefMode.STANDARD -> {
+                upperClef = TREBLE_CLEF; lowerClef = BASS_CLEF
+                val all = melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) } +
+                          chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
+                val splitDiatonic = TREBLE_CLEF.lines.first() // E4 = 37
+                upperNotes = all.filter { midiToDiatonic(it.first.pitch, useFlats) >= splitDiatonic }
+                lowerNotes = all.filter { midiToDiatonic(it.first.pitch, useFlats) < splitDiatonic }
+            }
+            ClefMode.TREBLE_X2 -> {
+                upperClef = TREBLE_CLEF; lowerClef = TREBLE_CLEF
+                upperNotes = melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) }
+                lowerNotes = chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
+            }
+            ClefMode.AUTO -> {
+                upperClef = selectClef(melodyNotes, useFlats)
+                lowerClef = selectClef(chordNotes, useFlats)
+                upperNotes = melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) }
+                lowerNotes = chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
+            }
+        }
+        val staffClefs = arrayOf(upperClef, lowerClef)
+        val staffNotesList = arrayOf(upperNotes, lowerNotes)
 
         // ── Measure number ─────────────────────────────────────────────────
         val numStyle = TextStyle(
@@ -544,7 +618,7 @@ private fun GrandStaffCanvas(
         val numLayout = textMeasurer.measure("$measureNumber", numStyle)
         drawText(numLayout, topLeft = Offset((w - numLayout.size.width) / 2f, 4.dp.toPx()))
 
-        // ── Left bracket (on the staff line zone only, after clefW) ───────
+        // ── Left bracket ───────────────────────────────────────────────────
         val bracketX = clefW + 1.dp.toPx()
         drawLine(
             color = Color.White.copy(alpha = 0.35f),
@@ -553,66 +627,45 @@ private fun GrandStaffCanvas(
             strokeWidth = 3.dp.toPx()
         )
 
-        // ── Draw treble (si=0) then bass (si=1) ────────────────────────────
-        val staffKeys  = intArrayOf(TREBLE_KEY_LINE, BASS_KEY_LINE)
-        val staffLines = arrayOf(TREBLE_LINES, BASS_LINES)
-        val staffTops  = floatArrayOf(stavesOriginY, stavesOriginY + staffH + gap)
+        // ── Draw both staves (si=0: upper, si=1: lower) ───────────────────
+        val staffTops = floatArrayOf(stavesOriginY, stavesOriginY + staffH + gap)
 
         staffTops.forEachIndexed { si, staffTop ->
+            val clef = staffClefs[si]
             val lineTop = staffTop
+            val topDiatonic = clef.lines.last()
+            val bottomDiatonic = clef.lines.first()
 
-            // ── Staff lines (commencent après la zone clef) ──────────────
+            // ── Staff lines ─────────────────────────────────────────────
             for (li in 0..4) {
                 val y = lineTop + li * lineSpacing
-                val isKey = (staffLines[si][4 - li] == staffKeys[si])
+                val lineDiatonic = clef.lines[4 - li]
+                val isKey = (lineDiatonic == clef.keyDiatonic)
                 drawLine(
-                    color = if (isKey) Color.White.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.42f),
+                    color = if (isKey) Color.White.copy(alpha = 0.68f) else Color.White.copy(alpha = 0.50f),
                     start = Offset(clefW, y),
                     end   = Offset(w, y),
-                    strokeWidth = if (isKey) 1.1f else 0.9f
+                    strokeWidth = if (isKey) 1.4f else 0.9f
                 )
             }
 
-            // ── Clef glyph (first measure only) ─────────────────────────
+            // ── Clef glyph ──────────────────────────────────────────────
             if (showClefs) {
-                val isTreble = si == 0
-                val clefChar = if (isTreble) "\uD834\uDD1E" else "\uD834\uDD22"
-                val clefFontPx = if (isTreble) staffH * 0.533f else staffH * 0.64f
+                val clefFontPx = staffH * clef.fontScale
                 val clefStyle = TextStyle(
                     fontSize = (clefFontPx / density).sp,
                     color = Color.White.copy(alpha = 0.35f)
                 )
-                val clefLayout = textMeasurer.measure(clefChar, clefStyle)
-
-                // li index of key line from top:
-                //   Treble G4 → li=3 (staffLines[0][4-3]=staffLines[0][1]=39=G4)
-                //   Bass   F3 → li=1 (staffLines[1][4-1]=staffLines[1][3]=31=F3)
-                val keyLiFromTop = if (isTreble) 3 else 1
-                val keyY = lineTop + keyLiFromTop * lineSpacing
-
-                // Anchor fraction from top of glyph where the key line passes through
-                val anchorFrac = if (isTreble) 0.62f else 0.20f
-                // Bass clef: +8px supplémentaires vers le haut
-                val bassOffset = if (isTreble) 0f else 8.dp.toPx()
-                val clefY = keyY - clefLayout.size.height * anchorFrac - bassOffset
-
-                // Clef dessinée dans la zone [0, clefW], centrée horizontalement
+                val clefLayout = textMeasurer.measure(clef.glyph, clefStyle)
+                val keyY = lineTop + clef.keyLineFromTop * lineSpacing
+                val clefY = keyY - clefLayout.size.height * clef.anchorFrac - clef.extraYOffset.dp.toPx()
                 val clefX = (clefW - clefLayout.size.width) / 2f
                 drawText(clefLayout, topLeft = Offset(clefX.coerceAtLeast(2.dp.toPx()), clefY))
             }
 
-            // ── Notes ────────────────────────────────────────────────────
-            val topDiatonic = if (si == 0) TREBLE_TOP else BASS_TOP
-
-            val allNotes: List<Pair<NoteEvent, Color>> =
-                melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) } +
-                chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
-
-            allNotes.forEach { (note, color) ->
+            // ── Notes ───────────────────────────────────────────────────
+            staffNotesList[si].forEach { (note, color) ->
                 val d = midiToDiatonic(note.pitch, useFlats)
-                val inTreble = d >= TREBLE_BOTTOM
-                if ((si == 0) != inTreble) return@forEach
-
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
                 val noteAreaStart = clefW + barPad
                 val noteAreaEnd = w - barPad
@@ -621,28 +674,27 @@ private fun GrandStaffCanvas(
 
                 drawCircle(color = color, radius = dotR, center = Offset(x, y))
 
-                // Ledger lines for notes outside the staff
-                val bottomDiatonic = if (si == 0) TREBLE_BOTTOM else BASS_BOTTOM
-                if (d > topDiatonic) {
+                // Ledger lines (only when note is ≥2 diatonic steps outside staff)
+                if (d > topDiatonic + 1) {
                     var ld = topDiatonic + 2
-                    while (ld <= d + 1) {
+                    while (ld <= d) {
                         val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                        drawLine(Color.White.copy(alpha = 0.4f),
+                        drawLine(Color.White.copy(alpha = 0.5f),
                             Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
                         ld += 2
                     }
                 }
-                if (d < bottomDiatonic) {
+                if (d < bottomDiatonic - 1) {
                     var ld = bottomDiatonic - 2
-                    while (ld >= d - 1) {
+                    while (ld >= d) {
                         val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                        drawLine(Color.White.copy(alpha = 0.4f),
+                        drawLine(Color.White.copy(alpha = 0.5f),
                             Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
                         ld -= 2
                     }
                 }
 
-                // Accidental (#/b) — haut-droite de la note
+                // Accidental (#/b)
                 if (isBlackKey(note.pitch)) {
                     val label = if (useFlats) "b" else "#"
                     val labelLayout = textMeasurer.measure(
@@ -657,7 +709,7 @@ private fun GrandStaffCanvas(
             }
         }
 
-        // ── Bar line (with small top/bottom margin) ────────────────────────
+        // ── Bar line ───────────────────────────────────────────────────────
         val barMargin = 4.dp.toPx()
         drawLine(
             color = Color.White.copy(alpha = 0.28f),
