@@ -400,9 +400,9 @@ fun LearningScreen(
                             selectClef(prev.chordNotes, useFlats).name != selectClef(measure.chordNotes, useFlats).name
                         })
                         val itemFrac = when {
-                            isLandscape && showClefs -> 0.35f
+                            isLandscape && showClefs -> 0.30f
                             isLandscape -> 0.25f
-                            showClefs -> 0.65f
+                            showClefs -> 0.55f
                             else -> 0.5f
                         }
                         Column(
@@ -725,8 +725,8 @@ private fun GrandStaffCanvas(
         val numLayout = textMeasurer.measure("$measureNumber", numStyle)
         drawText(numLayout, topLeft = Offset((w - numLayout.size.width) / 2f, 4.dp.toPx()))
 
-        // ── Left bracket ───────────────────────────────────────────────────
-        val bracketX = clefW + 1.dp.toPx()
+        // ── Left bracket (always at left edge) ──────────────────────────
+        val bracketX = 1.dp.toPx()
         drawLine(
             color = Color.White.copy(alpha = 0.35f),
             start = Offset(bracketX, stavesOriginY),
@@ -751,7 +751,7 @@ private fun GrandStaffCanvas(
                 val keyColor = if (si == 0) CyanMelody.copy(alpha = 0.72f) else PinkChords.copy(alpha = 0.72f)
                 drawLine(
                     color = if (isKey) keyColor else Color.White.copy(alpha = 0.62f),
-                    start = Offset(clefW, y),
+                    start = Offset(bracketX + 2.dp.toPx(), y),
                     end   = Offset(w, y),
                     strokeWidth = if (isKey) 1.6f else 1.2f
                 )
@@ -767,7 +767,8 @@ private fun GrandStaffCanvas(
                 )
                 val clefLayout = textMeasurer.measure(clef.glyph, clefStyle)
                 val keyY = lineTop + clef.keyLineFromTop * lineSpacing
-                val clefY = keyY - clefLayout.size.height * clef.anchorFrac - clef.extraYOffset.dp.toPx()
+                val landscapeBassAdj = if (isLandscape && clef.name == "Fa") 2.dp.toPx() else 0f
+                val clefY = keyY - clefLayout.size.height * clef.anchorFrac - clef.extraYOffset.dp.toPx() + landscapeBassAdj
                 val clefX = (pureClefW - clefLayout.size.width) / 2f
                 drawText(clefLayout, topLeft = Offset(clefX.coerceAtLeast(2.dp.toPx()), clefY))
 
