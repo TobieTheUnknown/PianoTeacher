@@ -200,12 +200,6 @@ fun LearningScreen(
         bottomBar = {
             if (allMeasures.isNotEmpty()) {
                 Column {
-                    NoteLabelsStrip(
-                        measure = focusedMeasureData,
-                        useFlats = useFlats,
-                        showOctaves = showOctaves,
-                        showDetails = showDetails
-                    )
                     LearningPianoKeyboard(
                         activeRightPitches = focusedMeasureData?.melodyNotes?.map { it.pitch }?.toSet() ?: emptySet(),
                         activeLeftPitches = focusedMeasureData?.chordNotes?.map { it.pitch }?.toSet() ?: emptySet(),
@@ -262,6 +256,7 @@ fun LearningScreen(
                     state = listState,
                     modifier = Modifier.fillMaxSize()
                 ) {
+
                     items(
                         count = allMeasures.size,
                         key = { allMeasures[it].globalIndex }
@@ -269,9 +264,11 @@ fun LearningScreen(
                         val measure = allMeasures[idx]
                         val isPlaying = measure.globalIndex == playingMeasure
                         val isFocused = measure.globalIndex == focusedMeasure
+                        // Première mesure plus large pour loger les clefs
+                        val itemFrac = if (idx == 0) 0.65f else 0.5f
                         Column(
                             modifier = Modifier
-                                .fillParentMaxWidth(0.5f)
+                                .fillParentMaxWidth(itemFrac)
                                 .fillParentMaxHeight()
                                 .clickable {
                                     vm.focusMeasure(measure.globalIndex)
@@ -300,6 +297,16 @@ fun LearningScreen(
                         }
                     }
                 }
+                // NoteLabelsStrip en overlay semi-transparent ancré en bas du canvas
+                NoteLabelsStrip(
+                    measure = focusedMeasureData,
+                    useFlats = useFlats,
+                    showOctaves = showOctaves,
+                    showDetails = showDetails,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                )
             }
         }
     }
@@ -637,9 +644,10 @@ private fun GrandStaffCanvas(
         val stavesOriginY = topPad + (availH - totalStavesH) / 2f
         val lineSpacing  = staffH / 4f
 
-        // Space reserved for clef glyph on first measure
+        // clefW: zone réservée pour les clefs à gauche (avant les lignes de portée)
         val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) else 0f
         val startPad = 8.dp.toPx()
+        val barPad   = 10.dp.toPx()  // marge notes / séparateur de mesure (des deux côtés)
         val dotR     = lineSpacing * 0.32f
 
         // ── Measure number ─────────────────────────────────────────────────
@@ -651,11 +659,12 @@ private fun GrandStaffCanvas(
         val numLayout = textMeasurer.measure("$measureNumber", numStyle)
         drawText(numLayout, topLeft = Offset((w - numLayout.size.width) / 2f, 4.dp.toPx()))
 
-        // ── Left bracket ───────────────────────────────────────────────────
+        // ── Left bracket (on the staff line zone only, after clefW) ───────
+        val bracketX = clefW + 1.dp.toPx()
         drawLine(
             color = Color.White.copy(alpha = 0.35f),
-            start = Offset(1.dp.toPx(), stavesOriginY),
-            end   = Offset(1.dp.toPx(), stavesOriginY + totalStavesH),
+            start = Offset(bracketX, stavesOriginY),
+            end   = Offset(bracketX, stavesOriginY + totalStavesH),
             strokeWidth = 3.dp.toPx()
         )
 
@@ -667,13 +676,13 @@ private fun GrandStaffCanvas(
         staffTops.forEachIndexed { si, staffTop ->
             val lineTop = staffTop
 
-            // ── Staff lines ──────────────────────────────────────────────
+            // ── Staff lines (commencent après la zone clef) ──────────────
             for (li in 0..4) {
                 val y = lineTop + li * lineSpacing
                 val isKey = (staffLines[si][4 - li] == staffKeys[si])
                 drawLine(
                     color = if (isKey) Color.White.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.32f),
-                    start = Offset(0f, y),
+                    start = Offset(clefW, y),
                     end   = Offset(w, y),
                     strokeWidth = if (isKey) 1.1f else 0.9f
                 )
@@ -686,7 +695,7 @@ private fun GrandStaffCanvas(
                 val clefFontPx = if (isTreble) staffH * 0.533f else staffH * 0.64f
                 val clefStyle = TextStyle(
                     fontSize = (clefFontPx / density).sp,
-                    color = Color.White.copy(alpha = 0.65f)
+                    color = Color.White.copy(alpha = 0.35f)
                 )
                 val clefLayout = textMeasurer.measure(clefChar, clefStyle)
 
@@ -698,9 +707,13 @@ private fun GrandStaffCanvas(
 
                 // Anchor fraction from top of glyph where the key line passes through
                 val anchorFrac = if (isTreble) 0.62f else 0.20f
-                val clefY = keyY - clefLayout.size.height * anchorFrac
+                // Bass clef: +8px supplémentaires vers le haut
+                val bassOffset = if (isTreble) 0f else 8.dp.toPx()
+                val clefY = keyY - clefLayout.size.height * anchorFrac - bassOffset
 
-                drawText(clefLayout, topLeft = Offset(4.dp.toPx(), clefY))
+                // Clef dessinée dans la zone [0, clefW], centrée horizontalement
+                val clefX = (clefW - clefLayout.size.width) / 2f
+                drawText(clefLayout, topLeft = Offset(clefX.coerceAtLeast(2.dp.toPx()), clefY))
             }
 
             // ── Notes ────────────────────────────────────────────────────
@@ -716,12 +729,12 @@ private fun GrandStaffCanvas(
                 if ((si == 0) != inTreble) return@forEach
 
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
-                val x = clefW + startPad + frac * (w - clefW - startPad - dotR * 2f)
+                val x = clefW + startPad + frac * (w - clefW - startPad - dotR * 2f - barPad)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
 
                 drawCircle(color = color, radius = dotR, center = Offset(x, y))
 
-                // Accidental (#/b) — above the note, horizontally centered
+                // Accidental (#/b) — haut-droite de la note
                 if (isBlackKey(note.pitch)) {
                     val label = if (useFlats) "b" else "#"
                     val labelLayout = textMeasurer.measure(
@@ -729,8 +742,8 @@ private fun GrandStaffCanvas(
                         TextStyle(fontSize = 9.sp, color = color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
                     )
                     drawText(labelLayout, topLeft = Offset(
-                        x - labelLayout.size.width / 2f,
-                        y - dotR - labelLayout.size.height - 1.dp.toPx()
+                        x + dotR * 0.3f,
+                        y - dotR - labelLayout.size.height
                     ))
                 }
             }
@@ -754,51 +767,65 @@ private fun NoteLabelsStrip(
     measure: MeasureData?,
     useFlats: Boolean,
     showOctaves: Boolean,
-    showDetails: Boolean = false
+    showDetails: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
+    var expanded by remember { mutableStateOf(true) }
+
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(Surface)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        modifier = modifier.background(Background.copy(alpha = 0.45f))
     ) {
-        if (measure != null) {
-            // MD — note names
-            if (measure.melodyNotes.isNotEmpty()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text("MD", fontSize = 11.sp, color = CyanMelody.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
-                    measure.melodyNotes
-                        .map { it.pitch }
-                        .distinct()
-                        .forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), CyanMelody) }
-                }
-            }
-            // MG — chord name / arpeggio (même logique que MeasureCard)
-            if (measure.chordInfo != null || measure.chordNotes.isNotEmpty()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text("MG", fontSize = 11.sp, color = PinkChords.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
-                    if (measure.chordInfo != null) {
-                        ChordChip(
-                            chordInfo = measure.chordInfo,
-                            chordNotes = measure.chordNotes,
-                            showDetails = showDetails,
-                            showOctaves = showOctaves,
-                            useFlats = useFlats,
-                            arpeggioResult = measure.arpeggioMotif
-                        )
-                    } else {
-                        measure.chordNotes.map { it.pitch }.distinct()
-                            .forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), PinkChords) }
+        // Header row : contenu MD/MG + bouton collapse
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                if (expanded && measure != null) {
+                    if (measure.melodyNotes.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("MD", fontSize = 11.sp, color = CyanMelody.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                            measure.melodyNotes.map { it.pitch }.distinct()
+                                .forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), CyanMelody) }
+                        }
+                    }
+                    if (measure.chordInfo != null || measure.chordNotes.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("MG", fontSize = 11.sp, color = PinkChords.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                            if (measure.chordInfo != null) {
+                                ChordChip(
+                                    chordInfo = measure.chordInfo,
+                                    chordNotes = measure.chordNotes,
+                                    showDetails = showDetails,
+                                    showOctaves = showOctaves,
+                                    useFlats = useFlats,
+                                    arpeggioResult = measure.arpeggioMotif
+                                )
+                            } else {
+                                measure.chordNotes.map { it.pitch }.distinct()
+                                    .forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), PinkChords) }
+                            }
+                        }
                     }
                 }
+            }
+            // Bouton collapse ▼/▲
+            IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Rétracter" else "Développer",
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
@@ -1119,8 +1146,11 @@ private fun TransportBar(
                 HandButton("MD", hand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
             }
 
-            // Tempo control
+            // Tempo control + métronome (gauche) + loop (droite)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                IconButton(onClick = onToggleMetronome, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                }
                 IconButton(onClick = { onTempoAdjust(-0.1f) }, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Remove, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
                 }
@@ -1132,6 +1162,9 @@ private fun TransportBar(
                 )
                 IconButton(onClick = { onTempoAdjust(0.1f) }, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Add, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                }
+                IconButton(onClick = onToggleLoop, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else Color(0xFF475569), modifier = Modifier.size(14.dp))
                 }
             }
 
@@ -1155,20 +1188,6 @@ private fun TransportBar(
                 ) {
                     Icon(Icons.Default.ContentCut, "Diviser", tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
                 }
-            }
-        }
-
-        // Second row: metronome + loop
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onToggleMetronome, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else Color(0xFF475569), modifier = Modifier.size(16.dp))
-            }
-            IconButton(onClick = onToggleLoop, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else Color(0xFF475569), modifier = Modifier.size(16.dp))
             }
         }
 
