@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.tobietheunknown.pianoteacher.audio.AudioEngine
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
+import com.tobietheunknown.pianoteacher.midi.MidiEvent
+import com.tobietheunknown.pianoteacher.midi.MidiManager
 import com.tobietheunknown.pianoteacher.data.model.Phrase
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.data.repository.SongRepository
@@ -50,7 +52,8 @@ data class PhraseSectionData(
 class LearningViewModel(
     private val repo: SongRepository,
     private val songId: String,
-    private val audioEngine: AudioEngine
+    private val audioEngine: AudioEngine,
+    private val midiManager: MidiManager
 ) : ViewModel() {
 
     private val _song = MutableStateFlow<Song?>(null)
@@ -103,6 +106,14 @@ class LearningViewModel(
     val metronomeEnabled: StateFlow<Boolean> = _metronomeEnabled.asStateFlow()
     fun toggleMetronome() { _metronomeEnabled.value = !_metronomeEnabled.value }
 
+    // ─── MIDI input state ─────────────────────────────────────────────────
+    private val _pressedKeys = MutableStateFlow<Set<Int>>(emptySet())
+    val pressedKeys: StateFlow<Set<Int>> = _pressedKeys.asStateFlow()
+
+    private val _waitMode = MutableStateFlow(false)
+    val waitMode: StateFlow<Boolean> = _waitMode.asStateFlow()
+    fun toggleWaitMode() { _waitMode.value = !_waitMode.value }
+
     private val _clefMode = MutableStateFlow(ClefMode.STANDARD)
     val clefMode: StateFlow<ClefMode> = _clefMode.asStateFlow()
     fun cycleClefMode() {
@@ -141,6 +152,21 @@ class LearningViewModel(
             }
         }
         audioEngine.start()
+        midiManager.startUsbScanning()
+        viewModelScope.launch {
+            midiManager.events.collect { event ->
+                when (event) {
+                    is MidiEvent.NoteOn -> {
+                        _pressedKeys.value = _pressedKeys.value + event.pitch
+                        audioEngine.noteOn(event.pitch, event.velocity)
+                    }
+                    is MidiEvent.NoteOff -> {
+                        _pressedKeys.value = _pressedKeys.value - event.pitch
+                        audioEngine.noteOff(event.pitch)
+                    }
+                }
+            }
+        }
     }
 
     // ─── UI actions ───────────────────────────────────────────────────────────
@@ -383,8 +409,20 @@ class LearningViewModel(
         }
         events.sortBy { it.timeMs }
 
+        // Pre-compute expected pitches at each noteOn time for wait mode
+        val noteOnsByTime = events.filter { it.isOn }
+            .groupBy { it.timeMs }
+            .mapValues { (_, evs) -> evs.map { it.pitch }.toSet() }
+
         try {
             for (ev in events) {
+                // Wait mode: pause until user plays expected notes at this beat
+                if (_waitMode.value && ev.isOn && noteOnsByTime.containsKey(ev.timeMs)) {
+                    val expected = noteOnsByTime[ev.timeMs]!!
+                    while (_waitMode.value && !expected.all { it in _pressedKeys.value }) {
+                        delay(30)
+                    }
+                }
                 val elapsed = System.currentTimeMillis() - startTime
                 val wait = ev.timeMs - elapsed
                 if (wait > 0) delay(wait)
@@ -545,7 +583,8 @@ class LearningViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val engine = AudioEngine(context.applicationContext)
-            return LearningViewModel(SongRepository(context), songId, engine) as T
+            val midi = MidiManager(context.applicationContext)
+            return LearningViewModel(SongRepository(context), songId, engine, midi) as T
         }
     }
 }

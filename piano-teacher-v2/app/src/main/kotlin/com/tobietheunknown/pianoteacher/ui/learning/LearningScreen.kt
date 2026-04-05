@@ -199,6 +199,8 @@ fun LearningScreen(
     val keySignature by vm.keySignature.collectAsState()
     val isMetronomeEnabled by vm.metronomeEnabled.collectAsState()
     val clefMode by vm.clefMode.collectAsState()
+    val pressedKeys by vm.pressedKeys.collectAsState()
+    val waitMode by vm.waitMode.collectAsState()
     val useFlats = keySignature?.useFlats ?: false
 
     val listState = rememberLazyListState()
@@ -253,14 +255,19 @@ fun LearningScreen(
     val focusedMeasureData = allMeasures.getOrNull(focusedMeasure)
 
     // Piano keyboard range: 2 octaves centered on lowest note of focused measure
-    val pianoFocusOctave = remember(focusedMeasureData, hand) {
+    val pianoFocusOctave = remember(focusedMeasureData, hand, isLandscape) {
         val notes = when (hand) {
             PlaybackHand.LEFT  -> focusedMeasureData?.chordNotes
             PlaybackHand.RIGHT -> focusedMeasureData?.melodyNotes
             PlaybackHand.BOTH  -> focusedMeasureData?.let { it.melodyNotes + it.chordNotes }
         }
-        val lowest = notes?.minOfOrNull { it.pitch } ?: 48
-        lowest / 12
+        val pitches = notes?.map { it.pitch } ?: emptyList()
+        if (pitches.isEmpty()) 4
+        else if (isLandscape) {
+            (pitches.min() + pitches.max()) / 2 / 12  // center on range
+        } else {
+            pitches.min() / 12  // scroll to lowest
+        }
     }
 
     Scaffold(
@@ -327,6 +334,7 @@ fun LearningScreen(
                     LearningPianoKeyboard(
                         activeRightPitches = focusedMeasureData?.melodyNotes?.map { it.pitch }?.toSet() ?: emptySet(),
                         activeLeftPitches = focusedMeasureData?.chordNotes?.map { it.pitch }?.toSet() ?: emptySet(),
+                        pressedKeys = pressedKeys,
                         focusOctave = pianoFocusOctave,
                         isLandscape = isLandscape,
                         modifier = Modifier.fillMaxWidth().height(if (isLandscape) 56.dp else 90.dp)
@@ -352,7 +360,9 @@ fun LearningScreen(
                         showDetails = showDetails,
                         onToggleDetails = vm::toggleDetails,
                         clefMode = clefMode,
-                        onCycleClef = vm::cycleClefMode
+                        onCycleClef = vm::cycleClefMode,
+                        waitMode = waitMode,
+                        onToggleWaitMode = vm::toggleWaitMode
                     )
                 }
             }
@@ -725,8 +735,8 @@ private fun GrandStaffCanvas(
         val numLayout = textMeasurer.measure("$measureNumber", numStyle)
         drawText(numLayout, topLeft = Offset((w - numLayout.size.width) / 2f, 4.dp.toPx()))
 
-        // ── Left bracket (always at left edge) ──────────────────────────
-        val bracketX = 1.dp.toPx()
+        // ── Left bracket ──────────────────────────────────────────────────
+        val bracketX = if (isLandscape) 0f else 1.dp.toPx()
         drawLine(
             color = Color.White.copy(alpha = 0.35f),
             start = Offset(bracketX, stavesOriginY),
@@ -767,8 +777,12 @@ private fun GrandStaffCanvas(
                 )
                 val clefLayout = textMeasurer.measure(clef.glyph, clefStyle)
                 val keyY = lineTop + clef.keyLineFromTop * lineSpacing
-                val landscapeBassAdj = if (isLandscape && clef.name == "Fa") 2.dp.toPx() else 0f
-                val clefY = keyY - clefLayout.size.height * clef.anchorFrac - clef.extraYOffset.dp.toPx() + landscapeBassAdj
+                val bassAdj = when {
+                    clef.name == "Fa" && isLandscape -> 2.dp.toPx()   // lower in landscape
+                    clef.name == "Fa" && !isLandscape -> 1.dp.toPx()  // lower in portrait
+                    else -> 0f
+                }
+                val clefY = keyY - clefLayout.size.height * clef.anchorFrac - clef.extraYOffset.dp.toPx() + bassAdj
                 val clefX = (pureClefW - clefLayout.size.width) / 2f
                 drawText(clefLayout, topLeft = Offset(clefX.coerceAtLeast(2.dp.toPx()), clefY))
 
@@ -791,7 +805,7 @@ private fun GrandStaffCanvas(
                         val d = positions[i]
                         val accLayout = textMeasurer.measure(accLabel, accStyle)
                         val ax = pureClefW + 2.dp.toPx() + i * 7.dp.toPx()
-                        val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height / 2f
+                        val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height * 0.45f
                         drawText(accLayout, topLeft = Offset(ax, ay))
                     }
                 }
@@ -947,6 +961,7 @@ private const val PIANO_MAX_OCT = 8   // C8 = MIDI 96
 private fun LearningPianoKeyboard(
     activeRightPitches: Set<Int>,
     activeLeftPitches: Set<Int>,
+    pressedKeys: Set<Int> = emptySet(),
     focusOctave: Int,
     isLandscape: Boolean = false,
     modifier: Modifier = Modifier
@@ -957,8 +972,9 @@ private fun LearningPianoKeyboard(
     // Landscape: show ~5 octaves at once, portrait: 2
     val octaveFrac = if (isLandscape) 0.2f else 0.5f
 
-    LaunchedEffect(focusOctave) {
-        val idx = (focusOctave - PIANO_MIN_OCT).coerceIn(0, numOctaves - 1)
+    LaunchedEffect(focusOctave, isLandscape) {
+        val centerOffset = if (isLandscape) 2 else 0  // center in 5-octave viewport
+        val idx = (focusOctave - PIANO_MIN_OCT - centerOffset).coerceIn(0, numOctaves - 1)
         listState.scrollToItem(idx)
     }
 
@@ -973,6 +989,7 @@ private fun LearningPianoKeyboard(
                 cMidi = (PIANO_MIN_OCT + i) * 12,
                 activeRightPitches = activeRightPitches,
                 activeLeftPitches = activeLeftPitches,
+                pressedKeys = pressedKeys,
                 modifier = Modifier.fillParentMaxWidth(octaveFrac).fillParentMaxHeight()
             )
         }
@@ -984,6 +1001,7 @@ private fun OctaveKeys(
     cMidi: Int,
     activeRightPitches: Set<Int>,
     activeLeftPitches: Set<Int>,
+    pressedKeys: Set<Int> = emptySet(),
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier.background(Background)) {
@@ -995,6 +1013,7 @@ private fun OctaveKeys(
         intArrayOf(0, 2, 4, 5, 7, 9, 11).forEachIndexed { wi, semi ->
             val midi = cMidi + semi
             val color = when {
+                midi in pressedKeys        -> Color(0xFF4ADE80)            // green for MIDI input
                 midi in activeRightPitches -> CyanMelody.copy(alpha = 0.52f)
                 midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.52f)
                 else                       -> Color(0xFFE8ECF0)
@@ -1003,12 +1022,12 @@ private fun OctaveKeys(
         }
 
         // Black keys — (semitone, rightWhiteIndex) pairs
-        // rightWhiteIndex = index of the white key to the right of this black key
         listOf(1 to 1, 3 to 2, 6 to 4, 8 to 5, 10 to 6).forEach { (semi, rw) ->
             val midi = cMidi + semi
             val color = when {
-                midi in activeRightPitches -> CyanMelody.copy(alpha = 0.65f)
-                midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.65f)
+                midi in pressedKeys        -> Color(0xFF4ADE80).copy(alpha = 0.40f) // green tint, stays dark
+                midi in activeRightPitches -> CyanMelody.copy(alpha = 0.30f)
+                midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.30f)
                 else                       -> Color(0xFF1A1A1A)
             }
             val x = rw * wkW - bkW / 2f
@@ -1114,7 +1133,9 @@ private fun TransportBar(
     showDetails: Boolean = false,
     onToggleDetails: () -> Unit = {},
     clefMode: ClefMode = ClefMode.STANDARD,
-    onCycleClef: () -> Unit = {}
+    onCycleClef: () -> Unit = {},
+    waitMode: Boolean = false,
+    onToggleWaitMode: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1150,8 +1171,9 @@ private fun TransportBar(
                 IconButton(onClick = onToggleMetronome, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else Color(0xFF475569), modifier = Modifier.size(14.dp))
                 }
-                IconButton(onClick = { onTempoAdjust(-0.1f) }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Remove, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                val tempoTint = if (isPlaying) Color(0xFF334155) else Color(0xFF94A3B8)
+                IconButton(onClick = { onTempoAdjust(-0.1f) }, enabled = !isPlaying, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Remove, null, tint = tempoTint, modifier = Modifier.size(14.dp))
                 }
                 Text(
                     "${(tempoPercent * 100).toInt()}%",
@@ -1159,11 +1181,14 @@ private fun TransportBar(
                     fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.widthIn(min = 36.dp), textAlign = TextAlign.Center
                 )
-                IconButton(onClick = { onTempoAdjust(0.1f) }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Add, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                IconButton(onClick = { onTempoAdjust(0.1f) }, enabled = !isPlaying, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Add, null, tint = tempoTint, modifier = Modifier.size(14.dp))
                 }
                 IconButton(onClick = onToggleLoop, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                }
+                IconButton(onClick = onToggleWaitMode, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.PanTool, "Attente", tint = if (waitMode) Color(0xFF4ADE80) else Color(0xFF475569), modifier = Modifier.size(14.dp))
                 }
             }
 
