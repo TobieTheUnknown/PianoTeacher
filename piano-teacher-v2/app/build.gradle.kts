@@ -10,7 +10,7 @@ android {
     namespace = "com.tobietheunknown.pianoteacher"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
-    ndkVersion = "27.2.12479018"
+    ndkVersion = "30.0.14904198"
 
     defaultConfig {
         applicationId = "com.tobietheunknown.pianoteacher"

@@ -40,7 +40,6 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs by vm.prefs.collectAsState()
-    var versionTapCount by remember { mutableIntStateOf(0) }
     var selectedTheme by remember { mutableStateOf(ThemePrefs.getTheme(context)) }
     var metronomeVolume by remember { mutableIntStateOf(ThemePrefs.getMetronomeVolume(context)) }
     val previewMetronome = remember { MetronomeEngine() }
@@ -258,49 +257,17 @@ fun SettingsScreen(
                 )
             }
 
-            // Hidden Gemini section (visible only after Easter egg unlock)
-            if (prefs.geminiEnabled) {
-                SettingsSection(title = "🤖 Gemini Nano (expérimental)") {
-                    ToggleSetting(
-                        label = "Feedback intelligent",
-                        subtitle = "Analyse on-device tes performances",
-                        icon = Icons.Default.Stars,
-                        checked = prefs.geminiEnabled,
-                        onToggle = vm::setGeminiEnabled
-                    )
-                }
-            }
-
             Spacer(Modifier.height(32.dp))
 
-            // Version (Easter egg: tap 7x to unlock Gemini)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(SurfaceVariant)
-                    .clickable {
-                        versionTapCount++
-                        if (versionTapCount >= 7 && !prefs.geminiEnabled) {
-                            vm.setGeminiEnabled(true)
-                        }
-                    }
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Piano Teacher v2.0.0", color = Color(0xFF475569), fontSize = 13.sp)
-                    if (versionTapCount in 1..6) {
-                        Text(
-                            "${7 - versionTapCount} tap(s) restants…",
-                            color = Color(0xFF334155),
-                            fontSize = 11.sp
-                        )
-                    }
-                    if (prefs.geminiEnabled) {
-                        Text("✨ Mode développeur actif", color = IndigoAccent, fontSize = 11.sp)
-                    }
-                }
+                Text("Piano Teacher v2.0.0", color = Color(0xFF475569), fontSize = 13.sp)
             }
         }
     }

@@ -97,6 +97,10 @@ class LearningViewModel(
     private val _loopEnd = MutableStateFlow(0)
     val loopEnd: StateFlow<Int> = _loopEnd.asStateFlow()
 
+    private val _metronomeEnabled = MutableStateFlow(false)
+    val metronomeEnabled: StateFlow<Boolean> = _metronomeEnabled.asStateFlow()
+    fun toggleMetronome() { _metronomeEnabled.value = !_metronomeEnabled.value }
+
     // ─── UI state ─────────────────────────────────────────────────────────────
 
     private val _showDetails = MutableStateFlow(false)
@@ -179,6 +183,19 @@ class LearningViewModel(
         _isPlaying.value = true
 
         playbackJob = viewModelScope.launch {
+            // Metronome: concurrent child coroutine, runs until job is cancelled
+            if (_metronomeEnabled.value) {
+                launch {
+                    val beatMs = (60_000.0 / (s.tempo * _tempoPercent.value)).toLong()
+                    var beat = 0
+                    while (isActive) {
+                        audioEngine.playClick(isAccent = beat % s.beatsPerMeasure == 0)
+                        beat++
+                        delay(beatMs)
+                    }
+                }
+            }
+
             var idx = 0
 
             while (isActive) {
