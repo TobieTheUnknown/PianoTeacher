@@ -201,6 +201,7 @@ fun LearningScreen(
     val clefMode by vm.clefMode.collectAsState()
     val pressedKeys by vm.pressedKeys.collectAsState()
     val waitMode by vm.waitMode.collectAsState()
+    val listenMode by vm.listenMode.collectAsState()
     val useFlats = keySignature?.useFlats ?: false
 
     val listState = rememberLazyListState()
@@ -362,7 +363,9 @@ fun LearningScreen(
                         clefMode = clefMode,
                         onCycleClef = vm::cycleClefMode,
                         waitMode = waitMode,
-                        onToggleWaitMode = vm::toggleWaitMode
+                        onToggleWaitMode = vm::toggleWaitMode,
+                        listenMode = listenMode,
+                        onToggleListenMode = vm::toggleListenMode
                     )
                 }
             }
@@ -969,8 +972,8 @@ private fun LearningPianoKeyboard(
     val numOctaves = PIANO_MAX_OCT - PIANO_MIN_OCT + 1
     val listState = rememberLazyListState()
     val snapBehavior = rememberSnapFlingBehavior(listState)
-    // Landscape: show ~5 octaves at once, portrait: 2
-    val octaveFrac = if (isLandscape) 0.2f else 0.5f
+    // Landscape: show ~5.5 octaves at once, portrait: 2
+    val octaveFrac = if (isLandscape) 0.18f else 0.5f
 
     LaunchedEffect(focusOctave, isLandscape) {
         val centerOffset = if (isLandscape) 2 else 0  // center in 5-octave viewport
@@ -1026,8 +1029,8 @@ private fun OctaveKeys(
             val midi = cMidi + semi
             val color = when {
                 midi in pressedKeys        -> Color(0xFF4ADE80).copy(alpha = 0.40f) // green tint, stays dark
-                midi in activeRightPitches -> CyanMelody.copy(alpha = 0.30f)
-                midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.30f)
+                midi in activeRightPitches -> CyanMelody.copy(alpha = 0.18f)
+                midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.18f)
                 else                       -> Color(0xFF1A1A1A)
             }
             val x = rw * wkW - bkW / 2f
@@ -1135,7 +1138,9 @@ private fun TransportBar(
     clefMode: ClefMode = ClefMode.STANDARD,
     onCycleClef: () -> Unit = {},
     waitMode: Boolean = false,
-    onToggleWaitMode: () -> Unit = {}
+    onToggleWaitMode: () -> Unit = {},
+    listenMode: Boolean = true,
+    onToggleListenMode: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1152,7 +1157,14 @@ private fun TransportBar(
             // Hand selector + clef mode
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 HandButton("MG", hand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
-                HandButton("🔊", hand == PlaybackHand.BOTH, AmberWarning) { onHandChange(PlaybackHand.BOTH) }
+                HandButton(
+                    if (listenMode && hand == PlaybackHand.BOTH) "🔊" else "2🎹",
+                    hand == PlaybackHand.BOTH,
+                    if (listenMode && hand == PlaybackHand.BOTH) AmberWarning else IndigoAccent
+                ) {
+                    if (hand == PlaybackHand.BOTH) onToggleListenMode()
+                    else onHandChange(PlaybackHand.BOTH)
+                }
                 HandButton("MD", hand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
                 if (!isLandscape) {
                     HandButton(

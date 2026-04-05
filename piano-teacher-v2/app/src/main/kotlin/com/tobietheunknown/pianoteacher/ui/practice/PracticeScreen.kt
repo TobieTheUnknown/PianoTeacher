@@ -75,11 +75,11 @@ fun PracticeScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // Full immersive mode for landscape
+    // Full immersive mode (always, portrait + landscape)
     val context = LocalContext.current
     val window = (context as? Activity)?.window
-    DisposableEffect(isLandscape) {
-        if (isLandscape && window != null) {
+    DisposableEffect(Unit) {
+        if (window != null) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             controller.hide(WindowInsetsCompat.Type.systemBars())

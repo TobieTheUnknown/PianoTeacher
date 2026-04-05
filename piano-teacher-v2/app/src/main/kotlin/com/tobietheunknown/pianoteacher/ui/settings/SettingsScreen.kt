@@ -45,6 +45,7 @@ fun SettingsScreen(
     val previewMetronome = remember { MetronomeEngine() }
     val audioEngine = remember { AudioEngine() }
     var releaseLevel by remember { mutableIntStateOf(ThemePrefs.getReleaseLevel(context)) }
+    val midiDeviceName by com.tobietheunknown.pianoteacher.midi.MidiManager.getInstance(context).deviceName.collectAsState()
 
     Scaffold(
         containerColor = Background,
@@ -244,6 +245,23 @@ fun SettingsScreen(
                     checked = prefs.usbMidiEnabled,
                     onToggle = vm::setUsbMidiEnabled
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Piano,
+                        null,
+                        tint = if (midiDeviceName != null) Color(0xFF4ADE80) else Color(0xFF475569),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        if (midiDeviceName != null) "Connecté : $midiDeviceName" else "Aucun appareil connecté",
+                        color = if (midiDeviceName != null) Color(0xFF4ADE80) else Color(0xFF64748B),
+                        fontSize = 12.sp
+                    )
+                }
             }
 
             // Piano Practice section

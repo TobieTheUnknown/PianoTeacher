@@ -22,6 +22,9 @@ class MidiManager(private val context: Context) {
     private val _events = MutableSharedFlow<MidiEvent>(extraBufferCapacity = 64)
     val events: SharedFlow<MidiEvent> = _events.asSharedFlow()
 
+    private val _deviceName = MutableStateFlow<String?>(null)
+    val deviceName: StateFlow<String?> = _deviceName.asStateFlow()
+
     private val midiManager = context.getSystemService(Context.MIDI_SERVICE) as? android.media.midi.MidiManager
     private var activeDevice: MidiDevice? = null
     private var activePort: MidiOutputPort? = null
@@ -46,6 +49,8 @@ class MidiManager(private val context: Context) {
         midiManager?.openDevice(info, { device ->
             device ?: return@openDevice
             activeDevice = device
+            _deviceName.value = info.properties.getString(MidiDeviceInfo.PROPERTY_NAME)
+                ?: info.properties.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER) ?: "MIDI Device"
             val port = device.openOutputPort(0) ?: return@openDevice
             activePort = port
             port.connect(object : MidiReceiver() {
@@ -61,6 +66,7 @@ class MidiManager(private val context: Context) {
         activeDevice?.close()
         activePort = null
         activeDevice = null
+        _deviceName.value = null
     }
 
     // ─── BLE MIDI ─────────────────────────────────────────────────────────────
@@ -128,5 +134,13 @@ class MidiManager(private val context: Context) {
 
     fun stop() {
         disconnect()
+    }
+
+    companion object {
+        @Volatile private var instance: MidiManager? = null
+        fun getInstance(context: Context): MidiManager =
+            instance ?: synchronized(this) {
+                instance ?: MidiManager(context.applicationContext).also { instance = it }
+            }
     }
 }

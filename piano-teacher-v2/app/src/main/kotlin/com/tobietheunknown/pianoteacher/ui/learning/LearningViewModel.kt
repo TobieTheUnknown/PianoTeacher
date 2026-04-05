@@ -114,6 +114,10 @@ class LearningViewModel(
     val waitMode: StateFlow<Boolean> = _waitMode.asStateFlow()
     fun toggleWaitMode() { _waitMode.value = !_waitMode.value }
 
+    private val _listenMode = MutableStateFlow(true)
+    val listenMode: StateFlow<Boolean> = _listenMode.asStateFlow()
+    fun toggleListenMode() { _listenMode.value = !_listenMode.value }
+
     private val _clefMode = MutableStateFlow(ClefMode.STANDARD)
     val clefMode: StateFlow<ClefMode> = _clefMode.asStateFlow()
     fun cycleClefMode() {
@@ -179,7 +183,10 @@ class LearningViewModel(
         viewModelScope.launch { repo.updateMasteredPhrases(songId, updated) }
     }
 
-    fun setHand(hand: PlaybackHand) { _playbackHand.value = hand }
+    fun setHand(hand: PlaybackHand) {
+        _playbackHand.value = hand
+        if (hand != PlaybackHand.BOTH) _listenMode.value = false
+    }
 
     fun adjustTempo(delta: Float) {
         _tempoPercent.value = (_tempoPercent.value + delta).coerceIn(0.3f, 1.5f)
@@ -378,23 +385,23 @@ class LearningViewModel(
         val measureDurationMs = (song.beatsPerMeasure * beatMs).toLong()
         val startTime = System.currentTimeMillis()
 
-        // Build note list based on hand selection:
-        // BOTH → play NOTHING (user plays everything via MIDI)
-        // LEFT → play only melody (right hand backing)
-        // RIGHT → play only chords (left hand backing)
+        // Build note list based on hand + listen mode:
+        // Listen mode (BOTH) → play everything (user listens)
+        // 2 mains (BOTH, !listen) → play nothing (user plays everything)
+        // LEFT → play melody (right hand backing, user plays left)
+        // RIGHT → play chords (left hand backing, user plays right)
         data class PlayNote(val note: NoteEvent, val velocity: Int)
 
         val hand = _playbackHand.value
-        val notes = when (hand) {
-            PlaybackHand.LEFT -> {
-                measure.melodyNotes.map { PlayNote(it, 80) }  // right hand backing
-            }
-            PlaybackHand.RIGHT -> {
-                measure.chordNotes.map { PlayNote(it, 80) }   // left hand backing
-            }
-            PlaybackHand.BOTH -> {
+        val listen = _listenMode.value
+        val notes = when {
+            listen && hand == PlaybackHand.BOTH ->
                 (measure.melodyNotes + measure.chordNotes).map { PlayNote(it, 80) }
-            }
+            hand == PlaybackHand.LEFT ->
+                measure.melodyNotes.map { PlayNote(it, 80) }
+            hand == PlaybackHand.RIGHT ->
+                measure.chordNotes.map { PlayNote(it, 80) }
+            else -> emptyList() // 2 mains: app plays nothing
         }.sortedBy { it.note.startTime }
 
         // Build a merged timeline of noteOn and noteOff events for precise timing
@@ -409,10 +416,19 @@ class LearningViewModel(
         }
         events.sortBy { it.timeMs }
 
-        // Pre-compute expected pitches at each noteOn time for wait mode
-        val noteOnsByTime = events.filter { it.isOn }
-            .groupBy { it.timeMs }
-            .mapValues { (_, evs) -> evs.map { it.pitch }.toSet() }
+        // Pre-compute expected pitches for wait mode (only notes the USER should play)
+        val userNotes = when {
+            listen -> emptyList() // listen mode: no waiting
+            hand == PlaybackHand.LEFT -> measure.chordNotes   // user plays left hand
+            hand == PlaybackHand.RIGHT -> measure.melodyNotes // user plays right hand
+            else -> measure.melodyNotes + measure.chordNotes  // 2 mains: user plays all
+        }
+        val noteOnsByTime = if (_waitMode.value && userNotes.isNotEmpty()) {
+            data class WaitEvent(val timeMs: Long, val pitch: Int)
+            userNotes.map { n ->
+                WaitEvent((n.startTime * beatMs).toLong(), n.pitch)
+            }.groupBy { it.timeMs }.mapValues { (_, evs) -> evs.map { it.pitch }.toSet() }
+        } else emptyMap()
 
         try {
             for (ev in events) {
@@ -583,7 +599,7 @@ class LearningViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val engine = AudioEngine(context.applicationContext)
-            val midi = MidiManager(context.applicationContext)
+            val midi = MidiManager.getInstance(context.applicationContext)
             return LearningViewModel(SongRepository(context), songId, engine, midi) as T
         }
     }
