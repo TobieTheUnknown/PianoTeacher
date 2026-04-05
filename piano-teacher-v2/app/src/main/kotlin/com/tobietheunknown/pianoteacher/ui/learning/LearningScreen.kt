@@ -1,14 +1,11 @@
 package com.tobietheunknown.pianoteacher.ui.learning
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
-import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
 import com.tobietheunknown.pianoteacher.utils.ArpeggioMotifResult
@@ -125,7 +121,15 @@ fun LearningScreen(
 
     // Auto-scroll when playing measure changes
     LaunchedEffect(playingMeasure) {
-        if (playingMeasure >= 0) listState.animateScrollToItem(playingMeasure)
+        if (playingMeasure >= 0) {
+            val currentFirst = listState.firstVisibleItemIndex
+            if (playingMeasure < currentFirst) {
+                // Loop reset (backward jump): instant scroll
+                listState.scrollToItem(playingMeasure)
+            } else {
+                listState.animateScrollToItem(playingMeasure)
+            }
+        }
     }
 
     // Auto-focus center measure when scrolling while paused
@@ -389,124 +393,6 @@ fun LearningScreen(
     }
 }
 
-// ─── Song header ──────────────────────────────────────────────────────────────
-
-@Composable
-private fun SongHeader(song: Song) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(SurfaceVariant)
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            StatBlock("Tempo", "${song.tempo} BPM")
-            StatBlock("Mesures", "${song.totalMeasures}")
-            StatBlock("Phrases", "${song.phrases.size}")
-            StatBlock("Tonalité", "${song.key.note} ${song.key.mode}")
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
-        ) {
-            val total = song.totalMeasures.toFloat().coerceAtLeast(1f)
-            song.phrases.forEachIndexed { i, phrase ->
-                Box(
-                    modifier = Modifier
-                        .weight(phrase.length / total)
-                        .fillMaxHeight()
-                        .background(if (i % 2 == 0) IndigoAccent else CyanMelody.copy(alpha = 0.6f))
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatBlock(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
-        Text(label, fontSize = 11.sp, color = Color(0xFF64748B))
-    }
-}
-
-// ─── Staff mini strip (top navigation — measure card style) ──────────────────
-
-@Composable
-private fun StaffMiniStrip(
-    allMeasures: List<MeasureData>,
-    song: Song?,
-    playingMeasureIndex: Int,
-    focusedMeasureIndex: Int,
-    useFlats: Boolean,
-    listState: androidx.compose.foundation.lazy.LazyListState,
-    onMeasureTap: (Int) -> Unit
-) {
-    val beatsPerMeasure = song?.beatsPerMeasure ?: 4
-    Column(modifier = Modifier.fillMaxWidth().background(Surface)) {
-        LazyRow(
-            state = listState,
-            flingBehavior = rememberSnapFlingBehavior(listState),
-            modifier = Modifier.fillMaxWidth().height(80.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            items(count = allMeasures.size, key = { allMeasures[it].globalIndex }) { idx ->
-                val measure = allMeasures[idx]
-                val isPlaying = measure.globalIndex == playingMeasureIndex
-                val isFocused = measure.globalIndex == focusedMeasureIndex
-                Column(
-                    modifier = Modifier
-                        .fillParentMaxWidth(0.5f)
-                        .fillParentMaxHeight()
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(
-                            when {
-                                isPlaying -> IndigoAccent.copy(alpha = 0.18f)
-                                isFocused -> Color.White.copy(alpha = 0.05f)
-                                else -> Color.Transparent
-                            }
-                        )
-                        .border(
-                            width = if (isPlaying) 1.dp else if (isFocused) 0.5.dp else 0.dp,
-                            color = if (isPlaying) IndigoAccent else if (isFocused) Color.White.copy(alpha = 0.15f) else Color.Transparent,
-                            shape = RoundedCornerShape(5.dp)
-                        )
-                        .clickable { onMeasureTap(measure.globalIndex) }
-                        .padding(horizontal = 4.dp, vertical = 3.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "${measure.globalIndex + 1}",
-                        fontSize = 9.sp,
-                        color = if (isPlaying) IndigoAccent else Color(0xFF475569),
-                        fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    TimelineBeatRow(
-                        notes = measure.melodyNotes,
-                        color = CyanMelody,
-                        beatsPerMeasure = beatsPerMeasure,
-                        showOctaves = false,
-                        useFlats = useFlats
-                    )
-                    Spacer(Modifier.height(1.dp))
-                    TimelineBeatRow(
-                        notes = measure.chordNotes,
-                        color = PinkChords,
-                        beatsPerMeasure = beatsPerMeasure,
-                        showOctaves = false,
-                        useFlats = useFlats
-                    )
-                }
-            }
-        }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-    }
-}
 
 // ─── Timeline beat row (used in mini strip) ───────────────────────────────────
 
@@ -646,7 +532,6 @@ private fun GrandStaffCanvas(
 
         // clefW: zone réservée pour les clefs à gauche (avant les lignes de portée)
         val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) else 0f
-        val startPad = 8.dp.toPx()
         val barPad   = 10.dp.toPx()  // marge notes / séparateur de mesure (des deux côtés)
         val dotR     = lineSpacing * 0.32f
 
@@ -681,7 +566,7 @@ private fun GrandStaffCanvas(
                 val y = lineTop + li * lineSpacing
                 val isKey = (staffLines[si][4 - li] == staffKeys[si])
                 drawLine(
-                    color = if (isKey) Color.White.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.32f),
+                    color = if (isKey) Color.White.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.42f),
                     start = Offset(clefW, y),
                     end   = Offset(w, y),
                     strokeWidth = if (isKey) 1.1f else 0.9f
@@ -729,10 +614,33 @@ private fun GrandStaffCanvas(
                 if ((si == 0) != inTreble) return@forEach
 
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
-                val x = clefW + startPad + frac * (w - clefW - startPad - dotR * 2f - barPad)
+                val noteAreaStart = clefW + barPad
+                val noteAreaEnd = w - barPad
+                val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart - dotR * 2f)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
 
                 drawCircle(color = color, radius = dotR, center = Offset(x, y))
+
+                // Ledger lines for notes outside the staff
+                val bottomDiatonic = if (si == 0) TREBLE_BOTTOM else BASS_BOTTOM
+                if (d > topDiatonic) {
+                    var ld = topDiatonic + 2
+                    while (ld <= d + 1) {
+                        val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
+                        drawLine(Color.White.copy(alpha = 0.4f),
+                            Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
+                        ld += 2
+                    }
+                }
+                if (d < bottomDiatonic) {
+                    var ld = bottomDiatonic - 2
+                    while (ld >= d - 1) {
+                        val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
+                        drawLine(Color.White.copy(alpha = 0.4f),
+                            Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
+                        ld -= 2
+                    }
+                }
 
                 // Accidental (#/b) — haut-droite de la note
                 if (isBlackKey(note.pitch)) {
@@ -742,7 +650,7 @@ private fun GrandStaffCanvas(
                         TextStyle(fontSize = 9.sp, color = color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
                     )
                     drawText(labelLayout, topLeft = Offset(
-                        x + dotR * 0.3f,
+                        x + dotR * 1.3f,
                         y - dotR - labelLayout.size.height
                     ))
                 }
@@ -907,113 +815,6 @@ private fun OctaveKeys(
     }
 }
 
-// ─── Phrase header ────────────────────────────────────────────────────────────
-
-@Composable
-private fun PhraseHeader(
-    section: PhraseSectionData,
-    onPlay: () -> Unit,
-    onToggleMastered: () -> Unit,
-    onRename: () -> Unit = {}
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp, start = 12.dp, end = 12.dp, bottom = 2.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(Surface)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        IconButton(onClick = onToggleMastered, modifier = Modifier.size(28.dp)) {
-            Icon(
-                if (section.isMastered) Icons.Default.Star else Icons.Default.StarBorder,
-                null,
-                tint = if (section.isMastered) AmberWarning else Color(0xFF475569),
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        Column(modifier = Modifier.weight(1f).clickable(onClick = onRename)) {
-            Text(section.phrase.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text(
-                "${section.phrase.length} mesures · ${section.measures.sumOf { it.melodyNotes.size + it.chordNotes.size }} notes",
-                fontSize = 11.sp, color = Color(0xFF64748B)
-            )
-        }
-        IconButton(
-            onClick = onPlay,
-            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(50)).background(IndigoAccent)
-        ) {
-            Icon(Icons.Default.PlayArrow, "Jouer", tint = Color.White, modifier = Modifier.size(16.dp))
-        }
-    }
-}
-
-// ─── Measure card (kept for reference) ───────────────────────────────────────
-
-@Composable
-private fun MeasureCard(
-    measure: MeasureData,
-    modifier: Modifier = Modifier,
-    beatsPerMeasure: Double,
-    isPlaying: Boolean,
-    isFocused: Boolean,
-    showDetails: Boolean,
-    showOctaves: Boolean,
-    useFlats: Boolean = false,
-    onTap: () -> Unit
-) {
-    val borderColor = when {
-        isPlaying -> IndigoAccent
-        isFocused -> Color.White.copy(alpha = 0.12f)
-        else -> Color.White.copy(alpha = 0.08f)
-    }
-    Row(
-        modifier = modifier
-            .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(Surface)
-            .clickable(onClick = onTap)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
-            modifier = Modifier.size(38.dp).clip(RoundedCornerShape(6.dp))
-                .background(if (isPlaying) IndigoAccent else Color.White.copy(alpha = 0.05f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("${measure.globalIndex + 1}", color = if (isPlaying) Color.White else Color(0xFF64748B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            MiniTimeline(melodyNotes = measure.melodyNotes, chordNotes = measure.chordNotes, beatsPerMeasure = beatsPerMeasure)
-            Spacer(Modifier.height(5.dp))
-            if (measure.melodyNotes.isNotEmpty()) {
-                val names = measure.melodyNotes.map { midiToFrench(it.pitch, showOctaves, useFlats) }
-                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("MD:", fontSize = 14.sp, color = CyanMelody.copy(alpha = 0.7f))
-                    val visible = if (showDetails) names else names.take(2)
-                    visible.forEach { NoteChip(it, CyanMelody) }
-                    if (!showDetails && names.size > 2) Text("+${names.size - 2}", fontSize = 9.sp, color = Color(0xFF475569))
-                }
-            }
-            if (measure.chordInfo != null) {
-                Spacer(Modifier.height(3.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("MG:", fontSize = 14.sp, color = PinkChords.copy(alpha = 0.7f))
-                    ChordChip(measure.chordInfo, measure.chordNotes, showDetails, showOctaves, useFlats, measure.arpeggioMotif)
-                }
-            } else if (measure.chordNotes.isNotEmpty()) {
-                Spacer(Modifier.height(3.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("MG:", fontSize = 14.sp, color = PinkChords.copy(alpha = 0.7f))
-                    measure.chordNotes.map { midiToFrench(it.pitch, showOctaves, useFlats) }.take(5).forEach { NoteChip(it, PinkChords) }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun ChordChip(
@@ -1086,25 +887,6 @@ private fun NoteChip(name: String, color: Color) {
     }
 }
 
-// ─── Mini timeline canvas ─────────────────────────────────────────────────────
-
-@Composable
-private fun MiniTimeline(melodyNotes: List<NoteEvent>, chordNotes: List<NoteEvent>, beatsPerMeasure: Double) {
-    Canvas(modifier = Modifier.fillMaxWidth().height(40.dp)) {
-        val w = size.width
-        val h = size.height
-        val midY = h / 2f
-        drawLine(color = Color(0xFF475569), start = Offset(0f, midY), end = Offset(w, midY), strokeWidth = 1.5f)
-        melodyNotes.forEach { note ->
-            val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = CyanMelody, radius = 8f, center = Offset(x, midY - 8f))
-        }
-        chordNotes.forEach { note ->
-            val x = ((note.startTime / beatsPerMeasure) * w).toFloat().coerceIn(0f, w)
-            drawCircle(color = PinkChords, radius = 8f, center = Offset(x, midY + 8f))
-        }
-    }
-}
 
 // ─── Transport bar ────────────────────────────────────────────────────────────
 
