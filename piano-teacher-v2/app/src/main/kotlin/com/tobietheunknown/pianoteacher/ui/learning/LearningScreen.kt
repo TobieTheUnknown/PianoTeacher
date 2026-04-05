@@ -79,7 +79,7 @@ private val BASS_CLEF = StaffClefConfig(
     name = "Fa", glyph = "\uD834\uDD22",
     keyDiatonic = 31, keyLineFromTop = 1,
     lines = intArrayOf(25, 27, 29, 31, 33),  // G2, B2, D3, F3, A3
-    anchorFrac = 0.20f, fontScale = 0.64f, extraYOffset = 8f
+    anchorFrac = 0.20f, fontScale = 0.64f, extraYOffset = 11f
 )
 
 private val ALTO_CLEF = StaffClefConfig(
@@ -329,8 +329,12 @@ fun LearningScreen(
                         val measure = allMeasures[idx]
                         val isPlaying = measure.globalIndex == playingMeasure
                         val isFocused = measure.globalIndex == focusedMeasure
-                        // Première mesure plus large pour loger les clefs
-                        val itemFrac = if (idx == 0) 0.65f else 0.5f
+                        val showClefs = idx == 0 || (clefMode == ClefMode.AUTO && idx > 0 && run {
+                            val prev = allMeasures[idx - 1]
+                            selectClef(prev.melodyNotes, useFlats).name != selectClef(measure.melodyNotes, useFlats).name ||
+                            selectClef(prev.chordNotes, useFlats).name != selectClef(measure.chordNotes, useFlats).name
+                        })
+                        val itemFrac = if (showClefs) 0.65f else 0.5f
                         Column(
                             modifier = Modifier
                                 .fillParentMaxWidth(itemFrac)
@@ -353,7 +357,7 @@ fun LearningScreen(
                                 chordNotes = measure.chordNotes,
                                 beatsPerMeasure = song!!.beatsPerMeasure,
                                 useFlats = useFlats,
-                                showClefs = idx == 0,
+                                showClefs = showClefs,
                                 isPlaying = isPlaying,
                                 isFocused = isFocused,
                                 measureNumber = measure.globalIndex + 1,
@@ -661,11 +665,12 @@ private fun GrandStaffCanvas(
                 val y = lineTop + li * lineSpacing
                 val lineDiatonic = clef.lines[4 - li]
                 val isKey = (lineDiatonic == clef.keyDiatonic)
+                val keyColor = if (si == 0) CyanMelody.copy(alpha = 0.72f) else PinkChords.copy(alpha = 0.72f)
                 drawLine(
-                    color = if (isKey) Color.White.copy(alpha = 0.68f) else Color.White.copy(alpha = 0.50f),
+                    color = if (isKey) keyColor else Color.White.copy(alpha = 0.62f),
                     start = Offset(clefW, y),
                     end   = Offset(w, y),
-                    strokeWidth = if (isKey) 1.4f else 0.9f
+                    strokeWidth = if (isKey) 1.6f else 1.2f
                 )
             }
 
@@ -699,9 +704,9 @@ private fun GrandStaffCanvas(
             staffNotesList[si].forEach { (note, color) ->
                 val d = midiToDiatonic(note.pitch, useFlats) + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
-                val noteAreaStart = clefW + barPad
-                val noteAreaEnd = w - barPad
-                val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart - dotR * 2f)
+                val noteAreaStart = clefW + barPad + dotR
+                val noteAreaEnd = w - barPad - dotR
+                val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
 
                 drawCircle(color = color, radius = dotR, center = Offset(x, y))
