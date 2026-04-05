@@ -145,6 +145,24 @@ fun LearningScreen(
 
     val listState = rememberLazyListState()
 
+    // 8vb/15mb shift for lower staff in Sol×2 mode (constant for entire song)
+    val lowerStaffOctaveShift = remember(allMeasures, clefMode, useFlats) {
+        if (clefMode != ClefMode.TREBLE_X2) 0 else {
+            val allChordDiatonics = allMeasures.flatMap { it.chordNotes }
+                .map { midiToDiatonic(it.pitch, useFlats) }
+            if (allChordDiatonics.isEmpty()) 0 else {
+                val median = allChordDiatonics.sorted()[allChordDiatonics.size / 2]
+                val staffBottom = TREBLE_CLEF.lines.first() // E4 = 37
+                val deficit = staffBottom - median
+                when {
+                    deficit >= 14 -> 14  // 15mb
+                    deficit >= 7 -> 7    // 8vb
+                    else -> 0
+                }
+            }
+        }
+    }
+
     // Dialog states
     var showRenameSongDialog by remember { mutableStateOf(false) }
     var showRenamePhraseDialog by remember { mutableStateOf<Int?>(null) }
@@ -340,6 +358,7 @@ fun LearningScreen(
                                 isFocused = isFocused,
                                 measureNumber = measure.globalIndex + 1,
                                 clefMode = clefMode,
+                                lowerOctaveShift = lowerStaffOctaveShift,
                                 modifier = Modifier.fillMaxWidth().weight(1f)
                             )
                         }
@@ -547,6 +566,7 @@ private fun GrandStaffCanvas(
     isFocused: Boolean,
     measureNumber: Int,
     clefMode: ClefMode = ClefMode.STANDARD,
+    lowerOctaveShift: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -663,9 +683,21 @@ private fun GrandStaffCanvas(
                 drawText(clefLayout, topLeft = Offset(clefX.coerceAtLeast(2.dp.toPx()), clefY))
             }
 
+            // ── 8vb/15mb label for lower staff ────────────────────────
+            val octShift = if (si == 1) lowerOctaveShift else 0
+            if (showClefs && octShift > 0) {
+                val octLabel = if (octShift >= 14) "15mb" else "8vb"
+                val octStyle = TextStyle(fontSize = 9.sp, color = Color.White.copy(alpha = 0.45f), fontWeight = FontWeight.Bold)
+                val octLayout = textMeasurer.measure(octLabel, octStyle)
+                drawText(octLayout, topLeft = Offset(
+                    2.dp.toPx(),
+                    lineTop + 4 * lineSpacing + 3.dp.toPx()
+                ))
+            }
+
             // ── Notes ───────────────────────────────────────────────────
             staffNotesList[si].forEach { (note, color) ->
-                val d = midiToDiatonic(note.pitch, useFlats)
+                val d = midiToDiatonic(note.pitch, useFlats) + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
                 val noteAreaStart = clefW + barPad
                 val noteAreaEnd = w - barPad
