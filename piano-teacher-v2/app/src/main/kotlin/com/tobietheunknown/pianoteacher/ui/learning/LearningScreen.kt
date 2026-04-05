@@ -42,6 +42,7 @@ import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.*
 import com.tobietheunknown.pianoteacher.utils.ArpeggioMotifResult
+import com.tobietheunknown.pianoteacher.utils.KeySignature as MusicKeySignature
 import com.tobietheunknown.pianoteacher.utils.ChordWithReps
 import com.tobietheunknown.pianoteacher.utils.firstArpeggioCycle
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
@@ -119,6 +120,26 @@ private fun selectClef(notes: List<NoteEvent>, useFlats: Boolean): StaffClefConf
             }
         }
     } ?: TREBLE_CLEF
+}
+
+// ─── Key signature accidental positions (diatonic) ───────────────────────────
+
+// Sharp order positions on treble staff: F5, C5, G5, D5, A4, E5, B4
+private val TREBLE_SHARP_POS = intArrayOf(45, 42, 46, 43, 40, 44, 41)
+// Flat order positions on treble staff: B4, E5, A4, D5, G4, C5, F4
+private val TREBLE_FLAT_POS = intArrayOf(41, 44, 40, 43, 39, 42, 38)
+// Bass = treble - 14 (two octaves lower)
+private val BASS_SHARP_POS = intArrayOf(31, 28, 32, 29, 26, 30, 27)
+private val BASS_FLAT_POS = intArrayOf(27, 30, 26, 29, 25, 28, 24)
+
+private fun keySignatureAccidentalCount(keySig: MusicKeySignature?): Int {
+    if (keySig == null) return 0
+    val majorRoot = if (keySig.isMinor) (keySig.root + 3) % 12 else keySig.root
+    return if (keySig.useFlats) {
+        when (majorRoot) { 5 -> 1; 10 -> 2; 3 -> 3; 8 -> 4; 1 -> 5; 6 -> 6; else -> 0 }
+    } else {
+        when (majorRoot) { 7 -> 1; 2 -> 2; 9 -> 3; 4 -> 4; 11 -> 5; 6 -> 6; else -> 0 }
+    }
 }
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
@@ -415,6 +436,7 @@ fun LearningScreen(
                                 clefMode = clefMode,
                                 lowerOctaveShift = lowerStaffOctaveShift,
                                 isLandscape = isLandscape,
+                                keySig = keySignature,
                                 modifier = Modifier.fillMaxWidth().weight(1f)
                             )
                         }
@@ -626,6 +648,7 @@ private fun GrandStaffCanvas(
     clefMode: ClefMode = ClefMode.STANDARD,
     lowerOctaveShift: Int = 0,
     isLandscape: Boolean = false,
+    keySig: MusicKeySignature? = null,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -655,9 +678,13 @@ private fun GrandStaffCanvas(
         val totalStavesH = staffH * 2 + gap
         val stavesOriginY = topPad + (totalAvail - totalStavesH) / 2f
 
-        val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) else 0f
+        // Key signature width: only for fixed clef modes (STANDARD, TREBLE_X2)
+        val showKeySig = showClefs && clefMode != ClefMode.AUTO
+        val numAccidentals = if (showKeySig) keySignatureAccidentalCount(keySig) else 0
+        val ksW = if (numAccidentals > 0) numAccidentals * 7.dp.toPx() + 4.dp.toPx() else 0f
+        val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) + ksW else 0f
         val barPad   = 10.dp.toPx()
-        val dotR     = lineSpacing * 0.32f
+        val dotR     = lineSpacing * (if (isLandscape) 0.38f else 0.32f)
 
         // ── Resolve clefs + note assignment per mode ──────────────────────
         val upperClef: StaffClefConfig
@@ -731,6 +758,7 @@ private fun GrandStaffCanvas(
             }
 
             // ── Clef glyph ──────────────────────────────────────────────
+            val pureClefW = clefW - ksW  // clef zone without key signature
             if (showClefs) {
                 val clefFontPx = staffH * clef.fontScale
                 val clefStyle = TextStyle(
@@ -740,8 +768,32 @@ private fun GrandStaffCanvas(
                 val clefLayout = textMeasurer.measure(clef.glyph, clefStyle)
                 val keyY = lineTop + clef.keyLineFromTop * lineSpacing
                 val clefY = keyY - clefLayout.size.height * clef.anchorFrac - clef.extraYOffset.dp.toPx()
-                val clefX = (clefW - clefLayout.size.width) / 2f
+                val clefX = (pureClefW - clefLayout.size.width) / 2f
                 drawText(clefLayout, topLeft = Offset(clefX.coerceAtLeast(2.dp.toPx()), clefY))
+
+                // ── Key signature accidentals ─────────────────────────────
+                if (numAccidentals > 0 && keySig != null) {
+                    val isTreble = (clef.name == "Sol")
+                    val positions = if (keySig.useFlats) {
+                        if (isTreble) TREBLE_FLAT_POS else BASS_FLAT_POS
+                    } else {
+                        if (isTreble) TREBLE_SHARP_POS else BASS_SHARP_POS
+                    }
+                    val accLabel = if (keySig.useFlats) "♭" else "♯"
+                    val accStyle = TextStyle(
+                        fontSize = (lineSpacing * 0.9f / density).sp,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Bold
+                    )
+                    val topD = clef.lines.last()
+                    for (i in 0 until numAccidentals) {
+                        val d = positions[i]
+                        val accLayout = textMeasurer.measure(accLabel, accStyle)
+                        val ax = pureClefW + 2.dp.toPx() + i * 7.dp.toPx()
+                        val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height / 2f
+                        drawText(accLayout, topLeft = Offset(ax, ay))
+                    }
+                }
             }
 
             // ── 8vb/15mb label for lower staff ────────────────────────
@@ -760,7 +812,8 @@ private fun GrandStaffCanvas(
             staffNotesList[si].forEach { (note, color) ->
                 val d = midiToDiatonic(note.pitch, useFlats) + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
-                val noteAreaStart = clefW + barPad + dotR
+                val leftPad = barPad + dotR * 2f  // extra space from left bar line
+                val noteAreaStart = clefW + leftPad
                 val noteAreaEnd = w - barPad - dotR
                 val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
@@ -900,8 +953,8 @@ private fun LearningPianoKeyboard(
     val numOctaves = PIANO_MAX_OCT - PIANO_MIN_OCT + 1
     val listState = rememberLazyListState()
     val snapBehavior = rememberSnapFlingBehavior(listState)
-    // Landscape: show ~4 octaves at once, portrait: 2
-    val octaveFrac = if (isLandscape) 0.25f else 0.5f
+    // Landscape: show ~5 octaves at once, portrait: 2
+    val octaveFrac = if (isLandscape) 0.2f else 0.5f
 
     LaunchedEffect(focusOctave) {
         val idx = (focusOctave - PIANO_MIN_OCT).coerceIn(0, numOctaves - 1)
@@ -1079,14 +1132,16 @@ private fun TransportBar(
                 HandButton("MG", hand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
                 HandButton("🔊", hand == PlaybackHand.BOTH, AmberWarning) { onHandChange(PlaybackHand.BOTH) }
                 HandButton("MD", hand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
-                HandButton(
-                    when (clefMode) {
-                        ClefMode.STANDARD -> "Sol+Fa"
-                        ClefMode.TREBLE_X2 -> "Sol×2"
-                        ClefMode.AUTO -> "Auto"
-                    },
-                    selected = true, activeColor = IndigoAccent, onClick = onCycleClef
-                )
+                if (!isLandscape) {
+                    HandButton(
+                        when (clefMode) {
+                            ClefMode.STANDARD -> "Sol+Fa"
+                            ClefMode.TREBLE_X2 -> "Sol×2"
+                            ClefMode.AUTO -> "Auto"
+                        },
+                        selected = true, activeColor = IndigoAccent, onClick = onCycleClef
+                    )
+                }
             }
 
             // Tempo control + métronome (gauche) + loop (droite)
@@ -1112,33 +1167,33 @@ private fun TransportBar(
             }
 
             // Playback controls
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (isLandscape) {
                     IconButton(
                         onClick = onToggleDetails,
-                        modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
+                        modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp))
                             .background(if (showDetails) IndigoAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f))
                     ) {
-                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else Color(0xFF64748B), modifier = Modifier.size(14.dp))
                     }
                 }
                 IconButton(
                     onClick = onStop,
-                    modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.07f))
+                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.07f))
                 ) {
-                    Icon(Icons.Default.Stop, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Stop, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
                 }
                 IconButton(
                     onClick = onPlay,
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(IndigoAccent)
+                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(IndigoAccent)
                 ) {
-                    Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
                 IconButton(
                     onClick = onSplit,
-                    modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.07f))
+                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.07f))
                 ) {
-                    Icon(Icons.Default.ContentCut, "Diviser", tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.ContentCut, "Diviser", tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
                 }
             }
         }
