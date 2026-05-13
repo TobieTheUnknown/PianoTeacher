@@ -69,52 +69,11 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Theme picker
-            SettingsSection(title = "Thème") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ThemeCard(
-                        label = "Sombre",
-                        colors = DarkTheme,
-                        selected = selectedTheme == AppTheme.DARK,
-                        onClick = {
-                            selectedTheme = AppTheme.DARK
-                            ThemeState.set(context, AppTheme.DARK)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ThemeCard(
-                        label = "Midnight",
-                        colors = MidnightBlueTheme,
-                        selected = selectedTheme == AppTheme.MIDNIGHT_BLUE,
-                        onClick = {
-                            selectedTheme = AppTheme.MIDNIGHT_BLUE
-                            ThemeState.set(context, AppTheme.MIDNIGHT_BLUE)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ThemeCard(
-                        label = "Pastel",
-                        colors = PastelCozyTheme,
-                        selected = selectedTheme == AppTheme.PASTEL_COZY,
-                        onClick = {
-                            selectedTheme = AppTheme.PASTEL_COZY
-                            ThemeState.set(context, AppTheme.PASTEL_COZY)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Text(
-                    "Le thème s'applique immédiatement",
-                    fontSize = 11.sp,
-                    color = Color(0xFF475569),
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                )
-            }
+            // Apparence — design picker (mirrors web's DesignAppearance section)
+            DesignAppearanceSection(
+                currentTheme = selectedTheme,
+                onThemeChange = { t -> selectedTheme = t; ThemeState.setTheme(context, t) }
+            )
 
             // Audio section
             SettingsSection(title = "Audio") {

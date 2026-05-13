@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import com.tobietheunknown.pianoteacher.audio.AudioEngine
 import com.tobietheunknown.pianoteacher.ui.theme.PianoTeacherTheme
 import com.tobietheunknown.pianoteacher.ui.theme.ThemeState
+import com.tobietheunknown.pianoteacher.ui.theme.composeThemeColors
 import com.tobietheunknown.pianoteacher.ui.theme.getThemeColors
 import com.tobietheunknown.pianoteacher.ui.AppNavHost
 
@@ -44,7 +45,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val currentTheme by ThemeState.current
-            val colors = getThemeColors(currentTheme)
+            val currentAccent by ThemeState.accent
+            val currentHands by ThemeState.hands
+            val base = getThemeColors(currentTheme)
+            val colors = composeThemeColors(base, currentAccent, currentHands)
             PianoTeacherTheme(colors = colors) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppNavHost(intent = currentIntent)
