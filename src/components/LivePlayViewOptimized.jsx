@@ -92,6 +92,10 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
   }, [isMobile, onFullscreenChange]);
 
   // Calculate dynamic canvas dimensions on mobile
+  // Dock height to reserve at bottom on mobile portrait. Landscape hides
+  // the dock so the canvas can use the full viewport.
+  const DOCK_HEIGHT_PORTRAIT = 130;
+
   useEffect(() => {
     if (!isMobile) {
       setCanvasDimensions({ width: 0, height: 0 }); // Use defaults
@@ -100,14 +104,16 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
     const updateDimensions = () => {
       const w = window.innerWidth;
-      const h = window.innerHeight;
+      const fullH = window.innerHeight;
+      // Subtract dock height in portrait so the keyboard sits above the dock.
+      const h = isLandscape ? fullH : Math.max(0, fullH - DOCK_HEIGHT_PORTRAIT);
       setCanvasDimensions({ width: w, height: h });
     };
 
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
-  }, [isMobile]);
+  }, [isMobile, isLandscape]);
 
   // Mobile key range: C2 (36) to C7 (96) in landscape for wider keys
   const mobileKeyRange = isMobile && isLandscape ? [36, 96] : (isMobile ? [36, 96] : null);
@@ -865,6 +871,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           setVisualEffects={setVisualEffects}
           waitMode={waitMode}
           setWaitMode={setWaitMode}
+          hideDock={isLandscape}
         />
       </div>
     );

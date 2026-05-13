@@ -52,7 +52,6 @@ export function PlaybackDock({
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         padding: '10px 16px',
-        paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))',
         display: 'flex',
         flexDirection: 'column',
         gap: 8,

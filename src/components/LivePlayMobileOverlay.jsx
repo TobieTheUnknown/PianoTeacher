@@ -41,6 +41,7 @@ export function LivePlayMobileOverlay({
   setVisualEffects,
   waitMode,
   setWaitMode,
+  hideDock = false,
 }) {
   const [visible, setVisible] = useState(true);
   const [loopEditorOpen, setLoopEditorOpen] = useState(false);
@@ -121,7 +122,8 @@ export function LivePlayMobileOverlay({
         <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
       </div>
 
-      {/* Shared PlaybackDock at bottom */}
+      {/* Shared PlaybackDock at bottom (hidden in landscape per user spec) */}
+      {!hideDock && (
       <div className={styles.dockHost}>
         <PlaybackDock
           playing={isPlaying}
@@ -151,6 +153,7 @@ export function LivePlayMobileOverlay({
           }}
         />
       </div>
+      )}
 
     </div>
   );

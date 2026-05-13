@@ -6,7 +6,6 @@ import { audioEngine } from '../services/AudioEngine';
 import { useDeviceContext } from '../hooks/useDeviceContext';
 import themeService from '../services/ThemeService';
 import { CoordinationTimeline } from './learn/CoordinationTimeline';
-import { LearnControls } from './learn/LearnControls';
 import { PlaybackDock } from './PlaybackDock';
 import { MobileHeader } from './MobileHeader';
 
@@ -1248,15 +1247,16 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 ))}
             </div>
 
-            {/* Controls (PINNED BOTTOM on mobile, above tab bar) */}
-            {isMobile ? (
-                <div style={{
-                    position: 'sticky',
-                    bottom: 64, // above bottom tab bar
-                    left: 0,
-                    right: 0,
-                    zIndex: 5,
-                }}>
+            {/* Universal PlaybackDock — sticky on mobile (above tab bar)
+                and desktop (at viewport bottom). Replaces the legacy
+                LearnControls component everywhere. */}
+            <div style={{
+                position: 'sticky',
+                bottom: isMobile ? 64 : 0, // mobile sits above bottom tab bar
+                left: 0,
+                right: 0,
+                zIndex: 5,
+            }}>
                     <PlaybackDock
                         playing={isPlaying}
                         onPlayPause={handlePlayPause}
@@ -1293,37 +1293,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         }}
                     />
                 </div>
-            ) : (
-                <LearnControls
-                    isPlaying={isPlaying}
-                    onPlayPause={handlePlayPause}
-                    onStop={handleStop}
-                    playbackHand={playbackHand}
-                    setPlaybackHand={setPlaybackHand}
-                    currentBPM={currentBPM}
-                    defaultBPM={song.tempo}
-                    onTempoChange={handleTempoChange}
-                    isLooping={isLooping}
-                    onToggleLoop={() => setIsLooping(!isLooping)}
-                    focusedMeasure={focusedMeasure}
-                    totalMeasures={analysis.totalMeasures}
-                    phrases={song.phrases}
-                    highlightedMeasures={highlightedMeasures}
-                    loopConfig={loopConfig}
-                    phraseMeasureRanges={phraseMeasureRanges}
-                    onPhraseSelect={handlePhraseSelect}
-                    selectedPhraseIndex={selectedPhraseIndex}
-                    customRangeStart={customRangeStart}
-                    setCustomRangeStart={setCustomRangeStart}
-                    customRangeEnd={customRangeEnd}
-                    setCustomRangeEnd={setCustomRangeEnd}
-                    onCustomRangeLoop={handleCustomRangeLoop}
-                    onClearLoop={handleClearLoop}
-                    isMobile={isMobile}
-                    isMetronomeOn={isMetronomeOn}
-                    onToggleMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
-                />
-            )}
         </div>
     );
 }
