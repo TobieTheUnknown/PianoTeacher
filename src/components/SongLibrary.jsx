@@ -391,91 +391,15 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
                 </div>
             )}
 
-            {/* Mobile Action Sheet */}
+            {/* Mobile Song Detail Sheet (design-aligned bottom sheet) */}
             {actionSheetSong && isMobile && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'flex-end',
-                        zIndex: 1000
-                    }}
-                    onClick={() => setActionSheetSong(null)}
-                >
-                    <div
-                        style={{
-                            width: '100%',
-                            background: 'var(--bg-elevated)',
-                            borderRadius: '16px 16px 0 0',
-                            padding: '1rem',
-                            paddingBottom: 'calc(1rem + var(--safe-bottom))'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div style={{
-                            width: 32,
-                            height: 4,
-                            background: 'var(--border-medium)',
-                            borderRadius: 2,
-                            margin: '0 auto 1rem'
-                        }} />
-                        <h3 style={{
-                            fontSize: '1rem',
-                            fontWeight: '500',
-                            marginBottom: '1rem',
-                            color: 'var(--text-primary)',
-                            textAlign: 'center'
-                        }}>
-                            {actionSheetSong.title}
-                        </h3>
-                        {[
-                            { label: 'Jouer (LivePlay)', action: () => { if (onLoadSongToLivePlay) onLoadSongToLivePlay(actionSheetSong.id); else onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
-                            { label: 'Apprendre', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
-                            { label: 'Supprimer', action: () => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }, danger: true },
-                        ].map((item, idx) => (
-                            <button
-                                key={idx}
-                                onClick={item.action}
-                                style={{
-                                    width: '100%',
-                                    padding: '1rem',
-                                    marginBottom: '0.5rem',
-                                    background: 'var(--bg-tertiary)',
-                                    color: item.danger ? 'var(--accent-danger)' : 'var(--text-primary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-lg)',
-                                    fontSize: '0.9375rem',
-                                    fontWeight: '400',
-                                    textAlign: 'center',
-                                    minHeight: '48px'
-                                }}
-                            >
-                                {item.label}
-                            </button>
-                        ))}
-                        <button
-                            onClick={() => setActionSheetSong(null)}
-                            style={{
-                                width: '100%',
-                                padding: '1rem',
-                                marginTop: '0.5rem',
-                                background: 'var(--bg-secondary)',
-                                color: 'var(--text-secondary)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: 'var(--radius-lg)',
-                                fontSize: '0.9375rem',
-                                minHeight: '48px'
-                            }}
-                        >
-                            Annuler
-                        </button>
-                    </div>
-                </div>
+                <SongDetailSheet
+                    song={actionSheetSong}
+                    onClose={() => setActionSheetSong(null)}
+                    onLearn={() => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); }}
+                    onLivePlay={() => { (onLoadSongToLivePlay || onLoadSong)(actionSheetSong.id); setActionSheetSong(null); }}
+                    onDelete={() => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }}
+                />
             )}
 
             {/* Library Import/Export Modal */}
@@ -671,5 +595,200 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
                 </div>
             )}
         </div>
+    );
+}
+
+// ── SongDetailSheet — design-aligned bottom sheet ────────────────────────────
+function SongDetailSheet({ song, onClose, onLearn, onLivePlay, onDelete }) {
+    const phraseCount = song?.phrases?.length || 0;
+    const created = song?.createdAt ? new Date(song.createdAt).toLocaleDateString('fr-FR') : null;
+    return (
+        <div
+            onClick={onClose}
+            style={{
+                position: 'fixed', inset: 0,
+                background: 'rgba(0, 0, 0, 0.55)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'flex-end',
+                zIndex: 1000,
+                animation: 'design-fadeIn 220ms var(--ease-out)',
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    background: 'var(--surface-1)',
+                    borderRadius: 'var(--r-xl) var(--r-xl) 0 0',
+                    width: '100%',
+                    padding: '12px 20px calc(20px + var(--safe-bottom))',
+                    maxHeight: '85%',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border)',
+                    animation: 'design-slideUp 280ms var(--ease-out)',
+                }}
+            >
+                {/* Drag handle */}
+                <div style={{
+                    width: 40, height: 4, background: 'var(--border-strong)',
+                    borderRadius: 999, margin: '0 auto 16px',
+                }} />
+
+                {/* Hero — cover + title + artist */}
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                    <Cover id={song.id} title={song.title} size={72} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{
+                            fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em',
+                            color: 'var(--text-primary)',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>{song.title || 'Sans titre'}</div>
+                        <div style={{
+                            fontSize: 13, color: 'var(--text-secondary)', marginTop: 2,
+                        }}>{song.artist || 'Artiste inconnu'}</div>
+                    </div>
+                </div>
+
+                {/* Stats grid */}
+                <div style={{
+                    marginTop: 18,
+                    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: 'var(--surface-2)',
+                    borderRadius: 'var(--r-md)',
+                    padding: '10px 4px',
+                }}>
+                    <SheetStat label="Phrases" value={phraseCount} />
+                    <SheetStat label="Tempo" value={song.tempo} unit="bpm" divider />
+                    <SheetStat label="Tonalité" value={getFrenchKeyName(song.key).split(' ')[0]} divider />
+                </div>
+
+                {created && (
+                    <div style={{
+                        marginTop: 10,
+                        fontSize: 11, color: 'var(--text-tertiary)',
+                        fontFamily: 'var(--font-mono)',
+                        textAlign: 'center',
+                    }}>
+                        Créé le {created}
+                    </div>
+                )}
+
+                {/* Action buttons */}
+                <div style={{
+                    marginTop: 16,
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+                }}>
+                    <ActionBtn onClick={onLearn} primary label="Apprendre" icon={<ActionIcon kind="learn" />} />
+                    <ActionBtn onClick={onLivePlay} label="LivePlay" icon={<ActionIcon kind="liveplay" />} />
+                </div>
+
+                <button
+                    onClick={onDelete}
+                    style={{
+                        marginTop: 10,
+                        width: '100%',
+                        padding: '12px',
+                        background: 'transparent',
+                        color: 'var(--error)',
+                        border: '1px solid var(--error)',
+                        borderRadius: 'var(--r-md)',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                    }}
+                >
+                    Supprimer
+                </button>
+
+                <button
+                    onClick={onClose}
+                    style={{
+                        marginTop: 8,
+                        width: '100%',
+                        padding: '12px',
+                        background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        border: 'none',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                    }}
+                >
+                    Annuler
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function SheetStat({ label, value, unit, divider }) {
+    return (
+        <div style={{
+            textAlign: 'center',
+            borderLeft: divider ? '1px solid var(--border)' : 'none',
+            padding: '2px 0',
+        }}>
+            <div style={{
+                fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 16,
+                color: 'var(--text-primary)',
+            }}>
+                {value}
+                {unit && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 1 }}>{unit}</span>}
+            </div>
+            <div style={{
+                fontSize: 9, color: 'var(--text-tertiary)',
+                textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2,
+            }}>{label}</div>
+        </div>
+    );
+}
+
+function ActionBtn({ icon, label, primary, onClick }) {
+    return (
+        <button onClick={onClick} style={{
+            padding: '14px 6px',
+            borderRadius: 'var(--r-md)',
+            background: primary ? 'var(--accent)' : 'var(--surface-2)',
+            color: primary ? '#fff' : 'var(--text-primary)',
+            border: primary ? 'none' : '1px solid var(--border)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            fontSize: 12, fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+        }}>
+            {icon}
+            <span>{label}</span>
+        </button>
+    );
+}
+
+function ActionIcon({ kind }) {
+    if (kind === 'learn') {
+        return (
+            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="14" width="4" height="8" rx="0.5"/>
+                <rect x="7" y="10" width="3" height="12" rx="0.5"/>
+                <rect x="11" y="14" width="4" height="8" rx="0.5"/>
+                <rect x="16" y="10" width="3" height="12" rx="0.5"/>
+                <rect x="20" y="14" width="4" height="8" rx="0.5"/>
+                <circle cx="12" cy="5" r="2"/>
+                <path d="M10 5l-3 3"/>
+                <path d="M14 5l3 3"/>
+            </svg>
+        );
+    }
+    // liveplay
+    return (
+        <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="18" rx="2"/>
+            <path d="M8 3v12"/>
+            <path d="M16 3v12"/>
+            <rect x="2" y="15" width="20" height="6"/>
+            <path d="M6 15v6"/>
+            <path d="M10 15v6"/>
+            <path d="M14 15v6"/>
+            <path d="M18 15v6"/>
+        </svg>
     );
 }
