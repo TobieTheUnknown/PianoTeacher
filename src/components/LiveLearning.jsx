@@ -7,6 +7,7 @@ import { useDeviceContext } from '../hooks/useDeviceContext';
 import themeService from '../services/ThemeService';
 import { CoordinationTimeline } from './learn/CoordinationTimeline';
 import { LearnControls } from './learn/LearnControls';
+import { PlaybackDock } from './PlaybackDock';
 
 // ── Constant styles extracted outside render ──────────────────────────────────
 
@@ -1210,35 +1211,79 @@ export function LiveLearning({ song, onToggleHighlight }) {
             </div>
 
             {/* Controls (PINNED BOTTOM on mobile, above tab bar) */}
-            <LearnControls
-                isPlaying={isPlaying}
-                onPlayPause={handlePlayPause}
-                onStop={handleStop}
-                playbackHand={playbackHand}
-                setPlaybackHand={setPlaybackHand}
-                currentBPM={currentBPM}
-                defaultBPM={song.tempo}
-                onTempoChange={handleTempoChange}
-                isLooping={isLooping}
-                onToggleLoop={() => setIsLooping(!isLooping)}
-                focusedMeasure={focusedMeasure}
-                totalMeasures={analysis.totalMeasures}
-                phrases={song.phrases}
-                highlightedMeasures={highlightedMeasures}
-                loopConfig={loopConfig}
-                phraseMeasureRanges={phraseMeasureRanges}
-                onPhraseSelect={handlePhraseSelect}
-                selectedPhraseIndex={selectedPhraseIndex}
-                customRangeStart={customRangeStart}
-                setCustomRangeStart={setCustomRangeStart}
-                customRangeEnd={customRangeEnd}
-                setCustomRangeEnd={setCustomRangeEnd}
-                onCustomRangeLoop={handleCustomRangeLoop}
-                onClearLoop={handleClearLoop}
-                isMobile={isMobile}
-                isMetronomeOn={isMetronomeOn}
-                onToggleMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
-            />
+            {isMobile ? (
+                <div style={{
+                    position: 'sticky',
+                    bottom: 64, // above bottom tab bar
+                    left: 0,
+                    right: 0,
+                    zIndex: 5,
+                }}>
+                    <PlaybackDock
+                        playing={isPlaying}
+                        onPlayPause={handlePlayPause}
+                        speed={Math.round((currentBPM / Math.max(song.tempo, 1)) * 100)}
+                        onSpeed={(pct) => handleTempoChange(Math.round((pct / 100) * song.tempo))}
+                        handMode={playbackHand}
+                        onHandMode={setPlaybackHand}
+                        metronome={isMetronomeOn}
+                        onMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
+                        loop={isLooping}
+                        onLoop={() => setIsLooping(!isLooping)}
+                        loopRange={loopConfig ? [loopConfig.startMeasure, loopConfig.endMeasure] : [1, analysis.totalMeasures]}
+                        onLoopRange={([from, to]) => setLoopConfig({ startMeasure: from, endMeasure: to })}
+                        totalMeasures={analysis.totalMeasures}
+                        onPrev={() => {
+                            if (phraseMeasureRanges?.length) {
+                                const idx = parseInt(selectedPhraseIndex, 10);
+                                if (!isNaN(idx) && idx > 0) handlePhraseSelect({ target: { value: String(idx - 1) } });
+                                else setFocusedMeasure((m) => Math.max(1, m - 1));
+                            } else {
+                                setFocusedMeasure((m) => Math.max(1, m - 1));
+                            }
+                        }}
+                        onNext={() => {
+                            if (phraseMeasureRanges?.length) {
+                                const idx = parseInt(selectedPhraseIndex, 10);
+                                if (!isNaN(idx) && idx < phraseMeasureRanges.length - 1) handlePhraseSelect({ target: { value: String(idx + 1) } });
+                                else setFocusedMeasure((m) => Math.min(analysis.totalMeasures, m + 1));
+                            } else {
+                                setFocusedMeasure((m) => Math.min(analysis.totalMeasures, m + 1));
+                            }
+                        }}
+                    />
+                </div>
+            ) : (
+                <LearnControls
+                    isPlaying={isPlaying}
+                    onPlayPause={handlePlayPause}
+                    onStop={handleStop}
+                    playbackHand={playbackHand}
+                    setPlaybackHand={setPlaybackHand}
+                    currentBPM={currentBPM}
+                    defaultBPM={song.tempo}
+                    onTempoChange={handleTempoChange}
+                    isLooping={isLooping}
+                    onToggleLoop={() => setIsLooping(!isLooping)}
+                    focusedMeasure={focusedMeasure}
+                    totalMeasures={analysis.totalMeasures}
+                    phrases={song.phrases}
+                    highlightedMeasures={highlightedMeasures}
+                    loopConfig={loopConfig}
+                    phraseMeasureRanges={phraseMeasureRanges}
+                    onPhraseSelect={handlePhraseSelect}
+                    selectedPhraseIndex={selectedPhraseIndex}
+                    customRangeStart={customRangeStart}
+                    setCustomRangeStart={setCustomRangeStart}
+                    customRangeEnd={customRangeEnd}
+                    setCustomRangeEnd={setCustomRangeEnd}
+                    onCustomRangeLoop={handleCustomRangeLoop}
+                    onClearLoop={handleClearLoop}
+                    isMobile={isMobile}
+                    isMetronomeOn={isMetronomeOn}
+                    onToggleMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
+                />
+            )}
         </div>
     );
 }
