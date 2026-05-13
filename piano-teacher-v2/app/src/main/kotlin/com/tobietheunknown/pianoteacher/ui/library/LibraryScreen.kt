@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,6 +51,7 @@ fun LibraryScreen(
         }
     }
     var showDeleteDialog by remember { mutableStateOf<Song?>(null) }
+    var sheetSong by remember { mutableStateOf<Song?>(null) }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -111,7 +113,7 @@ fun LibraryScreen(
                     items(songs, key = { it.id }) { song ->
                         SongCard(
                             song = song,
-                            onLearn = { onSongSelected(song.id) },
+                            onLearn = { sheetSong = song },
                             onPlay = { onPlaySong(song.id) },
                             onDelete = { showDeleteDialog = song }
                         )
@@ -136,6 +138,209 @@ fun LibraryScreen(
             },
             containerColor = Surface
         )
+    }
+
+    sheetSong?.let { song ->
+        SongDetailSheet(
+            song = song,
+            onDismiss = { sheetSong = null },
+            onLearn = { sheetSong = null; onSongSelected(song.id) },
+            onLivePlay = { sheetSong = null; onPlaySong(song.id) },
+            onDelete = { sheetSong = null; showDeleteDialog = song },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SongDetailSheet(
+    song: Song,
+    onDismiss: () -> Unit,
+    onLearn: () -> Unit,
+    onLivePlay: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // Hero row — Cover + title + artist
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                com.tobietheunknown.pianoteacher.ui.common.SongCover(
+                    title = song.title,
+                    size = 72.dp,
+                    cornerRadius = 12.dp,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        song.title,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (song.artist.isNotBlank()) song.artist else "Artiste inconnu",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+
+            // 3-col stats card
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x06FFFFFF))
+                    .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(10.dp))
+                    .padding(vertical = 10.dp),
+            ) {
+                SheetStat("PHRASES", song.phrases.size.toString(), Modifier.weight(1f))
+                SheetDivider()
+                SheetStat("TEMPO", "${song.tempo}", suffix = "bpm", modifier = Modifier.weight(1f))
+                SheetDivider()
+                SheetStat("MESURES", song.totalMeasures.toString(), Modifier.weight(1f))
+            }
+
+            // Apprendre / LivePlay actions (2-col grid)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ActionBtn(
+                    label = "Apprendre",
+                    icon = Icons.AutoMirrored.Filled.LibraryBooks,
+                    primary = true,
+                    onClick = onLearn,
+                    modifier = Modifier.weight(1f),
+                )
+                ActionBtn(
+                    label = "LivePlay",
+                    icon = Icons.Default.PlayArrow,
+                    primary = false,
+                    onClick = onLivePlay,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            // Supprimer — red outline button
+            Box(modifier = Modifier.fillMaxWidth()) {
+                com.tobietheunknown.pianoteacher.ui.common.OutlineButton(
+                    text = "Supprimer",
+                    onClick = onDelete,
+                    color = RedError,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                )
+            }
+
+            // Annuler
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+            ) {
+                Text("Annuler", color = Color(0xFF94A3B8))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetStat(label: String, value: String, modifier: Modifier = Modifier, suffix: String? = null) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                value,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+            )
+            suffix?.let {
+                Text(
+                    it,
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(start = 3.dp, bottom = 3.dp),
+                )
+            }
+        }
+        Text(
+            label,
+            color = Color(0xFF94A3B8),
+            fontSize = 10.sp,
+            letterSpacing = 0.06.sp,
+        )
+    }
+}
+
+@Composable
+private fun SheetDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .fillMaxHeight()
+            .background(Color(0x14FFFFFF)),
+    )
+}
+
+@Composable
+private fun ActionBtn(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    primary: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (primary) IndigoAccent else Color(0x12FFFFFF))
+            .border(
+                1.dp,
+                if (primary) IndigoAccent else Color(0x14FFFFFF),
+                RoundedCornerShape(10.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (primary) Color.White else Color(0xFFE8EAF0),
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                label,
+                color = if (primary) Color.White else Color(0xFFE8EAF0),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+            )
+        }
     }
 }
 
