@@ -165,10 +165,20 @@ class AudioEngine {
             Tone.context.resume();
         }
 
+        // Remember whether the running metronome loop was alive so we can
+        // recreate it after Tone.Transport.cancel() wipes everything.
+        const hadRunningMetronome = !!(this.metronomeEnabled && this.metronomeLoop);
+        const prevMetronomeSubdivision = this._metronomeSubdivision || 'quarter';
+
         Tone.Transport.stop();
         if (this._currentPart) {
             this._currentPart.dispose();
             this._currentPart = null;
+        }
+        if (this.metronomeLoop) {
+            this.metronomeLoop.stop();
+            this.metronomeLoop.dispose();
+            this.metronomeLoop = null;
         }
         Tone.Transport.cancel();
         if (this.sampler) {
@@ -246,10 +256,16 @@ class AudioEngine {
             }
         }
 
-        // If a continuous metronome loop is running (set up separately via
-        // startMetronome), let it keep running through the preroll + music.
-        if (this.metronomeEnabled && this.metronomeLoop) {
-            this.metronomeLoop.start(0);
+        // Re-create the running metronome loop that Transport.cancel() wiped
+        // out. Start it after the preroll so we don't double up clicks
+        // during the count-in bar.
+        if (hadRunningMetronome) {
+            const subMap = { half: '2n', quarter: '4n', eighth: '8n' };
+            const sub = subMap[prevMetronomeSubdivision] || '4n';
+            this.metronomeLoop = new Tone.Loop((time) => {
+                this.playClick(time);
+            }, sub);
+            this.metronomeLoop.start(prerollSec);
         }
 
         Tone.Transport.start();
@@ -344,9 +360,11 @@ class AudioEngine {
         this.stopMetronome();
 
         this.metronomeEnabled = true;
+        this._metronomeSubdivision = subdivision;
         Tone.Transport.bpm.value = tempo;
 
         const subdivisionMap = {
+            'half': '2n',
             'quarter': '4n',
             'eighth': '8n'
         };

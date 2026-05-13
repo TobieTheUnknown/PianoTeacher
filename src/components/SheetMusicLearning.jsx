@@ -188,7 +188,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                     // When the slice ends: restart from loop start if loop is
                     // still on, otherwise stop.
                     if (loopRef.current) {
-                        const [a, b] = loopRangeRef.current || [1, totalMeasures];
+                        const [a, b] = loopRangeRef.current || [1, measures.length];
                         setCurrentMeasure(a);
                         playRange(a, b, false);
                     } else {
@@ -202,15 +202,15 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 
         const start = Math.max(1, currentMeasure);
         if (loop) {
-            const [a, b] = loopRange[1] > 1 ? loopRange : [1, totalMeasures];
+            const [a, b] = loopRange[1] > 1 ? loopRange : [1, measures.length];
             const safeStart = start >= a && start <= b ? start : a;
             setCurrentMeasure(safeStart);
             playRange(safeStart, b, true);
         } else {
-            playRange(start, totalMeasures, true);
+            playRange(start, measures.length, true);
         }
         setPlaying(true);
-    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure, metronome, loop, loopRange, totalMeasures]);
+    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure, metronome, loop, loopRange, measures]);
 
     const totalMeasures = measures.length;
     const tsText = song?.timeSignature
