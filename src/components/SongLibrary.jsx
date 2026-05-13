@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../services/StorageService';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchKeyName } from '../models/song';
+import { Cover, ProgressRing, Pill } from './ui';
 
 export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMobile = false }) {
     const [songs, setSongs] = useState([]);
@@ -176,8 +177,8 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
                 /* Song Cards Grid */
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(300px, 1fr))',
-                    gap: isMobile ? '0.75rem' : '1.5rem'
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))',
+                    gap: isMobile ? '0.5rem' : '1rem'
                 }}>
                     {songs.map((song) => (
                         <div
@@ -186,110 +187,107 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
                             className="card"
                             style={{
                                 cursor: 'pointer',
-                                padding: '1.5rem',
+                                padding: '1rem',
                                 minHeight: isMobile ? '56px' : undefined,
-                                position: 'relative'
+                                position: 'relative',
+                                display: 'flex',
+                                gap: '0.75rem',
+                                alignItems: 'flex-start',
                             }}
                         >
-                            {/* Song Title */}
-                            <h3 style={{
-                                marginBottom: '1rem',
-                                color: 'var(--text-primary)',
-                                fontSize: '1.125rem',
-                                fontWeight: '500',
-                                letterSpacing: '-0.01em',
-                                lineHeight: '1.3',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                            }}>
-                                {song.title}
-                            </h3>
+                            <Cover id={song.id} title={song.title} size={isMobile ? 44 : 52} />
 
-                            {/* Song Metadata */}
-                            <div style={{
-                                fontSize: '0.875rem',
-                                color: 'var(--text-tertiary)',
-                                marginBottom: '1.5rem',
-                                lineHeight: '1.8',
-                                fontWeight: '300'
-                            }}>
-                                <p style={{ margin: '0.25rem 0' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                {/* Song Title */}
+                                <h3 style={{
+                                    margin: 0,
+                                    color: 'var(--text-primary)',
+                                    fontSize: isMobile ? '0.95rem' : '1rem',
+                                    fontWeight: 600,
+                                    letterSpacing: '-0.01em',
+                                    lineHeight: 1.3,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {song.title}
+                                </h3>
+
+                                {/* Song Metadata */}
+                                <p style={{
+                                    margin: '2px 0 6px',
+                                    fontSize: '0.78rem',
+                                    color: 'var(--text-tertiary)',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                }}>
                                     {song.artist || 'Artiste inconnu'}
                                 </p>
-                                <p style={{
-                                    margin: '0.5rem 0',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.75rem'
-                                }}>
-                                    <span style={{
-                                        padding: '0.25rem 0.625rem',
-                                        background: 'var(--bg-tertiary)',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontSize: '0.8125rem'
-                                    }}>
+
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <Pill style={{ padding: '2px 7px', fontSize: 10 }}>
                                         {getFrenchKeyName(song.key)}
-                                    </span>
+                                    </Pill>
                                     <span style={{
-                                        padding: '0.25rem 0.625rem',
-                                        background: 'var(--bg-tertiary)',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontSize: '0.8125rem'
+                                        fontSize: 10,
+                                        color: 'var(--text-muted)',
+                                        fontFamily: 'var(--font-mono)',
+                                        fontWeight: 600,
                                     }}>
                                         {song.tempo} BPM
                                     </span>
-                                </p>
+                                </div>
+
                                 <p style={{
-                                    fontSize: '0.8125rem',
-                                    marginTop: '0.75rem',
-                                    color: 'var(--text-muted)'
+                                    fontSize: '0.7rem',
+                                    margin: '6px 0 0',
+                                    color: 'var(--text-muted)',
+                                    fontFamily: 'var(--font-mono)',
                                 }}>
                                     {new Date(song.updatedAt || song.createdAt).toLocaleDateString('fr-FR')}
                                 </p>
-                            </div>
 
-                            {/* Song Actions */}
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'flex-end',
-                                gap: '0.35rem',
-                                paddingTop: '0.6rem',
-                                borderTop: '1px solid var(--border-color)'
-                            }}>
-                                <button
-                                    onClick={(e) => handleExportMidi(song, e)}
-                                    style={{
-                                        padding: '0.3rem 0.6rem',
-                                        background: 'transparent',
-                                        color: 'var(--text-secondary)',
-                                        border: '1px solid var(--border-color)',
-                                        fontSize: '0.7rem'
-                                    }}
-                                >
-                                    MIDI
-                                </button>
-                                <button
-                                    onClick={(e) => handleDelete(song.id, e)}
-                                    style={{
-                                        padding: '0.3rem 0.6rem',
-                                        background: 'transparent',
-                                        color: 'var(--accent-danger)',
-                                        border: '1px solid var(--accent-danger)',
-                                        fontSize: '0.7rem'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.stopPropagation();
-                                        e.currentTarget.style.background = 'var(--accent-danger)';
-                                        e.currentTarget.style.color = 'white';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = 'transparent';
-                                        e.currentTarget.style.color = 'var(--accent-danger)';
-                                    }}
-                                >
-                                    Supprimer
-                                </button>
+                                {/* Song Actions */}
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'flex-start',
+                                    gap: '0.35rem',
+                                    paddingTop: '0.6rem',
+                                    marginTop: '0.6rem',
+                                    borderTop: '1px solid var(--hairline)'
+                                }}>
+                                    <button
+                                        onClick={(e) => handleExportMidi(song, e)}
+                                        style={{
+                                            padding: '0.25rem 0.6rem',
+                                            background: 'transparent',
+                                            color: 'var(--text-secondary)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: 'var(--r-sm)',
+                                            fontSize: '0.7rem',
+                                            fontFamily: 'inherit',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        MIDI
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleDelete(song.id, e)}
+                                        style={{
+                                            padding: '0.25rem 0.6rem',
+                                            background: 'transparent',
+                                            color: 'var(--error)',
+                                            border: '1px solid var(--error)',
+                                            borderRadius: 'var(--r-sm)',
+                                            fontSize: '0.7rem',
+                                            fontFamily: 'inherit',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Supprimer
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}

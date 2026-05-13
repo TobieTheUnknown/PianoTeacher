@@ -5,6 +5,7 @@ import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
 import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
+import { DesignAppearance } from './DesignAppearance';
 import { useDeviceContext } from '../hooks/useDeviceContext';
 
 export function Settings({ isOpen, onClose }) {
@@ -267,6 +268,8 @@ export function Settings({ isOpen, onClose }) {
                 }}>
                     {activeTab === 'general' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg, 1.5rem)' }}>
+                            <DesignAppearance />
+
                             {/* Volume */}
                             <div>
                                 <h3 style={{

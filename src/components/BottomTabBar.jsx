@@ -42,7 +42,7 @@ export function BottomTabBar({ activeMode, onChangeMode, visible = true, onOpenS
             aria-label={label}
           >
             <span className={styles.tabIcon}>
-              <Icon size={22} />
+              <Icon size={22} strokeWidth={isActive ? 2 : 1.5} />
             </span>
             <span className={styles.tabLabel}>{label}</span>
           </button>

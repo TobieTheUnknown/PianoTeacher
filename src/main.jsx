@@ -1,10 +1,22 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import './styles/tokens.css'
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import themeService from './services/ThemeService.js'
 
 const isMobilePlatform = import.meta.env.VITE_PLATFORM === 'mobile';
+
+// Apply design preset attributes (theme / accent / hands) from localStorage.
+// Defaults: dark, blue, classic.
+try {
+  const theme = localStorage.getItem('piano-teacher-design-theme') || 'dark';
+  const accent = localStorage.getItem('piano-teacher-design-accent') || 'blue';
+  const hands = localStorage.getItem('piano-teacher-design-hands') || 'classic';
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-accent', accent);
+  document.documentElement.setAttribute('data-hands', hands);
+} catch (_) { /* localStorage may be unavailable on first paint */ }
 
 // Initialiser le thème (deferred to avoid Android WebView crash)
 try {

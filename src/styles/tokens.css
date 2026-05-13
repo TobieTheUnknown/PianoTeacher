@@ -1,0 +1,178 @@
+/* ============================================================
+   PIANO TEACHER — DESIGN TOKENS
+   Source of truth ported from the claude design handoff bundle.
+   Switches: data-theme="dark|light" (default dark)
+             data-accent="blue|violet|emerald|amber" (default blue)
+             data-hands="classic|ocean|forest|sunset|mono" (default classic)
+   ============================================================ */
+
+:root {
+  /* === SPACING SCALE (8pt grid) === */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-12: 48px; --s-16: 64px;
+
+  /* === RADIUS === */
+  --r-xs: 4px; --r-sm: 6px; --r-md: 10px;
+  --r-lg: 14px; --r-xl: 20px; --r-pill: 999px;
+
+  /* === TYPOGRAPHY === */
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+  --font-display: 'IBM Plex Sans', system-ui, sans-serif;
+
+  /* === MOTION === */
+  --t-fast: 120ms; --t-med: 220ms; --t-slow: 380ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* === ELEVATION === */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.6);
+}
+
+/* === DARK THEME (default) === */
+:root,
+[data-theme="dark"] {
+  --bg: #0a0c10;
+  --surface-1: #11141b;
+  --surface-2: #181c25;
+  --surface-3: #1f242f;
+  --surface-elev: rgba(255, 255, 255, 0.04);
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --hairline: rgba(255, 255, 255, 0.05);
+
+  --text-primary: #e8eaf0;
+  --text-secondary: #a8aebd;
+  --text-tertiary: #6b7280;
+  --text-muted: #4b5563;
+
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-dim: rgba(59, 130, 246, 0.16);
+  --accent-text: #fff;
+
+  --hand-right: #22d3ee;
+  --hand-right-dim: rgba(34, 211, 238, 0.18);
+  --hand-right-border: rgba(34, 211, 238, 0.35);
+  --hand-left: #ec4899;
+  --hand-left-dim: rgba(236, 72, 153, 0.18);
+  --hand-left-border: rgba(236, 72, 153, 0.35);
+  --hand-both: #10b981;
+
+  --success: #10b981;
+  --warning: #fbbf24;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  --key-white: #f2f4f8;
+  --key-white-shadow: #cbd0d8;
+  --key-black: #1a1d24;
+  --key-pressed: var(--accent);
+}
+
+/* === LIGHT THEME === */
+[data-theme="light"] {
+  --bg: #f7f8fa;
+  --surface-1: #ffffff;
+  --surface-2: #f1f3f7;
+  --surface-3: #e6e9ef;
+  --surface-elev: rgba(0, 0, 0, 0.02);
+  --overlay: rgba(255, 255, 255, 0.6);
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --hairline: rgba(0, 0, 0, 0.05);
+
+  --text-primary: #0f1218;
+  --text-secondary: #4b5363;
+  --text-tertiary: #6b7280;
+  --text-muted: #9ca3af;
+
+  --accent-dim: rgba(59, 130, 246, 0.12);
+  --hand-right-dim: rgba(8, 145, 178, 0.12);
+  --hand-right-border: rgba(8, 145, 178, 0.28);
+  --hand-left-dim: rgba(190, 24, 93, 0.12);
+  --hand-left-border: rgba(190, 24, 93, 0.28);
+
+  --key-white: #ffffff;
+  --key-white-shadow: #d4d8e0;
+}
+
+/* === HAND-COLOR PRESETS === */
+[data-hands="classic"] { --hand-right: #22d3ee; --hand-left: #ec4899; }
+[data-hands="ocean"]   { --hand-right: #38bdf8; --hand-left: #f97316; }
+[data-hands="forest"]  { --hand-right: #34d399; --hand-left: #c084fc; }
+[data-hands="sunset"]  { --hand-right: #fbbf24; --hand-left: #f43f5e; }
+[data-hands="mono"]    { --hand-right: #cbd5e1; --hand-left: #64748b; }
+
+/* === ACCENT PRESETS === */
+[data-accent="blue"]   { --accent: #3b82f6; --accent-hover: #60a5fa; --accent-dim: rgba(59,130,246,0.16); }
+[data-accent="violet"] { --accent: #8b5cf6; --accent-hover: #a78bfa; --accent-dim: rgba(139,92,246,0.16); }
+[data-accent="emerald"]{ --accent: #10b981; --accent-hover: #34d399; --accent-dim: rgba(16,185,129,0.16); }
+[data-accent="amber"]  { --accent: #f59e0b; --accent-hover: #fbbf24; --accent-dim: rgba(245,158,11,0.16); }
+
+/* === COMPATIBILITY ALIASES ===
+   Keep the legacy variable names from index.css working so existing
+   components don't break. New components should use the names above.
+   ============================================================ */
+:root {
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--surface-1);
+  --bg-tertiary: var(--surface-2);
+  --bg-elevated: var(--surface-3);
+  --bg-card: var(--surface-1);
+  --bg-hover: var(--surface-3);
+
+  --text-accent: var(--text-primary);
+
+  --accent-primary: var(--accent);
+  --accent-secondary: var(--text-secondary);
+  --accent-success: var(--success);
+  --accent-danger: var(--error);
+  --accent-warning: var(--warning);
+  --accent-info: var(--info);
+
+  --border-color: var(--border);
+  --border-light: var(--hairline);
+  --border-medium: var(--border-strong);
+
+  --font-family: var(--font-sans);
+  --font-heading: var(--font-sans);
+
+  --transition-fast: var(--t-fast);
+  --transition-normal: var(--t-med);
+  --transition-slow: var(--t-slow);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-full: var(--r-pill);
+}
+
+/* === PIANO STRIPE motif (signature visual) === */
+.pkstripe {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 14px,
+    rgba(255, 255, 255, 0.025) 14px 16px
+  );
+}
+
+/* === KEYFRAMES used across the design === */
+@keyframes design-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes design-slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes design-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
+@keyframes design-beatFill {
+  0%   { width: 0%;   opacity: 0.6; }
+  95%  { width: 100%; opacity: 1;   }
+  100% { width: 100%; opacity: 0;   }
+}
