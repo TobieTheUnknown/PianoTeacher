@@ -23,69 +23,146 @@
   z-index: 0;
 }
 
-/* Top-left: back button */
-.backButton {
+/* Top HUD bar: back · centered meta · time (design-aligned) */
+.topHud {
   position: absolute;
-  top: calc(var(--safe-top, 0px) + 12px);
+  top: calc(var(--safe-top, 0px) + 10px);
   left: 12px;
-  width: 48px;
-  height: 48px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.iconCircle {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  pointer-events: auto;
-  z-index: 2;
   padding: 0;
   min-height: unset;
   min-width: unset;
+  flex-shrink: 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.backButton:hover,
-.backButton:active {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(255, 255, 255, 0.3);
+.iconCircle:hover,
+.iconCircle:active {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
 }
 
-/* Top-right: time and combo */
-.topRight {
-  position: absolute;
-  top: calc(var(--safe-top, 0px) + 12px);
-  right: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
-  pointer-events: none;
-  z-index: 2;
+.songMeta {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.songTitle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.songComposer {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timeDisplay {
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
-  background: rgba(0, 0, 0, 0.5);
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+  text-align: right;
+  flex-shrink: 0;
 }
 
-.comboDisplay {
-  font-size: 0.75rem;
+/* Stats strip — 4-col card under the HUD */
+.statsStrip {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 56px);
+  left: 18px;
+  right: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 8px 4px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.liveStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.liveStatDivider {
+  border-left: 1px solid var(--border);
+}
+
+.liveStatValue {
+  font-family: var(--font-mono);
+  font-size: 14px;
   font-weight: 700;
-  color: #22c55e;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-md);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
-.comboHigh {
-  color: #fbbf24;
+.liveStatLabel {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Gradient progress bar — sits just under the stats strip */
+.progressTrack {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 116px);
+  left: 18px;
+  right: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--hand-left), var(--accent), var(--hand-right));
+  border-radius: 999px;
+  transition: width var(--t-fast) linear;
 }
 
 /* Center-bottom: play/pause */
@@ -102,10 +179,9 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: white;
+  background: var(--accent);
+  border: none;
+  color: var(--accent-text, #fff);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,13 +190,22 @@
   min-height: unset;
   min-width: unset;
   transition: all var(--transition-fast);
+  box-shadow: 0 8px 24px -4px var(--accent), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .playPauseButton:hover,
 .playPauseButton:active {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(255, 255, 255, 0.4);
+  background: var(--accent-hover);
   transform: scale(1.05);
+}
+
+.playPauseButton.playing {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* Bottom-left: tempo controls */

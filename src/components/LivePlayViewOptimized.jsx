@@ -842,6 +842,8 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
         />
 
         <LivePlayMobileOverlay
+          song={song}
+          allNotes={allNotes}
           isPlaying={isPlaying}
           onPlayPause={handlePlayPause}
           onBack={onBack || (() => window.history.back())}

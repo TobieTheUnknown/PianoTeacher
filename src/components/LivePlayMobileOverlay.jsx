@@ -10,7 +10,18 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function LiveStat({ label, value, color, divider }) {
+  return (
+    <div className={`${styles.liveStat} ${divider ? styles.liveStatDivider : ''}`}>
+      <div className={styles.liveStatValue} style={color ? { color } : undefined}>{value}</div>
+      <div className={styles.liveStatLabel}>{label}</div>
+    </div>
+  );
+}
+
 export function LivePlayMobileOverlay({
+  song,
+  allNotes,
   isPlaying,
   onPlayPause,
   onBack,
@@ -112,32 +123,64 @@ export function LivePlayMobileOverlay({
     setHandMode(HAND_CYCLE[(idx + 1) % HAND_CYCLE.length]);
   };
 
+  // Stats: progress + accuracy (computed from sessionStats)
+  const totalNotes = sessionStats.totalNotes || (allNotes?.length ?? 0);
+  const completedNotes = (sessionStats.correctNotes || 0)
+    + (sessionStats.wrongNotes || 0)
+    + (sessionStats.missedNotes || 0);
+  const accuracy = completedNotes > 0
+    ? Math.round((sessionStats.correctNotes / completedNotes) * 100)
+    : 100;
+  const score = (sessionStats.perfectNotes || 0) * 100
+    + (sessionStats.goodNotes || 0) * 60
+    + ((sessionStats.correctNotes || 0) - (sessionStats.perfectNotes || 0) - (sessionStats.goodNotes || 0)) * 40;
+
+  // Last note end-time for progress bar (in seconds)
+  let songDurSec = 1;
+  if (allNotes && allNotes.length > 0) {
+    const last = allNotes[allNotes.length - 1];
+    songDurSec = ((last.startTime || 0) + (last.duration || 0)) / 4; // beat→sec rough; canvas uses beatsPerSecond
+  }
+  const progressPct = Math.min(100, Math.max(0, (currentTime / Math.max(songDurSec, 0.001)) * 100));
+
   return (
     <div className={`${styles.overlay} ${visible ? styles.overlayVisible : styles.overlayHidden}`}>
       {/* Tap area to toggle overlay */}
       <div className={styles.tapCatcher} onClick={handleTap} />
 
-      {/* Back button - always visible when overlay is shown */}
-      <button className={styles.backButton} onClick={onBack}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5" />
-          <path d="M12 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      {/* Top right - time and combo */}
-      <div className={styles.topRight}>
+      {/* Top HUD: back · centered title+composer · fullscreen */}
+      <div className={styles.topHud}>
+        <button className={styles.iconCircle} onClick={onBack} title="Retour">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <div className={styles.songMeta}>
+          <div className={styles.songTitle}>{song?.title || 'Morceau'}</div>
+          <div className={styles.songComposer}>{song?.composer || song?.artist || 'Artiste inconnu'}</div>
+        </div>
         <span className={styles.timeDisplay}>{formatTime(currentTime)}</span>
-        {sessionStats.currentCombo > 2 && (
-          <span className={`${styles.comboDisplay} ${sessionStats.currentCombo >= 10 ? styles.comboHigh : ''}`}>
-            {sessionStats.currentCombo}x combo
-          </span>
-        )}
+      </div>
+
+      {/* Stats strip */}
+      <div className={styles.statsStrip}>
+        <LiveStat label="Score" value={score.toLocaleString('fr-FR')} />
+        <LiveStat label="Combo" value={`×${sessionStats.currentCombo || 0}`} color="var(--accent)" divider />
+        <LiveStat label="Précision" value={`${accuracy}%`} color="var(--success)" divider />
+        <LiveStat label="Notes" value={`${completedNotes}/${totalNotes}`} divider />
+      </div>
+
+      {/* Gradient progress bar */}
+      <div className={styles.progressTrack}>
+        <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
       </div>
 
       {/* Center bottom - play/pause */}
       <div className={styles.centerBottom}>
-        <button className={styles.playPauseButton} onClick={onPlayPause}>
+        <button
+          className={`${styles.playPauseButton} ${isPlaying ? styles.playing : ''}`}
+          onClick={onPlayPause}
+        >
           {isPlaying ? (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
               <rect x="6" y="4" width="4" height="16" rx="1" />
