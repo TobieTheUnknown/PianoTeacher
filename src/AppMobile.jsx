@@ -5,6 +5,7 @@ import { SongLibrary } from './components/SongLibrary';
 import { SynthesiaViewOptimized as SynthesiaView } from './components/SynthesiaViewOptimized';
 import { Settings } from './components/Settings';
 import { BottomTabBar } from './components/BottomTabBar';
+import { AudioLoadingIndicator } from './components/AudioLoadingIndicator';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
 
@@ -88,6 +89,8 @@ function AppMobile() {
       />
 
       <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
+      <AudioLoadingIndicator />
     </Layout>
   );
 }

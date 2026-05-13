@@ -18,6 +18,7 @@ class AudioEngine {
         this.metronomeEnabled = false;
         this.masterVolume = null;
         this._volume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0'); // dB
+        this._readyCallbacks = [];
     }
 
     getIsActuallyPlaying() {
@@ -29,21 +30,33 @@ class AudioEngine {
         return Tone;
     }
 
-    async initialize() {
-        // If already loading/loaded, return the existing promise
-        if (this._initPromise) return this._initPromise;
-        this._initPromise = this._doInitialize();
-        return this._initPromise;
+    /**
+     * Subscribe to "samples loaded" — fires once. Used by the loading indicator
+     * and by useMidiAudio to flush queued MIDI events.
+     */
+    onReady(callback) {
+        if (this.samplerLoaded) {
+            try { callback(); } catch (_) {}
+        } else {
+            this._readyCallbacks.push(callback);
+        }
     }
 
-    async _doInitialize() {
+    /**
+     * Phase 1: download samples + construct graph. No user gesture required —
+     * the AudioContext stays suspended; we just create nodes and fetch MP3s.
+     * Call this at app mount so samples are warm before the first key press.
+     */
+    async preload() {
+        if (this._preloadPromise) return this._preloadPromise;
+        this._preloadPromise = this._doPreload();
+        return this._preloadPromise;
+    }
+
+    async _doPreload() {
         if (this.samplerLoaded) return;
 
         const T = await loadTone();
-
-        // On mobile, create a context optimized for smooth playback (larger audio buffers)
-        // This is the equivalent of increasing buffer size in a DAW — trades ~30ms latency for zero crackling
-        await T.start();
 
         // Adjust lookAhead for mobile (reduces crackling without replacing the context,
         // which would break Tone.Transport used by playNotes/playPhrase)
@@ -65,7 +78,7 @@ class AudioEngine {
             }
         }).connect(this.masterVolume);
 
-        return new Promise((resolve) => {
+        await new Promise((resolve) => {
             this.sampler = new T.Sampler({
                 urls: {
                     "A0": "A0.mp3",
@@ -102,12 +115,36 @@ class AudioEngine {
                 release: 1,
                 baseUrl: "/audio/salamander/",
                 onload: () => {
-                    console.log("Sampler loaded");
+                    console.log("[AudioEngine] Sampler loaded");
                     this.samplerLoaded = true;
+                    const cbs = this._readyCallbacks.slice();
+                    this._readyCallbacks = [];
+                    for (const cb of cbs) {
+                        try { cb(); } catch (_) {}
+                    }
                     resolve();
                 }
             }).connect(this.masterVolume);
         });
+    }
+
+    /**
+     * Phase 2: resume the AudioContext. Browsers require this to be triggered
+     * by a user gesture (click/touch/keydown). Idempotent — safe to call often.
+     */
+    async start() {
+        await this.preload();
+        const T = await loadTone();
+        if (T.context && T.context.state !== 'running') {
+            await T.start();
+        }
+    }
+
+    /** Backward-compatible alias for older call sites. */
+    async initialize() {
+        if (this._initPromise) return this._initPromise;
+        this._initPromise = this.start();
+        return this._initPromise;
     }
 
     playNote(pitch, duration = '8n', time) {

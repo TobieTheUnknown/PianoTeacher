@@ -7,6 +7,7 @@ import { SynthesiaViewOptimized as SynthesiaView } from './components/SynthesiaV
 import { Settings } from './components/Settings';
 import { TopNavBar } from './components/TopNavBar';
 import { BottomTabBar } from './components/BottomTabBar';
+import { AudioLoadingIndicator } from './components/AudioLoadingIndicator';
 import { useDeviceContext } from './hooks/useDeviceContext';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
@@ -131,6 +132,8 @@ function App() {
 
       {/* Settings Modal */}
       <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
+      <AudioLoadingIndicator />
     </Layout>
   );
 }

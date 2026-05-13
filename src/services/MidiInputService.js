@@ -290,8 +290,9 @@ class MidiInputService {
             // Note Off
             eventType = 'noteOff';
         } else if (command === 176) {
-            // Control Change
-            eventType = 'controlChange';
+            // CC64 (damper/sustain pedal) gets its own event so useMidiAudio
+            // can suppress noteOffs while the pedal is held.
+            eventType = note === 64 ? 'sustainPedal' : 'controlChange';
         } else if (command === 224) {
             // Pitch Bend
             eventType = 'pitchBend';
@@ -444,8 +445,9 @@ class MidiInputService {
             // Note Off
             eventType = 'noteOff';
         } else if (command === 176) {
-            // Control Change
-            eventType = 'controlChange';
+            // CC64 (damper/sustain pedal) gets its own event so useMidiAudio
+            // can suppress noteOffs while the pedal is held.
+            eventType = note === 64 ? 'sustainPedal' : 'controlChange';
         } else if (command === 224) {
             // Pitch Bend
             eventType = 'pitchBend';
