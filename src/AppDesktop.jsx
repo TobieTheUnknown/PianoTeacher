@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
-import { EditorPlaceholder } from './components/EditorPlaceholder';
 import { LiveLearning } from './components/LiveLearning';
 import { SheetMusicLearning } from './components/SheetMusicLearning';
 import { SongLibrary } from './components/SongLibrary';
@@ -116,7 +115,22 @@ function App() {
           <LiveLearning song={song} onToggleHighlight={toggleHighlightedMeasure} />
         )}
         {mode === 'editor' && (
-          <EditorPlaceholder song={song} isMobile={isMobile} />
+          <SongEditor
+            song={song}
+            onUpdateMetadata={updateSongMetadata}
+            onImportSong={importSong}
+            onSaveSong={saveSong}
+            onAddPhrase={addPhrase}
+            onSplitPhrase={splitPhrase}
+            onMergePhraseWithPrevious={mergePhraseWithPrevious}
+            onRenamePhrasesInOrder={renamePhrasesInOrder}
+            addNoteToPhrase={addNoteToPhrase}
+            removeNoteFromPhrase={removeNoteFromPhrase}
+            onUpdateNote={updateNoteInPhrase}
+            onReorderPhrases={reorderPhrases}
+            isMobile={isMobile}
+            readOnly={false}
+          />
         )}
         {mode === 'sheet' && (
           <SheetMusicLearning song={song} isMobile={isMobile} />

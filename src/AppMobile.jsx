@@ -3,7 +3,7 @@ import { Layout } from './components/Layout';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
 import { LivePlayViewOptimized as LivePlayView } from './components/LivePlayViewOptimized';
-import { EditorPlaceholder } from './components/EditorPlaceholder';
+import { SongEditor } from './components/SongEditor';
 import { SheetMusicLearning } from './components/SheetMusicLearning';
 import { Settings } from './components/Settings';
 import { BottomTabBar } from './components/BottomTabBar';
@@ -14,9 +14,19 @@ import { useMidiAudio } from './hooks/useMidiAudio';
 function AppMobile() {
   const {
     song,
+    updateSongMetadata,
+    importSong,
     loadSong,
     saveSong,
+    addPhrase,
+    splitPhrase,
+    mergePhraseWithPrevious,
+    renamePhrasesInOrder,
+    addNoteToPhrase,
+    removeNoteFromPhrase,
+    updateNoteInPhrase,
     toggleHighlightedMeasure,
+    reorderPhrases,
   } = useSong();
 
   const [mode, setMode] = useState('library');
@@ -75,7 +85,22 @@ function AppMobile() {
           />
         )}
         {mode === 'editor' && (
-          <EditorPlaceholder song={song} isMobile={true} />
+          <SongEditor
+            song={song}
+            onUpdateMetadata={updateSongMetadata}
+            onImportSong={importSong}
+            onSaveSong={saveSong}
+            onAddPhrase={addPhrase}
+            onSplitPhrase={splitPhrase}
+            onMergePhraseWithPrevious={mergePhraseWithPrevious}
+            onRenamePhrasesInOrder={renamePhrasesInOrder}
+            addNoteToPhrase={addNoteToPhrase}
+            removeNoteFromPhrase={removeNoteFromPhrase}
+            onUpdateNote={updateNoteInPhrase}
+            onReorderPhrases={reorderPhrases}
+            isMobile={true}
+            readOnly={false}
+          />
         )}
         {mode === 'sheet' && (
           <SheetMusicLearning song={song} isMobile={true} />
