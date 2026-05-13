@@ -8,6 +8,7 @@ import themeService from '../services/ThemeService';
 import { CoordinationTimeline } from './learn/CoordinationTimeline';
 import { LearnControls } from './learn/LearnControls';
 import { PlaybackDock } from './PlaybackDock';
+import { MobileHeader } from './MobileHeader';
 
 // ── Constant styles extracted outside render ──────────────────────────────────
 
@@ -648,6 +649,29 @@ const TipCard = React.memo(function TipCard({ icon, text }) {
     );
 });
 
+// Small toggle pill for header right-area actions (Oct, Détails)
+function SmallToggleBtn({ label, active, onClick }) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                padding: '4px 10px',
+                fontSize: 11,
+                fontWeight: 600,
+                borderRadius: 'var(--r-pill)',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                background: active ? 'var(--accent-dim)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                minHeight: 0,
+                transition: 'all var(--t-fast)',
+            }}
+        >
+            {label}
+        </button>
+    );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function LiveLearning({ song, onToggleHighlight }) {
@@ -1038,7 +1062,19 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
     return (
         <div className="live-learning" style={{ maxWidth: '1600px', margin: '0 auto' }}>
-            {/* Compact Header */}
+            {/* MobileHeader on mobile; legacy compact bar on desktop */}
+            {isMobile ? (
+                <MobileHeader
+                    title={song.title}
+                    subtitle={`${getFrenchKeyName(analysis.key)} · ${analysis.tempo} BPM · ${analysis.totalMeasures} mesures`}
+                    right={
+                        <>
+                            <SmallToggleBtn label="Oct" active={showOctaves} onClick={() => setShowOctaves(!showOctaves)} />
+                            <SmallToggleBtn label="Détails" active={showDetails} onClick={() => setShowDetails(!showDetails)} />
+                        </>
+                    }
+                />
+            ) : (
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1046,7 +1082,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 gap: '0.5rem',
                 marginBottom: '0.75rem',
                 flexWrap: 'wrap',
-                padding: isMobile ? '0.5rem 0' : '0.75rem 0',
+                padding: '0.75rem 0',
             }}>
                 <div style={{
                     display: 'flex',
@@ -1058,7 +1094,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     flex: 1,
                 }}>
                     <span style={{
-                        fontSize: isMobile ? '1rem' : '1.15rem',
+                        fontSize: '1.15rem',
                         fontWeight: 500,
                         color: 'var(--text-primary)',
                         whiteSpace: 'nowrap',
@@ -1107,6 +1143,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     </button>
                 </div>
             </div>
+            )}
 
             {/* Timeline (PINNED TOP on mobile) */}
             <CoordinationTimeline
