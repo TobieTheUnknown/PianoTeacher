@@ -303,27 +303,49 @@ function PixelBtn({ children, onClick, disabled }) {
 
 // Metronome button — composes ToggleIconBtn but adds a subdivision badge
 // (♩/♪/𝅗𝅥) and cycles half→quarter→eighth→off on successive clicks when on.
-const SUBDIV_ORDER = ['half', 'quarter', 'eighth'];
+const SUBDIV_ORDER = ['quarter', 'eighth', 'half'];
 const SUBDIV_GLYPH = { half: '𝅗𝅥', quarter: '♩', eighth: '♪' };
 
 function MetronomeButton({ active, subdivision, onToggle, onSubdivisionChange }) {
+  // Long-press handle so we can distinguish "turn off" vs "cycle subdivision"
+  const longPressTimerRef = React.useRef(null);
+  const didLongPress = React.useRef(false);
+
+  const handlePointerDown = () => {
+    didLongPress.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      didLongPress.current = true;
+      if (active) onToggle?.(); // long press = turn off
+    }, 500);
+  };
+  const handlePointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
   const handleClick = () => {
+    if (didLongPress.current) {
+      didLongPress.current = false;
+      return; // long press already turned it off
+    }
     if (!active) {
       onToggle?.();
       return;
     }
+    // Short tap while on → cycle to next subdivision (wrap around).
     const idx = SUBDIV_ORDER.indexOf(subdivision);
-    if (idx < SUBDIV_ORDER.length - 1) {
-      onSubdivisionChange?.(SUBDIV_ORDER[idx + 1]);
-    } else {
-      onToggle?.(); // turn off after eighth
-      onSubdivisionChange?.('quarter'); // reset for next ON
-    }
+    const next = SUBDIV_ORDER[(idx + 1) % SUBDIV_ORDER.length];
+    onSubdivisionChange?.(next);
   };
   return (
     <button
       onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
       aria-label={active ? `Métronome ${subdivision}` : 'Métronome'}
+      title={active ? `${subdivision} — tap pour changer, long-press pour off` : 'Métronome'}
       style={{
         position: 'relative',
         width: 40,
