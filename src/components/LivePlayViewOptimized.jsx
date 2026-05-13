@@ -421,15 +421,15 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     setPlayedNotes(new Map());
   }, [totalDuration, playbackSpeed]);
 
-  // Handle loop range change from TimelineNavigator handles
+  // Handle loop range change from BOTH the TimelineNavigator handles AND
+  // the dock's loop-range popup. Always writes a valid loopConfig so the
+  // popup steppers and the timeline stay in sync.
   const handleLoopChange = useCallback((startMeasure, endMeasure) => {
-    if (loopConfig) {
-      setLoopConfig({
-        startMeasure,
-        endMeasure,
-        name: loopConfig.name || `Mesures ${startMeasure}-${endMeasure}`
-      });
-    }
+    setLoopConfig({
+      startMeasure,
+      endMeasure,
+      name: loopConfig?.name || `Mesures ${startMeasure}-${endMeasure}`
+    });
   }, [loopConfig]);
 
   // Toggle loop on/off

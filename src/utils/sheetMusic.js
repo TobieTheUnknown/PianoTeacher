@@ -548,4 +548,25 @@ export function renderMeasure(ctx, opts) {
     ctx.moveTo(w - 1, stavesOriginY + barMargin);
     ctx.lineTo(w - 1, stavesOriginY + totalStavesH - barMargin);
     ctx.stroke();
+
+    // Playhead — when provided, drawn inside the note area so it aligns
+    // exactly with note X positions (skipping clef + key signature on
+    // measures that have them).
+    if (opts.playheadFrac != null) {
+        const playheadFrac = Math.max(0, Math.min(1, opts.playheadFrac));
+        const leftPad = barPad + dotR * 2;
+        const noteAreaStart = clefW + leftPad;
+        const noteAreaEnd = w - barPad - dotR;
+        const playX = noteAreaStart + playheadFrac * (noteAreaEnd - noteAreaStart);
+        const top = stavesOriginY + barMargin;
+        const bottom = stavesOriginY + totalStavesH - barMargin;
+        // Soft halo
+        ctx.fillStyle = COLOR_PLAYING || '#3b82f6';
+        ctx.globalAlpha = 0.10;
+        ctx.fillRect(playX - dp(10), top, dp(20), bottom - top);
+        // Sharp line
+        ctx.globalAlpha = 0.95;
+        ctx.fillRect(playX - 1, top, 2, bottom - top);
+        ctx.globalAlpha = 1;
+    }
 }

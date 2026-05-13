@@ -451,15 +451,17 @@ const MeasureCard = React.memo(function MeasureCard({
         minHeight: 'auto',
     };
 
-    // Derive timeline beat positions from startTime in beats (relative to measure)
+    // Notes are stored in "4 units per measure" convention. beatsPerMeasure
+    // is purely visual (time signature numerator → division-line count).
     const beatsPerMeasure = measure.beatsPerMeasure || 4;
-    const measureStartBeat = (measure.number - 1) * beatsPerMeasure;
+    const unitsPerMeasure = measure.unitsPerMeasure || 4;
+    const measureStartUnits = (measure.number - 1) * unitsPerMeasure;
     const rightTimes = sortedMelody.map(n => Math.max(0, Math.min(1,
-        ((n.startTime ?? 0) - measureStartBeat) / beatsPerMeasure
+        ((n.startTime ?? 0) - measureStartUnits) / unitsPerMeasure
     )));
     const leftTimes = (measure.chordGroups || []).map(g => {
         const t = g.notes?.[0]?.startTime ?? 0;
-        return Math.max(0, Math.min(1, (t - measureStartBeat) / beatsPerMeasure));
+        return Math.max(0, Math.min(1, (t - measureStartUnits) / unitsPerMeasure));
     });
 
     // Unique pitch labels (deduped)
@@ -762,6 +764,8 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     melody: measure.melody,
                     sortedMelody: [...measure.melody].sort((a, b) => a.startTime - b.startTime),
                     chords: measure.chords,
+                    beatsPerMeasure: measure.beatsPerMeasure || beatsPerMeasure,
+                    unitsPerMeasure: measure.unitsPerMeasure || 4,
                     isArpeggio,
                     detectedChord,
                     motifInfo
@@ -826,10 +830,12 @@ export function LiveLearning({ song, onToggleHighlight }) {
     // Build a combined phrase for continuous playback via playPhrase
     const combinedPhrase = useMemo(() => {
         if (!song || !song.phrases || song.phrases.length === 0) return null;
-        const beatsPerMeasure = song.timeSignature?.numerator || 4;
         const melody = [];
         const chords = [];
         let beatOffset = 0;
+        // Notes are stored in the legacy "4 units per measure" convention,
+        // regardless of song.timeSignature. Stick to it for slicing /
+        // scheduling so non-4/4 songs still play back correctly.
         song.phrases.forEach(phrase => {
             phrase.tracks.melody.forEach(n => {
                 melody.push({ ...n, startTime: n.startTime + beatOffset });
@@ -837,7 +843,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
             phrase.tracks.chords.forEach(n => {
                 chords.push({ ...n, startTime: n.startTime + beatOffset });
             });
-            beatOffset += phrase.length * beatsPerMeasure;
+            beatOffset += phrase.length * 4;
         });
         const totalLength = song.phrases.reduce((sum, p) => sum + p.length, 0);
         return {
@@ -870,15 +876,16 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
         setPlayingMeasure(startMeasure);
 
-        const beatsPerMeasureSig = song?.timeSignature?.numerator || 4;
+        // Use the 4-units-per-measure data convention for tracking.
+        const UNITS_PER_MEASURE = 4;
         playbackIntervalRef.current = setInterval(() => {
             // Use getMusicSeconds (Transport.seconds - preroll) so the
             // tracked measure ignores the count-in bar when metronome is on.
             const musicSeconds = audioEngine.getMusicSeconds();
             if (musicSeconds <= 0) return; // Preroll or not started yet
             const beatsPerSecond = currentBPM / 60;
-            const currentBeat = musicSeconds * beatsPerSecond + (startMeasure - 1) * beatsPerMeasureSig;
-            const currentMsr = Math.floor(currentBeat / beatsPerMeasureSig) + 1;
+            const currentBeat = musicSeconds * beatsPerSecond + (startMeasure - 1) * UNITS_PER_MEASURE;
+            const currentMsr = Math.floor(currentBeat / UNITS_PER_MEASURE) + 1;
 
             if (currentMsr > endMeasure) {
                 // End of playback
@@ -929,7 +936,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 phraseToPlay = { ...combinedPhrase, tracks: { melody: [], chords: combinedPhrase.tracks.chords } };
             }
 
-            const beatsPerMeasureSig = song?.timeSignature?.numerator || 4;
             const doPlay = () => {
                 // Start the running metronome BEFORE playPhrase so it ticks
                 // through both the preroll and the music when enabled.
@@ -947,7 +953,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         setPlayingMeasure(-1);
                         if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
                     },
-                    beatsPerMeasureSig,
+                    4, // beatsPerMeasure = our 4-units-per-measure data convention
                     { preroll: isMetronomeOn },
                 );
                 setIsPlaying(true);
@@ -1232,7 +1238,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
                                                     isCurrent={isBeingPlayed}
                                                     isPlaying={isPlaying && isBeingPlayed}
-                                                    measureDurationSec={(measure.beatsPerMeasure || 4) * 60 / Math.max(currentBPM, 1)}
+                                                    measureDurationSec={(measure.unitsPerMeasure || 4) * 60 / Math.max(currentBPM, 1)}
                                                     onToggleHighlight={onToggleHighlight}
                                                     onPlay={handlePlayMeasure}
                                                     showDetails={showDetails}

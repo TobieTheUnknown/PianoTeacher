@@ -128,6 +128,13 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         return () => cancelAnimationFrame(raf);
     }, [playing, song, speed, measuresLen]);
 
+    // Refs let the loop callback see the latest state without re-creating
+    // handlePlayPause on every state change.
+    const loopRef = useRef(loop);
+    const loopRangeRef = useRef(loopRange);
+    useEffect(() => { loopRef.current = loop; }, [loop]);
+    useEffect(() => { loopRangeRef.current = loopRange; }, [loopRange]);
+
     const handlePlayPause = useCallback(async () => {
         await audioEngine.initialize();
         if (playing) {
@@ -136,26 +143,74 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             return;
         }
         if (!combinedPhrase) return;
+
         const beatsPerMeasure = song?.timeSignature?.numerator || 4;
         const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
-        let filtered = combinedPhrase;
+        let filteredAll = combinedPhrase;
         if (handMode === 'right') {
-            filtered = { ...combinedPhrase, tracks: { melody: combinedPhrase.tracks.melody, chords: [] } };
+            filteredAll = { ...combinedPhrase, tracks: { melody: combinedPhrase.tracks.melody, chords: [] } };
         } else if (handMode === 'left') {
-            filtered = { ...combinedPhrase, tracks: { melody: [], chords: combinedPhrase.tracks.chords } };
+            filteredAll = { ...combinedPhrase, tracks: { melody: [], chords: combinedPhrase.tracks.chords } };
         }
-        const startBeats = (Math.max(1, currentMeasure) - 1) * beatsPerMeasure;
-        audioEngine.playPhrase(
-            filtered,
-            tempo,
-            startBeats,
-            true,
-            () => setPlaying(false),
-            beatsPerMeasure,
-            { preroll: metronome },
-        );
+
+        // Slice the phrase to a loop sub-range when looping is on.
+        const buildPhrase = (startMeasure, endMeasure) => {
+            const startUnit = (startMeasure - 1) * 4;
+            const endUnit = endMeasure * 4;
+            const inRange = (n) => n.startTime >= startUnit && n.startTime < endUnit;
+            return {
+                tracks: {
+                    melody: filteredAll.tracks.melody.filter(inRange),
+                    chords: filteredAll.tracks.chords.filter(inRange),
+                },
+                length: endMeasure - startMeasure + 1,
+            };
+        };
+
+        const playRange = (startMeasure, endMeasure, withPreroll) => {
+            const phrase = buildPhrase(startMeasure, endMeasure);
+            const startBeats = 0; // phrase already starts at 0 after slicing
+            // Translate note times so the slice starts at 0 in the phrase.
+            const startUnit = (startMeasure - 1) * 4;
+            const shifted = {
+                tracks: {
+                    melody: phrase.tracks.melody.map((n) => ({ ...n, startTime: n.startTime - startUnit })),
+                    chords: phrase.tracks.chords.map((n) => ({ ...n, startTime: n.startTime - startUnit })),
+                },
+                length: phrase.length,
+            };
+            audioEngine.playPhrase(
+                shifted,
+                tempo,
+                startBeats,
+                true,
+                () => {
+                    // When the slice ends: restart from loop start if loop is
+                    // still on, otherwise stop.
+                    if (loopRef.current) {
+                        const [a, b] = loopRangeRef.current || [1, totalMeasures];
+                        setCurrentMeasure(a);
+                        playRange(a, b, false);
+                    } else {
+                        setPlaying(false);
+                    }
+                },
+                beatsPerMeasure,
+                { preroll: withPreroll && metronome },
+            );
+        };
+
+        const start = Math.max(1, currentMeasure);
+        if (loop) {
+            const [a, b] = loopRange[1] > 1 ? loopRange : [1, totalMeasures];
+            const safeStart = start >= a && start <= b ? start : a;
+            setCurrentMeasure(safeStart);
+            playRange(safeStart, b, true);
+        } else {
+            playRange(start, totalMeasures, true);
+        }
         setPlaying(true);
-    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure, metronome]);
+    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure, metronome, loop, loopRange, totalMeasures]);
 
     const totalMeasures = measures.length;
     const tsText = song?.timeSignature
@@ -443,10 +498,14 @@ function SystemMeasure({
             keySig,
             isLandscape: false,
             dp: (n) => n,
+            // Playhead drawn inside the note area (skips clefs) so it
+            // aligns exactly with note X positions.
+            playheadFrac: playheadFrac != null ? playheadFrac : null,
         });
     }, [
         dims, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
         useFlats, showClefs, upperShift, lowerShift, keySig, isCurrent,
+        playheadFrac,
     ]);
 
     return (
@@ -474,36 +533,9 @@ function SystemMeasure({
                     borderLeft: '2px solid var(--accent)',
                 }} />
             )}
-            {/* Playhead — vertical line tracking Transport position */}
-            {playheadFrac !== null && playheadFrac !== undefined && (
-                <>
-                    <div style={{
-                        position: 'absolute',
-                        top: 4,
-                        bottom: 4,
-                        left: `${playheadFrac * 100}%`,
-                        width: 2,
-                        background: 'var(--accent)',
-                        opacity: 0.9,
-                        pointerEvents: 'none',
-                        boxShadow: '0 0 6px var(--accent)',
-                        transform: 'translateX(-1px)',
-                        zIndex: 2,
-                    }} />
-                    <div style={{
-                        position: 'absolute',
-                        top: 4,
-                        bottom: 4,
-                        left: `${playheadFrac * 100}%`,
-                        width: 24,
-                        background: 'var(--accent)',
-                        opacity: 0.08,
-                        pointerEvents: 'none',
-                        transform: 'translateX(-12px)',
-                        zIndex: 1,
-                    }} />
-                </>
-            )}
+            {/* Playhead is now drawn directly on the canvas inside
+                renderMeasure() so it lines up with note X positions
+                (after the clef + key signature area). */}
         </div>
     );
 }

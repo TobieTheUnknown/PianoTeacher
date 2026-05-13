@@ -1,9 +1,23 @@
 import { getPianoRollKeys } from '../models/song';
 
-export function getMeasuresFromPhrase(phrase, beatsPerMeasure = 4) {
+/**
+ * Slice a phrase into measures.
+ *
+ * @param phrase
+ * @param displayBeatsPerMeasure  How many beats the measure shows visually
+ *   (= time signature numerator). Carried on each measure so the UI can
+ *   draw the right number of division lines.
+ *
+ * Note: the underlying note `startTime` values are stored in our internal
+ * "4 units per measure" convention (legacy, matches what the MIDI parser
+ * and editor produce). That's what we slice against. The display unit
+ * (numerator) is purely cosmetic.
+ */
+export function getMeasuresFromPhrase(phrase, displayBeatsPerMeasure = 4) {
     const measures = [];
     const EPSILON = 0.001;
     const keys = getPianoRollKeys(1, 5);
+    const UNITS_PER_MEASURE = 4;
 
     const getSeparatorForMeasure = (measureIndex) => {
         const handSeparators = phrase.handSeparators || [];
@@ -34,15 +48,20 @@ export function getMeasuresFromPhrase(phrase, beatsPerMeasure = 4) {
     ];
 
     for (let i = 0; i < phrase.length; i++) {
-        const measureStart = i * beatsPerMeasure;
-        const measureEnd = (i + 1) * beatsPerMeasure;
+        const measureStart = i * UNITS_PER_MEASURE;
+        const measureEnd = (i + 1) * UNITS_PER_MEASURE;
         const measuresNotes = allNotes.filter(n =>
             n.startTime >= measureStart - EPSILON &&
             n.startTime < measureEnd - EPSILON
         );
         const separator = getSeparatorForMeasure(i);
         const { rightHand, leftHand } = splitNotesByHand(measuresNotes, separator?.pitch);
-        measures.push({ melody: rightHand, chords: leftHand, beatsPerMeasure });
+        measures.push({
+            melody: rightHand,
+            chords: leftHand,
+            beatsPerMeasure: displayBeatsPerMeasure, // visual time signature
+            unitsPerMeasure: UNITS_PER_MEASURE,      // data convention
+        });
     }
     return measures;
 }
