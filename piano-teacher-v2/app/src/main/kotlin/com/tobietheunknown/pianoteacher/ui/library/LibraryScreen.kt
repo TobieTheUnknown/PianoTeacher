@@ -146,86 +146,65 @@ private fun SongCard(
     onPlay: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
+    // Web-aligned horizontal layout: Cover · Title/Artist · Pills + BPM mono
+    // Tapping the card opens a bottom sheet via parent; here we keep the
+    // card itself non-expanding to mirror the web's actionSheet UX.
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { expanded = !expanded },
-        shape = RoundedCornerShape(16.dp),
+            .clickable { onLearn() },
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = song.title,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (song.artist.isNotBlank()) {
-                        Text(
-                            text = song.artist,
-                            fontSize = 13.sp,
-                            color = Color(0xFF94A3B8)
-                        )
-                    }
-                }
-                Icon(
-                    if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    null,
-                    tint = Color(0xFF64748B)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            com.tobietheunknown.pianoteacher.ui.common.SongCover(title = song.title, size = 56.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-            }
-
-            // Metadata chips
-            Row(
-                modifier = Modifier.padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                MetaChip("${song.tempo} BPM")
-                MetaChip("${song.phrases.size} phrases")
-                MetaChip("${song.totalMeasures} mes.")
-            }
-
-            // Expanded actions
-            AnimatedVisibility(visible = expanded) {
+                Text(
+                    text = if (song.artist.isNotBlank()) song.artist else "Artiste inconnu",
+                    fontSize = 12.sp,
+                    color = Color(0xFF94A3B8),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Button(
-                        onClick = onLearn,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.LibraryBooks, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Apprendre")
-                    }
-                    Button(
-                        onClick = onPlay,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = CyanMelody.copy(alpha = 0.2f)),
-                    ) {
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp), tint = CyanMelody)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Piano LivePlay", color = CyanMelody)
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, null, tint = RedError.copy(alpha = 0.6f))
-                    }
+                    com.tobietheunknown.pianoteacher.ui.common.Pill(
+                        text = if (song.phrases.size > 0) "${song.phrases.size} phr." else "Brouillon",
+                        color = if (song.phrases.size > 0) CyanMelody else null,
+                    )
+                    Text(
+                        "${song.tempo} BPM",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    )
                 }
+            }
+            IconButton(onClick = onPlay, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "LivePlay",
+                    tint = IndigoAccent,
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
     }
