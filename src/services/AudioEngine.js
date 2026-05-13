@@ -58,11 +58,14 @@ class AudioEngine {
 
         const T = await loadTone();
 
-        // Adjust lookAhead for mobile (reduces crackling without replacing the context,
-        // which would break Tone.Transport used by playNotes/playPhrase)
-        const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+        // lookAhead trades latency for scheduling stability. The previous 0.2s on
+        // mobile (200ms) made live MIDI feel unplayable. 0.05s is the same as
+        // desktop — Tone.js' default — and matches Web Audio's ~50ms intrinsic
+        // latency, so total observed latency for triggerAttack(Tone.now()) stays
+        // under ~100ms on a phone. If we hit buffer underruns on low-end Android
+        // WebViews, bump back up only on those specifically.
         if (T.context) {
-            T.context.lookAhead = isMobile ? 0.2 : 0.05;
+            T.context.lookAhead = 0.05;
         }
 
         // Master volume node — everything routes through this

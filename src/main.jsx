@@ -1,14 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './styles/tokens.css'
 import './index.css'
+import './styles/tokens.css'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
-import themeService from './services/ThemeService.js'
 
 const isMobilePlatform = import.meta.env.VITE_PLATFORM === 'mobile';
 
 // Apply design preset attributes (theme / accent / hands) from localStorage.
-// Defaults: dark, blue, classic.
+// Defaults: dark, blue, classic. tokens.css resolves the actual CSS vars
+// from these attributes — no JS theme service needed.
 try {
   const theme = localStorage.getItem('piano-teacher-design-theme') || 'dark';
   const accent = localStorage.getItem('piano-teacher-design-accent') || 'blue';
@@ -17,13 +17,6 @@ try {
   document.documentElement.setAttribute('data-accent', accent);
   document.documentElement.setAttribute('data-hands', hands);
 } catch (_) { /* localStorage may be unavailable on first paint */ }
-
-// Initialiser le thème (deferred to avoid Android WebView crash)
-try {
-  themeService.init();
-} catch (err) {
-  console.warn('Theme init deferred:', err.message);
-}
 
 // Initialiser les préférences de typographie
 try {
