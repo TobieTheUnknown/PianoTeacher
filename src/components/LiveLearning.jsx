@@ -1060,7 +1060,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const highlightedMeasures = song.highlightedMeasures || [];
 
     return (
-        <div className="live-learning" style={{ maxWidth: '1600px', margin: '0 auto' }}>
+        <div className="live-learning" style={{ maxWidth: '1600px', margin: '0 auto', paddingBottom: 130 + (isMobile ? 64 : 0) }}>
             {/* MobileHeader on mobile; legacy compact bar on desktop */}
             {isMobile ? (
                 <MobileHeader
@@ -1247,15 +1247,14 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 ))}
             </div>
 
-            {/* Universal PlaybackDock — sticky on mobile (above tab bar)
-                and desktop (at viewport bottom). Replaces the legacy
-                LearnControls component everywhere. */}
+            {/* Universal PlaybackDock — fixed to viewport bottom on
+                desktop, and just above the bottom tab bar on mobile. */}
             <div style={{
-                position: 'sticky',
-                bottom: isMobile ? 64 : 0, // mobile sits above bottom tab bar
+                position: 'fixed',
+                bottom: isMobile ? 64 : 0,
                 left: 0,
                 right: 0,
-                zIndex: 5,
+                zIndex: 50,
             }}>
                     <PlaybackDock
                         playing={isPlaying}

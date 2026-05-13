@@ -239,8 +239,10 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         reader.readAsText(file);
     };
 
+    const hasPhrases = !readOnly && song?.phrases?.length > 0;
+    const dockHeight = hasPhrases ? 175 : 0; // ~44 (editor bar) + ~111 (dock) + 20 buffer
     return (
-        <div>
+        <div style={{ paddingBottom: dockHeight + (isMobile ? 64 : 0) }}>
             {/* MobileHeader — design-aligned big title + subtitle */}
             {isMobile && (
                 <MobileHeader
@@ -685,44 +687,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                     </h3>
                                 )}
                             </div>
-                            <div style={{
-                                display: 'flex',
-                                gap: '0.5rem',
-                                flexWrap: 'wrap'
-                            }}>
-                                <button onClick={() => handlePlayPhrase(phrase)} style={isMobile ? { padding: '0.35rem 0.75rem', fontSize: '0.8rem' } : undefined}>
-                                    Lecture
-                                </button>
-                                <button onClick={handleStop} style={isMobile ? { padding: '0.35rem 0.75rem', fontSize: '0.8rem' } : undefined}>
-                                    Stop
-                                </button>
-                                {!isMobile && (
-                                    <>
-                                        <button
-                                            onClick={() => handleStartSplit(phrase.id)}
-                                            disabled={splitMode !== null}
-                                            style={{
-                                                backgroundColor: splitMode?.phraseId === phrase.id ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                                color: splitMode?.phraseId === phrase.id ? 'white' : 'var(--text-primary)',
-                                                opacity: splitMode !== null && splitMode?.phraseId !== phrase.id ? 0.5 : 1,
-                                                cursor: splitMode !== null && splitMode?.phraseId !== phrase.id ? 'not-allowed' : 'pointer'
-                                            }}
-                                        >
-                                            Découper
-                                        </button>
-                                        <button
-                                            onClick={() => handleMergeWithPrevious(phrase.id)}
-                                            disabled={phraseIndex === 0}
-                                            style={{
-                                                opacity: phraseIndex === 0 ? 0.5 : 1,
-                                                cursor: phraseIndex === 0 ? 'not-allowed' : 'pointer'
-                                            }}
-                                        >
-                                            Recoller
-                                        </button>
-                                    </>
-                                )}
-                            </div>
+                            {/* Per-phrase controls moved to sticky EditorBottomBar at the bottom of the page.
+                                Tapping a phrase header sets it as active there. */}
                         </div>
 
                         {/* Split Controls */}
@@ -1077,16 +1043,15 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 </div>
             )}
 
-            {/* Sticky bottom playback bar — same dock as other pages, with an
+            {/* Fixed bottom playback bar — same dock as other pages, with an
                 Editor-specific secondary row for phrase navigation + actions. */}
             {!readOnly && song?.phrases?.length > 0 && (
                 <div style={{
-                    position: 'sticky',
+                    position: 'fixed',
                     bottom: isMobile ? 64 : 0,
                     left: 0,
                     right: 0,
-                    zIndex: 5,
-                    marginTop: '1rem',
+                    zIndex: 50,
                 }}>
                     <EditorBottomBar
                         phrases={song.phrases}
