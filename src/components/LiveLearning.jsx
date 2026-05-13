@@ -1150,11 +1150,23 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                 <div key={groupIdx}>
                                     <div style={{
                                         marginBottom: '0.5rem',
-                                        fontSize: '0.75rem',
-                                        color: 'var(--text-tertiary)',
-                                        fontWeight: 500
+                                        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
                                     }}>
-                                        Mesures {group[0].number} - {group[group.length - 1].number}
+                                        <span style={{
+                                            fontSize: 10,
+                                            color: 'var(--text-tertiary)',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.08em',
+                                            fontWeight: 700,
+                                        }}>Mesures en cours</span>
+                                        <span style={{
+                                            fontFamily: 'var(--font-mono)',
+                                            fontSize: 14, fontWeight: 700,
+                                            letterSpacing: '-0.01em',
+                                            color: 'var(--text-secondary)',
+                                        }}>
+                                            {String(group[0].number).padStart(2, '0')}–{String(group[group.length - 1].number).padStart(2, '0')}
+                                        </span>
                                     </div>
 
                                     <div style={{
@@ -1168,19 +1180,13 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                             <div
                                                 key={measure.number}
                                                 ref={el => { measureRefs.current[measure.number] = el; }}
-                                                style={{
-                                                    height: '100%',
-                                                    ...(isBeingPlayed ? {
-                                                        borderRadius: 'var(--radius-md)',
-                                                        boxShadow: '0 0 16px rgba(245,245,245,0.15)',
-                                                        border: '2px solid var(--accent-primary)',
-                                                    } : {}),
-                                                }}
                                             >
                                                 <MeasureCard
                                                     measure={measure}
                                                     keySignature={song.key}
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
+                                                    isCurrent={isBeingPlayed}
+                                                    isPlaying={isPlaying && isBeingPlayed}
                                                     onToggleHighlight={onToggleHighlight}
                                                     onPlay={handlePlayMeasure}
                                                     showDetails={showDetails}
