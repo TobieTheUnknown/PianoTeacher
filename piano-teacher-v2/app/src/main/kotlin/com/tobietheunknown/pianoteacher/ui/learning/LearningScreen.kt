@@ -206,18 +206,49 @@ fun LearningScreen(
 
     val listState = rememberLazyListState()
 
-    // 8vb/15mb shift for lower staff in Sol×2 mode (constant for entire song)
+    // Smart octave shift — analyse whole song to reduce ledger lines
     val lowerStaffOctaveShift = remember(allMeasures, clefMode, useFlats) {
-        if (clefMode != ClefMode.TREBLE_X2) 0 else {
-            val allChordDiatonics = allMeasures.flatMap { it.chordNotes }
+        val chordDiatonics = allMeasures.flatMap { it.chordNotes }
+            .map { midiToDiatonic(it.pitch, useFlats) }
+        if (chordDiatonics.isEmpty()) 0 else {
+            val median = chordDiatonics.sorted()[chordDiatonics.size / 2]
+            when (clefMode) {
+                ClefMode.TREBLE_X2 -> {
+                    val deficit = TREBLE_CLEF.lines.first() - median
+                    when {
+                        deficit >= 14 -> 14  // 15mb
+                        deficit >= 7 -> 7    // 8vb
+                        else -> 0
+                    }
+                }
+                ClefMode.STANDARD -> {
+                    val staffCenter = (BASS_CLEF.lines.first() + BASS_CLEF.lines.last()) / 2
+                    val surplus = median - staffCenter
+                    when {
+                        surplus >= 14 -> -14  // 15ma — notes sound higher than written
+                        surplus >= 7 -> -7    // 8va
+                        surplus <= -14 -> 14  // 15mb
+                        surplus <= -7 -> 7    // 8vb
+                        else -> 0
+                    }
+                }
+                else -> 0
+            }
+        }
+    }
+    val upperStaffOctaveShift = remember(allMeasures, clefMode, useFlats) {
+        if (clefMode != ClefMode.STANDARD) 0 else {
+            val melodyDiatonics = allMeasures.flatMap { it.melodyNotes }
                 .map { midiToDiatonic(it.pitch, useFlats) }
-            if (allChordDiatonics.isEmpty()) 0 else {
-                val median = allChordDiatonics.sorted()[allChordDiatonics.size / 2]
-                val staffBottom = TREBLE_CLEF.lines.first() // E4 = 37
-                val deficit = staffBottom - median
+            if (melodyDiatonics.isEmpty()) 0 else {
+                val median = melodyDiatonics.sorted()[melodyDiatonics.size / 2]
+                val staffCenter = (TREBLE_CLEF.lines.first() + TREBLE_CLEF.lines.last()) / 2
+                val surplus = median - staffCenter
                 when {
-                    deficit >= 14 -> 14  // 15mb
-                    deficit >= 7 -> 7    // 8vb
+                    surplus >= 14 -> -14
+                    surplus >= 7 -> -7
+                    surplus <= -14 -> 14
+                    surplus <= -7 -> 7
                     else -> 0
                 }
             }
@@ -283,10 +314,27 @@ fun LearningScreen(
                                     song?.title ?: "",
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
+                                    fontSize = 18.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text("Apprentissage", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                // Dot-separated metadata mirroring web partition header
+                                val keySigText = keySignature?.name
+                                val tsText = song?.timeSignature?.let { "${it.numerator}/${it.denominator}" }
+                                val parts = listOfNotNull(
+                                    song?.let { "${it.totalMeasures} mesures" },
+                                    keySigText,
+                                    song?.let { "${it.tempo} BPM" },
+                                    tsText,
+                                )
+                                Text(
+                                    parts.joinToString("  ·  "),
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8),
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         },
                         navigationIcon = {
@@ -448,6 +496,7 @@ fun LearningScreen(
                                 measureNumber = measure.globalIndex + 1,
                                 clefMode = clefMode,
                                 lowerOctaveShift = lowerStaffOctaveShift,
+                                upperOctaveShift = upperStaffOctaveShift,
                                 isLandscape = isLandscape,
                                 keySig = keySignature,
                                 modifier = Modifier.fillMaxWidth().weight(1f)
@@ -660,6 +709,7 @@ private fun GrandStaffCanvas(
     measureNumber: Int,
     clefMode: ClefMode = ClefMode.STANDARD,
     lowerOctaveShift: Int = 0,
+    upperOctaveShift: Int = 0,
     isLandscape: Boolean = false,
     keySig: MusicKeySignature? = null,
     modifier: Modifier = Modifier
@@ -708,11 +758,9 @@ private fun GrandStaffCanvas(
         when (clefMode) {
             ClefMode.STANDARD -> {
                 upperClef = TREBLE_CLEF; lowerClef = BASS_CLEF
-                val all = melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) } +
-                          chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
-                val splitDiatonic = TREBLE_CLEF.lines.first() // E4 = 37
-                upperNotes = all.filter { midiToDiatonic(it.first.pitch, useFlats) >= splitDiatonic }
-                lowerNotes = all.filter { midiToDiatonic(it.first.pitch, useFlats) < splitDiatonic }
+                // Hand-based split: melody → treble, chords → bass (with smart octave shift)
+                upperNotes = melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) }
+                lowerNotes = chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
             }
             ClefMode.TREBLE_X2 -> {
                 upperClef = TREBLE_CLEF; lowerClef = TREBLE_CLEF
@@ -814,16 +862,26 @@ private fun GrandStaffCanvas(
                 }
             }
 
-            // ── 8vb/15mb label for lower staff ────────────────────────
-            val octShift = if (si == 1) lowerOctaveShift else 0
-            if (showClefs && octShift > 0) {
-                val octLabel = if (octShift >= 14) "15mb" else "8vb"
-                val octStyle = TextStyle(fontSize = 9.sp, color = Color.White.copy(alpha = 0.45f), fontWeight = FontWeight.Bold)
-                val octLayout = textMeasurer.measure(octLabel, octStyle)
-                drawText(octLayout, topLeft = Offset(
-                    2.dp.toPx(),
-                    lineTop + 4 * lineSpacing + 3.dp.toPx()
-                ))
+            // ── Octave shift label (8va/8vb/15ma/15mb) ─────────────
+            val octShift = if (si == 1) lowerOctaveShift else upperOctaveShift
+            if (showClefs && octShift != 0) {
+                val octLabel = when {
+                    octShift >= 14 -> "15mb"
+                    octShift >= 7 -> "8vb"
+                    octShift <= -14 -> "15ma"
+                    octShift <= -7 -> "8va"
+                    else -> ""
+                }
+                if (octLabel.isNotEmpty()) {
+                    val octStyle = TextStyle(fontSize = 9.sp, color = Color.White.copy(alpha = 0.45f), fontWeight = FontWeight.Bold)
+                    val octLayout = textMeasurer.measure(octLabel, octStyle)
+                    val labelY = if (octShift > 0) {
+                        lineTop + 4 * lineSpacing + 3.dp.toPx()  // below staff
+                    } else {
+                        lineTop - octLayout.size.height - 2.dp.toPx()  // above staff
+                    }
+                    drawText(octLayout, topLeft = Offset(2.dp.toPx(), labelY))
+                }
             }
 
             // ── Notes ───────────────────────────────────────────────────

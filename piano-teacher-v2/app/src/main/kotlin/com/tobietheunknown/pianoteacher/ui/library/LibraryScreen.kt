@@ -63,8 +63,20 @@ fun LibraryScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Piano Teacher", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("Bibliothèque", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        // Match web: bold "Bibliothèque" title + dot-separated mono subtitle
+                        Text(
+                            "Bibliothèque",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 20.sp
+                        )
+                        val phraseCount = songs.count { it.phrases.isNotEmpty() }
+                        Text(
+                            "${songs.size} morceaux · $phraseCount avec phrases",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8),
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface),

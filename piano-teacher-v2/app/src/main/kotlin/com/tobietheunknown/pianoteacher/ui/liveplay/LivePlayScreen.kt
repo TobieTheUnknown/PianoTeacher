@@ -39,6 +39,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.app.Activity
@@ -187,6 +188,7 @@ fun LivePlayScreen(
     ) {
         if (!isLandscape) LivePlayTopBar(
             title = state.song?.title ?: "",
+            artist = state.song?.artist?.takeIf { it.isNotBlank() },
             phraseIndex = state.currentPhraseIndex,
             phraseCount = state.songPhraseCount,
             isWaiting = state.isWaiting,
@@ -555,6 +557,7 @@ private fun isBlackKey(midi: Int): Boolean =
 @Composable
 private fun LivePlayTopBar(
     title: String,
+    artist: String?,
     phraseIndex: Int,
     phraseCount: Int,
     isWaiting: Boolean,
@@ -575,14 +578,24 @@ private fun LivePlayTopBar(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp, maxLines = 1)
-            if (phraseIndex >= 0 && phraseCount > 0) {
-                Text(
+            when {
+                phraseIndex >= 0 && phraseCount > 0 -> Text(
                     "Phrase ${phraseIndex + 1} / $phraseCount",
                     fontSize = 11.sp,
                     color = if (isWaiting) AmberWarning else CyanMelody
                 )
-            } else if (phraseIndex < 0) {
-                Text("Morceau entier", fontSize = 11.sp, color = Color(0xFF64748B))
+                !artist.isNullOrBlank() -> Text(
+                    artist,
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                else -> Text(
+                    "Morceau entier",
+                    fontSize = 11.sp,
+                    color = Color(0xFF64748B)
+                )
             }
         }
 
