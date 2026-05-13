@@ -316,7 +316,12 @@ class ThemeService {
         if (!THEMES[name]) return;
         this._currentTheme = name;
         localStorage.setItem(STORAGE_KEY, name);
-        this._applyCSS();
+        // Sync the design tokens' data-theme attribute so tokens.css picks the
+        // right palette. Skip _applyCSS — those inline styles fought tokens.css.
+        if (typeof document !== 'undefined') {
+            document.documentElement.setAttribute('data-theme', name === 'light' ? 'light' : 'dark');
+            localStorage.setItem('piano-teacher-design-theme', name === 'light' ? 'light' : 'dark');
+        }
         this._notifyListeners();
     }
 
@@ -331,26 +336,57 @@ class ThemeService {
         return this._currentTheme !== 'light';
     }
 
-    // Compatibility API for components that used HandColorsService
+    // Hand colors now resolve through CSS custom properties so the design
+    // tokens (data-hands preset on <html>) drive them. Canvas components
+    // can still consume the same { primary, light, dark, selected } shape.
     getHandColors(hand) {
-        const theme = THEMES[this._currentTheme];
+        if (typeof window === 'undefined') {
+            // Fallback for SSR/tests
+            const theme = THEMES[this._currentTheme];
+            const prefix = hand === 'left' ? '--hand-left' : '--hand-right';
+            return {
+                primary: theme.css[prefix],
+                light: theme.css[`${prefix}-light`],
+                dark: theme.css[`${prefix}-dark`],
+                selected: theme.css[`${prefix}-selected`],
+            };
+        }
+        // Cache per-hand so canvas rendering doesn't pay getComputedStyle
+        // every frame. Invalidated by the MutationObserver below.
+        if (!this._handCache) this._handCache = {};
+        if (this._handCache[hand]) return this._handCache[hand];
+
+        const cs = getComputedStyle(document.documentElement);
         const prefix = hand === 'left' ? '--hand-left' : '--hand-right';
-        return {
-            primary: theme.css[prefix],
-            light: theme.css[`${prefix}-light`],
-            dark: theme.css[`${prefix}-dark`],
-            selected: theme.css[`${prefix}-selected`],
+        const primary = cs.getPropertyValue(prefix).trim() || (hand === 'left' ? '#ec4899' : '#22d3ee');
+        const result = {
+            primary,
+            light: primary,                              // tinted version: full saturation
+            dark: this._adjustHex(primary, -0.35),       // darker for black-key notes
+            selected: this._adjustHex(primary, 0.30),    // lighter for selected
         };
+        this._handCache[hand] = result;
+        return result;
+    }
+
+    _adjustHex(hex, amount) {
+        if (!hex || !hex.startsWith('#')) return hex || '#888';
+        const h = hex.replace('#', '');
+        const r = parseInt(h.slice(0, 2), 16);
+        const g = parseInt(h.slice(2, 4), 16);
+        const b = parseInt(h.slice(4, 6), 16);
+        const adj = (c) => Math.max(0, Math.min(255, Math.round(c + (amount > 0 ? (255 - c) * amount : c * amount))));
+        const toHex = (c) => adj(c).toString(16).padStart(2, '0');
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
     }
 
     getColors() {
-        const theme = THEMES[this._currentTheme];
         return {
             leftHand: this.getHandColors('left'),
             rightHand: this.getHandColors('right'),
             scaleHighlight: {
-                inScale: theme.css['--scale-in'],
-                outOfScale: theme.css['--scale-out'],
+                inScale: 'rgba(251, 191, 36, 0.15)',
+                outOfScale: 'rgba(30, 30, 40, 0.25)',
             },
         };
     }
@@ -377,9 +413,25 @@ class ThemeService {
 
     addListener(callback) {
         this._listeners.push(callback);
+        this._ensureObserver();
         return () => {
             this._listeners = this._listeners.filter(l => l !== callback);
         };
+    }
+
+    _ensureObserver() {
+        if (this._observer || typeof window === 'undefined') return;
+        this._observer = new MutationObserver(() => {
+            this._handCache = null;
+            const colors = this.getColors();
+            this._listeners.forEach((cb) => {
+                try { cb(colors); } catch (_) {}
+            });
+        });
+        this._observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-theme', 'data-accent', 'data-hands'],
+        });
     }
 
     _notifyListeners() {
