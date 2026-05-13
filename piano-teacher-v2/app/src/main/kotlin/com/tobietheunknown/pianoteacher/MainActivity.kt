@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
 
         // Warm the audio engine on the way in. Loads SoundPool samples (~500ms)
         // and starts decoding Oboe samples in the background so the Library →
-        // Practice/Learning transition has a sampler ready instead of dropping
+        // LivePlay/Learning transition has a sampler ready instead of dropping
         // the first key presses.
         AudioEngine.getInstance(applicationContext)
 

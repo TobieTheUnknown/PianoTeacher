@@ -1,4 +1,4 @@
-package com.tobietheunknown.pianoteacher.ui.practice
+package com.tobietheunknown.pianoteacher.ui.liveplay
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -25,7 +25,7 @@ data class NoteWithHand(
     val isAutoPlay: Boolean = false
 )
 
-data class PracticeUiState(
+data class LivePlayUiState(
     val song: Song? = null,
     val currentPhraseIndex: Int = 0,
     val currentPhrase: Phrase? = null,
@@ -53,7 +53,7 @@ data class PracticeUiState(
     val useFlats: Boolean = false
 )
 
-class PracticeViewModel(
+class LivePlayViewModel(
     private val repo: SongRepository,
     private val songId: String,
     private val initialPhraseIndex: Int,
@@ -62,8 +62,8 @@ class PracticeViewModel(
     private val initialMetronomeVolume: Int = 1
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PracticeUiState())
-    val state: StateFlow<PracticeUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(LivePlayUiState())
+    val state: StateFlow<LivePlayUiState> = _state.asStateFlow()
 
     private val metronome = MetronomeEngine().apply { setVolume(initialMetronomeVolume) }
     private var playbackJob: Job? = null
@@ -431,7 +431,7 @@ class PracticeViewModel(
 
             if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
                 note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
-                // Listen mode: all notes at 80. Practice mode: backing track at 60
+                // Listen mode: all notes at 80. LivePlay mode: backing track at 60
                 val velocity = if (state.isListenMode) 80 else if (noteWithHand.isAutoPlay) 60 else 80
                 audioEngine.noteOn(note.pitch, velocity)
                 triggeredNotes.add(noteKey)
@@ -546,7 +546,7 @@ class PracticeViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val engine = AudioEngine.getInstance(context)
             engine.setRelease(ThemePrefs.getReleaseLevel(context))
-            return PracticeViewModel(
+            return LivePlayViewModel(
                 repo = SongRepository(context),
                 songId = songId,
                 initialPhraseIndex = phraseIndex,

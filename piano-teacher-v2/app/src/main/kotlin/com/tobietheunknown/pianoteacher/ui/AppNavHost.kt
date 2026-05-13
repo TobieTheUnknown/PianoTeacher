@@ -10,19 +10,27 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.tobietheunknown.pianoteacher.ui.editor.EditorScreen
 import com.tobietheunknown.pianoteacher.ui.library.LibraryScreen
-import com.tobietheunknown.pianoteacher.ui.practice.PracticeScreen
+import com.tobietheunknown.pianoteacher.ui.livelearning.LiveLearningScreen
+import com.tobietheunknown.pianoteacher.ui.liveplay.LivePlayScreen
 import com.tobietheunknown.pianoteacher.ui.learning.LearningScreen
 import com.tobietheunknown.pianoteacher.ui.settings.SettingsScreen
 
 sealed class Screen(val route: String) {
     object Library : Screen("library")
-    object Practice : Screen("practice/{songId}/{phraseIndex}") {
+    object LivePlay : Screen("liveplay/{songId}/{phraseIndex}") {
         // phraseIndex = -1 → full song view (all phrases merged)
-        fun route(songId: String, phraseIndex: Int = -1) = "practice/$songId/$phraseIndex"
+        fun route(songId: String, phraseIndex: Int = -1) = "liveplay/$songId/$phraseIndex"
     }
     object Learning : Screen("learning/{songId}") {
         fun route(songId: String) = "learning/$songId"
+    }
+    object Editor : Screen("editor/{songId}") {
+        fun route(songId: String) = "editor/$songId"
+    }
+    object LiveLearning : Screen("livelearning/{songId}") {
+        fun route(songId: String) = "livelearning/$songId"
     }
     object Settings : Screen("settings")
 }
@@ -53,7 +61,7 @@ fun AppNavHost(intent: Intent? = null) {
                     navController.navigate(Screen.Learning.route(songId))
                 },
                 onPlaySong = { songId ->
-                    navController.navigate(Screen.Practice.route(songId))
+                    navController.navigate(Screen.LivePlay.route(songId))
                 },
                 onSettings = {
                     navController.navigate(Screen.Settings.route)
@@ -62,7 +70,7 @@ fun AppNavHost(intent: Intent? = null) {
         }
 
         composable(
-            route = Screen.Practice.route,
+            route = Screen.LivePlay.route,
             arguments = listOf(
                 navArgument("songId") { type = NavType.StringType },
                 navArgument("phraseIndex") { type = NavType.IntType; defaultValue = 0 }
@@ -70,7 +78,7 @@ fun AppNavHost(intent: Intent? = null) {
         ) { backStack ->
             val songId = backStack.arguments?.getString("songId") ?: return@composable
             val phraseIndex = backStack.arguments?.getInt("phraseIndex") ?: 0
-            PracticeScreen(
+            LivePlayScreen(
                 songId = songId,
                 initialPhraseIndex = phraseIndex,
                 onBack = { navController.popBackStack() }
@@ -83,6 +91,28 @@ fun AppNavHost(intent: Intent? = null) {
         ) { backStack ->
             val songId = backStack.arguments?.getString("songId") ?: return@composable
             LearningScreen(
+                songId = songId,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.Editor.route,
+            arguments = listOf(navArgument("songId") { type = NavType.StringType })
+        ) { backStack ->
+            val songId = backStack.arguments?.getString("songId") ?: return@composable
+            EditorScreen(
+                songId = songId,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.LiveLearning.route,
+            arguments = listOf(navArgument("songId") { type = NavType.StringType })
+        ) { backStack ->
+            val songId = backStack.arguments?.getString("songId") ?: return@composable
+            LiveLearningScreen(
                 songId = songId,
                 onBack = { navController.popBackStack() }
             )

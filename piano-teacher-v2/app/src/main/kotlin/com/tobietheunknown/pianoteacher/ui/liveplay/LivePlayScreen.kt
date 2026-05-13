@@ -1,4 +1,4 @@
-package com.tobietheunknown.pianoteacher.ui.practice
+package com.tobietheunknown.pianoteacher.ui.liveplay
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -63,12 +63,12 @@ private const val MIDI_HIGH = 108  // C8
 internal const val VISIBLE_BEATS = 5.0
 
 @Composable
-fun PracticeScreen(
+fun LivePlayScreen(
     songId: String,
     initialPhraseIndex: Int = -1,
     onBack: () -> Unit,
-    vm: PracticeViewModel = viewModel(
-        factory = PracticeViewModel.Factory(LocalContext.current, songId, initialPhraseIndex)
+    vm: LivePlayViewModel = viewModel(
+        factory = LivePlayViewModel.Factory(LocalContext.current, songId, initialPhraseIndex)
     )
 ) {
     val state by vm.state.collectAsState()
@@ -129,7 +129,7 @@ fun PracticeScreen(
 
     @Composable
     fun controlsBlock() {
-        PracticeControls(
+        LivePlayControls(
             isPlaying = state.isPlaying,
             isLooping = state.isLooping,
             isWaitMode = state.isWaitMode,
@@ -185,7 +185,7 @@ fun PracticeScreen(
             .background(Background)
             .safeDrawingPadding()
     ) {
-        if (!isLandscape) PracticeTopBar(
+        if (!isLandscape) LivePlayTopBar(
             title = state.song?.title ?: "",
             phraseIndex = state.currentPhraseIndex,
             phraseCount = state.songPhraseCount,
@@ -203,7 +203,7 @@ fun PracticeScreen(
                         .weight(1f)
                         .clipToBounds()
                 ) {
-                    PracticeCanvas(
+                    LivePlayCanvas(
                         state = state,
                         hitEffects = hitEffects,
                         onVisibleBeatsChange = vm::setVisibleBeats
@@ -272,8 +272,8 @@ fun PracticeScreen(
 }
 
 @Composable
-private fun PracticeCanvas(
-    state: PracticeUiState,
+private fun LivePlayCanvas(
+    state: LivePlayUiState,
     hitEffects: SnapshotStateList<HitEffect> = mutableStateListOf(),
     onVisibleBeatsChange: (Double) -> Unit = {}
 ) {
@@ -553,7 +553,7 @@ private fun isBlackKey(midi: Int): Boolean =
     when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
 
 @Composable
-private fun PracticeTopBar(
+private fun LivePlayTopBar(
     title: String,
     phraseIndex: Int,
     phraseCount: Int,
@@ -626,7 +626,7 @@ private fun SpeedBadge(speed: Float, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PracticeControls(
+private fun LivePlayControls(
     isPlaying: Boolean,
     isLooping: Boolean,
     isWaitMode: Boolean,
@@ -716,10 +716,10 @@ private fun PracticeControls(
 
             // Hand selector + listen mode
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PracticeHandButton("🔊", isListenMode, AmberWarning) { onListenModeToggle() }
-                PracticeHandButton("MG", !isListenMode && selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
-                PracticeHandButton("2", !isListenMode && selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
-                PracticeHandButton("MD", !isListenMode && selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
+                LivePlayHandButton("🔊", isListenMode, AmberWarning) { onListenModeToggle() }
+                LivePlayHandButton("MG", !isListenMode && selectedHand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
+                LivePlayHandButton("2", !isListenMode && selectedHand == PlaybackHand.BOTH, IndigoAccent) { onHandChange(PlaybackHand.BOTH) }
+                LivePlayHandButton("MD", !isListenMode && selectedHand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
             }
 
             // Center: speed
@@ -800,7 +800,7 @@ private fun PracticeControls(
 }
 
 @Composable
-private fun PracticeHandButton(label: String, selected: Boolean, activeColor: Color, onClick: () -> Unit) {
+private fun LivePlayHandButton(label: String, selected: Boolean, activeColor: Color, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))

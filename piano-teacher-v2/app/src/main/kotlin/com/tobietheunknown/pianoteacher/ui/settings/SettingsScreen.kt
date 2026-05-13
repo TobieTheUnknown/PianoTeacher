@@ -264,8 +264,8 @@ fun SettingsScreen(
                 }
             }
 
-            // Piano Practice section
-            SettingsSection(title = "Piano Practice") {
+            // Piano LivePlay section
+            SettingsSection(title = "Piano LivePlay") {
                 ToggleSetting(
                     label = "Touches attendues",
                     subtitle = "Surligne les prochaines touches à jouer",
