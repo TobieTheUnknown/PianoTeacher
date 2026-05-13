@@ -267,7 +267,7 @@ function SheetSystem({
                         isCurrent={globalIdx === currentMeasure}
                         isLast={i === measures.length - 1}
                         flex={i === 0 ? '1.4 1 0' : '1 1 0'}
-                        height={isMobile ? 130 : 150}
+                        height={isMobile ? 130 : 220}
                     />
                 );
             })}

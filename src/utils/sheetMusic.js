@@ -22,7 +22,7 @@ export const STAFF_H_MAX_LANDSCAPE_DP = 70;
 export const COLOR_MELODY = '#22D3EE';      // CyanMelody — right hand (treble)
 export const COLOR_CHORDS = '#EC4899';      // PinkChords — left hand (bass)
 export const COLOR_PLAYING = '#6366F1';     // IndigoAccent — currently playing
-export const COLOR_STAFF_LINE = 'rgba(255, 255, 255, 0.62)';
+export const COLOR_STAFF_LINE = 'rgba(255, 255, 255, 0.32)';
 export const COLOR_STAFF_LINE_KEY = (handColor) => handColor; // key line uses hand color
 export const COLOR_LEDGER = 'rgba(255, 255, 255, 0.5)';
 export const COLOR_CLEF = 'rgba(255, 255, 255, 0.35)';
@@ -80,7 +80,7 @@ export const TREBLE_CLEF = {
     keyLineFromTop: 3,
     lines: [37, 39, 41, 43, 45],
     anchorFrac: 0.62,
-    fontScale: 0.533,
+    fontScale: 0.95,
     extraYOffset: 0,
 };
 
@@ -91,8 +91,8 @@ export const BASS_CLEF = {
     keyLineFromTop: 1,
     lines: [25, 27, 29, 31, 33],
     anchorFrac: 0.20,
-    fontScale: 0.64,
-    extraYOffset: 11,
+    fontScale: 0.95,
+    extraYOffset: -2,
 };
 
 export const ALTO_CLEF = {
@@ -353,7 +353,7 @@ export function renderMeasure(ctx, opts) {
     const clefW = showClefs ? Math.max(staffH * 0.26, dp(22)) + ksW : 0;
     const pureClefW = clefW - ksW;
     const barPad = dp(10);
-    const dotR = lineSpacing * (isLandscape ? 0.38 : 0.32);
+    const dotR = lineSpacing * (isLandscape ? 0.45 : 0.42);
 
     // Resolve clefs + note assignment
     let upperClef, lowerClef, upperNotes, lowerNotes;
