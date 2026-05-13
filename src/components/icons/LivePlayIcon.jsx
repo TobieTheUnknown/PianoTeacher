@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function SynthesiaIcon({ size = 24, ...props }) {
+export function LivePlayIcon({ size = 24, ...props }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <rect x="2" y="3" width="20" height="18" rx="2" />

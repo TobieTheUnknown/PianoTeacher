@@ -1,14 +1,14 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 
 /**
- * High-performance timing hook for Synthesia mode.
+ * High-performance timing hook for LivePlay mode.
  * Decouples RAF timing from React state to eliminate 60fps re-renders.
  *
  * - timeRef.current: updated every frame (NO React re-render)
  * - displayTime: React state updated at ~10Hz for UI labels only
  * - Canvas reads timeRef.current directly for smooth 60fps animation
  */
-export function useSynthesiaTimer({
+export function useLivePlayTimer({
   playbackSpeed = 1,
   isLoopEnabled = false,
   loopConfig = null,

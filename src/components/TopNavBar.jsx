@@ -5,7 +5,8 @@ const NAV_ITEMS = [
   { id: 'library', label: 'Bibliothèque' },
   { id: 'edit', label: 'Éditeur' },
   { id: 'learn', label: 'Apprentissage' },
-  { id: 'synthesia', label: 'Synthesia' },
+  { id: 'sheet', label: 'Partition' },
+  { id: 'liveplay', label: 'LivePlay' },
   { id: 'settings', label: 'Réglages' },
 ];
 

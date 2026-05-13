@@ -6,7 +6,7 @@ import { midiInputService } from '../services/MidiInputService';
 import { TimelineNavigator } from './TimelineNavigator';
 
 /**
- * SynthesiaView - Falling notes visualization with scoring and wait mode
+ * LivePlayView - Falling notes visualization with scoring and wait mode
  * Features:
  * - Canvas rendering for performance
  * - Notes fall from top to piano keyboard at bottom
@@ -37,7 +37,7 @@ const COLORS = {
     missed: '#f59e0b' // amber-500
 };
 
-export function SynthesiaView({ song }) {
+export function LivePlayView({ song }) {
     const canvasRef = useRef(null);
     const animationFrameRef = useRef(null);
     const startTimeRef = useRef(null);
@@ -113,8 +113,8 @@ export function SynthesiaView({ song }) {
     const LAST_KEY = 108; // MIDI note C8
     const WHITE_KEY_WIDTH = CANVAS_WIDTH / 52; // 52 white keys
 
-    // Timing tolerance for note detection (in seconds) - Inspired by Synthesia
-    const PERFECT_TOLERANCE = 0.052; // ±52ms for "Perfect" (Synthesia standard + 2ms buffer)
+    // Timing tolerance for note detection (in seconds) - Inspired by LivePlay
+    const PERFECT_TOLERANCE = 0.052; // ±52ms for "Perfect" (LivePlay standard + 2ms buffer)
     const GOOD_TOLERANCE = 0.152; // ±152ms for "Good"
     const NOTE_TOLERANCE = 0.302; // ±302ms max window for "OK"
     const WAIT_MODE_THRESHOLD = 0.05; // Wait mode triggers when note is within 50ms of hit line
@@ -1273,7 +1273,7 @@ export function SynthesiaView({ song }) {
             // If played correctly or by computer, don't draw the "falling" part if it's past the hit line
             // Or maybe draw it as "exploded" / different opacity?
             // User requested: "Allumage des notes jouées" - maybe they mean the 'hit' effect.
-            // But usually in Synthesia, helpful notes disappear after being hit or turn into 'sparks'.
+            // But usually in LivePlay, helpful notes disappear after being hit or turn into 'sparks'.
             // Let's fade them out aggressively if correct.
 
             if ((playStatus === 'correct' || playStatus === 'auto') && currentTime > noteStartTime + 0.1) {
@@ -1769,7 +1769,7 @@ export function SynthesiaView({ song }) {
                 textAlign: 'center',
                 color: 'var(--text-secondary)'
             }}>
-                <h2 style={{ marginBottom: '1rem' }}>Mode Synthesia</h2>
+                <h2 style={{ marginBottom: '1rem' }}>Mode LivePlay</h2>
                 <p>Veuillez d'abord créer ou charger un morceau dans l'éditeur.</p>
             </div>
         );
@@ -1795,7 +1795,7 @@ export function SynthesiaView({ song }) {
                     fontWeight: '600',
                     color: 'var(--text-primary)'
                 }}>
-                    Mode Synthesia - {song.title}
+                    Mode LivePlay - {song.title}
                 </h2>
 
                 <button

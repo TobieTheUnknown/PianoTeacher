@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import styles from './SynthesiaMobileOverlay.module.css';
+import styles from './LivePlayMobileOverlay.module.css';
 
 const HAND_LABELS = { both: 'LR', left: 'MG', right: 'MD', watch: 'Auto' };
 const HAND_CYCLE = ['both', 'right', 'left', 'watch'];
@@ -10,7 +10,7 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function SynthesiaMobileOverlay({
+export function LivePlayMobileOverlay({
   isPlaying,
   onPlayPause,
   onBack,

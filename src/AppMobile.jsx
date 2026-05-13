@@ -2,7 +2,9 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
-import { SynthesiaViewOptimized as SynthesiaView } from './components/SynthesiaViewOptimized';
+import { LivePlayViewOptimized as LivePlayView } from './components/LivePlayViewOptimized';
+import { EditorPlaceholder } from './components/EditorPlaceholder';
+import { SheetMusicLearning } from './components/SheetMusicLearning';
 import { Settings } from './components/Settings';
 import { BottomTabBar } from './components/BottomTabBar';
 import { AudioLoadingIndicator } from './components/AudioLoadingIndicator';
@@ -19,7 +21,7 @@ function AppMobile() {
 
   const [mode, setMode] = useState('library');
   const [showSettings, setShowSettings] = useState(false);
-  const [isSynthesiaFullscreen, setIsSynthesiaFullscreen] = useState(false);
+  const [isLivePlayFullscreen, setIsLivePlayFullscreen] = useState(false);
 
   useMidiAudio();
 
@@ -45,13 +47,13 @@ function AppMobile() {
     navigateTo('learn');
   };
 
-  const handleLoadSongToSynthesia = (id) => {
+  const handleLoadSongToLivePlay = (id) => {
     loadSong(id);
-    navigateTo('synthesia');
+    navigateTo('liveplay');
   };
 
-  const handleSynthesiaFullscreenChange = useCallback((isFullscreen) => {
-    setIsSynthesiaFullscreen(isFullscreen);
+  const handleLivePlayFullscreenChange = useCallback((isFullscreen) => {
+    setIsLivePlayFullscreen(isFullscreen);
   }, []);
 
   return (
@@ -60,7 +62,7 @@ function AppMobile() {
         {mode === 'library' && (
           <SongLibrary
             onLoadSong={handleLoadSongToLearn}
-            onLoadSongToSynthesia={handleLoadSongToSynthesia}
+            onLoadSongToLivePlay={handleLoadSongToLivePlay}
             onNewSong={null}
             isMobile={true}
           />
@@ -72,10 +74,16 @@ function AppMobile() {
             isMobile={true}
           />
         )}
-        {mode === 'synthesia' && (
-          <SynthesiaView
+        {mode === 'editor' && (
+          <EditorPlaceholder song={song} isMobile={true} />
+        )}
+        {mode === 'sheet' && (
+          <SheetMusicLearning song={song} isMobile={true} />
+        )}
+        {mode === 'liveplay' && (
+          <LivePlayView
             song={song}
-            onFullscreenChange={handleSynthesiaFullscreenChange}
+            onFullscreenChange={handleLivePlayFullscreenChange}
             onBack={() => navigateTo('library')}
           />
         )}
@@ -84,7 +92,7 @@ function AppMobile() {
       <BottomTabBar
         activeMode={mode}
         onChangeMode={navigateTo}
-        visible={!isSynthesiaFullscreen}
+        visible={!isLivePlayFullscreen}
         onOpenSettings={() => setShowSettings(true)}
       />
 

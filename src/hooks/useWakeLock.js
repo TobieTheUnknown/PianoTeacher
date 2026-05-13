@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * Hook to keep the screen awake during Synthesia playback.
+ * Hook to keep the screen awake during LivePlay playback.
  * Uses the Screen Wake Lock API (works in Android WebView and Chrome).
  * Automatically releases on pause/unmount.
  *

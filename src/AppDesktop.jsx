@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { SongEditor } from './components/SongEditor';
+import { EditorPlaceholder } from './components/EditorPlaceholder';
 import { LiveLearning } from './components/LiveLearning';
+import { SheetMusicLearning } from './components/SheetMusicLearning';
 import { SongLibrary } from './components/SongLibrary';
-import { SynthesiaViewOptimized as SynthesiaView } from './components/SynthesiaViewOptimized';
+import { LivePlayViewOptimized as LivePlayView } from './components/LivePlayViewOptimized';
 import { Settings } from './components/Settings';
 import { TopNavBar } from './components/TopNavBar';
 import { BottomTabBar } from './components/BottomTabBar';
@@ -34,7 +36,7 @@ function App() {
 
   const [mode, setMode] = useState('library');
   const [showSettings, setShowSettings] = useState(false);
-  const [isSynthesiaFullscreen, setIsSynthesiaFullscreen] = useState(false);
+  const [isLivePlayFullscreen, setIsLivePlayFullscreen] = useState(false);
 
   const { isMobile } = useDeviceContext();
 
@@ -59,9 +61,9 @@ function App() {
     setMode(isMobile ? 'learn' : 'edit');
   };
 
-  const handleLoadSongToSynthesia = (id) => {
+  const handleLoadSongToLivePlay = (id) => {
     loadSong(id);
-    setMode('synthesia');
+    setMode('liveplay');
   };
 
   const handleNewSong = () => {
@@ -69,8 +71,8 @@ function App() {
     setMode('edit');
   };
 
-  const handleSynthesiaFullscreenChange = useCallback((isFullscreen) => {
-    setIsSynthesiaFullscreen(isFullscreen);
+  const handleLivePlayFullscreenChange = useCallback((isFullscreen) => {
+    setIsLivePlayFullscreen(isFullscreen);
   }, []);
 
   return (
@@ -87,7 +89,7 @@ function App() {
         {mode === 'library' && (
           <SongLibrary
             onLoadSong={handleLoadSong}
-            onLoadSongToSynthesia={handleLoadSongToSynthesia}
+            onLoadSongToLivePlay={handleLoadSongToLivePlay}
             onNewSong={handleNewSong}
             isMobile={isMobile}
           />
@@ -113,10 +115,16 @@ function App() {
         {mode === 'learn' && (
           <LiveLearning song={song} onToggleHighlight={toggleHighlightedMeasure} />
         )}
-        {mode === 'synthesia' && (
-          <SynthesiaView
+        {mode === 'editor' && (
+          <EditorPlaceholder song={song} isMobile={isMobile} />
+        )}
+        {mode === 'sheet' && (
+          <SheetMusicLearning song={song} isMobile={isMobile} />
+        )}
+        {mode === 'liveplay' && (
+          <LivePlayView
             song={song}
-            onFullscreenChange={handleSynthesiaFullscreenChange}
+            onFullscreenChange={handleLivePlayFullscreenChange}
             onBack={() => setMode('library')}
           />
         )}
@@ -126,7 +134,7 @@ function App() {
       <BottomTabBar
         activeMode={mode}
         onChangeMode={setMode}
-        visible={!isSynthesiaFullscreen}
+        visible={!isLivePlayFullscreen}
         onOpenSettings={() => setShowSettings(true)}
       />
 

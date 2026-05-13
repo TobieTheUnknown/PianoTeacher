@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, useRef, memo, useState, useMemo } from '
 import { useCanvasLayers } from '../hooks/useCanvasLayers';
 import { getFrenchNoteName } from '../models/song';
 import themeService from '../services/ThemeService';
-import styles from './SynthesiaView.module.css';
+import styles from './LivePlayView.module.css';
 
 // Static color constants (non-hand colors)
 const STATIC_COLORS = {
@@ -27,11 +27,11 @@ const FIRST_KEY = 21;
 const LAST_KEY = 108;
 
 /**
- * Composant Canvas optimisé pour SynthesiaView
+ * Composant Canvas optimisé pour LivePlayView
  * Utilise des layers séparés pour minimiser les redraws
  * Supports dynamic dimensions via canvasWidth/canvasHeight props
  */
-const SynthesiaCanvas = memo(({
+const LivePlayCanvas = memo(({
   currentTime,
   activeNotes,
   playedNotes,
@@ -855,6 +855,6 @@ const SynthesiaCanvas = memo(({
   );
 });
 
-SynthesiaCanvas.displayName = 'SynthesiaCanvas';
+LivePlayCanvas.displayName = 'LivePlayCanvas';
 
-export default SynthesiaCanvas;
+export default LivePlayCanvas;

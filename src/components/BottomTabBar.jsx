@@ -1,14 +1,18 @@
 import React from 'react';
 import { LibraryIcon } from './icons/LibraryIcon';
+import { EditorIcon } from './icons/EditorIcon';
 import { LearnIcon } from './icons/LearnIcon';
-import { SynthesiaIcon } from './icons/SynthesiaIcon';
+import { PartitionIcon } from './icons/PartitionIcon';
+import { LivePlayIcon } from './icons/LivePlayIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import styles from './BottomTabBar.module.css';
 
 const TABS = [
   { id: 'library', label: 'Bibliothèque', Icon: LibraryIcon },
+  { id: 'editor', label: 'Éditeur', Icon: EditorIcon },
   { id: 'learn', label: 'Apprentissage', Icon: LearnIcon },
-  { id: 'synthesia', label: 'Synthesia', Icon: SynthesiaIcon },
+  { id: 'sheet', label: 'Partition', Icon: PartitionIcon },
+  { id: 'liveplay', label: 'LivePlay', Icon: LivePlayIcon },
   { id: 'settings', label: 'Réglages', Icon: SettingsIcon },
 ];
 

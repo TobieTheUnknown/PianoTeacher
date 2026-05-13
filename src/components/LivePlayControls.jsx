@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 
-const SynthesiaControls = memo(({
+const LivePlayControls = memo(({
   isPlaying, onPlayPause, onReset, currentTime,
   handMode, setHandMode, waitMode, setWaitMode,
   freePlayMode, setFreePlayMode,
@@ -111,6 +111,6 @@ const SynthesiaControls = memo(({
   );
 });
 
-SynthesiaControls.displayName = 'SynthesiaControls';
+LivePlayControls.displayName = 'LivePlayControls';
 
-export default SynthesiaControls;
+export default LivePlayControls;

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 /**
- * Hook for zoom/pan controls on the Synthesia canvas.
+ * Hook for zoom/pan controls on the LivePlay canvas.
  *
  * - keyRange: [firstKey, lastKey] — which piano keys are visible
  * - lookAhead: seconds of notes visible ahead (2–10)

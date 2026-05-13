@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 /**
- * Keyboard shortcuts for Synthesia mode (desktop only).
+ * Keyboard shortcuts for LivePlay mode (desktop only).
  *
  * Space = Play/Pause, R = Reset, L = Loop, M = Metronome,
  * W = Wait mode, 1/2/3 = Hand mode, Arrow keys = Seek, Escape = Back

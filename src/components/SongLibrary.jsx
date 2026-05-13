@@ -3,7 +3,7 @@ import { StorageService } from '../services/StorageService';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchKeyName } from '../models/song';
 
-export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMobile = false }) {
+export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMobile = false }) {
     const [songs, setSongs] = useState([]);
     const [showLibraryModal, setShowLibraryModal] = useState(false);
     const [mergeOnImport, setMergeOnImport] = useState(false);
@@ -433,7 +433,7 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToSynthesia, isMo
                             {actionSheetSong.title}
                         </h3>
                         {[
-                            { label: 'Jouer (Synthesia)', action: () => { if (onLoadSongToSynthesia) onLoadSongToSynthesia(actionSheetSong.id); else onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
+                            { label: 'Jouer (LivePlay)', action: () => { if (onLoadSongToLivePlay) onLoadSongToLivePlay(actionSheetSong.id); else onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
                             { label: 'Apprendre', action: () => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); } },
                             { label: 'Supprimer', action: () => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }, danger: true },
                         ].map((item, idx) => (

@@ -1,11 +1,11 @@
 import React, { memo } from 'react';
-import styles from './SynthesiaView.module.css';
+import styles from './LivePlayView.module.css';
 
 /**
  * Composant pour afficher les statistiques de session et historiques
  * Mémorisé pour éviter les re-renders inutiles
  */
-const SynthesiaStats = memo(({
+const LivePlayStats = memo(({
   sessionStats,
   songStats,
   showScores,
@@ -107,7 +107,7 @@ const SynthesiaStats = memo(({
   );
 });
 
-SynthesiaStats.displayName = 'SynthesiaStats';
+LivePlayStats.displayName = 'LivePlayStats';
 
 /**
  * Helper component for individual stat cards
@@ -139,4 +139,4 @@ function StatCard({ label, value, color }) {
   );
 }
 
-export default SynthesiaStats;
+export default LivePlayStats;

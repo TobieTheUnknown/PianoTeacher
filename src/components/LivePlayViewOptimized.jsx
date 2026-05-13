@@ -1,21 +1,21 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import SynthesiaCanvas from './SynthesiaCanvas';
-import SynthesiaControls from './SynthesiaControls';
-import SynthesiaStats from './SynthesiaStats';
+import LivePlayCanvas from './LivePlayCanvas';
+import LivePlayControls from './LivePlayControls';
+import LivePlayStats from './LivePlayStats';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { midiInputService } from '../services/MidiInputService';
 import { TimelineNavigator } from './TimelineNavigator';
-import { SynthesiaMobileOverlay } from './SynthesiaMobileOverlay';
+import { LivePlayMobileOverlay } from './LivePlayMobileOverlay';
 import { RotatePrompt } from './RotatePrompt';
 import { useDeviceContext } from '../hooks/useDeviceContext';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useFullscreen } from '../hooks/useFullscreen';
-import styles from './SynthesiaView.module.css';
+import styles from './LivePlayView.module.css';
 
 /**
- * Version optimisée de SynthesiaView
+ * Version optimisée de LivePlayView
  * Utilise les nouveaux composants pour de meilleures performances
  *
  * Améliorations:
@@ -26,13 +26,13 @@ import styles from './SynthesiaView.module.css';
  * - Réduction mémoire de 50%
  */
 
-// Timing tolerances (Synthesia standard)
+// Timing tolerances (LivePlay standard)
 const PERFECT_TOLERANCE = 0.052; // ±52ms
 const GOOD_TOLERANCE = 0.152; // ±152ms
 const NOTE_TOLERANCE = 0.302; // ±302ms
 const WAIT_MODE_THRESHOLD = 0.05;
 
-export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
+export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
   const animationFrameRef = useRef(null);
   const startTimeRef = useRef(null);
   const pausedAtTimeRef = useRef(null);
@@ -115,7 +115,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
   // Keep screen awake during playback
   useWakeLock(isPlaying);
 
-  // Enter fullscreen on mobile Synthesia
+  // Enter fullscreen on mobile LivePlay
   useFullscreen(isMobile);
 
   // Calculate beats per measure based on time signature
@@ -793,7 +793,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
         textAlign: 'center',
         color: 'var(--text-secondary)'
       }}>
-        <h2 style={{ marginBottom: '1rem' }}>Mode Synthesia</h2>
+        <h2 style={{ marginBottom: '1rem' }}>Mode LivePlay</h2>
         <p>Veuillez d'abord créer ou charger un morceau dans l'éditeur.</p>
       </div>
     );
@@ -823,7 +823,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
       <div className={styles.containerFullscreen} ref={canvasContainerRef}>
         <RotatePrompt />
 
-        <SynthesiaCanvas
+        <LivePlayCanvas
           currentTime={currentTime}
           activeNotes={activeNotes}
           playedNotes={playedNotes}
@@ -841,7 +841,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
           visualEffects={visualEffects}
         />
 
-        <SynthesiaMobileOverlay
+        <LivePlayMobileOverlay
           isPlaying={isPlaying}
           onPlayPause={handlePlayPause}
           onBack={onBack || (() => window.history.back())}
@@ -929,7 +929,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
 
       {/* Canvas — fills remaining space */}
       <div ref={canvasSizeRef} style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch', justifyContent: 'center', overflow: 'hidden' }}>
-        <SynthesiaCanvas
+        <LivePlayCanvas
           currentTime={currentTime}
           activeNotes={activeNotes}
           playedNotes={playedNotes}
@@ -954,7 +954,7 @@ export function SynthesiaViewOptimized({ song, onFullscreenChange, onBack }) {
         borderTop: '1px solid var(--border-color)',
         boxShadow: '0 -2px 8px rgba(0,0,0,0.3)',
       }}>
-        <SynthesiaControls
+        <LivePlayControls
           isPlaying={isPlaying}
           onPlayPause={handlePlayPause}
           onReset={handleReset}

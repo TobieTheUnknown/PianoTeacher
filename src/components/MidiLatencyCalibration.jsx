@@ -5,7 +5,7 @@ import { audioEngine } from '../services/AudioEngine';
 /**
  * Visual Scrolling Track Component
  *
- * Guitar Hero / Synthesia style horizontal scrolling track
+ * Guitar Hero / LivePlay style horizontal scrolling track
  * Shows markers moving towards a hit line for visual calibration
  */
 function VisualScrollingTrack({ currentBeat, totalBeats, beatInterval }) {
