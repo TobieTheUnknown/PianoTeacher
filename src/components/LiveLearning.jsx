@@ -667,6 +667,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const [loopConfig, setLoopConfig] = useState(null);
     const [playingMeasure, setPlayingMeasure] = useState(-1);
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
+    const [loopEditorOpen, setLoopEditorOpen] = useState(false);
     const measureRefs = useRef({});
     const playbackIntervalRef = useRef(null);
     const playingMeasureRef = useRef(-1);
@@ -1232,6 +1233,8 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         onLoop={() => setIsLooping(!isLooping)}
                         loopRange={loopConfig ? [loopConfig.startMeasure, loopConfig.endMeasure] : [1, analysis.totalMeasures]}
                         onLoopRange={([from, to]) => setLoopConfig({ startMeasure: from, endMeasure: to })}
+                        loopEditorOpen={loopEditorOpen}
+                        onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
                         totalMeasures={analysis.totalMeasures}
                         onPrev={() => {
                             if (phraseMeasureRanges?.length) {

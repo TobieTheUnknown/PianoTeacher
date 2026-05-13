@@ -43,6 +43,7 @@ export function LivePlayMobileOverlay({
   setWaitMode,
 }) {
   const [visible, setVisible] = useState(true);
+  const [loopEditorOpen, setLoopEditorOpen] = useState(false);
   const hideTimerRef = useRef(null);
 
   const resetHideTimer = useCallback(() => {
@@ -133,6 +134,8 @@ export function LivePlayMobileOverlay({
           onMetronome={() => setIsMetronomeOn?.(!isMetronomeOn)}
           loop={!!isLoopEnabled}
           onLoop={onLoopToggle}
+          loopEditorOpen={loopEditorOpen}
+          onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
           totalMeasures={phraseMeasureRanges?.length || 1}
           onPrev={() => {
             if (phraseMeasureRanges?.length && selectedPhraseIndex != null) {

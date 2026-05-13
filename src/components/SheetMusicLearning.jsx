@@ -52,6 +52,8 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [currentMeasure, setCurrentMeasure] = useState(1);
     const [metronome, setMetronome] = useState(false);
     const [loop, setLoop] = useState(false);
+    const [loopRange, setLoopRange] = useState([1, 1]);
+    const [loopEditorOpen, setLoopEditorOpen] = useState(false);
 
     const totalMeasures = measures.length;
     const tsText = song?.timeSignature
@@ -245,6 +247,10 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 onMetronome={() => setMetronome((m) => !m)}
                 loop={loop}
                 onLoop={() => setLoop((l) => !l)}
+                loopRange={loopRange[1] > 1 ? loopRange : [1, totalMeasures]}
+                onLoopRange={setLoopRange}
+                loopEditorOpen={loopEditorOpen}
+                onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
                 totalMeasures={totalMeasures}
                 onPrev={() => setCurrentMeasure((m) => Math.max(1, m - 1))}
                 onNext={() => setCurrentMeasure((m) => Math.min(totalMeasures, m + 1))}
