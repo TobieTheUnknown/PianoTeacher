@@ -1254,7 +1254,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 bottom: isMobile ? 64 : 0,
                 left: 0,
                 right: 0,
-                zIndex: 50,
+                zIndex: 1000,
             }}>
                     <PlaybackDock
                         playing={isPlaying}

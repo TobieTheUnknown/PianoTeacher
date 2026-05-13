@@ -1051,7 +1051,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     bottom: isMobile ? 64 : 0,
                     left: 0,
                     right: 0,
-                    zIndex: 50,
+                    zIndex: 1000,
                 }}>
                     <EditorBottomBar
                         phrases={song.phrases}

@@ -86,12 +86,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     }, [measures]);
 
     return (
-        <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: 'calc(100vh - 64px)',
-            overflow: 'hidden',
-        }}>
+        <div style={{ paddingBottom: 130 + (isMobile ? 64 : 0) }}>
             <MobileHeader
                 title={song.title || 'Sans titre'}
                 subtitle={`Mesure ${currentMeasure}/${totalMeasures}${tsText ? ` · ${tsText}` : ''}`}
@@ -99,9 +94,6 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 
             {/* Scrollable content */}
             <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
                 padding: '4px 16px 12px',
             }}>
                 {/* Key + tempo bar */}
@@ -212,7 +204,14 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 </div>
             </div>
 
-            {/* Shared PlaybackDock */}
+            {/* Shared PlaybackDock — fixed to viewport bottom */}
+            <div style={{
+                position: 'fixed',
+                bottom: isMobile ? 64 : 0,
+                left: 0,
+                right: 0,
+                zIndex: 1000,
+            }}>
             <PlaybackDock
                 playing={playing}
                 onPlayPause={() => setPlaying((p) => !p)}
@@ -232,6 +231,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 onPrev={() => setCurrentMeasure((m) => Math.max(1, m - 1))}
                 onNext={() => setCurrentMeasure((m) => Math.min(totalMeasures, m + 1))}
             />
+            </div>
         </div>
     );
 }

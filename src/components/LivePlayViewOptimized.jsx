@@ -8,6 +8,7 @@ import { audioEngine } from '../services/AudioEngine';
 import { midiInputService } from '../services/MidiInputService';
 import { TimelineNavigator } from './TimelineNavigator';
 import { LivePlayMobileOverlay } from './LivePlayMobileOverlay';
+import { PlaybackDock } from './PlaybackDock';
 import { RotatePrompt } from './RotatePrompt';
 import { useDeviceContext } from '../hooks/useDeviceContext';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -882,7 +883,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100vh',
+      height: 'calc(100vh - 130px)',
       overflow: 'hidden',
       background: 'var(--bg-primary)',
       padding: 0,
@@ -956,33 +957,28 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
         />
       </div>
 
-      {/* Controls — bottom */}
+      {/* Shared PlaybackDock — same look as Apprentissage / Partition / Editor */}
       <div style={{
-        flexShrink: 0,
-        background: 'var(--bg-card)',
-        borderTop: '1px solid var(--border-color)',
-        boxShadow: '0 -2px 8px rgba(0,0,0,0.3)',
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
       }}>
-        <LivePlayControls
-          isPlaying={isPlaying}
+        <PlaybackDock
+          playing={isPlaying}
           onPlayPause={handlePlayPause}
-          onReset={handleReset}
-          currentTime={currentTime}
-          handMode={handMode}
-          setHandMode={setHandMode}
-          waitMode={waitMode}
-          setWaitMode={setWaitMode}
-          freePlayMode={freePlayMode}
-          setFreePlayMode={setFreePlayMode}
-          visualEffects={visualEffects}
-          setVisualEffects={setVisualEffects}
-          isMetronomeOn={isMetronomeOn}
-          setIsMetronomeOn={setIsMetronomeOn}
-          metronomeDivision={metronomeDivision}
-          setMetronomeDivision={setMetronomeDivision}
-          currentBPM={currentBPM}
-          defaultBPM={defaultBPM}
-          onTempoChange={handleBPMChange}
+          speed={Math.round((currentBPM / Math.max(defaultBPM, 1)) * 100)}
+          onSpeed={(pct) => handleBPMChange(Math.round((pct / 100) * defaultBPM))}
+          handMode={handMode === 'watch' ? 'listen' : handMode}
+          onHandMode={(m) => setHandMode(m === 'listen' ? 'watch' : m)}
+          metronome={isMetronomeOn}
+          onMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
+          loop={isLoopEnabled}
+          onLoop={handleLoopToggle}
+          totalMeasures={song?.phrases?.length || 1}
+          onPrev={() => jumpToTime(Math.max(0, currentTime - 4))}
+          onNext={() => jumpToTime(currentTime + 4)}
         />
       </div>
     </div>
