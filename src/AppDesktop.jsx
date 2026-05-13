@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
-import { SongEditor } from './components/SongEditor';
-import { LiveLearning } from './components/LiveLearning';
-import { SheetMusicLearning } from './components/SheetMusicLearning';
 import { SongLibrary } from './components/SongLibrary';
-import { LivePlayViewOptimized as LivePlayView } from './components/LivePlayViewOptimized';
 import { Settings } from './components/Settings';
 import { TopNavBar } from './components/TopNavBar';
 import { BottomTabBar } from './components/BottomTabBar';
 import { AudioLoadingIndicator } from './components/AudioLoadingIndicator';
+import { PageLoadingFallback } from './components/LoadingFallback';
 import { useDeviceContext } from './hooks/useDeviceContext';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
+
+// Lazy load heavy pages. Only Library ships in the initial bundle.
+const SongEditor = lazy(() => import('./components/SongEditor').then(m => ({ default: m.SongEditor })));
+const LiveLearning = lazy(() => import('./components/LiveLearning').then(m => ({ default: m.LiveLearning })));
+const SheetMusicLearning = lazy(() => import('./components/SheetMusicLearning').then(m => ({ default: m.SheetMusicLearning })));
+const LivePlayView = lazy(() => import('./components/LivePlayViewOptimized').then(m => ({ default: m.LivePlayViewOptimized })));
 
 function App() {
   const {
@@ -93,6 +96,7 @@ function App() {
             isMobile={isMobile}
           />
         )}
+        <Suspense fallback={<PageLoadingFallback />}>
         {mode === 'edit' && (
           <SongEditor
             song={song}
@@ -142,6 +146,7 @@ function App() {
             onBack={() => setMode('library')}
           />
         )}
+        </Suspense>
       </main>
 
       {/* Mobile Bottom Tab Bar */}

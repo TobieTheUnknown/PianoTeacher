@@ -1,15 +1,19 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
-import { LiveLearning } from './components/LiveLearning';
 import { SongLibrary } from './components/SongLibrary';
-import { LivePlayViewOptimized as LivePlayView } from './components/LivePlayViewOptimized';
-import { SongEditor } from './components/SongEditor';
-import { SheetMusicLearning } from './components/SheetMusicLearning';
 import { Settings } from './components/Settings';
 import { BottomTabBar } from './components/BottomTabBar';
 import { AudioLoadingIndicator } from './components/AudioLoadingIndicator';
+import { PageLoadingFallback } from './components/LoadingFallback';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
+
+// Lazy load heavy pages — only ship the Library page eagerly. Each lazy
+// import becomes its own JS chunk so the initial load is much smaller.
+const LiveLearning = lazy(() => import('./components/LiveLearning').then(m => ({ default: m.LiveLearning })));
+const LivePlayView = lazy(() => import('./components/LivePlayViewOptimized').then(m => ({ default: m.LivePlayViewOptimized })));
+const SongEditor = lazy(() => import('./components/SongEditor').then(m => ({ default: m.SongEditor })));
+const SheetMusicLearning = lazy(() => import('./components/SheetMusicLearning').then(m => ({ default: m.SheetMusicLearning })));
 
 function AppMobile() {
   const {
@@ -77,41 +81,43 @@ function AppMobile() {
             isMobile={true}
           />
         )}
-        {mode === 'learn' && (
-          <LiveLearning
-            song={song}
-            onToggleHighlight={toggleHighlightedMeasure}
-            isMobile={true}
-          />
-        )}
-        {mode === 'editor' && (
-          <SongEditor
-            song={song}
-            onUpdateMetadata={updateSongMetadata}
-            onImportSong={importSong}
-            onSaveSong={saveSong}
-            onAddPhrase={addPhrase}
-            onSplitPhrase={splitPhrase}
-            onMergePhraseWithPrevious={mergePhraseWithPrevious}
-            onRenamePhrasesInOrder={renamePhrasesInOrder}
-            addNoteToPhrase={addNoteToPhrase}
-            removeNoteFromPhrase={removeNoteFromPhrase}
-            onUpdateNote={updateNoteInPhrase}
-            onReorderPhrases={reorderPhrases}
-            isMobile={true}
-            readOnly={false}
-          />
-        )}
-        {mode === 'sheet' && (
-          <SheetMusicLearning song={song} isMobile={true} />
-        )}
-        {mode === 'liveplay' && (
-          <LivePlayView
-            song={song}
-            onFullscreenChange={handleLivePlayFullscreenChange}
-            onBack={() => navigateTo('library')}
-          />
-        )}
+        <Suspense fallback={<PageLoadingFallback />}>
+          {mode === 'learn' && (
+            <LiveLearning
+              song={song}
+              onToggleHighlight={toggleHighlightedMeasure}
+              isMobile={true}
+            />
+          )}
+          {mode === 'editor' && (
+            <SongEditor
+              song={song}
+              onUpdateMetadata={updateSongMetadata}
+              onImportSong={importSong}
+              onSaveSong={saveSong}
+              onAddPhrase={addPhrase}
+              onSplitPhrase={splitPhrase}
+              onMergePhraseWithPrevious={mergePhraseWithPrevious}
+              onRenamePhrasesInOrder={renamePhrasesInOrder}
+              addNoteToPhrase={addNoteToPhrase}
+              removeNoteFromPhrase={removeNoteFromPhrase}
+              onUpdateNote={updateNoteInPhrase}
+              onReorderPhrases={reorderPhrases}
+              isMobile={true}
+              readOnly={false}
+            />
+          )}
+          {mode === 'sheet' && (
+            <SheetMusicLearning song={song} isMobile={true} />
+          )}
+          {mode === 'liveplay' && (
+            <LivePlayView
+              song={song}
+              onFullscreenChange={handleLivePlayFullscreenChange}
+              onBack={() => navigateTo('library')}
+            />
+          )}
+        </Suspense>
       </main>
 
       <BottomTabBar
