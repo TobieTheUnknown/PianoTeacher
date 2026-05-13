@@ -311,44 +311,6 @@ export function Settings({ isOpen, onClose }) {
                                 </div>
                             </div>
 
-                            {/* Theme Toggle */}
-                            <div>
-                                <h3 style={{
-                                    fontSize: '1.1rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: 'var(--spacing-sm, 0.5rem)'
-                                }}>
-                                    Thème
-                                </h3>
-                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                    {themeService.getThemes().map(({ key, name, handLeft, handRight }) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => handleThemeChange(key)}
-                                            style={{
-                                                ...themeToggleBtnStyle(currentTheme === key),
-                                                background: currentTheme === key
-                                                    ? `linear-gradient(135deg, ${handLeft}, ${handRight})`
-                                                    : 'var(--bg-secondary)',
-                                                color: currentTheme === key ? 'white' : 'var(--text-secondary)',
-                                                borderColor: currentTheme === key ? 'transparent' : 'var(--border-color)',
-                                            }}
-                                        >
-                                            <span style={{
-                                                display: 'inline-block',
-                                                width: '8px',
-                                                height: '8px',
-                                                borderRadius: '50%',
-                                                background: `linear-gradient(135deg, ${handLeft}, ${handRight})`,
-                                                marginRight: '0.3rem',
-                                            }} />
-                                            {name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
                             {/* Typography */}
                             <div>
                                 <h3 style={{

@@ -363,20 +363,23 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
                     )}
                     <button
                         onClick={() => setShowFabMenu(!showFabMenu)}
-                        className="btn-primary"
                         style={{
                             width: '56px',
                             height: '56px',
-                            borderRadius: '50%',
+                            borderRadius: '16px',
+                            background: 'var(--accent)',
+                            color: '#fff',
+                            border: 'none',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             padding: 0,
                             minHeight: 'unset',
-                            boxShadow: 'var(--shadow-xl)',
+                            boxShadow: '0 8px 24px -4px var(--accent), 0 2px 6px rgba(0,0,0,0.3)',
                             fontSize: '1.5rem',
                             transform: showFabMenu ? 'rotate(45deg)' : 'none',
-                            transition: 'transform 0.2s ease'
+                            transition: 'transform 0.2s ease',
+                            cursor: 'pointer',
                         }}
                         title="Actions"
                     >
