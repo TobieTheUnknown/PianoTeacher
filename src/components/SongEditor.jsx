@@ -230,19 +230,68 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     return (
         <div>
-            {/* Mobile info banner */}
+            {/* Mobile header — matches design's MobileHeader pattern (Éditeur · song title) */}
             {isMobile && (
                 <div style={{
-                    padding: '0.5rem 0.75rem',
-                    marginBottom: '0.75rem',
-                    background: 'rgba(59, 130, 246, 0.1)',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                    borderRadius: 'var(--radius-lg)',
-                    fontSize: '0.8rem',
-                    color: 'var(--text-primary)',
-                    textAlign: 'center'
+                    padding: '14px 18px 8px',
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 8,
+                    flexWrap: 'wrap',
                 }}>
-                    Mode mobile — édition des métadonnées disponible, piano roll non disponible
+                    <h1 style={{
+                        margin: 0,
+                        fontSize: '20px',
+                        fontWeight: 700,
+                        letterSpacing: '-0.01em',
+                        color: 'var(--text-primary)',
+                    }}>
+                        Éditeur
+                    </h1>
+                    {song?.title && (
+                        <>
+                            <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>·</span>
+                            <span style={{
+                                fontSize: 12,
+                                color: 'var(--text-secondary)',
+                                fontFamily: 'var(--font-mono)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                minWidth: 0,
+                                flex: 1,
+                            }}>{song.title}</span>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Mobile info banner — design-aligned compact pill */}
+            {isMobile && (
+                <div style={{
+                    margin: '0 18px 12px',
+                    padding: '10px 14px',
+                    background: 'var(--accent-dim)',
+                    border: '1px solid color-mix(in oklab, var(--accent), transparent 70%)',
+                    borderRadius: 'var(--r-md)',
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                }}>
+                    <span style={{
+                        width: 22, height: 22, flexShrink: 0,
+                        borderRadius: 'var(--r-sm)',
+                        background: 'var(--accent-dim)',
+                        color: 'var(--accent)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 12,
+                        fontWeight: 700,
+                    }}>i</span>
+                    Édition complète disponible sur ordinateur. Sur mobile, seules les métadonnées sont modifiables.
                 </div>
             )}
 
