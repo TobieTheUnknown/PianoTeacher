@@ -3,6 +3,7 @@ import { StorageService } from '../services/StorageService';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchKeyName } from '../models/song';
 import { Cover, ProgressRing, Pill } from './ui';
+import { MobileHeader } from './MobileHeader';
 
 export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMobile = false }) {
     const [songs, setSongs] = useState([]);
@@ -86,9 +87,15 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
         reader.readAsText(file);
     };
 
+    const phrasesCount = songs.filter(s => s.phrases?.length > 0).length;
+    const subtitle = `${songs.length} ${songs.length === 1 ? 'morceau' : 'morceaux'}${phrasesCount > 0 ? ` · ${phrasesCount} avec phrases` : ''}`;
+
     return (
         <div>
-            {/* Header Section */}
+            {/* Mobile uses shared MobileHeader; desktop keeps the wider header bar */}
+            {isMobile ? (
+                <MobileHeader title="Bibliothèque" subtitle={subtitle} />
+            ) : (
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -99,7 +106,7 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
             }}>
                 <div>
                     <h2 style={{
-                        fontSize: isMobile ? '1.625rem' : '1.875rem',
+                        fontSize: '1.875rem',
                         margin: 0,
                         fontWeight: 700,
                         letterSpacing: '-0.02em',
@@ -114,10 +121,7 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
                         margin: '4px 0 0',
                         fontWeight: 500,
                     }}>
-                        {songs.length} {songs.length === 1 ? 'morceau' : 'morceaux'}
-                        {songs.filter(s => s.phrases?.length > 0).length > 0 && (
-                            <span> · {songs.filter(s => s.phrases?.length > 0).length} avec phrases</span>
-                        )}
+                        {subtitle}
                     </p>
                 </div>
 
@@ -141,6 +145,7 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
                     </div>
                 )}
             </div>
+            )}
 
             {/* Empty State */}
             {songs.length === 0 ? (

@@ -9,6 +9,7 @@ import {
     toKotlinKeySig,
 } from '../utils/sheetMusic';
 import { PlaybackDock } from './PlaybackDock';
+import { MobileHeader } from './MobileHeader';
 
 /**
  * Sheet Music Learning — design-aligned partition view.
@@ -91,34 +92,10 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             height: 'calc(100vh - 64px)',
             overflow: 'hidden',
         }}>
-            {/* MobileHeader pattern */}
-            <div style={{
-                padding: '12px 16px 8px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                flexShrink: 0,
-            }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        letterSpacing: '-0.01em',
-                        color: 'var(--text-primary)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}>{song.title || 'Sans titre'}</div>
-                    <div style={{
-                        fontSize: 11,
-                        color: 'var(--text-tertiary)',
-                        marginTop: 1,
-                        fontFamily: 'var(--font-mono)',
-                    }}>
-                        Mesure {currentMeasure}/{totalMeasures}{tsText && ` · ${tsText}`}
-                    </div>
-                </div>
-            </div>
+            <MobileHeader
+                title={song.title || 'Sans titre'}
+                subtitle={`Mesure ${currentMeasure}/${totalMeasures}${tsText ? ` · ${tsText}` : ''}`}
+            />
 
             {/* Scrollable content */}
             <div style={{
