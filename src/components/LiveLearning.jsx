@@ -423,6 +423,10 @@ const MeasureCard = React.memo(function MeasureCard({
     showDetails, displayNoteName, expandedChordReps, onToggleChordRep,
     isMelodyExpanded, onToggleMelodyExpand, isMobile, handColors,
     isCurrent = false, isPlaying = false,
+    // Real measure duration in seconds. Drives the beat-fill animation so
+    // the progress bar lines up with audio (start of fill = start of
+    // measure, end of fill = end of measure). Falls back to 1.6s.
+    measureDurationSec = 1.6,
 }) {
     // Pre-sorted melody (stable reference from getMeasuresFromPhrase)
     const sortedMelody = measure.sortedMelody;
@@ -474,7 +478,7 @@ const MeasureCard = React.memo(function MeasureCard({
                     position: 'absolute', top: 0, left: 0, right: 0, height: 2,
                     background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
                     backgroundSize: '200% 100%',
-                    animation: 'design-playbarSlide 1.6s linear infinite',
+                    animation: `design-playbarSlide ${measureDurationSec}s linear infinite`,
                 }} />
             )}
 
@@ -566,7 +570,7 @@ const MeasureCard = React.memo(function MeasureCard({
                             position: 'absolute', left: 0, top: 0, bottom: 0,
                             background: 'var(--accent)',
                             borderRadius: 2,
-                            animation: 'design-beatFill 1.6s linear infinite',
+                            animation: `design-beatFill ${measureDurationSec}s linear infinite`,
                         }} />
                     )}
                 </div>
@@ -1225,6 +1229,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     isHighlighted={highlightedMeasures.includes(measure.number)}
                                                     isCurrent={isBeingPlayed}
                                                     isPlaying={isPlaying && isBeingPlayed}
+                                                    measureDurationSec={(measure.beatsPerMeasure || 4) * 60 / Math.max(currentBPM, 1)}
                                                     onToggleHighlight={onToggleHighlight}
                                                     onPlay={handlePlayMeasure}
                                                     showDetails={showDetails}

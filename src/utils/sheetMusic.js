@@ -80,7 +80,7 @@ export const TREBLE_CLEF = {
     keyLineFromTop: 3,
     lines: [37, 39, 41, 43, 45],
     anchorFrac: 0.62,
-    fontScale: 0.95,
+    fontScale: 1.2,
     extraYOffset: 0,
 };
 

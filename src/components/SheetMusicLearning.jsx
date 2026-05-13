@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     flattenSongMeasures,
     renderMeasure,
@@ -10,6 +10,7 @@ import {
 } from '../utils/sheetMusic';
 import { PlaybackDock } from './PlaybackDock';
 import { MobileHeader } from './MobileHeader';
+import { audioEngine } from '../services/AudioEngine';
 
 /**
  * Sheet Music Learning — design-aligned partition view.
@@ -45,8 +46,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         [allChords, useFlats]
     );
 
-    // Playback / view state (read-only viewer for now — handlers prepared for
-    // wiring to a real AudioEngine playback driver).
+    // Playback / view state
     const [playing, setPlaying] = useState(false);
     const [speed, setSpeed] = useState(100);
     const [handMode, setHandMode] = useState('both');   // 'left' | 'right' | 'both'
@@ -55,6 +55,57 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [loop, setLoop] = useState(false);
     const [loopRange, setLoopRange] = useState([1, 1]);
     const [loopEditorOpen, setLoopEditorOpen] = useState(false);
+
+    // Concat phrases into one playable phrase so the dock's play button
+    // drives the whole partition.
+    const combinedPhrase = useMemo(() => {
+        if (!song || !song.phrases || song.phrases.length === 0) return null;
+        const melody = [];
+        const chords = [];
+        let beatOffset = 0;
+        const bpm = song.timeSignature?.numerator || 4;
+        song.phrases.forEach((phrase) => {
+            phrase.tracks.melody.forEach((n) => {
+                melody.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            phrase.tracks.chords.forEach((n) => {
+                chords.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            beatOffset += phrase.length * bpm;
+        });
+        return {
+            tracks: { melody, chords },
+            length: song.phrases.reduce((s, p) => s + p.length, 0),
+        };
+    }, [song]);
+
+    const handlePlayPause = useCallback(async () => {
+        await audioEngine.initialize();
+        if (playing) {
+            audioEngine.stop();
+            setPlaying(false);
+            return;
+        }
+        if (!combinedPhrase) return;
+        const beatsPerMeasure = song?.timeSignature?.numerator || 4;
+        const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
+        let filtered = combinedPhrase;
+        if (handMode === 'right') {
+            filtered = { ...combinedPhrase, tracks: { melody: combinedPhrase.tracks.melody, chords: [] } };
+        } else if (handMode === 'left') {
+            filtered = { ...combinedPhrase, tracks: { melody: [], chords: combinedPhrase.tracks.chords } };
+        }
+        const startBeats = (Math.max(1, currentMeasure) - 1) * beatsPerMeasure;
+        audioEngine.playPhrase(
+            filtered,
+            tempo,
+            startBeats,
+            true,
+            () => setPlaying(false),
+            beatsPerMeasure,
+        );
+        setPlaying(true);
+    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure]);
 
     const totalMeasures = measures.length;
     const tsText = song?.timeSignature
@@ -214,7 +265,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             }}>
             <PlaybackDock
                 playing={playing}
-                onPlayPause={() => setPlaying((p) => !p)}
+                onPlayPause={handlePlayPause}
                 speed={speed}
                 onSpeed={setSpeed}
                 handMode={handMode}
