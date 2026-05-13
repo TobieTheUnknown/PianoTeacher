@@ -4,6 +4,7 @@ import { audioEngine } from '../services/AudioEngine';
 import { parseMidiFile } from '../services/MidiService';
 import { StorageService } from '../services/StorageService';
 import { getFrenchNoteName } from '../models/song';
+import { MobileHeader } from './MobileHeader';
 
 
 export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases, readOnly = false, isMobile = false }) {
@@ -230,40 +231,12 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
     return (
         <div>
-            {/* Mobile header — matches design's MobileHeader pattern (Éditeur · song title) */}
+            {/* MobileHeader — design-aligned big title + subtitle */}
             {isMobile && (
-                <div style={{
-                    padding: '14px 18px 8px',
-                    display: 'flex',
-                    alignItems: 'baseline',
-                    gap: 8,
-                    flexWrap: 'wrap',
-                }}>
-                    <h1 style={{
-                        margin: 0,
-                        fontSize: '20px',
-                        fontWeight: 700,
-                        letterSpacing: '-0.01em',
-                        color: 'var(--text-primary)',
-                    }}>
-                        Éditeur
-                    </h1>
-                    {song?.title && (
-                        <>
-                            <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>·</span>
-                            <span style={{
-                                fontSize: 12,
-                                color: 'var(--text-secondary)',
-                                fontFamily: 'var(--font-mono)',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                minWidth: 0,
-                                flex: 1,
-                            }}>{song.title}</span>
-                        </>
-                    )}
-                </div>
+                <MobileHeader
+                    title="Éditeur"
+                    subtitle={song?.title || 'Aucun morceau chargé'}
+                />
             )}
 
             {/* Mobile info banner — design-aligned compact pill */}
