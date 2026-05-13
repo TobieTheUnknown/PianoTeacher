@@ -5,6 +5,7 @@ import { parseMidiFile } from '../services/MidiService';
 import { StorageService } from '../services/StorageService';
 import { getFrenchNoteName } from '../models/song';
 import { MobileHeader } from './MobileHeader';
+import { PlaybackDock } from './PlaybackDock';
 
 
 export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases, readOnly = false, isMobile = false }) {
@@ -20,6 +21,15 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [editingPhraseId, setEditingPhraseId] = useState(null);
     const [editingPhraseName, setEditingPhraseName] = useState('');
     const [playingPhraseId, setPlayingPhraseId] = useState(null); // Track which phrase is playing
+
+    // Universal PlaybackDock state (mirrors other pages)
+    const [activePhraseIndex, setActivePhraseIndex] = useState(0);
+    const [dockSpeed, setDockSpeed] = useState(100);
+    const [dockHandMode, setDockHandMode] = useState('both');
+    const [dockMetronome, setDockMetronome] = useState(false);
+    const [dockLoop, setDockLoop] = useState(false);
+    const [dockLoopRange, setDockLoopRange] = useState([1, 1]);
+    const [dockLoopEditorOpen, setDockLoopEditorOpen] = useState(false);
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
 
@@ -1066,6 +1076,179 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     </div>
                 </div>
             )}
+
+            {/* Sticky bottom playback bar — same dock as other pages, with an
+                Editor-specific secondary row for phrase navigation + actions. */}
+            {!readOnly && song?.phrases?.length > 0 && (
+                <div style={{
+                    position: 'sticky',
+                    bottom: isMobile ? 64 : 0,
+                    left: 0,
+                    right: 0,
+                    zIndex: 5,
+                    marginTop: '1rem',
+                }}>
+                    <EditorBottomBar
+                        phrases={song.phrases}
+                        activeIndex={activePhraseIndex}
+                        onActiveChange={setActivePhraseIndex}
+                        onPlayPhrase={handlePlayPhrase}
+                        onStop={handleStop}
+                        playingPhraseId={playingPhraseId}
+                        onSplit={handleStartSplit}
+                        splitMode={splitMode}
+                        onMerge={handleMergeWithPrevious}
+                    />
+                    <PlaybackDock
+                        playing={!!playingPhraseId}
+                        onPlayPause={() => {
+                            const phrase = song.phrases[activePhraseIndex];
+                            if (!phrase) return;
+                            if (playingPhraseId) handleStop();
+                            else handlePlayPhrase(phrase);
+                        }}
+                        speed={dockSpeed}
+                        onSpeed={setDockSpeed}
+                        handMode={dockHandMode}
+                        onHandMode={setDockHandMode}
+                        metronome={dockMetronome}
+                        onMetronome={() => setDockMetronome(!dockMetronome)}
+                        loop={dockLoop}
+                        onLoop={() => setDockLoop(!dockLoop)}
+                        loopRange={dockLoopRange[1] > 1 ? dockLoopRange : [1, song.phrases.length]}
+                        onLoopRange={setDockLoopRange}
+                        loopEditorOpen={dockLoopEditorOpen}
+                        onToggleLoopEditor={() => setDockLoopEditorOpen(o => !o)}
+                        totalMeasures={song.phrases.length}
+                        onPrev={() => setActivePhraseIndex(i => Math.max(0, i - 1))}
+                        onNext={() => setActivePhraseIndex(i => Math.min(song.phrases.length - 1, i + 1))}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Editor-specific secondary bar (above PlaybackDock)
+function EditorBottomBar({
+    phrases, activeIndex, onActiveChange, onPlayPhrase, onStop, playingPhraseId,
+    onSplit, splitMode, onMerge,
+}) {
+    const active = phrases[activeIndex];
+    if (!active) return null;
+    const isPlaying = playingPhraseId === active.id;
+    const canMerge = activeIndex > 0;
+    const inSplitMode = splitMode?.phraseId === active.id;
+
+    return (
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            borderTop: '1px solid var(--border)',
+            background: 'color-mix(in oklab, var(--surface-1), transparent 4%)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            minHeight: 44,
+        }}>
+            {/* Phrase nav (▲ ▼) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <button
+                    onClick={() => onActiveChange(Math.max(0, activeIndex - 1))}
+                    disabled={activeIndex === 0}
+                    style={{
+                        width: 22, height: 18, borderRadius: 'var(--r-sm)',
+                        background: 'var(--surface-2)', border: '1px solid var(--border)',
+                        color: 'var(--text-secondary)', fontSize: 10,
+                        cursor: activeIndex === 0 ? 'not-allowed' : 'pointer',
+                        opacity: activeIndex === 0 ? 0.3 : 1,
+                        padding: 0, minHeight: 0,
+                    }}
+                    aria-label="Phrase précédente"
+                >▲</button>
+                <button
+                    onClick={() => onActiveChange(Math.min(phrases.length - 1, activeIndex + 1))}
+                    disabled={activeIndex >= phrases.length - 1}
+                    style={{
+                        width: 22, height: 18, borderRadius: 'var(--r-sm)',
+                        background: 'var(--surface-2)', border: '1px solid var(--border)',
+                        color: 'var(--text-secondary)', fontSize: 10,
+                        cursor: activeIndex >= phrases.length - 1 ? 'not-allowed' : 'pointer',
+                        opacity: activeIndex >= phrases.length - 1 ? 0.3 : 1,
+                        padding: 0, minHeight: 0,
+                    }}
+                    aria-label="Phrase suivante"
+                >▼</button>
+            </div>
+
+            {/* Active phrase name */}
+            <div style={{
+                flex: 1, minWidth: 0,
+                display: 'flex', flexDirection: 'column',
+                gap: 1,
+            }}>
+                <span style={{
+                    fontSize: 9, color: 'var(--text-tertiary)',
+                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                    fontWeight: 600,
+                }}>Phrase active</span>
+                <span style={{
+                    fontSize: 13, fontWeight: 600, color: 'var(--text-primary)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>{active.name || `Phrase ${activeIndex + 1}`}</span>
+            </div>
+
+            {/* Lecture / Stop */}
+            <button
+                onClick={() => isPlaying ? onStop() : onPlayPhrase(active)}
+                style={{
+                    padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                    borderRadius: 'var(--r-pill)',
+                    background: isPlaying ? 'var(--accent-dim)' : 'var(--surface-2)',
+                    border: `1px solid ${isPlaying ? 'var(--accent)' : 'var(--border)'}`,
+                    color: isPlaying ? 'var(--accent)' : 'var(--text-secondary)',
+                    cursor: 'pointer', minHeight: 0,
+                }}
+            >
+                {isPlaying ? 'Stop' : 'Lecture'}
+            </button>
+
+            {/* Découper */}
+            <button
+                onClick={() => onSplit(active.id)}
+                disabled={splitMode !== null && !inSplitMode}
+                style={{
+                    padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                    borderRadius: 'var(--r-pill)',
+                    background: inSplitMode ? 'var(--accent-dim)' : 'var(--surface-2)',
+                    border: `1px solid ${inSplitMode ? 'var(--accent)' : 'var(--border)'}`,
+                    color: inSplitMode ? 'var(--accent)' : 'var(--text-secondary)',
+                    cursor: splitMode !== null && !inSplitMode ? 'not-allowed' : 'pointer',
+                    opacity: splitMode !== null && !inSplitMode ? 0.4 : 1,
+                    minHeight: 0,
+                }}
+            >
+                Découper
+            </button>
+
+            {/* Recoller */}
+            <button
+                onClick={() => onMerge(active.id)}
+                disabled={!canMerge}
+                style={{
+                    padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                    borderRadius: 'var(--r-pill)',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)',
+                    cursor: canMerge ? 'pointer' : 'not-allowed',
+                    opacity: canMerge ? 1 : 0.4,
+                    minHeight: 0,
+                }}
+            >
+                Recoller
+            </button>
         </div>
     );
 }
