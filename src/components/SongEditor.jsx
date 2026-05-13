@@ -27,9 +27,20 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const [dockSpeed, setDockSpeed] = useState(100);
     const [dockHandMode, setDockHandMode] = useState('both');
     const [dockMetronome, setDockMetronome] = useState(false);
+    const [dockMetronomeSubdivision, setDockMetronomeSubdivision] = useState('quarter');
     const [dockLoop, setDockLoop] = useState(false);
     const [dockLoopRange, setDockLoopRange] = useState([1, 1]);
     const [dockLoopEditorOpen, setDockLoopEditorOpen] = useState(false);
+
+    // Toggle the running metronome when the dock state changes.
+    useEffect(() => {
+        if (dockMetronome) {
+            const tempo = Math.max(20, Math.round((song?.tempo || 120) * (dockSpeed / 100)));
+            audioEngine.startMetronome(tempo, dockMetronomeSubdivision);
+        } else {
+            audioEngine.stopMetronome();
+        }
+    }, [dockMetronome, dockMetronomeSubdivision, song, dockSpeed]);
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
 
@@ -69,14 +80,18 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const handlePlayPhrase = async (phrase) => {
         await audioEngine.initialize();
         setPlayingPhraseId(phrase.id);
-        // Calculate beatsPerMeasure from time signature
         const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
-        const beatsPerMeasure = (timeSignature.numerator / timeSignature.denominator) * 4;
-        // stopAtEnd = true to automatically stop at end of the phrase
-        // Pass a callback to clear playingPhraseId when playback ends
-        audioEngine.playPhrase(phrase, song.tempo, null, true, () => {
-            setPlayingPhraseId(null);
-        }, beatsPerMeasure);
+        const beatsPerMeasure = timeSignature.numerator;
+        const tempo = Math.max(20, Math.round((song.tempo || 120) * (dockSpeed / 100)));
+        audioEngine.playPhrase(
+            phrase,
+            tempo,
+            null,
+            true,
+            () => setPlayingPhraseId(null),
+            beatsPerMeasure,
+            { preroll: dockMetronome },
+        );
     };
 
     const handleStop = () => {
@@ -1078,6 +1093,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         onHandMode={setDockHandMode}
                         metronome={dockMetronome}
                         onMetronome={() => setDockMetronome(!dockMetronome)}
+                        metronomeSubdivision={dockMetronomeSubdivision}
+                        onMetronomeSubdivisionChange={setDockMetronomeSubdivision}
                         loop={dockLoop}
                         onLoop={() => setDockLoop(!dockLoop)}
                         loopRange={dockLoopRange[1] > 1 ? dockLoopRange : [1, song.phrases.length]}

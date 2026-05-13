@@ -37,6 +37,8 @@ export function LivePlayMobileOverlay({
   onPhraseSelect,
   isMetronomeOn,
   setIsMetronomeOn,
+  metronomeSubdivision = 'quarter',
+  setMetronomeSubdivision,
   visualEffects,
   setVisualEffects,
   waitMode,
@@ -134,6 +136,8 @@ export function LivePlayMobileOverlay({
           onHandMode={(m) => setHandMode?.(m === 'listen' ? 'watch' : m)}
           metronome={!!isMetronomeOn}
           onMetronome={() => setIsMetronomeOn?.(!isMetronomeOn)}
+          metronomeSubdivision={metronomeSubdivision}
+          onMetronomeSubdivisionChange={setMetronomeSubdivision}
           loop={!!isLoopEnabled}
           onLoop={onLoopToggle}
           loopEditorOpen={loopEditorOpen}

@@ -559,8 +559,8 @@ const MeasureCard = React.memo(function MeasureCard({
                     borderRadius: 2,
                     overflow: 'hidden',
                 }}>
-                    {[0.25, 0.5, 0.75].map((p) => (
-                        <div key={p} style={{
+                    {Array.from({ length: beatsPerMeasure - 1 }, (_, i) => (i + 1) / beatsPerMeasure).map((p, i) => (
+                        <div key={i} style={{
                             position: 'absolute', left: `${p * 100}%`, top: 0, bottom: 0, width: 1,
                             background: 'var(--border-strong)',
                         }} />
@@ -694,6 +694,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const [loopConfig, setLoopConfig] = useState(null);
     const [playingMeasure, setPlayingMeasure] = useState(-1);
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
+    const [metronomeSubdivision, setMetronomeSubdivision] = useState('quarter');
     const [loopEditorOpen, setLoopEditorOpen] = useState(false);
     const measureRefs = useRef({});
     const playbackIntervalRef = useRef(null);
@@ -727,6 +728,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
         const measures = [];
         const allNotes = new Set();
         const phraseBreaks = [];
+        const beatsPerMeasure = song.timeSignature?.numerator || 4;
 
         const getRawNoteName = (pitch) => {
             const name = typeof pitch === 'number' ? getNoteNameFromMidi(pitch) : pitch;
@@ -741,7 +743,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 });
             }
 
-            const phraseMeasures = getMeasuresFromPhrase(phrase);
+            const phraseMeasures = getMeasuresFromPhrase(phrase, beatsPerMeasure);
 
             phraseMeasures.forEach(measure => {
                 measure.melody.forEach(n => allNotes.add(getRawNoteName(n.pitch)));
@@ -824,6 +826,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
     // Build a combined phrase for continuous playback via playPhrase
     const combinedPhrase = useMemo(() => {
         if (!song || !song.phrases || song.phrases.length === 0) return null;
+        const beatsPerMeasure = song.timeSignature?.numerator || 4;
         const melody = [];
         const chords = [];
         let beatOffset = 0;
@@ -834,7 +837,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
             phrase.tracks.chords.forEach(n => {
                 chords.push({ ...n, startTime: n.startTime + beatOffset });
             });
-            beatOffset += phrase.length * 4; // 4 beats per measure
+            beatOffset += phrase.length * beatsPerMeasure;
         });
         const totalLength = song.phrases.reduce((sum, p) => sum + p.length, 0);
         return {
@@ -867,14 +870,15 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
         setPlayingMeasure(startMeasure);
 
+        const beatsPerMeasureSig = song?.timeSignature?.numerator || 4;
         playbackIntervalRef.current = setInterval(() => {
             // Use getMusicSeconds (Transport.seconds - preroll) so the
             // tracked measure ignores the count-in bar when metronome is on.
             const musicSeconds = audioEngine.getMusicSeconds();
             if (musicSeconds <= 0) return; // Preroll or not started yet
             const beatsPerSecond = currentBPM / 60;
-            const currentBeat = musicSeconds * beatsPerSecond + (startMeasure - 1) * 4;
-            const currentMsr = Math.floor(currentBeat / 4) + 1;
+            const currentBeat = musicSeconds * beatsPerSecond + (startMeasure - 1) * beatsPerMeasureSig;
+            const currentMsr = Math.floor(currentBeat / beatsPerMeasureSig) + 1;
 
             if (currentMsr > endMeasure) {
                 // End of playback
@@ -925,24 +929,27 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 phraseToPlay = { ...combinedPhrase, tracks: { melody: [], chords: combinedPhrase.tracks.chords } };
             }
 
+            const beatsPerMeasureSig = song?.timeSignature?.numerator || 4;
             const doPlay = () => {
+                // Start the running metronome BEFORE playPhrase so it ticks
+                // through both the preroll and the music when enabled.
+                if (isMetronomeOn) {
+                    audioEngine.startMetronome(currentBPM, metronomeSubdivision || 'quarter');
+                }
                 audioEngine.playPhrase(
                     phraseToPlay,
                     currentBPM,
                     startPositionBeats,
                     true, // stopAtEnd
                     () => {
-                        // onPlaybackEnd callback
                         setIsPlaying(false);
                         playingMeasureRef.current = -1;
                         setPlayingMeasure(-1);
                         if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
                     },
-                    4 // beatsPerMeasure
+                    beatsPerMeasureSig,
+                    { preroll: isMetronomeOn },
                 );
-                if (isMetronomeOn) {
-                    audioEngine.startMetronome(currentBPM, 'quarter');
-                }
                 setIsPlaying(true);
                 setFocusedMeasure(effectiveStartMeasure);
                 startPlaybackTracking(effectiveStartMeasure, endMeasure);
@@ -1266,6 +1273,8 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         onHandMode={setPlaybackHand}
                         metronome={isMetronomeOn}
                         onMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
+                        metronomeSubdivision={metronomeSubdivision}
+                        onMetronomeSubdivisionChange={setMetronomeSubdivision}
                         loop={isLooping}
                         onLoop={() => setIsLooping(!isLooping)}
                         loopRange={loopConfig ? [loopConfig.startMeasure, loopConfig.endMeasure] : [1, analysis.totalMeasures]}

@@ -49,7 +49,8 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
   // Features state
   const [handMode, setHandMode] = useState('both');
   const [isMetronomeOn, setIsMetronomeOn] = useState(false);
-  const [metronomeDivision, setMetronomeDivision] = useState('measure');
+  const [metronomeDivision, setMetronomeDivision] = useState('quarter');
+  const [loopEditorOpen, setLoopEditorOpen] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [isLoopEnabled, setIsLoopEnabled] = useState(false);
   const [loopConfig, setLoopConfig] = useState(null);
@@ -580,27 +581,19 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
     const currentBeat = currentTime * beatsPerSecond;
 
-    let currentClickPosition;
+    // Map dock subdivision (half/quarter/eighth) to click multipliers
+    // measured in beats: 2 beats / 1 beat / 0.5 beat.
+    const clickEveryBeats =
+      metronomeDivision === 'half' ? 2
+      : metronomeDivision === 'eighth' ? 0.5
+      : 1; // 'quarter'
 
-    switch (metronomeDivision) {
-      case 'half-measure':
-        currentClickPosition = Math.floor(currentBeat / 2);
-        break;
-      case 'beat':
-        currentClickPosition = Math.floor(currentBeat);
-        break;
-      case 'measure':
-      default:
-        currentClickPosition = Math.floor(currentBeat / beatsPerMeasure);
-        break;
-    }
+    const currentClickPosition = Math.floor(currentBeat / clickEveryBeats);
 
     if (currentClickPosition !== lastMetronomeClickRef.current && currentClickPosition >= 0) {
       lastMetronomeClickRef.current = currentClickPosition;
-
-      const beatInMeasure = Math.floor(currentBeat % beatsPerMeasure);
-      const isAccent = metronomeDivision === 'measure' || beatInMeasure < 0.1;
-
+      const beatInMeasure = currentBeat % beatsPerMeasure;
+      const isAccent = beatInMeasure < 0.05;
       audioEngine.playClick(undefined, isAccent);
     }
 
@@ -892,6 +885,8 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           onPhraseSelect={handlePhraseSelect}
           isMetronomeOn={isMetronomeOn}
           setIsMetronomeOn={setIsMetronomeOn}
+          metronomeSubdivision={metronomeDivision}
+          setMetronomeSubdivision={setMetronomeDivision}
           visualEffects={visualEffects}
           setVisualEffects={setVisualEffects}
           waitMode={waitMode}
@@ -931,19 +926,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
             {song.title}
           </span>
-          <span style={{ flex: 1 }} />
-          <button
-            onClick={handleLoopToggle}
-            style={{
-              padding: '0.15rem 0.4rem', fontSize: '0.6rem',
-              borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)',
-              background: isLoopEnabled ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-              color: isLoopEnabled ? 'var(--bg-primary)' : 'var(--text-secondary)',
-              cursor: 'pointer', minHeight: 'auto',
-            }}
-          >
-            🔁 Loop
-          </button>
         </div>
         <TimelineNavigator
           totalDuration={totalDuration}
@@ -998,8 +980,14 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           onHandMode={(m) => setHandMode(m === 'listen' ? 'watch' : m)}
           metronome={isMetronomeOn}
           onMetronome={() => setIsMetronomeOn(!isMetronomeOn)}
+          metronomeSubdivision={metronomeDivision}
+          onMetronomeSubdivisionChange={setMetronomeDivision}
           loop={isLoopEnabled}
           onLoop={handleLoopToggle}
+          loopRange={loopConfig ? [loopConfig.startMeasure, loopConfig.endMeasure] : [1, song?.phrases?.length || 1]}
+          onLoopRange={([from, to]) => handleLoopChange(from, to)}
+          loopEditorOpen={loopEditorOpen}
+          onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
           totalMeasures={song?.phrases?.length || 1}
           onPrev={() => jumpToTime(Math.max(0, currentTime - 4))}
           onNext={() => jumpToTime(currentTime + 4)}

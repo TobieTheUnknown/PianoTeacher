@@ -1,6 +1,6 @@
 import { getPianoRollKeys } from '../models/song';
 
-export function getMeasuresFromPhrase(phrase) {
+export function getMeasuresFromPhrase(phrase, beatsPerMeasure = 4) {
     const measures = [];
     const EPSILON = 0.001;
     const keys = getPianoRollKeys(1, 5);
@@ -34,15 +34,15 @@ export function getMeasuresFromPhrase(phrase) {
     ];
 
     for (let i = 0; i < phrase.length; i++) {
-        const measureStart = i * 4;
-        const measureEnd = (i + 1) * 4;
+        const measureStart = i * beatsPerMeasure;
+        const measureEnd = (i + 1) * beatsPerMeasure;
         const measuresNotes = allNotes.filter(n =>
             n.startTime >= measureStart - EPSILON &&
             n.startTime < measureEnd - EPSILON
         );
         const separator = getSeparatorForMeasure(i);
         const { rightHand, leftHand } = splitNotesByHand(measuresNotes, separator?.pitch);
-        measures.push({ melody: rightHand, chords: leftHand });
+        measures.push({ melody: rightHand, chords: leftHand, beatsPerMeasure });
     }
     return measures;
 }

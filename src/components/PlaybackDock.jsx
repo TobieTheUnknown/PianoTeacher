@@ -25,6 +25,12 @@ export function PlaybackDock({
   metronome = false,
   onMetronome,
 
+  // Metronome subdivision: 'half' | 'quarter' | 'eighth'. The button
+  // cycles half→quarter→eighth→off when metronome is on; clicking when
+  // off turns it on at 'quarter'.
+  metronomeSubdivision = 'quarter',
+  onMetronomeSubdivisionChange,
+
   // Loop toggle + range
   loop = false,
   onLoop,
@@ -124,9 +130,12 @@ export function PlaybackDock({
 
       {/* Transport row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <ToggleIconBtn active={metronome} onClick={onMetronome} aria-label="Métronome">
-          <MetronomeIcon />
-        </ToggleIconBtn>
+        <MetronomeButton
+          active={metronome}
+          subdivision={metronomeSubdivision}
+          onToggle={onMetronome}
+          onSubdivisionChange={onMetronomeSubdivisionChange}
+        />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <TransportBtn onClick={onPrev} aria-label="Précédent">
@@ -288,6 +297,73 @@ function PixelBtn({ children, onClick, disabled }) {
       }}
     >
       {children}
+    </button>
+  );
+}
+
+// Metronome button — composes ToggleIconBtn but adds a subdivision badge
+// (♩/♪/𝅗𝅥) and cycles half→quarter→eighth→off on successive clicks when on.
+const SUBDIV_ORDER = ['half', 'quarter', 'eighth'];
+const SUBDIV_GLYPH = { half: '𝅗𝅥', quarter: '♩', eighth: '♪' };
+
+function MetronomeButton({ active, subdivision, onToggle, onSubdivisionChange }) {
+  const handleClick = () => {
+    if (!active) {
+      onToggle?.();
+      return;
+    }
+    const idx = SUBDIV_ORDER.indexOf(subdivision);
+    if (idx < SUBDIV_ORDER.length - 1) {
+      onSubdivisionChange?.(SUBDIV_ORDER[idx + 1]);
+    } else {
+      onToggle?.(); // turn off after eighth
+      onSubdivisionChange?.('quarter'); // reset for next ON
+    }
+  };
+  return (
+    <button
+      onClick={handleClick}
+      aria-label={active ? `Métronome ${subdivision}` : 'Métronome'}
+      style={{
+        position: 'relative',
+        width: 40,
+        height: 40,
+        borderRadius: 'var(--r-pill)',
+        background: active ? 'var(--accent-dim)' : 'var(--surface-2)',
+        color: active ? 'var(--accent)' : 'var(--text-tertiary)',
+        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all var(--t-fast)',
+        boxShadow: active ? '0 0 12px -2px var(--accent)' : 'none',
+        cursor: 'pointer',
+        padding: 0,
+        minHeight: 0,
+      }}
+    >
+      <MetronomeIcon />
+      {active && (
+        <span
+          style={{
+            position: 'absolute',
+            bottom: -2,
+            right: -2,
+            background: 'var(--surface-1)',
+            border: '1px solid var(--accent)',
+            color: 'var(--accent)',
+            fontFamily: 'serif',
+            fontSize: 11,
+            lineHeight: 1,
+            padding: '2px 4px 1px',
+            borderRadius: 'var(--r-sm)',
+            minWidth: 14,
+            textAlign: 'center',
+          }}
+        >
+          {SUBDIV_GLYPH[subdivision] || '♩'}
+        </span>
+      )}
     </button>
   );
 }

@@ -53,9 +53,21 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [currentMeasure, setCurrentMeasure] = useState(1);
     const [measureProgress, setMeasureProgress] = useState(0); // 0..1 within current measure
     const [metronome, setMetronome] = useState(false);
+    const [metronomeSubdivision, setMetronomeSubdivision] = useState('quarter');
     const [loop, setLoop] = useState(false);
     const [loopRange, setLoopRange] = useState([1, 1]);
     const [loopEditorOpen, setLoopEditorOpen] = useState(false);
+
+    // When user toggles the metronome in the dock, drive AudioEngine so we
+    // hear ticks while idle too.
+    useEffect(() => {
+        if (metronome) {
+            const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
+            audioEngine.startMetronome(tempo, metronomeSubdivision);
+        } else {
+            audioEngine.stopMetronome();
+        }
+    }, [metronome, metronomeSubdivision, song, speed]);
 
     // Concat phrases into one playable phrase so the dock's play button
     // drives the whole partition.
@@ -140,9 +152,10 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             true,
             () => setPlaying(false),
             beatsPerMeasure,
+            { preroll: metronome },
         );
         setPlaying(true);
-    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure]);
+    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure, metronome]);
 
     const totalMeasures = measures.length;
     const tsText = song?.timeSignature
@@ -311,6 +324,8 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 onHandMode={setHandMode}
                 metronome={metronome}
                 onMetronome={() => setMetronome((m) => !m)}
+                metronomeSubdivision={metronomeSubdivision}
+                onMetronomeSubdivisionChange={setMetronomeSubdivision}
                 loop={loop}
                 onLoop={() => setLoop((l) => !l)}
                 loopRange={loopRange[1] > 1 ? loopRange : [1, totalMeasures]}

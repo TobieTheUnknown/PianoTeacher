@@ -156,7 +156,7 @@ class AudioEngine {
         this.sampler.triggerAttackRelease(note, duration, time);
     }
 
-    playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null, beatsPerMeasure = 4) {
+    playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null, beatsPerMeasure = 4, options = {}) {
         if (!Tone) return;
         this.onPlaybackEnd = onPlaybackEnd;
 
@@ -182,11 +182,12 @@ class AudioEngine {
 
         Tone.Transport.bpm.value = tempo;
 
-        // Preroll when metronome is on: one bar of click before the music
-        // starts. Transport's `seconds` will run negative during the preroll
-        // (we offset the start position by -1 measure) so existing
-        // position/seek logic stays consistent.
-        const prerollBeats = this.metronomeEnabled ? beatsPerMeasure : 0;
+        // Preroll is now explicit. Caller passes options.preroll=true to
+        // get one bar of metronome click before the music. We no longer
+        // read this.metronomeEnabled (was racy when callers toggled the
+        // metronome after this call).
+        const wantsPreroll = options.preroll === true;
+        const prerollBeats = wantsPreroll ? beatsPerMeasure : 0;
         const prerollSec = (prerollBeats * 60) / tempo;
         this._prerollSec = prerollSec;
 
@@ -234,6 +235,19 @@ class AudioEngine {
         // THEN start Part and Transport
         this._currentPart.start(0);
 
+        // Schedule the preroll metronome clicks (if any). One beat per
+        // click; the first one is accented.
+        if (wantsPreroll && this.metronomeSynth) {
+            const secondsPerBeat = 60 / tempo;
+            for (let i = 0; i < prerollBeats; i++) {
+                Tone.Transport.scheduleOnce((time) => {
+                    this.playClick(time, i === 0);
+                }, i * secondsPerBeat);
+            }
+        }
+
+        // If a continuous metronome loop is running (set up separately via
+        // startMetronome), let it keep running through the preroll + music.
         if (this.metronomeEnabled && this.metronomeLoop) {
             this.metronomeLoop.start(0);
         }
