@@ -7,20 +7,18 @@ import {
     TREBLE_CLEF,
     BASS_CLEF,
     toKotlinKeySig,
-    normalizePitch,
-    midiToDiatonic,
 } from '../utils/sheetMusic';
+import { PlaybackDock } from './PlaybackDock';
 
 /**
- * Sheet Music Learning — pixel-fidelity port of LearningScreen.kt's
- * GrandStaffCanvas, on HTML5 canvas.
+ * Sheet Music Learning — design-aligned partition view.
  *
- * Renders the song as a row of measure cards, each with a grand staff
- * (treble + bass clef). Notes are drawn at their startTime fraction within
- * the measure. Black keys get an inline #/♭ accidental.
+ * Layout mirrors the design prototype (SheetSc):
+ *   MobileHeader · KeyTempoBar · stacked SheetSystems (4 measures/row) ·
+ *   hand-toggle pills · PlaybackDock
  *
- * No playback / focus tracking yet — read-only viewer. Phase 3 hooks up
- * highlighting and audio playback.
+ * Each SheetSystem stacks 4 measure canvases side-by-side, sharing one
+ * row. The first measure of each row shows clefs + key signature.
  */
 export function SheetMusicLearning({ song, isMobile = false }) {
     const beatsPerMeasure = song?.timeSignature?.numerator || 4;
@@ -29,8 +27,6 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         [song, beatsPerMeasure]
     );
 
-    // Smart octave shift heuristics — applied to the whole song to reduce
-    // ledger lines. Computed once across all chord/melody notes.
     const useFlats = useMemo(() => {
         const ks = toKotlinKeySig(song?.key);
         return ks?.useFlats || false;
@@ -48,6 +44,24 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         [allChords, useFlats]
     );
 
+    // Playback / view state (read-only viewer for now — handlers prepared for
+    // wiring to a real AudioEngine playback driver).
+    const [playing, setPlaying] = useState(false);
+    const [speed, setSpeed] = useState(100);
+    const [handMode, setHandMode] = useState('both');   // 'left' | 'right' | 'both'
+    const [currentMeasure, setCurrentMeasure] = useState(1);
+    const [metronome, setMetronome] = useState(false);
+    const [loop, setLoop] = useState(false);
+
+    const totalMeasures = measures.length;
+    const tsText = song?.timeSignature
+        ? `${song.timeSignature.numerator}/${song.timeSignature.denominator}`
+        : '';
+    const keyText = song?.key
+        ? `${song.key.note} ${song.key.mode === 'minor' ? 'mineur' : 'majeur'}`
+        : '—';
+    const bpm = song?.tempo || 120;
+
     if (!song || song.phrases?.length === 0 || measures.length === 0) {
         return (
             <EmptyState
@@ -58,25 +72,182 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         );
     }
 
+    // Group measures into systems of 4
+    const SYSTEM_SIZE = 4;
+    const systems = useMemo(() => {
+        const out = [];
+        for (let i = 0; i < measures.length; i += SYSTEM_SIZE) {
+            out.push(measures.slice(i, i + SYSTEM_SIZE));
+        }
+        return out;
+    }, [measures]);
+
     return (
-        <div
-            style={{
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: 'calc(100vh - 64px)',
+            overflow: 'hidden',
+        }}>
+            {/* MobileHeader pattern */}
+            <div style={{
+                padding: '12px 16px 8px',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: isMobile ? '0.5rem' : '0.75rem',
-                padding: isMobile ? '0.75rem 0' : '1rem 0',
-                minHeight: isMobile ? 'calc(100vh - 120px)' : '60vh',
-            }}
-        >
-            <Header song={song} measureCount={measures.length} isMobile={isMobile} />
-            <MeasureRow
-                measures={measures}
-                song={song}
-                beatsPerMeasure={beatsPerMeasure}
-                useFlats={useFlats}
-                upperShift={upperShift}
-                lowerShift={lowerShift}
-                isMobile={isMobile}
+                alignItems: 'center',
+                gap: 10,
+                flexShrink: 0,
+            }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        letterSpacing: '-0.01em',
+                        color: 'var(--text-primary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}>{song.title || 'Sans titre'}</div>
+                    <div style={{
+                        fontSize: 11,
+                        color: 'var(--text-tertiary)',
+                        marginTop: 1,
+                        fontFamily: 'var(--font-mono)',
+                    }}>
+                        Mesure {currentMeasure}/{totalMeasures}{tsText && ` · ${tsText}`}
+                    </div>
+                </div>
+            </div>
+
+            {/* Scrollable content */}
+            <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                padding: '4px 16px 12px',
+            }}>
+                {/* Key + tempo bar */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <span style={{
+                        padding: '6px 10px',
+                        background: 'var(--surface-1)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--r-sm)',
+                        fontSize: 12,
+                        color: 'var(--text-secondary)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        flex: 1,
+                    }}>
+                        <span style={{ fontFamily: 'serif', fontSize: 16, color: 'var(--text-primary)' }}>
+                            {useFlats ? '♭' : '♯'}
+                        </span>
+                        <span>{keyText}</span>
+                    </span>
+                    <span style={{
+                        padding: '6px 10px',
+                        background: 'var(--surface-1)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--r-sm)',
+                        fontSize: 12,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                    }}>
+                        {tsText && (
+                            <span style={{
+                                fontFamily: 'serif',
+                                fontSize: 11,
+                                lineHeight: 1,
+                                display: 'inline-flex',
+                                flexDirection: 'column',
+                                color: 'var(--text-primary)',
+                            }}>
+                                <b>{tsText.split('/')[0]}</b>
+                                <b>{tsText.split('/')[1]}</b>
+                            </span>
+                        )}
+                        <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+                        <span style={{
+                            fontFamily: 'var(--font-mono)',
+                            color: 'var(--text-primary)',
+                            fontWeight: 700,
+                        }}>
+                            ♩={bpm}
+                        </span>
+                    </span>
+                </div>
+
+                {/* Sheet music staves */}
+                <div style={{
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    padding: '14px 12px',
+                    marginBottom: 12,
+                    overflow: 'hidden',
+                }}>
+                    {song.composer && (
+                        <div style={{
+                            fontFamily: 'serif',
+                            fontStyle: 'italic',
+                            fontSize: 11,
+                            color: 'var(--text-tertiary)',
+                            textAlign: 'right',
+                            marginBottom: 8,
+                        }}>~ {song.composer}</div>
+                    )}
+
+                    {systems.map((systemMeasures, sysIdx) => (
+                        <SheetSystem
+                            key={sysIdx}
+                            systemIndex={sysIdx}
+                            systemSize={SYSTEM_SIZE}
+                            measures={systemMeasures}
+                            beatsPerMeasure={beatsPerMeasure}
+                            useFlats={useFlats}
+                            upperShift={upperShift}
+                            lowerShift={lowerShift}
+                            keySig={song.key}
+                            handMode={handMode}
+                            currentMeasure={currentMeasure}
+                            isMobile={isMobile}
+                        />
+                    ))}
+                </div>
+
+                {/* Hand toggle pills */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                    <ToggleHandPill
+                        hand="left"
+                        label="Main G."
+                        active={handMode !== 'right'}
+                        onClick={() => setHandMode(handMode === 'left' ? 'both' : 'left')}
+                    />
+                    <ToggleHandPill
+                        hand="right"
+                        label="Main D."
+                        active={handMode !== 'left'}
+                        onClick={() => setHandMode(handMode === 'right' ? 'both' : 'right')}
+                    />
+                </div>
+            </div>
+
+            {/* Shared PlaybackDock */}
+            <PlaybackDock
+                playing={playing}
+                onPlayPause={() => setPlaying((p) => !p)}
+                speed={speed}
+                onSpeed={setSpeed}
+                handMode={handMode}
+                onHandMode={setHandMode}
+                metronome={metronome}
+                onMetronome={() => setMetronome((m) => !m)}
+                loop={loop}
+                onLoop={() => setLoop((l) => !l)}
+                totalMeasures={totalMeasures}
+                onPrev={() => setCurrentMeasure((m) => Math.max(1, m - 1))}
+                onNext={() => setCurrentMeasure((m) => Math.min(totalMeasures, m + 1))}
             />
         </div>
     );
@@ -84,112 +255,56 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function Header({ song, measureCount, isMobile }) {
+function SheetSystem({
+    systemIndex, systemSize, measures, beatsPerMeasure,
+    useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure, isMobile,
+}) {
     return (
-        <div
-            style={{
-                padding: isMobile ? '0 1rem' : '0 1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.25rem',
-            }}
-        >
-            <h2
-                style={{
-                    margin: 0,
-                    fontSize: isMobile ? '1.125rem' : '1.5rem',
-                    color: 'var(--text-primary)',
-                    fontWeight: 600,
-                }}
-            >
-                {song.title || 'Sans titre'}
-            </h2>
-            <div
-                style={{
-                    display: 'flex',
-                    gap: '0.75rem',
-                    fontSize: '0.75rem',
-                    color: 'var(--text-secondary)',
-                }}
-            >
-                <span>{measureCount} mesure{measureCount > 1 ? 's' : ''}</span>
-                {song.key && <span>· {song.key.note} {song.key.mode === 'minor' ? 'mineur' : 'majeur'}</span>}
-                {song.tempo && <span>· {song.tempo} BPM</span>}
-                {song.timeSignature && (
-                    <span>· {song.timeSignature.numerator}/{song.timeSignature.denominator}</span>
-                )}
-            </div>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 2,
+            marginBottom: 10,
+            alignItems: 'stretch',
+        }}>
+            {measures.map((m, i) => {
+                const globalIdx = systemIndex * systemSize + i + 1;
+                return (
+                    <SystemMeasure
+                        key={`${m.phraseIndex}-${m.measureIndex}`}
+                        measureData={m}
+                        measureNumber={globalIdx}
+                        showClefs={i === 0}
+                        beatsPerMeasure={beatsPerMeasure}
+                        useFlats={useFlats}
+                        upperShift={upperShift}
+                        lowerShift={lowerShift}
+                        keySig={keySig}
+                        handMode={handMode}
+                        isCurrent={globalIdx === currentMeasure}
+                        isLast={i === measures.length - 1}
+                        flex={i === 0 ? '1.4 1 0' : '1 1 0'}
+                        height={isMobile ? 130 : 150}
+                    />
+                );
+            })}
         </div>
     );
 }
 
-function MeasureRow({ measures, song, beatsPerMeasure, useFlats, upperShift, lowerShift, isMobile }) {
-    // Detect phrase boundaries so the first measure of each phrase shows clefs.
-    const phraseStarts = useMemo(() => {
-        const set = new Set();
-        let lastPhrase = -1;
-        measures.forEach((m, i) => {
-            if (m.phraseIndex !== lastPhrase) {
-                set.add(i);
-                lastPhrase = m.phraseIndex;
-            }
-        });
-        return set;
-    }, [measures]);
-
-    return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'row',
-                overflowX: 'auto',
-                overflowY: 'hidden',
-                gap: '4px',
-                padding: isMobile ? '0 1rem' : '0 1.5rem',
-                scrollSnapType: 'x mandatory',
-                WebkitOverflowScrolling: 'touch',
-            }}
-        >
-            {measures.map((m, i) => (
-                <MeasureCard
-                    key={`${m.phraseIndex}-${m.measureIndex}`}
-                    measureData={m}
-                    measureNumber={i + 1}
-                    showClefs={phraseStarts.has(i)}
-                    beatsPerMeasure={beatsPerMeasure}
-                    useFlats={useFlats}
-                    upperShift={upperShift}
-                    lowerShift={lowerShift}
-                    keySig={song.key}
-                    isMobile={isMobile}
-                />
-            ))}
-        </div>
-    );
-}
-
-function MeasureCard({
-    measureData,
-    measureNumber,
-    showClefs,
-    beatsPerMeasure,
-    useFlats,
-    upperShift,
-    lowerShift,
-    keySig,
-    isMobile,
+function SystemMeasure({
+    measureData, measureNumber, showClefs, beatsPerMeasure, useFlats,
+    upperShift, lowerShift, keySig, handMode, isCurrent, isLast, flex, height,
 }) {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     const [dims, setDims] = useState({ w: 0, h: 0 });
 
-    // Card width: clef cards are wider to fit the clef + key signature area.
-    const baseWidth = isMobile ? 132 : 168;
-    const clefExtra = showClefs ? (isMobile ? 38 : 48) : 0;
-    const cardWidth = baseWidth + clefExtra;
-    const cardHeight = isMobile ? 240 : 280;
+    // Filter notes based on hand mode (visual filter only — left filters
+    // out chordNotes, right filters out melodyNotes).
+    const visibleMelody = handMode === 'left' ? [] : measureData.melodyNotes;
+    const visibleChords = handMode === 'right' ? [] : measureData.chordNotes;
 
-    // Observe container size for DPR-aware canvas sizing.
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
@@ -203,7 +318,6 @@ function MeasureCard({
         return () => ro.disconnect();
     }, []);
 
-    // Render whenever inputs or dims change.
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || dims.w === 0 || dims.h === 0) return;
@@ -215,7 +329,6 @@ function MeasureCard({
         canvas.style.height = `${dims.h}px`;
 
         const ctx = canvas.getContext('2d');
-        // Reset transform then apply DPR scale.
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, dims.w, dims.h);
@@ -224,42 +337,106 @@ function MeasureCard({
             width: dims.w,
             height: dims.h,
             measureNumber,
-            melodyNotes: measureData.melodyNotes,
-            chordNotes: measureData.chordNotes,
+            melodyNotes: visibleMelody,
+            chordNotes: visibleChords,
             beatsPerMeasure,
             measureStart: measureData.measureStart,
             useFlats,
             showClefs,
             isPlaying: false,
-            isFocused: false,
+            isFocused: isCurrent,
             clefMode: 'STANDARD',
             upperOctaveShift: upperShift,
             lowerOctaveShift: lowerShift,
             keySig,
             isLandscape: false,
-            dp: (n) => n, // CSS px = dp on web (DPR is applied via scale())
+            dp: (n) => n,
         });
     }, [
-        dims, measureNumber, measureData, beatsPerMeasure, useFlats,
-        showClefs, upperShift, lowerShift, keySig,
+        dims, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
+        useFlats, showClefs, upperShift, lowerShift, keySig, isCurrent,
     ]);
 
     return (
         <div
             ref={containerRef}
             style={{
-                flex: `0 0 ${cardWidth}px`,
-                width: cardWidth,
-                height: cardHeight,
-                background: 'rgba(0, 0, 0, 0.2)',
-                border: '1px solid var(--border-color, rgba(255, 255, 255, 0.08))',
-                borderRadius: 8,
-                scrollSnapAlign: 'start',
+                flex,
+                minWidth: 0,
+                height,
+                background: 'transparent',
+                borderRight: isLast ? 'none' : '1px solid var(--border)',
                 position: 'relative',
             }}
         >
             <canvas ref={canvasRef} style={{ display: 'block' }} />
+            {isCurrent && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    background: 'color-mix(in oklab, var(--accent), transparent 92%)',
+                    pointerEvents: 'none',
+                    borderLeft: '2px solid var(--accent)',
+                }} />
+            )}
         </div>
+    );
+}
+
+function ToggleHandPill({ hand, label, active, onClick }) {
+    const isRight = hand === 'right';
+    const color = isRight ? 'var(--hand-right)' : 'var(--hand-left)';
+    const dim = isRight ? 'var(--hand-right-dim)' : 'var(--hand-left-dim)';
+    const border = isRight ? 'var(--hand-right-border)' : 'var(--hand-left-border)';
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: 'var(--r-md)',
+                background: active ? dim : 'var(--surface-2)',
+                color: active ? color : 'var(--text-tertiary)',
+                border: `1px solid ${active ? border : 'var(--border)'}`,
+                fontSize: 12,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                transition: 'all var(--t-fast)',
+                cursor: 'pointer',
+                minHeight: 0,
+            }}
+        >
+            <HandIcon hand={hand} />
+            {label}
+        </button>
+    );
+}
+
+function HandIcon({ hand }) {
+    // Simple hand SVG (mirrored for left)
+    return (
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={hand === 'left' ? { transform: 'scaleX(-1)' } : undefined}
+            aria-hidden
+        >
+            <path d="M9 11v-7a2 2 0 1 1 4 0v7" />
+            <path d="M13 11v-2a2 2 0 1 1 4 0v6" />
+            <path d="M17 14v-1a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 18V5a2 2 0 1 1 4 0v6" />
+        </svg>
     );
 }
 
@@ -283,10 +460,10 @@ function EmptyState({ isMobile, hasSong, title }) {
                 style={{
                     width: 120,
                     height: 80,
-                    border: '1.5px solid var(--border-color)',
+                    border: '1.5px solid var(--border)',
                     borderRadius: 6,
                     background:
-                        'linear-gradient(to bottom, transparent 0 18%, var(--border-color) 18% 22%, transparent 22% 38%, var(--border-color) 38% 42%, transparent 42% 58%, var(--border-color) 58% 62%, transparent 62% 78%, var(--border-color) 78% 82%, transparent 82%)',
+                        'linear-gradient(to bottom, transparent 0 18%, var(--border) 18% 22%, transparent 22% 38%, var(--border) 38% 42%, transparent 42% 58%, var(--border) 58% 62%, transparent 62% 78%, var(--border) 78% 82%, transparent 82%)',
                     opacity: 0.5,
                 }}
             />
