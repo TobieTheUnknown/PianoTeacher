@@ -51,6 +51,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [speed, setSpeed] = useState(100);
     const [handMode, setHandMode] = useState('both');   // 'left' | 'right' | 'both'
     const [currentMeasure, setCurrentMeasure] = useState(1);
+    const [measureProgress, setMeasureProgress] = useState(0); // 0..1 within current measure
     const [metronome, setMetronome] = useState(false);
     const [loop, setLoop] = useState(false);
     const [loopRange, setLoopRange] = useState([1, 1]);
@@ -78,6 +79,42 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             length: song.phrases.reduce((s, p) => s + p.length, 0),
         };
     }, [song]);
+
+    // Capture the starting measure when playback begins so the tick loop
+    // doesn't depend on `currentMeasure` (which it itself updates).
+    const startMeasureRef = useRef(1);
+    useEffect(() => { startMeasureRef.current = currentMeasure; }, [currentMeasure]);
+
+    // Track Transport position during playback to drive the playhead.
+    // Uses getMusicSeconds() which subtracts the metronome preroll so the
+    // playhead only starts moving when the music actually plays.
+    const measuresLen = measures.length;
+    useEffect(() => {
+        if (!playing) return;
+        const beatsPerMeasureLocal = song?.timeSignature?.numerator || 4;
+        const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
+        const secondsPerBeat = 60 / tempo;
+        const secondsPerMeasure = secondsPerBeat * beatsPerMeasureLocal;
+        const startBeats = (Math.max(1, startMeasureRef.current) - 1) * beatsPerMeasureLocal;
+        const startOffsetSec = startBeats * secondsPerBeat;
+        let raf;
+        const tick = () => {
+            const musicT = audioEngine.getMusicSeconds(); // negative during preroll
+            if (musicT < 0) {
+                setMeasureProgress(0);
+            } else {
+                const absoluteT = startOffsetSec + musicT;
+                const beatIdx = absoluteT / secondsPerBeat;
+                const measureIdx = Math.floor(beatIdx / beatsPerMeasureLocal) + 1;
+                const within = (absoluteT - (measureIdx - 1) * secondsPerMeasure) / secondsPerMeasure;
+                setCurrentMeasure(Math.max(1, Math.min(measuresLen, measureIdx)));
+                setMeasureProgress(Math.max(0, Math.min(1, within)));
+            }
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [playing, song, speed, measuresLen]);
 
     const handlePlayPause = useCallback(async () => {
         await audioEngine.initialize();
@@ -233,6 +270,8 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                             keySig={song.key}
                             handMode={handMode}
                             currentMeasure={currentMeasure}
+                            measureProgress={measureProgress}
+                            isPlaying={playing}
                             isMobile={isMobile}
                         />
                     ))}
@@ -291,7 +330,8 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 
 function SheetSystem({
     systemIndex, systemSize, measures, beatsPerMeasure,
-    useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure, isMobile,
+    useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure,
+    measureProgress = 0, isPlaying = false, isMobile,
 }) {
     return (
         <div style={{
@@ -303,6 +343,7 @@ function SheetSystem({
         }}>
             {measures.map((m, i) => {
                 const globalIdx = systemIndex * systemSize + i + 1;
+                const isCurrent = globalIdx === currentMeasure;
                 return (
                     <SystemMeasure
                         key={`${m.phraseIndex}-${m.measureIndex}`}
@@ -315,7 +356,8 @@ function SheetSystem({
                         lowerShift={lowerShift}
                         keySig={keySig}
                         handMode={handMode}
-                        isCurrent={globalIdx === currentMeasure}
+                        isCurrent={isCurrent}
+                        playheadFrac={isCurrent && isPlaying ? measureProgress : null}
                         isLast={i === measures.length - 1}
                         flex={i === 0 ? '1.4 1 0' : '1 1 0'}
                         height={isMobile ? 130 : 220}
@@ -328,7 +370,8 @@ function SheetSystem({
 
 function SystemMeasure({
     measureData, measureNumber, showClefs, beatsPerMeasure, useFlats,
-    upperShift, lowerShift, keySig, handMode, isCurrent, isLast, flex, height,
+    upperShift, lowerShift, keySig, handMode, isCurrent, playheadFrac,
+    isLast, flex, height,
 }) {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
@@ -415,6 +458,36 @@ function SystemMeasure({
                     pointerEvents: 'none',
                     borderLeft: '2px solid var(--accent)',
                 }} />
+            )}
+            {/* Playhead — vertical line tracking Transport position */}
+            {playheadFrac !== null && playheadFrac !== undefined && (
+                <>
+                    <div style={{
+                        position: 'absolute',
+                        top: 4,
+                        bottom: 4,
+                        left: `${playheadFrac * 100}%`,
+                        width: 2,
+                        background: 'var(--accent)',
+                        opacity: 0.9,
+                        pointerEvents: 'none',
+                        boxShadow: '0 0 6px var(--accent)',
+                        transform: 'translateX(-1px)',
+                        zIndex: 2,
+                    }} />
+                    <div style={{
+                        position: 'absolute',
+                        top: 4,
+                        bottom: 4,
+                        left: `${playheadFrac * 100}%`,
+                        width: 24,
+                        background: 'var(--accent)',
+                        opacity: 0.08,
+                        pointerEvents: 'none',
+                        transform: 'translateX(-12px)',
+                        zIndex: 1,
+                    }} />
+                </>
             )}
         </div>
     );

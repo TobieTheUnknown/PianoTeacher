@@ -182,6 +182,14 @@ class AudioEngine {
 
         Tone.Transport.bpm.value = tempo;
 
+        // Preroll when metronome is on: one bar of click before the music
+        // starts. Transport's `seconds` will run negative during the preroll
+        // (we offset the start position by -1 measure) so existing
+        // position/seek logic stays consistent.
+        const prerollBeats = this.metronomeEnabled ? beatsPerMeasure : 0;
+        const prerollSec = (prerollBeats * 60) / tempo;
+        this._prerollSec = prerollSec;
+
         const allNotes = [
             ...phrase.tracks.melody.map(n => ({ ...n, track: 'melody' })),
             ...phrase.tracks.chords.map(n => ({ ...n, track: 'chords' }))
@@ -193,17 +201,35 @@ class AudioEngine {
             const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
             this.sampler.triggerAttackRelease(pitch, note.duration * quarterDuration, time);
         }, allNotes.map(n => ({
-            time: n.startTime * quarterDuration,
+            // Schedule notes after the preroll
+            time: n.startTime * quarterDuration + prerollSec,
             pitch: n.pitch,
             duration: n.duration
         })));
 
-        // Set transport position FIRST (before starting Part)
+        // Set transport position FIRST (before starting Part). With preroll,
+        // we want Transport.seconds = 0 at the start of the preroll and
+        // = prerollSec at the start of the music. So the requested start
+        // becomes startPositionBeats AFTER the preroll.
         let startSeconds = 0;
         if (startPositionBeats !== null && startPositionBeats > 0) {
             startSeconds = (startPositionBeats * 60) / tempo;
-            Tone.Transport.seconds = startSeconds;
         }
+        // Always start at 0 (= beginning of preroll if any). The startSeconds
+        // shift is folded into the Part schedule (subtract the start offset).
+        if (startSeconds > 0) {
+            this._currentPart.clear();
+            allNotes.forEach((n) => {
+                const noteSec = n.startTime * quarterDuration + prerollSec;
+                if (noteSec >= startSeconds) {
+                    this._currentPart.add(noteSec - startSeconds, {
+                        pitch: n.pitch,
+                        duration: n.duration,
+                    });
+                }
+            });
+        }
+        Tone.Transport.seconds = 0;
 
         // THEN start Part and Transport
         this._currentPart.start(0);
@@ -218,7 +244,7 @@ class AudioEngine {
         if (stopAtEnd) {
             const phraseLengthBeats = phrase.length * beatsPerMeasure;
             const phraseDurationSeconds = (phraseLengthBeats * 60) / tempo;
-            const remainingSeconds = phraseDurationSeconds - startSeconds;
+            const remainingSeconds = phraseDurationSeconds - startSeconds + prerollSec;
 
             if (remainingSeconds > 0) {
                 this.stopTimeout = setTimeout(() => {
@@ -319,6 +345,17 @@ class AudioEngine {
     getTransportSeconds() {
         if (!Tone) return 0;
         return Tone.Transport.seconds;
+    }
+
+    // Music position in seconds, accounting for the metronome preroll.
+    // Returns a negative number during preroll (countdown).
+    getMusicSeconds() {
+        if (!Tone) return 0;
+        return Tone.Transport.seconds - (this._prerollSec || 0);
+    }
+
+    getPrerollSeconds() {
+        return this._prerollSec || 0;
     }
 
     stop() {
