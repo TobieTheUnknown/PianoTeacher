@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.tobietheunknown.pianoteacher.audio.AudioEngine
 import com.tobietheunknown.pianoteacher.ui.theme.PianoTeacherTheme
 import com.tobietheunknown.pianoteacher.ui.theme.ThemeState
 import com.tobietheunknown.pianoteacher.ui.theme.getThemeColors
@@ -34,6 +35,12 @@ class MainActivity : ComponentActivity() {
         // requestBlePermissionsIfNeeded()
 
         ThemeState.init(this)
+
+        // Warm the audio engine on the way in. Loads SoundPool samples (~500ms)
+        // and starts decoding Oboe samples in the background so the Library →
+        // Practice/Learning transition has a sampler ready instead of dropping
+        // the first key presses.
+        AudioEngine.getInstance(applicationContext)
 
         setContent {
             val currentTheme by ThemeState.current

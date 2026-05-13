@@ -168,6 +168,7 @@ class LearningViewModel(
                         _pressedKeys.value = _pressedKeys.value - event.pitch
                         audioEngine.noteOff(event.pitch)
                     }
+                    is MidiEvent.SustainPedal -> audioEngine.setSustainPedal(event.engaged)
                 }
             }
         }
@@ -545,7 +546,10 @@ class LearningViewModel(
     override fun onCleared() {
         super.onCleared()
         cancelPlayback()
-        audioEngine.release()
+        // AudioEngine is a process-wide singleton now — silence any ringing notes
+        // (and clear pedal state) but keep the engine warm for the next screen.
+        audioEngine.setSustainPedal(false)
+        audioEngine.noteOff(-1)
     }
 
     // ─── Data building ────────────────────────────────────────────────────────
@@ -598,7 +602,7 @@ class LearningViewModel(
     class Factory(private val context: Context, private val songId: String) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            val engine = AudioEngine(context.applicationContext)
+            val engine = AudioEngine.getInstance(context.applicationContext)
             val midi = MidiManager.getInstance(context.applicationContext)
             return LearningViewModel(SongRepository(context), songId, engine, midi) as T
         }

@@ -43,7 +43,7 @@ fun SettingsScreen(
     var selectedTheme by remember { mutableStateOf(ThemePrefs.getTheme(context)) }
     var metronomeVolume by remember { mutableIntStateOf(ThemePrefs.getMetronomeVolume(context)) }
     val previewMetronome = remember { MetronomeEngine() }
-    val audioEngine = remember { AudioEngine() }
+    val audioEngine = remember { AudioEngine.getInstance(context) }
     var releaseLevel by remember { mutableIntStateOf(ThemePrefs.getReleaseLevel(context)) }
     val midiDeviceName by com.tobietheunknown.pianoteacher.midi.MidiManager.getInstance(context).deviceName.collectAsState()
 

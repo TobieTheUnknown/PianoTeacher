@@ -136,6 +136,7 @@ class PracticeViewModel(
                     when (event) {
                         is MidiEvent.NoteOn -> handleMidiNoteOn(event.pitch, event.velocity)
                         is MidiEvent.NoteOff -> handleMidiNoteOff(event.pitch)
+                        is MidiEvent.SustainPedal -> audioEngine.setSustainPedal(event.engaged)
                     }
                 }
             }
@@ -529,8 +530,11 @@ class PracticeViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        midiManager.stop()
-        audioEngine.release()
+        // MidiManager is shared (singleton via getInstance) — do not stop it, other
+        // screens may still want events. AudioEngine is also a singleton: silence
+        // ringing notes and pedal state but leave the engine warm.
+        audioEngine.setSustainPedal(false)
+        audioEngine.noteOff(-1)
     }
 
     class Factory(
@@ -540,13 +544,13 @@ class PracticeViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            val engine = AudioEngine(context)
+            val engine = AudioEngine.getInstance(context)
             engine.setRelease(ThemePrefs.getReleaseLevel(context))
             return PracticeViewModel(
                 repo = SongRepository(context),
                 songId = songId,
                 initialPhraseIndex = phraseIndex,
-                midiManager = MidiManager(context),
+                midiManager = MidiManager.getInstance(context),
                 audioEngine = engine,
                 initialMetronomeVolume = ThemePrefs.getMetronomeVolume(context)
             ) as T

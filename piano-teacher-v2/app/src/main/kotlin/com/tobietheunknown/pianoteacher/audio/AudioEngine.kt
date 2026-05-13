@@ -31,6 +31,10 @@ class AudioEngine(private val context: Context? = null) {
     private var nativeAvailable = false
     private var oboeReady = false
 
+    // Sustain pedal (MIDI CC64): when engaged, defer noteOff until released.
+    private var pedalEngaged = false
+    private val heldByPedal = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+
     // SoundPool bridge: plays immediately while Oboe loads, and permanent fallback if Oboe unavailable
     private val samplerEngine: SamplerEngine? = context?.let { SamplerEngine(it) }
 
@@ -56,6 +60,15 @@ class AudioEngine(private val context: Context? = null) {
                 Log.w(TAG, "Native library unavailable: ${e.message}")
             }
         }
+
+        // Process-wide singleton. The whole app shares one engine so samples
+        // load once at app start (warm by the time any piano page opens) and
+        // active notes survive screen transitions.
+        @Volatile private var instance: AudioEngine? = null
+        fun getInstance(context: Context): AudioEngine =
+            instance ?: synchronized(this) {
+                instance ?: AudioEngine(context.applicationContext).also { instance = it }
+            }
     }
 
     init {
@@ -90,6 +103,8 @@ class AudioEngine(private val context: Context? = null) {
 
     fun noteOn(pitch: Int, velocity: Int = 80) {
         if (!enabled) return
+        // A re-attack supersedes any pending pedal-deferred release for this pitch.
+        heldByPedal.remove(pitch)
         if (nativeAvailable && oboeReady) {
             nativeNoteOn(pitch, velocity)
         } else {
@@ -98,10 +113,38 @@ class AudioEngine(private val context: Context? = null) {
     }
 
     fun noteOff(pitch: Int) {
+        // Pedal down → defer the release. pitch == -1 is the "stop all" sentinel and
+        // must always run, regardless of pedal state.
+        if (pedalEngaged && pitch >= 0) {
+            heldByPedal.add(pitch)
+            return
+        }
+        if (pitch < 0) heldByPedal.clear()
         if (nativeAvailable && oboeReady) {
             try { nativeNoteOff(pitch) } catch (_: Exception) { }
         } else {
             if (pitch >= 0) samplerEngine?.noteOff(pitch)
+            else samplerEngine?.let { for (n in 21..108) it.noteOff(n) }
+        }
+    }
+
+    /**
+     * MIDI CC64 (damper/sustain pedal). value ≥ 64 = pressed (MIDI 1.0 spec).
+     * On release, every note whose noteOff we deferred is flushed.
+     */
+    fun setSustainPedal(engaged: Boolean) {
+        val wasEngaged = pedalEngaged
+        pedalEngaged = engaged
+        if (wasEngaged && !engaged) {
+            val toRelease = heldByPedal.toList()
+            heldByPedal.clear()
+            for (pitch in toRelease) {
+                if (nativeAvailable && oboeReady) {
+                    try { nativeNoteOff(pitch) } catch (_: Exception) { }
+                } else {
+                    samplerEngine?.noteOff(pitch)
+                }
+            }
         }
     }
 

@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.*
 sealed class MidiEvent {
     data class NoteOn(val pitch: Int, val velocity: Int, val channel: Int) : MidiEvent()
     data class NoteOff(val pitch: Int, val channel: Int) : MidiEvent()
+    // CC64 (damper/sustain pedal). value ≥ 64 = engaged.
+    data class SustainPedal(val engaged: Boolean, val channel: Int) : MidiEvent()
 }
 
 class MidiManager(private val context: Context) {
@@ -127,7 +129,19 @@ class MidiManager(private val context: Context) {
                         i += 3
                     } else break
                 }
-                else -> i++ // skip unknown
+                0xB0 -> { // Control Change — only CC64 (sustain) is consumed for now.
+                    if (i + 2 < offset + count) {
+                        val controller = msg[i + 1].toInt() and 0x7F
+                        val value = msg[i + 2].toInt() and 0x7F
+                        if (controller == 64) {
+                            _events.tryEmit(MidiEvent.SustainPedal(engaged = value >= 64, channel = channel))
+                        }
+                        i += 3
+                    } else break
+                }
+                0xA0, 0xE0 -> i += 3 // Poly aftertouch / pitch bend (3-byte) — skip cleanly
+                0xC0, 0xD0 -> i += 2 // Program change / channel pressure (2-byte) — skip cleanly
+                else -> i++
             }
         }
     }
