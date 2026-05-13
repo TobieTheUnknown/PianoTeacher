@@ -8,6 +8,7 @@ import themeService from '../services/ThemeService';
 import { CoordinationTimeline } from './learn/CoordinationTimeline';
 import { PlaybackDock } from './PlaybackDock';
 import { MobileHeader } from './MobileHeader';
+import { LearnSidebar } from './learn/LearnSidebar';
 
 // ── Constant styles extracted outside render ──────────────────────────────────
 
@@ -1157,6 +1158,15 @@ export function LiveLearning({ song, onToggleHighlight }) {
             </div>
             )}
 
+            {/* Desktop layout: 2-column (content + right rail sidebar with HandGuides + Keyboard for current measure). */}
+            <div style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: isMobile ? 0 : 18,
+                alignItems: 'stretch',
+            }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+
             {/* Timeline (PINNED TOP on mobile) */}
             <CoordinationTimeline
                 measures={analysis.measures}
@@ -1259,6 +1269,18 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         </div>
                     </div>
                 ))}
+            </div>
+                </div>
+
+                {/* Right rail — desktop only. Shows HandGuides + mini
+                    keyboard for the currently-focused measure. */}
+                {!isMobile && (
+                    <LearnSidebar
+                        measure={analysis.measures.find(m => m.number === focusedMeasure)}
+                        keySignature={song.key}
+                        displayNoteName={displayNoteName}
+                    />
+                )}
             </div>
 
             {/* Universal PlaybackDock — fixed to viewport bottom on
