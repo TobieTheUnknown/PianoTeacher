@@ -415,178 +415,226 @@ function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, key
     );
 }
 
-// ── MeasureCard (memoized) ────────────────────────────────────────────────────
+// ── MeasureCard (memoized) — compact design-aligned card ─────────────────────
 
 const MeasureCard = React.memo(function MeasureCard({
     measure, keySignature, isHighlighted, onToggleHighlight, onPlay,
     showDetails, displayNoteName, expandedChordReps, onToggleChordRep,
-    isMelodyExpanded, onToggleMelodyExpand, isMobile, handColors
+    isMelodyExpanded, onToggleMelodyExpand, isMobile, handColors,
+    isCurrent = false, isPlaying = false,
 }) {
     // Pre-sorted melody (stable reference from getMeasuresFromPhrase)
     const sortedMelody = measure.sortedMelody;
+    const chordName = measure.detectedChord?.displayName;
 
-    const leftColor = handColors?.left || '#60a5fa';
-    const rightColor = handColors?.right || '#f472b6';
+    // Highlighted == manually starred (border accent), current == playback target
+    const accentBorder = isCurrent || isHighlighted;
 
     const cardStyle = {
-        ...STYLES.measureCardBase,
-        border: isHighlighted
-            ? `3px solid ${rightColor}`
-            : '2px solid var(--border-color)',
-        boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'none',
-        minHeight: isMobile ? 'auto' : (showDetails ? '200px' : '140px'),
-        padding: isMobile ? '0.5rem' : STYLES.measureCardBase.padding,
+        position: 'relative',
+        background: accentBorder ? 'var(--surface-2)' : 'var(--surface-1)',
+        border: `1.5px solid ${accentBorder ? 'var(--accent)' : 'var(--border)'}`,
+        borderRadius: 'var(--r-lg)',
+        padding: '10px 11px',
+        textAlign: 'left',
+        transition: 'all var(--t-med)',
+        boxShadow: accentBorder
+            ? `0 0 0 3px var(--accent-dim), 0 4px 14px -4px var(--accent-dim)`
+            : 'none',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        minHeight: 'auto',
     };
 
-    const numberBadgeStyle = {
-        ...STYLES.numberBadgeBase,
-        background: isHighlighted
-            ? 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%)'
-            : 'var(--bg-tertiary)',
-        border: isHighlighted
-            ? '2px solid var(--accent-primary)'
-            : '2px solid var(--border-light)',
-        boxShadow: isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
-    };
+    // Derive timeline beat positions from startTime in beats (relative to measure)
+    const beatsPerMeasure = measure.beatsPerMeasure || 4;
+    const measureStartBeat = (measure.number - 1) * beatsPerMeasure;
+    const rightTimes = sortedMelody.map(n => Math.max(0, Math.min(1,
+        ((n.startTime ?? 0) - measureStartBeat) / beatsPerMeasure
+    )));
+    const leftTimes = (measure.chordGroups || []).map(g => {
+        const t = g.notes?.[0]?.startTime ?? 0;
+        return Math.max(0, Math.min(1, (t - measureStartBeat) / beatsPerMeasure));
+    });
+
+    // Unique pitch labels (deduped)
+    const rightLabels = [...new Set(sortedMelody.map(n => n.pitch))]
+        .slice(0, isMobile ? 4 : 6)
+        .map(p => displayNoteName(p, keySignature));
+    const leftLabels = [...new Set((measure.chords || []).map(n => n.pitch))]
+        .slice(0, isMobile ? 4 : 6)
+        .map(p => displayNoteName(p, keySignature));
 
     return (
-        <div
-            onClick={() => onPlay(measure, 'both')}
-            style={cardStyle}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'var(--shadow-lg)';
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = isHighlighted ? 'var(--shadow-glow)' : 'none';
-            }}
-        >
-            {/* Measure number badge */}
-            <div
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleHighlight(measure.number);
-                }}
-                style={numberBadgeStyle}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.1)';
-                    if (!isHighlighted) {
-                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                    }
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                    if (!isHighlighted) {
-                        e.currentTarget.style.borderColor = 'var(--border-light)';
-                    }
-                }}
-                title={isHighlighted ? "Cliquez pour désurligner" : "Cliquez pour surligner"}
-            >
-                {measure.number}
-            </div>
-
-            {/* Play buttons */}
-            <div style={{
-                display: 'flex',
-                gap: '0.25rem',
-                marginBottom: '0.75rem',
-                paddingRight: '3rem'
-            }}>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onPlay(measure, 'left');
-                    }}
-                    style={{
-                        ...STYLES.playButton,
-                        border: '1px solid var(--hand-left)',
-                        color: 'var(--hand-left)',
-                    }}
-                    title="Jouer main gauche"
-                >
-                    ▶ MG
-                </button>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onPlay(measure, 'right');
-                    }}
-                    style={{
-                        ...STYLES.playButton,
-                        border: '1px solid var(--hand-right)',
-                        color: 'var(--hand-right)',
-                    }}
-                    title="Jouer main droite"
-                >
-                    ▶ MD
-                </button>
-            </div>
-
-            {/* Chord info */}
-            <ChordDisplay
-                measure={measure}
-                handColors={handColors}
-                keySignature={keySignature}
-                showDetails={showDetails}
-                displayNoteName={displayNoteName}
-                expandedChordReps={expandedChordReps}
-                onToggleChordRep={onToggleChordRep}
-                isMobile={isMobile}
-            />
-
-            {/* Melody info */}
-            <div>
-                <div style={STYLES.sectionLabel}>
-                    Mélodie ({measure.melodyCount} notes)
-                </div>
-
+        <div onClick={() => onPlay(measure, 'both')} style={cardStyle}>
+            {/* Animated playing bar at top */}
+            {isCurrent && isPlaying && (
                 <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.25rem',
-                    alignItems: 'center'
-                }}>
-                    {sortedMelody.length > 0 ? (
-                        <>
-                            <span
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onToggleMelodyExpand(measure.number);
-                                }}
-                                style={{ ...STYLES.melodyBadgePrimary, borderColor: rightColor, color: rightColor }}
-                                title="Cliquer pour voir les notes"
-                            >
-                                {displayNoteName(sortedMelody[0].pitch, keySignature)}
-                            </span>
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+                    background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
+                    backgroundSize: '200% 100%',
+                    animation: 'design-playbarSlide 1.6s linear infinite',
+                }} />
+            )}
 
-                            {(isMelodyExpanded || (!isMobile && showDetails)) ? (
-                                sortedMelody.slice(1).map((n, i) => (
-                                    <span key={i + 1} style={{ ...STYLES.melodyBadgeSecondary, borderColor: rightColor }}>
-                                        {displayNoteName(n.pitch, keySignature)}
-                                    </span>
-                                ))
-                            ) : (
-                                sortedMelody.length > 1 && (
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                        +{sortedMelody.length - 1}
-                                    </span>
-                                )
-                            )}
-                        </>
-                    ) : (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
-                            Aucune
-                        </span>
+            {/* Top row: measure number + chord chip + play buttons */}
+            <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                gap: 6, marginBottom: 7,
+            }}>
+                <div
+                    onClick={(e) => { e.stopPropagation(); onToggleHighlight(measure.number); }}
+                    style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11, fontWeight: 700,
+                        color: accentBorder ? 'var(--accent)' : 'var(--text-tertiary)',
+                        letterSpacing: '0.04em',
+                        cursor: 'pointer',
+                    }}
+                    title="Surligner cette mesure"
+                >
+                    {String(measure.number).padStart(2, '0')}
+                </div>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {chordName && (
+                        <span style={{
+                            padding: '2px 6px',
+                            borderRadius: 'var(--r-sm)',
+                            background: accentBorder ? 'var(--accent)' : 'var(--surface-3)',
+                            color: accentBorder ? '#fff' : 'var(--text-secondary)',
+                            fontSize: 9, fontWeight: 800, letterSpacing: '0.02em',
+                            whiteSpace: 'nowrap',
+                        }}>{chordName}</span>
+                    )}
+                    <MeasurePlayButton hand="left" onClick={(e) => { e.stopPropagation(); onPlay(measure, 'left'); }} />
+                    <MeasurePlayButton hand="right" onClick={(e) => { e.stopPropagation(); onPlay(measure, 'right'); }} />
+                </div>
+            </div>
+
+            {/* Right hand notes (cyan pills) */}
+            {rightLabels.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 5, minHeight: 18 }}>
+                    {rightLabels.map((n, i) => (
+                        <span key={`r${i}`} style={{
+                            fontSize: 9.5, fontWeight: 600,
+                            padding: '2px 5px',
+                            borderRadius: 4,
+                            background: 'var(--hand-right-dim)',
+                            color: 'var(--hand-right)',
+                            border: '1px solid var(--hand-right-border)',
+                        }}>{n}</span>
+                    ))}
+                </div>
+            ) : <div style={{ marginBottom: 5, minHeight: 18 }} />}
+
+            {/* Left hand notes (pink pills) */}
+            {leftLabels.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 18 }}>
+                    {leftLabels.map((n, i) => (
+                        <span key={`l${i}`} style={{
+                            fontSize: 9.5, fontWeight: 600,
+                            padding: '2px 5px',
+                            borderRadius: 4,
+                            background: 'var(--hand-left-dim)',
+                            color: 'var(--hand-left)',
+                            border: '1px solid var(--hand-left-border)',
+                        }}>{n}</span>
+                    ))}
+                </div>
+            ) : <div style={{ minHeight: 18 }} />}
+
+            {/* Beat timeline with rhythm dots */}
+            <div style={{ marginTop: 10, height: 14, position: 'relative' }}>
+                {/* Track line */}
+                <div style={{
+                    position: 'absolute', left: 0, right: 0, top: '50%',
+                    transform: 'translateY(-50%)',
+                    height: 3,
+                    background: 'var(--surface-3)',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                }}>
+                    {[0.25, 0.5, 0.75].map((p) => (
+                        <div key={p} style={{
+                            position: 'absolute', left: `${p * 100}%`, top: 0, bottom: 0, width: 1,
+                            background: 'var(--border-strong)',
+                        }} />
+                    ))}
+                    {isCurrent && isPlaying && (
+                        <div style={{
+                            position: 'absolute', left: 0, top: 0, bottom: 0,
+                            background: 'var(--accent)',
+                            borderRadius: 2,
+                            animation: 'design-beatFill 1.6s linear infinite',
+                        }} />
                     )}
                 </div>
+                {rightTimes.map((t, i) => (
+                    <div key={`rt${i}`} style={{
+                        position: 'absolute', left: `${t * 100}%`, top: 0,
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: 'var(--hand-right)',
+                        border: '1.5px solid var(--surface-1)',
+                        transform: 'translateX(-50%)',
+                    }} />
+                ))}
+                {leftTimes.map((t, i) => (
+                    <div key={`lt${i}`} style={{
+                        position: 'absolute', left: `${t * 100}%`, bottom: 0,
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: 'var(--hand-left)',
+                        border: '1.5px solid var(--surface-1)',
+                        transform: 'translateX(-50%)',
+                    }} />
+                ))}
             </div>
 
-            {/* Visual Timeline Bar */}
-            <TimelineBar measure={measure} displayNoteName={displayNoteName} keySignature={keySignature} />
+            {/* Detail expansion — show full ChordDisplay only when "showDetails" is on */}
+            {showDetails && (
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--hairline)' }}>
+                    <ChordDisplay
+                        measure={measure}
+                        handColors={handColors}
+                        keySignature={keySignature}
+                        showDetails={showDetails}
+                        displayNoteName={displayNoteName}
+                        expandedChordReps={expandedChordReps}
+                        onToggleChordRep={onToggleChordRep}
+                        isMobile={isMobile}
+                    />
+                </div>
+            )}
+
         </div>
     );
 });
+
+// Compact play button for the right-hand / left-hand quick-play next to chord chip
+function MeasurePlayButton({ hand, onClick }) {
+    const isRight = hand === 'right';
+    const color = isRight ? 'var(--hand-right)' : 'var(--hand-left)';
+    const border = isRight ? 'var(--hand-right-border)' : 'var(--hand-left-border)';
+    return (
+        <button
+            onClick={onClick}
+            title={isRight ? 'Jouer main droite' : 'Jouer main gauche'}
+            style={{
+                fontFamily: 'inherit',
+                fontSize: 9,
+                fontWeight: 700,
+                color,
+                background: 'transparent',
+                border: `1px solid ${border}`,
+                borderRadius: 'var(--r-sm)',
+                padding: '2px 5px',
+                cursor: 'pointer',
+                letterSpacing: '0.02em',
+            }}
+        >
+            ▶ {isRight ? 'MD' : 'MG'}
+        </button>
+    );
+}
 
 // ── TipCard (memoized) ────────────────────────────────────────────────────────
 
