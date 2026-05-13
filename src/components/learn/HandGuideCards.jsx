@@ -1,5 +1,10 @@
 import React from 'react';
 
+/**
+ * Per-measure side-by-side hand guides: right (cyan, melody) / left (pink,
+ * chords). Refined per design feedback — 3px vertical token-coloured bar
+ * instead of an emoji-prefixed header, outline-only secondary pills.
+ */
 export const HandGuideCards = React.memo(function HandGuideCards({
     measure, displayNoteName, keySignature, isMobile
 }) {
@@ -13,133 +18,122 @@ export const HandGuideCards = React.memo(function HandGuideCards({
         <div style={{
             display: 'grid',
             gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-            gap: '0.75rem',
+            gap: '0.6rem',
         }}>
-            {/* Right hand (Melody) */}
-            <div className="card" style={{
-                padding: '0.75rem',
-                borderLeft: '3px solid #60a5fa',
-            }}>
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '0.5rem',
-                }}>
-                    <span style={{
-                        fontSize: '0.75rem',
-                        color: '#60a5fa',
-                        fontWeight: 600,
-                    }}>
-                        🎵 Main Droite (Mélodie)
-                    </span>
-                    <span style={{
-                        fontSize: '0.65rem',
-                        color: 'var(--text-tertiary)',
-                    }}>
-                        {melodyNotes.length} notes
-                    </span>
-                </div>
-                <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.3rem',
-                    minHeight: '1.5rem',
-                }}>
-                    {melodyNotes.length > 0 ? (
-                        melodyNotes.slice(0, 8).map((n, i) => (
-                            <span key={n.id || i} style={{
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '4px',
-                                background: i === 0 ? '#60a5fa' : 'var(--bg-primary)',
-                                border: i === 0 ? '1px solid #60a5fa' : '1px solid var(--border-color)',
-                                color: i === 0 ? 'white' : 'var(--text-primary)',
-                                fontSize: '0.75rem',
-                                fontWeight: i === 0 ? 'bold' : 'normal',
-                            }}>
-                                {displayNoteName(n.pitch, keySignature)}
-                            </span>
-                        ))
-                    ) : (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            Aucune
-                        </span>
-                    )}
-                    {melodyNotes.length > 8 && (
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>
-                            +{melodyNotes.length - 8}
-                        </span>
-                    )}
-                </div>
-            </div>
-
-            {/* Left hand (Chords) */}
-            <div className="card" style={{
-                padding: '0.75rem',
-                borderLeft: '3px solid #f472b6',
-            }}>
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '0.5rem',
-                }}>
-                    <span style={{
-                        fontSize: '0.75rem',
-                        color: '#f472b6',
-                        fontWeight: 600,
-                    }}>
-                        🎹 Main Gauche (Accords)
-                    </span>
-                    <span style={{
-                        fontSize: '0.65rem',
-                        color: 'var(--text-tertiary)',
-                    }}>
-                        {measure.chordGroups?.length || 0} notes
-                    </span>
-                </div>
-                <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.3rem',
-                    minHeight: '1.5rem',
-                }}>
-                    {chordName && (
-                        <span style={{
-                            padding: '0.15rem 0.5rem',
-                            borderRadius: '4px',
-                            background: '#f472b6',
-                            color: 'white',
-                            fontSize: '0.75rem',
-                            fontWeight: 'bold',
-                        }}>
-                            {chordName}
-                        </span>
-                    )}
-                    {chordNotes.length > 0 ? (
-                        // Show unique pitches
-                        [...new Set(chordNotes.map(n => n.pitch))].slice(0, 6).map((pitch, i) => (
-                            <span key={i} style={{
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '4px',
-                                background: !chordName && i === 0 ? '#f472b6' : 'var(--bg-primary)',
-                                border: !chordName && i === 0 ? '1px solid #f472b6' : '1px solid var(--border-color)',
-                                color: !chordName && i === 0 ? 'white' : 'var(--text-primary)',
-                                fontSize: '0.75rem',
-                                fontWeight: !chordName && i === 0 ? 'bold' : 'normal',
-                            }}>
-                                {displayNoteName(pitch, keySignature)}
-                            </span>
-                        ))
-                    ) : (
-                        !chordName && (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                Aucune
-                            </span>
-                        )
-                    )}
-                </div>
-            </div>
+            <HandPanel
+                hand="right"
+                label="Main Droite"
+                sublabel="Mélodie"
+                noteCount={melodyNotes.length}
+                items={melodyNotes.slice(0, 8).map((n, i) => ({
+                    key: n.id || i,
+                    text: displayNoteName(n.pitch, keySignature),
+                    primary: i === 0,
+                }))}
+                overflow={melodyNotes.length > 8 ? melodyNotes.length - 8 : 0}
+            />
+            <HandPanel
+                hand="left"
+                label="Main Gauche"
+                sublabel="Accords"
+                noteCount={measure.chordGroups?.length || 0}
+                items={[
+                    ...(chordName ? [{ key: 'chord', text: chordName, primary: true, isChord: true }] : []),
+                    ...[...new Set(chordNotes.map(n => n.pitch))].slice(0, 6).map((pitch, i) => ({
+                        key: pitch,
+                        text: displayNoteName(pitch, keySignature),
+                        primary: !chordName && i === 0,
+                    })),
+                ]}
+                overflow={0}
+            />
         </div>
     );
 });
+
+function HandPanel({ hand, label, sublabel, noteCount, items, overflow }) {
+    const isRight = hand === 'right';
+    const color = isRight ? 'var(--hand-right)' : 'var(--hand-left)';
+    const colorBorder = isRight ? 'var(--hand-right-border)' : 'var(--hand-left-border)';
+
+    return (
+        <div style={{
+            background: 'var(--surface-1)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-md)',
+            position: 'relative',
+            paddingLeft: 11,
+            overflow: 'hidden',
+        }}>
+            <span
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 3,
+                    background: color,
+                }}
+            />
+            <div style={{
+                padding: '6px 10px 4px 0',
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: 8,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+                    <span style={{
+                        color,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.09em',
+                        whiteSpace: 'nowrap',
+                    }}>{label}</span>
+                    <span style={{
+                        color: 'var(--text-tertiary)',
+                        fontSize: 10,
+                        fontWeight: 500,
+                    }}>{sublabel}</span>
+                </div>
+                <span style={{
+                    fontSize: 10,
+                    color: 'var(--text-tertiary)',
+                    fontFamily: 'var(--font-mono)',
+                    flexShrink: 0,
+                }}>{noteCount} notes</span>
+            </div>
+            <div style={{
+                padding: '0 10px 8px 0',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 5,
+                alignItems: 'center',
+                minHeight: '1.75rem',
+            }}>
+                {items.length === 0 ? (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Aucune
+                    </span>
+                ) : items.map((it) => (
+                    <span key={it.key} style={{
+                        padding: '2px 7px',
+                        borderRadius: 'var(--r-pill)',
+                        background: it.primary ? color : 'transparent',
+                        border: it.primary ? `1px solid ${color}` : `1px solid ${colorBorder}`,
+                        color: it.primary ? '#fff' : color,
+                        fontSize: 11,
+                        fontWeight: it.primary ? 700 : 500,
+                    }}>
+                        {it.text}
+                    </span>
+                ))}
+                {overflow > 0 && (
+                    <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>+{overflow}</span>
+                )}
+            </div>
+        </div>
+    );
+}
