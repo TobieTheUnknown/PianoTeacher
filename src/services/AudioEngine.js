@@ -306,6 +306,25 @@ class AudioEngine {
         this.metronomeSynth.triggerAttackRelease(pitch, duration, time, isAccent ? 1.0 : 0.6);
     }
 
+    /**
+     * Schedule a metronome count-in (preroll). N evenly-spaced clicks
+     * play starting immediately. Returns the total preroll duration in
+     * seconds so the caller can delay its main playback by the same
+     * amount.
+     */
+    playPrerollClicks(beats = 4, tempo = 120) {
+        if (!Tone || !this.metronomeSynth) return 0;
+        if (Tone.context.state !== 'running') {
+            Tone.context.resume();
+        }
+        const secondsPerBeat = 60 / Math.max(20, tempo);
+        const now = Tone.now();
+        for (let i = 0; i < beats; i++) {
+            this.playClick(now + i * secondsPerBeat, i === 0);
+        }
+        return beats * secondsPerBeat;
+    }
+
     startMetronome(tempo = 120, subdivision = 'quarter') {
         if (!Tone) return;
         this.stopMetronome();

@@ -741,17 +741,41 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     alert(`Bravo ! Morceau terminé !\nPrécision: ${accuracy}%\nNotes correctes: ${sessionStats.correctNotes}/${sessionStats.totalNotes}`);
   };
 
-  // Play/Pause controls
+  // Play/Pause controls — when metronome is on, run a 1-bar preroll
+  // before the falling notes start moving.
+  const prerollTimerRef = useRef(null);
+  const [isPrerolling, setIsPrerolling] = useState(false);
+
   const handlePlayPause = () => {
-    if (isPlaying) {
+    if (isPlaying || isPrerolling) {
       setIsPlaying(false);
-      startTimeRef.current = null;
-    } else {
-      if (!sessionStats.startTime) {
-        setSessionStats(prev => ({ ...prev, startTime: new Date().toISOString() }));
+      setIsPrerolling(false);
+      if (prerollTimerRef.current) {
+        clearTimeout(prerollTimerRef.current);
+        prerollTimerRef.current = null;
       }
+      startTimeRef.current = null;
+      return;
+    }
+
+    if (!sessionStats.startTime) {
+      setSessionStats(prev => ({ ...prev, startTime: new Date().toISOString() }));
+    }
+
+    const startActual = () => {
+      setIsPrerolling(false);
       setIsPlaying(true);
       startTimeRef.current = performance.now() - (currentTime / playbackSpeed) * 1000;
+    };
+
+    if (isMetronomeOn && audioInitialized) {
+      // Schedule a full bar of clicks, then start the canvas animation
+      // exactly when the clicks finish.
+      const prerollSec = audioEngine.playPrerollClicks(beatsPerMeasure, currentBPM);
+      setIsPrerolling(true);
+      prerollTimerRef.current = setTimeout(startActual, prerollSec * 1000);
+    } else {
+      startActual();
     }
   };
 

@@ -868,11 +868,12 @@ export function LiveLearning({ song, onToggleHighlight }) {
         setPlayingMeasure(startMeasure);
 
         playbackIntervalRef.current = setInterval(() => {
-            // Use Tone.Transport.seconds for precise sync with audio
-            const transportSeconds = audioEngine.getTransportSeconds();
-            if (transportSeconds <= 0) return; // Transport not started yet
+            // Use getMusicSeconds (Transport.seconds - preroll) so the
+            // tracked measure ignores the count-in bar when metronome is on.
+            const musicSeconds = audioEngine.getMusicSeconds();
+            if (musicSeconds <= 0) return; // Preroll or not started yet
             const beatsPerSecond = currentBPM / 60;
-            const currentBeat = transportSeconds * beatsPerSecond;
+            const currentBeat = musicSeconds * beatsPerSecond + (startMeasure - 1) * 4;
             const currentMsr = Math.floor(currentBeat / 4) + 1;
 
             if (currentMsr > endMeasure) {
@@ -947,18 +948,13 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 startPlaybackTracking(effectiveStartMeasure, endMeasure);
             };
 
-            // Preroll if metronome is on
-            if (isMetronomeOn) {
-                const msPerBeat = 60000 / currentBPM;
-                for (let i = 0; i < 4; i++) {
-                    setTimeout(() => {
-                        audioEngine.playClick(undefined, i === 0);
-                    }, i * msPerBeat);
-                }
-                setTimeout(doPlay, 4 * msPerBeat);
-            } else {
-                doPlay();
-            }
+            // Preroll is now handled by audioEngine.playPhrase when
+            // metronome is on — see AudioEngine.playPhrase. The phrase
+            // scheduling already offsets notes after the preroll, so we
+            // just start tracking immediately. The `startPlaybackTracking`
+            // loop reads getMusicSeconds() which returns negative during
+            // the preroll, keeping the focused measure visually correct.
+            doPlay();
         }
     }, [isPlaying, combinedPhrase, analysis, focusedMeasure, playbackHand, currentBPM, isLooping, loopConfig, isMetronomeOn, startPlaybackTracking]);
 
