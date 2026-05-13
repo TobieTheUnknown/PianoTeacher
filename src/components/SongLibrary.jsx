@@ -99,20 +99,25 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
             }}>
                 <div>
                     <h2 style={{
-                        fontSize: '1.75rem',
-                        marginBottom: '0.5rem',
-                        fontWeight: '300',
-                        letterSpacing: '-0.02em'
+                        fontSize: isMobile ? '1.625rem' : '1.875rem',
+                        margin: 0,
+                        fontWeight: 700,
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.1,
+                        color: 'var(--text-primary)',
                     }}>
-                        Ma Bibliothèque
+                        Bibliothèque
                     </h2>
                     <p style={{
                         color: 'var(--text-tertiary)',
-                        fontSize: '0.875rem',
-                        margin: 0,
-                        fontWeight: '300'
+                        fontSize: '0.8125rem',
+                        margin: '4px 0 0',
+                        fontWeight: 500,
                     }}>
                         {songs.length} {songs.length === 1 ? 'morceau' : 'morceaux'}
+                        {songs.filter(s => s.phrases?.length > 0).length > 0 && (
+                            <span> · {songs.filter(s => s.phrases?.length > 0).length} avec phrases</span>
+                        )}
                     </p>
                 </div>
 
