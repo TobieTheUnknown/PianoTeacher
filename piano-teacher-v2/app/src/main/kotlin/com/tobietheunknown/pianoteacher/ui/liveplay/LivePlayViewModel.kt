@@ -233,6 +233,7 @@ class LivePlayViewModel(
                         pausedAtBeat = _state.value.loopStartBeat
                         startTimeMs = System.currentTimeMillis()
                         triggeredNotes.clear()
+        lastCheckedBeat = -1.0
                         pendingNoteOffs.clear()
                     } else {
                         _state.update { it.copy(currentBeat = totalBeats, isPlaying = false, isWaiting = false) }
@@ -287,6 +288,7 @@ class LivePlayViewModel(
     fun restart() {
         pause()
         triggeredNotes.clear()
+        lastCheckedBeat = -1.0
         pendingNoteOffs.clear()
         lastMetronomeBeat = -1
         _state.update { it.copy(currentBeat = 0.0) }
@@ -298,6 +300,7 @@ class LivePlayViewModel(
         val wasPlaying = _state.value.isPlaying
         pause()
         triggeredNotes.clear()
+        lastCheckedBeat = -1.0
         pendingNoteOffs.clear()
         pausedAtBeat = beat
         _state.update { it.copy(currentBeat = beat) }
@@ -378,6 +381,7 @@ class LivePlayViewModel(
         val phrase = song.phrases.getOrNull(index) ?: return
         pause()
         triggeredNotes.clear()
+        lastCheckedBeat = -1.0
         pendingNoteOffs.clear()
         val totalBeats = phrase.length.toDouble() * song.beatsPerMeasure
         _state.update {
@@ -400,10 +404,16 @@ class LivePlayViewModel(
     private data class PendingNoteOff(val pitch: Int, val endBeat: Double)
     private val pendingNoteOffs = mutableListOf<PendingNoteOff>()
 
+    /**
+     * Last beat checked by triggerAutoNotes. We trigger any note whose startTime
+     * fell into (lastCheckedBeat, currentBeat], which is robust to coroutine
+     * delay jitter — a 20–30ms hiccup that would have skipped over a ±0.02-beat
+     * tolerance window now still fires every note in the gap. -1.0 = uninit.
+     */
+    private var lastCheckedBeat = -1.0
+
     private fun triggerAutoNotes(currentBeat: Double) {
         if (!_state.value.audioEnabled) return
-
-        val tolerance = 0.02
 
         // Process pending note-offs in the main loop instead of per-note coroutines
         val iterator = pendingNoteOffs.iterator()
@@ -414,6 +424,11 @@ class LivePlayViewModel(
                 iterator.remove()
             }
         }
+
+        // Window since last tick — opens just past lastCheckedBeat so the same
+        // beat isn't double-fired, closes at currentBeat (inclusive).
+        val windowStart = if (lastCheckedBeat < 0.0) currentBeat - 0.05 else lastCheckedBeat
+        lastCheckedBeat = currentBeat
 
         val state = _state.value
         val notes = state.visibleNotes
@@ -430,7 +445,7 @@ class LivePlayViewModel(
             val shouldTrigger = state.isListenMode || noteWithHand.isAutoPlay
 
             if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
-                note.startTime in (currentBeat - tolerance)..(currentBeat + tolerance)) {
+                note.startTime > windowStart && note.startTime <= currentBeat) {
                 // Listen mode: all notes at 80. LivePlay mode: backing track at 60
                 val velocity = if (state.isListenMode) 80 else if (noteWithHand.isAutoPlay) 60 else 80
                 audioEngine.noteOn(note.pitch, velocity)

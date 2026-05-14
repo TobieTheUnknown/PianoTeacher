@@ -91,53 +91,50 @@ public:
 
         // Voice loop. After mReady=true, mSampleByMidi is read-only; we touch
         // it without locking. Voice fields are guarded by mVoiceMutex when
-        // written from the UI thread; we use try_lock here so a contended UI
-        // thread (e.g. a noteOn burst) can't stall the audio callback past its
-        // deadline — at worst we skip voice rendering for this buffer (~2ms of
-        // silence) instead of producing an underrun glitch.
-        if (mVoiceMutex.try_lock()) {
-            for (int vi = 0; vi < MAX_VOICES; vi++) {
-                Voice& v = mVoices[vi];
-                if (!v.active) continue;
+        // written from the UI thread — we block briefly here rather than
+        // dropping the buffer because every "skip" would produce an audible
+        // click (the buffer is pre-zeroed for the silence baseline).
+        std::lock_guard<std::mutex> vLock(mVoiceMutex);
+        for (int vi = 0; vi < MAX_VOICES; vi++) {
+            Voice& v = mVoices[vi];
+            if (!v.active) continue;
 
-                const SampleData* s = (v.sampleMidi >= 0 && v.sampleMidi < MIDI_RANGE)
-                    ? mSampleByMidi[v.sampleMidi].get() : nullptr;
-                if (!s) { v.active = false; continue; }
+            const SampleData* s = (v.sampleMidi >= 0 && v.sampleMidi < MIDI_RANGE)
+                ? mSampleByMidi[v.sampleMidi].get() : nullptr;
+            if (!s) { v.active = false; continue; }
 
-                const int totalFrames = s->totalFrames;
-                const float* pcm = s->pcm.data();
-                const int channels = s->channels;
-                const float amp = v.amplitude;
+            const int totalFrames = s->totalFrames;
+            const float* pcm = s->pcm.data();
+            const int channels = s->channels;
+            const float amp = v.amplitude;
 
-                for (int f = 0; f < numFrames; f++) {
-                    int idx = (int)v.pos;
-                    if (idx >= totalFrames - 1) { v.active = false; break; }
+            for (int f = 0; f < numFrames; f++) {
+                int idx = (int)v.pos;
+                if (idx >= totalFrames - 1) { v.active = false; break; }
 
-                    float frac = (float)(v.pos - idx);
+                float frac = (float)(v.pos - idx);
 
-                    float left, right;
-                    if (channels >= 2) {
-                        int i0 = idx * 2;
-                        left  = pcm[i0]     * (1.0f - frac) + pcm[i0 + 2] * frac;
-                        right = pcm[i0 + 1] * (1.0f - frac) + pcm[i0 + 3] * frac;
-                    } else {
-                        float val = pcm[idx] * (1.0f - frac) + pcm[idx + 1] * frac;
-                        left = right = val;
-                    }
-
-                    float gain = amp * v.releaseMult;
-                    out[f * 2]     = std::clamp(out[f * 2]     + left  * gain, -1.0f, 1.0f);
-                    out[f * 2 + 1] = std::clamp(out[f * 2 + 1] + right * gain, -1.0f, 1.0f);
-
-                    if (v.releasing) {
-                        v.releaseMult *= releasePer;
-                        if (v.releaseMult < 0.001f) { v.active = false; break; }
-                    }
-
-                    v.pos += v.rate;
+                float left, right;
+                if (channels >= 2) {
+                    int i0 = idx * 2;
+                    left  = pcm[i0]     * (1.0f - frac) + pcm[i0 + 2] * frac;
+                    right = pcm[i0 + 1] * (1.0f - frac) + pcm[i0 + 3] * frac;
+                } else {
+                    float val = pcm[idx] * (1.0f - frac) + pcm[idx + 1] * frac;
+                    left = right = val;
                 }
+
+                float gain = amp * v.releaseMult;
+                out[f * 2]     = std::clamp(out[f * 2]     + left  * gain, -1.0f, 1.0f);
+                out[f * 2 + 1] = std::clamp(out[f * 2 + 1] + right * gain, -1.0f, 1.0f);
+
+                if (v.releasing) {
+                    v.releaseMult *= releasePer;
+                    if (v.releaseMult < 0.001f) { v.active = false; break; }
+                }
+
+                v.pos += v.rate;
             }
-            mVoiceMutex.unlock();
         }
 
         // ─── Metronome click (mixed into output) ─────────────────────────────
