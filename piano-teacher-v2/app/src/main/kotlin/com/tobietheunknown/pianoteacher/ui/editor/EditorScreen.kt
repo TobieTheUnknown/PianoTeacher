@@ -2,6 +2,8 @@ package com.tobietheunknown.pianoteacher.ui.editor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -115,6 +117,9 @@ fun EditorScreen(
                                 },
                                 onSplitAtChange = { m -> splitAtMeasure = m.coerceIn(1, phrase.length - 1) },
                                 onMerge = { vm.mergePhraseWithPrevious(idx) },
+                                melodyNotes = phrase.tracks.melody,
+                                chordNotes = phrase.tracks.chords,
+                                beatsPerMeasure = song!!.beatsPerMeasure,
                             )
                         }
                     }
@@ -159,6 +164,9 @@ private fun PhraseCard(
     onConfirmSplit: () -> Unit,
     onSplitAtChange: (Int) -> Unit,
     onMerge: () -> Unit,
+    melodyNotes: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent> = emptyList(),
+    chordNotes: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent> = emptyList(),
+    beatsPerMeasure: Int = 4,
 ) {
     Column(
         modifier = Modifier
@@ -214,6 +222,17 @@ private fun PhraseCard(
             }
         }
 
+        // Mini visual preview — dots for melody (cyan, top) + chords (pink,
+        // bottom) across `length` measures. When isSplitting, an accent
+        // vertical line shows where the cut will land.
+        PhrasePreview(
+            length = length,
+            beatsPerMeasure = beatsPerMeasure,
+            melody = melodyNotes,
+            chords = chordNotes,
+            splitAt = if (isSplitting) splitAtMeasure else null,
+        )
+
         if (isSplitting) {
             Column(
                 modifier = Modifier
@@ -264,6 +283,97 @@ private fun PhraseCard(
         }
     }
 }
+
+@Composable
+private fun PhrasePreview(
+    length: Int,
+    beatsPerMeasure: Int,
+    melody: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent>,
+    chords: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent>,
+    splitAt: Int?,
+) {
+    val totalBeats = length * beatsPerMeasure
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0x06FFFFFF))
+            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(8.dp))
+    ) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            // Measure bar lines
+            for (m in 1 until length) {
+                val x = w * m / length
+                drawRect(
+                    color = Color(0x18FFFFFF),
+                    topLeft = Offset(x - 0.5f, 6f),
+                    size = Size(1f, h - 12f),
+                )
+            }
+            // Measure numbers at the top
+            val topRowY = h * 0.5f
+            val botRowY = h * 0.75f
+
+            // Note dots — top row cyan (melody), bottom row pink (chords)
+            melody.forEach { n ->
+                val x = (n.startTime.toFloat() / totalBeats) * w
+                if (x in 0f..w) {
+                    drawCircle(
+                        color = Color(0xFF22D3EE),
+                        radius = 3f,
+                        center = Offset(x, topRowY),
+                    )
+                }
+            }
+            chords.forEach { n ->
+                val x = (n.startTime.toFloat() / totalBeats) * w
+                if (x in 0f..w) {
+                    drawCircle(
+                        color = Color(0xFFEC4899),
+                        radius = 3f,
+                        center = Offset(x, botRowY),
+                    )
+                }
+            }
+
+            // Split cursor — vertical accent line at split boundary
+            if (splitAt != null) {
+                val sx = (splitAt.toFloat() / length) * w
+                drawRect(
+                    color = IndigoAccentRaw.copy(alpha = 0.18f),
+                    topLeft = Offset(sx - 12f, 0f),
+                    size = Size(24f, h),
+                )
+                drawRect(
+                    color = IndigoAccentRaw,
+                    topLeft = Offset(sx - 1f, 0f),
+                    size = Size(2f, h),
+                )
+            }
+        }
+        // Measure number labels overlay (top-left of each measure)
+        Row(modifier = Modifier.fillMaxSize()) {
+            for (m in 0 until length) {
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Text(
+                        "${m + 1}",
+                        color = Color(0xFF475569),
+                        fontSize = 9.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 3.dp, top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val IndigoAccentRaw = Color(0xFF6366F1)
 
 @Composable
 private fun StepperBtn(label: String, enabled: Boolean, onClick: () -> Unit) {
