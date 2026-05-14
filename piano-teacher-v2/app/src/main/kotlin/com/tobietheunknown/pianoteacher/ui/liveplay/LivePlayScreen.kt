@@ -130,31 +130,44 @@ fun LivePlayScreen(
 
     @Composable
     fun controlsBlock() {
-        LivePlayControls(
-            isPlaying = state.isPlaying,
-            isLooping = state.isLooping,
-            isWaitMode = state.isWaitMode,
-            audioEnabled = state.audioEnabled,
-            metronomeSubdivision = state.metronomeSubdivision,
-            isListenMode = state.isListenMode,
-            playbackSpeed = state.playbackSpeed,
-            currentBeat = state.currentBeat,
-            totalBeats = state.totalBeats,
-            loopStartBeat = state.loopStartBeat,
-            loopEndBeat = state.loopEndBeat,
-            beatsPerMeasure = state.song?.beatsPerMeasure ?: 4,
-            selectedHand = state.selectedHand,
+        // Shared PlaybackDock — same look as Apprendre / Partition / Editor.
+        var loopEditorOpen by remember { mutableStateOf(false) }
+        val beatsPerMeasure = state.song?.beatsPerMeasure ?: 4
+        val totalMeasures = ((state.totalBeats / beatsPerMeasure).toInt()).coerceAtLeast(1)
+        val loopStartMeasure = (state.loopStartBeat / beatsPerMeasure).toInt() + 1
+        val loopEndMeasure = (state.loopEndBeat / beatsPerMeasure).toInt().coerceAtLeast(loopStartMeasure)
+        com.tobietheunknown.pianoteacher.ui.common.PlaybackDock(
+            playing = state.isPlaying,
             onPlayPause = vm::togglePlayPause,
-            onRestart = vm::restart,
-            onSpeedChange = vm::setSpeed,
-            onLoopToggle = vm::toggleLoop,
-            onWaitModeToggle = vm::toggleWaitMode,
-            onAudioToggle = vm::toggleAudio,
-            onMetronomeToggle = vm::toggleMetronome,
-            onListenModeToggle = vm::toggleListenMode,
-            onSeek = vm::seekToBeat,
-            onHandChange = vm::setHand,
-            onLoopRangeChange = vm::setLoopRange
+            speed = (state.playbackSpeed * 100).toInt(),
+            onSpeed = { vm.setSpeed(it / 100f) },
+            handMode = when (state.selectedHand) {
+                com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT
+                com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT
+                else -> com.tobietheunknown.pianoteacher.ui.common.HandMode.BOTH
+            },
+            onHandMode = { m ->
+                vm.setHand(
+                    when (m) {
+                        com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT
+                        com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT
+                        else -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH
+                    }
+                )
+            },
+            metronome = state.metronomeSubdivision > 0,
+            onMetronome = vm::toggleMetronome,
+            loop = state.isLooping,
+            onLoop = vm::toggleLoop,
+            loopRange = loopStartMeasure..loopEndMeasure,
+            onLoopRangeChange = { r ->
+                vm.setLoopRange((r.first - 1) * beatsPerMeasure.toDouble(), r.last * beatsPerMeasure.toDouble())
+            },
+            loopEditorOpen = loopEditorOpen,
+            onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
+            totalMeasures = totalMeasures,
+            onPrev = { vm.seekToBeat((state.currentBeat - beatsPerMeasure).coerceAtLeast(0.0)) },
+            onNext = { vm.seekToBeat((state.currentBeat + beatsPerMeasure).coerceAtMost(state.totalBeats)) },
         )
     }
 
