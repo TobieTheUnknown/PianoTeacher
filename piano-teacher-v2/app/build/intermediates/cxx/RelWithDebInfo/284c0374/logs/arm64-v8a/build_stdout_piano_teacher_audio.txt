@@ -1,3 +1,0 @@
-ninja: Entering directory `/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/.cxx/RelWithDebInfo/284c0374/arm64-v8a'
-[1/2] Building CXX object CMakeFiles/piano_teacher_audio.dir/audio_engine.cpp.o
-[2/2] Linking CXX shared library /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/build/intermediates/cxx/RelWithDebInfo/284c0374/obj/arm64-v8a/libpiano_teacher_audio.so

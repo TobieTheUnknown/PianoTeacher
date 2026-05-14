@@ -1,4 +1,0 @@
-/Users/TobieRaggi/Library/Android/sdk/cmake/3.22.1/bin/ninja \
-  -C \
-  /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/.cxx/RelWithDebInfo/284c0374/x86_64 \
-  piano_teacher_audio
