@@ -1,10 +1,15 @@
-name: Android Build
+name: Piano Teacher v2 — Android Build
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'android/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'android/**'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -23,25 +28,31 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install NDK 27
+        run: sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle.kts', 'android/**/libs.versions.toml') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
       - name: Build Debug APK
-        working-directory: piano-teacher-v2
-        run: gradle assembleDebug
+        working-directory: android
+        run: ./gradlew assembleDebug
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: piano-teacher-v2-debug
-          path: piano-teacher-v2/app/build/outputs/apk/debug/app-debug.apk
+          name: android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30

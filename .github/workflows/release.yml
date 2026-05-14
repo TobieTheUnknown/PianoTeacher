@@ -35,7 +35,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Build Release APK
-        working-directory: piano-teacher-v2
+        working-directory: android
         run: gradle assembleRelease
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
@@ -46,7 +46,7 @@ jobs:
           echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 --decode > /tmp/keystore.p12
 
           # Find unsigned APK
-          UNSIGNED=$(find piano-teacher-v2/app/build/outputs/apk/release -name "*.apk" | head -1)
+          UNSIGNED=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
           echo "Signing: $UNSIGNED"
 
           # Sign with apksigner
@@ -57,11 +57,11 @@ jobs:
             --ks-pass "pass:${{ secrets.SIGNING_KEY_STORE_PASSWORD }}" \
             --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" \
             --key-pass "pass:${{ secrets.SIGNING_KEY_PASSWORD }}" \
-            --out piano-teacher-v2/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk \
+            --out android/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk \
             "$UNSIGNED"
 
           echo "Signed APK:"
-          ls -lh piano-teacher-v2/app/build/outputs/apk/release/piano-practice-*.apk
+          ls -lh android/app/build/outputs/apk/release/piano-practice-*.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -72,6 +72,6 @@ jobs:
 
             ### Installation
             Télécharge `piano-practice-${{ github.ref_name }}.apk` ci-dessous et installe-le sur ton Android (active "Sources inconnues" si besoin).
-          files: piano-teacher-v2/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk
+          files: android/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk
           draft: false
           prerelease: false
