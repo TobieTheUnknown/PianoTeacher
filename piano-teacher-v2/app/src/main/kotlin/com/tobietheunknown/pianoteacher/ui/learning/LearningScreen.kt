@@ -536,22 +536,57 @@ fun LearningScreen(
                                     modifier = Modifier.fillMaxWidth().height(80.dp)
                                 )
                             }
-                            GrandStaffCanvas(
-                                melodyNotes = measure.melodyNotes,
-                                chordNotes = measure.chordNotes,
-                                beatsPerMeasure = song!!.beatsPerMeasure,
-                                useFlats = useFlats,
-                                showClefs = showClefs,
-                                isPlaying = isPlaying,
-                                isFocused = isFocused,
-                                measureNumber = measure.globalIndex + 1,
-                                clefMode = clefMode,
-                                lowerOctaveShift = lowerStaffOctaveShift,
-                                upperOctaveShift = upperStaffOctaveShift,
-                                isLandscape = isLandscape,
-                                keySig = keySignature,
-                                modifier = Modifier.fillMaxWidth().weight(1f)
-                            )
+                            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                                GrandStaffCanvas(
+                                    melodyNotes = measure.melodyNotes,
+                                    chordNotes = measure.chordNotes,
+                                    beatsPerMeasure = song!!.beatsPerMeasure,
+                                    useFlats = useFlats,
+                                    showClefs = showClefs,
+                                    isPlaying = isPlaying,
+                                    isFocused = isFocused,
+                                    measureNumber = measure.globalIndex + 1,
+                                    clefMode = clefMode,
+                                    lowerOctaveShift = lowerStaffOctaveShift,
+                                    upperOctaveShift = upperStaffOctaveShift,
+                                    isLandscape = isLandscape,
+                                    keySig = keySignature,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                // Animated playhead — vertical accent line
+                                // that traverses the measure left→right in
+                                // sync with the current beat.
+                                if (isPlaying && song != null) {
+                                    val beatMs = (60_000.0 / (song!!.tempo * tempoPercent)).toLong()
+                                    val measureDurMs = beatMs * song!!.beatsPerMeasure
+                                    val frac by produceState(initialValue = 0f, isPlaying, measureDurMs) {
+                                        val start = android.os.SystemClock.elapsedRealtime()
+                                        while (true) {
+                                            val elapsed = android.os.SystemClock.elapsedRealtime() - start
+                                            value = ((elapsed.toFloat() / measureDurMs) % 1f).coerceIn(0f, 1f)
+                                            kotlinx.coroutines.delay(16)
+                                        }
+                                    }
+                                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                                        // skip the clef area when showing clefs (~22dp)
+                                        val clefSkip = if (showClefs) size.width * 0.18f else 0f
+                                        val noteArea = size.width - clefSkip
+                                        val x = clefSkip + frac * noteArea
+                                        // soft halo
+                                        drawRect(
+                                            color = IndigoAccent.copy(alpha = 0.10f),
+                                            topLeft = androidx.compose.ui.geometry.Offset(x - size.width * 0.04f, 0f),
+                                            size = androidx.compose.ui.geometry.Size(size.width * 0.08f, size.height),
+                                        )
+                                        // sharp line
+                                        drawRect(
+                                            color = IndigoAccent.copy(alpha = 0.95f),
+                                            topLeft = androidx.compose.ui.geometry.Offset(x - 1f, 0f),
+                                            size = androidx.compose.ui.geometry.Size(2f, size.height),
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

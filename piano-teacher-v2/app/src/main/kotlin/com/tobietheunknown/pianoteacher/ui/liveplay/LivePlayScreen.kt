@@ -141,19 +141,31 @@ fun LivePlayScreen(
             onPlayPause = vm::togglePlayPause,
             speed = (state.playbackSpeed * 100).toInt(),
             onSpeed = { vm.setSpeed(it / 100f) },
-            handMode = when (state.selectedHand) {
-                com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT
-                com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT
+            handMode = when {
+                state.isListenMode -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LISTEN
+                state.selectedHand == com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT
+                state.selectedHand == com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT
                 else -> com.tobietheunknown.pianoteacher.ui.common.HandMode.BOTH
             },
             onHandMode = { m ->
-                vm.setHand(
-                    when (m) {
-                        com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT
-                        com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT
-                        else -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH
+                when (m) {
+                    com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT -> {
+                        if (state.isListenMode) vm.toggleListenMode()
+                        vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT)
                     }
-                )
+                    com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT -> {
+                        if (state.isListenMode) vm.toggleListenMode()
+                        vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT)
+                    }
+                    com.tobietheunknown.pianoteacher.ui.common.HandMode.LISTEN -> {
+                        vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH)
+                        if (!state.isListenMode) vm.toggleListenMode()
+                    }
+                    else -> {
+                        if (state.isListenMode) vm.toggleListenMode()
+                        vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH)
+                    }
+                }
             },
             metronome = state.metronomeSubdivision > 0,
             onMetronome = vm::toggleMetronome,
