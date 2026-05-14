@@ -1,0 +1,10 @@
+{
+  "identifier": "mobile",
+  "description": "mobile capabilities",
+  "platforms": ["android", "iOS"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default"
+  ]
+}

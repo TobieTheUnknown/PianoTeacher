@@ -1,0 +1,100 @@
+/* Piano Teacher - Minimal Component Styles */
+
+/* Subtle entrance animation - optional */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Smooth scrolling */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-md);
+    max-width: 100%;
+  }
+
+  h1 {
+    font-size: 1.25rem !important;
+  }
+
+  h2 {
+    font-size: 1.5rem !important;
+  }
+
+  .card {
+    padding: var(--spacing-lg);
+  }
+
+  /* Compact header on mobile */
+  .app-header {
+    padding: 0.75rem 0 0.5rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .header-subtitle {
+    display: none;
+  }
+
+  /* Offset main content for bottom tab bar */
+  main {
+    padding-bottom: calc(70px + var(--safe-bottom)) !important;
+  }
+
+  /* Settings - fullscreen sheet on mobile */
+  .settings-overlay {
+    padding: 0 !important;
+  }
+
+  .settings-modal {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    padding-top: var(--safe-top) !important;
+    padding-bottom: var(--safe-bottom) !important;
+  }
+}
+
+/* Piano Roll - piano key hover styles (CSS instead of JS for perf) */
+.piano-key-white {
+  background: linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%);
+  color: #2c3e50;
+  border-bottom: 1px solid #dee2e6;
+  transition: background 0.15s ease;
+}
+.piano-key-white:hover {
+  background: linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%);
+}
+.piano-key-black {
+  background: linear-gradient(90deg, #2c3e50 0%, #34495e 100%);
+  color: #ecf0f1;
+  border-bottom: 1px solid #1a252f;
+  transition: background 0.15s ease;
+}
+.piano-key-black:hover {
+  background: linear-gradient(90deg, #34495e 0%, #3d5a73 100%);
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: var(--spacing-sm);
+  }
+
+  button {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+}

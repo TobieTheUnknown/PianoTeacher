@@ -1,0 +1,17 @@
+{
+  "build": {
+    "beforeBuildCommand": "npm run build:mobile"
+  },
+  "app": {
+    "windows": [
+      {
+        "fullscreen": false
+      }
+    ]
+  },
+  "bundle": {
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}

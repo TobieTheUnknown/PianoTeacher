@@ -1,0 +1,376 @@
+/* Piano Teacher - Minimal Design System */
+
+:root {
+  /* Safe area insets for mobile */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Minimalist Dark Theme - Refined Palette */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1a1a1a;
+  --bg-elevated: #1f1f1f;
+  --bg-card: #171717;
+  --bg-hover: #252525;
+
+  --text-primary: #f5f5f5;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #737373;
+  --text-muted: #525252;
+  --text-accent: #e5e5e5;
+
+  /* Minimal Accent System - Subtle White/Gray Accents */
+  --accent-primary: #f5f5f5;
+  --accent-secondary: #a3a3a3;
+  --accent-hover: #ffffff;
+  --accent-success: #22c55e;
+  --accent-danger: #ef4444;
+  --accent-warning: #f59e0b;
+  --accent-info: #3b82f6;
+
+  /* Border System - Delicate Lines */
+  --border-color: #262626;
+  --border-light: #1f1f1f;
+  --border-medium: #404040;
+  --border-dark: #525252;
+  --border-accent: #f5f5f5;
+
+  /* Typography - Light & Airy */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  --font-mono: 'SF Mono', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+
+  /* Spacing Scale - Compact */
+  --spacing-xs: 0.2rem;
+  --spacing-sm: 0.4rem;
+  --spacing-md: 0.75rem;
+  --spacing-lg: 1rem;
+  --spacing-xl: 1.25rem;
+  --spacing-2xl: 1.5rem;
+  --spacing-3xl: 2rem;
+  --spacing-4xl: 3rem;
+
+  /* Border Radius Scale - Subtle Roundness */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Shadow System - Extremely Subtle */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 8px 12px -2px rgba(0, 0, 0, 0.7);
+  --shadow-inner: inset 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+
+  /* Transition System - Quick & Subtle */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.15s ease;
+  --transition-slow: 0.2s ease;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+
+  /* Hand Colors */
+  --hand-left: #3b82f6;
+  --hand-left-light: #60a5fa;
+  --hand-left-dark: #2563eb;
+  --hand-left-selected: #93c5fd;
+  --hand-right: #f43f5e;
+  --hand-right-light: #fb7185;
+  --hand-right-dark: #e11d48;
+  --hand-right-selected: #fda4af;
+  --hand-both: #10b981;
+  --scale-in: rgba(251, 191, 36, 0.15);
+  --scale-out: rgba(30, 30, 40, 0.25);
+}
+
+html {
+  touch-action: manipulation;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*:not(input):not(textarea) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+body {
+  margin: 0;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: var(--font-family);
+  font-size: 15px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+  line-height: 1.6;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Minimal Button Styles */
+button {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  font-family: inherit;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  box-shadow: none;
+  letter-spacing: 0.01em;
+}
+
+button:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-medium);
+}
+
+button:active {
+  transform: translateY(0);
+  background-color: var(--bg-tertiary);
+}
+
+button:focus,
+button:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background-color: var(--bg-tertiary);
+}
+
+/* Primary Button Variant */
+.btn-primary {
+  background-color: var(--accent-primary);
+  color: var(--bg-primary);
+  border-color: var(--accent-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--bg-primary);
+}
+
+/* Minimal Input Styles */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+textarea,
+select {
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 300;
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 0.625rem 0.875rem;
+  transition: all var(--transition-normal);
+  width: 100%;
+  letter-spacing: 0.01em;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--border-medium);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  background-color: var(--bg-secondary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+/* Utilities */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--spacing-2xl) var(--spacing-xl);
+  width: 100%;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  transition: all var(--transition-normal);
+}
+
+.card:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Headings - Light & Spacious */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 300;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 200;
+}
+
+h2 {
+  font-size: 1.75rem;
+  font-weight: 300;
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 400;
+}
+
+/* Scrollbar Styling - Minimal */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-dark);
+}
+
+/* Pulse animation for connection indicators */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+::-moz-selection {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+/* Touch target minimum */
+:root {
+  --touch-target-min: 48px;
+}
+
+/* Touch-friendly: replace hover effects on touch devices */
+@media (hover: none) {
+  button:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+  }
+
+  button:active {
+    background-color: var(--bg-tertiary);
+  }
+
+  .card:hover {
+    border-color: var(--border-color);
+    box-shadow: none;
+  }
+
+  .card:active {
+    border-color: var(--border-medium);
+  }
+
+  .btn-primary:hover {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+  }
+
+  .btn-primary:active {
+    background-color: var(--accent-hover);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-lg) var(--spacing-md);
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  .card {
+    padding: var(--spacing-lg);
+  }
+
+  /* Ensure touch targets on mobile */
+  button {
+    min-height: var(--touch-target-min);
+    padding: 0.625rem 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: var(--spacing-md) var(--spacing-sm);
+  }
+
+  button {
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+  }
+}

@@ -1,0 +1,87 @@
+/* Bottom Tab Bar — design token version */
+.tabBar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding-bottom: max(var(--safe-bottom), 6px);
+  justify-content: space-around;
+  align-items: stretch;
+}
+
+.tabBarHidden {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .tabBar {
+    display: flex;
+  }
+}
+
+.tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 3px 6px;
+  min-height: 56px;
+  background: transparent;
+  border: none;
+  border-top: 3px solid transparent;
+  border-radius: 0;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast);
+  position: relative;
+  font-family: inherit;
+}
+
+.tab:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.tab:active {
+  background: transparent;
+}
+
+.tab:focus,
+.tab:focus-visible {
+  outline: none;
+}
+
+.tabActive {
+  color: var(--accent);
+  border-top-color: var(--accent);
+}
+
+.tabIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.tabLabel {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tabActive .tabLabel {
+  font-weight: 600;
+}

@@ -1,0 +1,627 @@
+/* LivePlayView - Module CSS optimisé */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  gap: 1rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.statsButton {
+  padding: 0.75rem 1.5rem;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all var(--transition-normal);
+}
+
+.statsButton:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+}
+
+/* Statistics Panel */
+.statsPanel {
+  width: 100%;
+  max-width: 1200px;
+  padding: 1.5rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+.statsTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+/* Controls Panel */
+.controlsPanel {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  gap: 2rem;
+  padding: 1rem 1.5rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Metronome Section */
+.metronomeSection {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.metronomeButton {
+  padding: 0.5rem 1rem;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1.1rem;
+  transition: all var(--transition-normal);
+}
+
+.metronomeButton.active {
+  background: var(--bg-elevated);
+  color: var(--accent-success, #22c55e);
+  border-color: var(--accent-success, #22c55e);
+}
+
+.metronomeDivisions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.divisionButton {
+  padding: 0.4rem 0.8rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-width: 45px;
+  transition: all var(--transition-fast);
+}
+
+.divisionButton.active {
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+}
+
+/* Tempo Section */
+.tempoSection {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  max-width: 500px;
+}
+
+.tempoLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.tempoSlider {
+  flex: 1;
+  cursor: pointer;
+  accent-color: var(--accent-primary);
+}
+
+.tempoDisplay {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 100px;
+  text-align: right;
+}
+
+/* Session Stats */
+.sessionStats {
+  width: 100%;
+  max-width: 1200px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  flex-basis: 100%;
+}
+
+.statCard {
+  text-align: center;
+  padding-left: 1rem;
+}
+
+.statCard:not(:first-child) {
+  border-left: 1px solid var(--border-color);
+}
+
+.statLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.statValue.accuracy {
+  color: var(--text-primary);
+}
+
+.statValue.perfect {
+  color: #fbbf24;
+}
+
+.statValue.good {
+  color: var(--accent-success, #22c55e);
+}
+
+.statValue.wrong {
+  color: var(--accent-danger, #ef4444);
+}
+
+.statValue.missed {
+  color: var(--accent-warning, #f59e0b);
+}
+
+.statValue.combo {
+  color: var(--accent-success, #22c55e);
+}
+
+.statValue.comboHigh {
+  color: #fbbf24;
+}
+
+/* Fullscreen container for mobile */
+.containerFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  overflow: hidden;
+}
+
+.containerFullscreen .canvasContainer {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  height: 100%;
+}
+
+.containerFullscreen .canvasWrapper {
+  max-width: none;
+  aspect-ratio: unset;
+  width: 100%;
+  height: 100%;
+}
+
+/* Canvas Container */
+.canvasContainer {
+  position: relative;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 1200px;
+}
+
+.canvasWrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Main Controls */
+.mainControls {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  justify-content: space-between;
+}
+
+.leftControls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rightControls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.playButton {
+  padding: 0.5rem 1rem;
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all var(--transition-fast);
+}
+
+.resetButton {
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.modeButton {
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all var(--transition-fast);
+}
+
+.modeButton.active {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+}
+
+/* Hand Selection */
+.handSelection {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.handLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.handButtons {
+  display: flex;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.handButton {
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.handButton:not(:last-child) {
+  border-right: 1px solid var(--border-color);
+}
+
+.handButton.active {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.timeDisplay {
+  margin-left: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+/* Navigation Controls */
+.navigationControls {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  padding: 1rem 1.5rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+.phraseSelector {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.selectorLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.select {
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.customRangeInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rangeInput {
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  width: 100px;
+  font-weight: 500;
+}
+
+.loopButton {
+  padding: 0.75rem 1.5rem;
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.loopButton:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.clearLoopButton {
+  padding: 0.75rem 1.5rem;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.loopInfo {
+  padding: 0.75rem 1.25rem;
+  background: var(--accent-primary);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 2rem;
+  padding: 1rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legendColor {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.legendLabel {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Instructions */
+.instructions {
+  padding: 1rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  max-width: 800px;
+}
+
+.instructionsTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.instructionsList {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding-left: 1.5rem;
+}
+
+.instructionsList li {
+  margin-bottom: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 0.5rem;
+    gap: 0.75rem;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .sessionStats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .controlsPanel {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .mainControls {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .leftControls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .playButton,
+  .resetButton,
+  .modeButton,
+  .metronomeButton,
+  .handButton,
+  .loopButton,
+  .clearLoopButton {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .tempoSection {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .tempoSlider {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .navigationControls {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .legend {
+    gap: 0.75rem;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .instructions {
+    padding: 0.75rem;
+  }
+
+  .canvasContainer {
+    border-width: 1px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sessionStats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statValue {
+    font-size: 1.1rem;
+  }
+}

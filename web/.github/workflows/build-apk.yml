@@ -1,0 +1,95 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: sdkmanager --install "ndk;27.0.12077973"
+
+      - name: Set NDK environment
+        run: |
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Initialize Android project
+        run: npx tauri android init --config src-tauri/tauri.android.conf.json
+
+      - name: Copy custom Android sources
+        run: |
+          GEN_JAVA_DIR="src-tauri/gen/android/app/src/main/java/com/pianoteacher/app"
+          mkdir -p "$GEN_JAVA_DIR"
+          cp src-tauri/android/src/main/java/com/pianoteacher/app/MidiHelper.kt "$GEN_JAVA_DIR/"
+
+          GEN_MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          if [ -f "$GEN_MANIFEST" ] && ! grep -q "android.hardware.usb.host" "$GEN_MANIFEST"; then
+            sed -i 's|</manifest>|    <uses-feature android:name="android.hardware.usb.host" android:required="false" />\n    <uses-feature android:name="android.software.midi" android:required="false" />\n</manifest>|' "$GEN_MANIFEST"
+          fi
+
+      - name: Decode release keystore
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 --decode > /tmp/release.keystore
+
+      - name: Build APK
+        run: npx tauri android build --apk true --config src-tauri/tauri.android.conf.json
+
+      - name: Sign APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          UNSIGNED_APK=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -1)
+          echo "Signing: $UNSIGNED_APK"
+          ALIGNED_APK="${UNSIGNED_APK%.apk}-aligned.apk"
+          "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/zipalign" -v -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+          "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner" sign \
+            --ks /tmp/release.keystore \
+            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+            --out "$UNSIGNED_APK" \
+            "$ALIGNED_APK"
+          FINAL_APK="$(dirname "$UNSIGNED_APK")/Piano-Teacher.apk"
+          mv "$UNSIGNED_APK" "$FINAL_APK"
+          rm -f "$ALIGNED_APK" /tmp/release.keystore
+          echo "Signed APK: $FINAL_APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: piano-teacher-android
+          path: src-tauri/gen/android/app/build/outputs/apk/**/Piano-Teacher.apk
+          retention-days: 30

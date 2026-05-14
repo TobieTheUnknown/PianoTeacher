@@ -1,0 +1,49 @@
+{
+  "name": "piano-teacher",
+  "private": true,
+  "version": "4.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:mobile": "VITE_PLATFORM=mobile vite --config vite.mobile.config.js",
+    "build:mobile": "VITE_PLATFORM=mobile vite build --config vite.mobile.config.js",
+    "build": "vite build",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "build:win": "tauri build --target x86_64-pc-windows-msvc",
+    "build:mac": "tauri build --target universal-apple-darwin",
+    "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:android": "tauri android build",
+    "build:android:apk": "tauri android build --apk",
+    "build:ios": "tauri ios build",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "ios:init": "tauri ios init",
+    "ios:dev": "tauri ios dev",
+    "build:all": "npm run build:win && npm run build:mac && npm run build:linux",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.4.2",
+    "@tauri-apps/plugin-fs": "^2.4.4",
+    "@tonejs/midi": "^2.0.28",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tone": "^15.1.22"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/cli": "^2.9.6",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "vite": "^7.2.2"
+  }
+}

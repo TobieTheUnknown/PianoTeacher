@@ -1,0 +1,178 @@
+/* LivePlay Mobile Overlay - Floating controls on canvas */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.overlayHidden {
+  opacity: 0;
+}
+
+.overlayVisible {
+  opacity: 1;
+}
+
+/* Tap catcher to toggle overlay */
+.tapCatcher {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  z-index: 0;
+}
+
+/* Top HUD bar: back · centered meta · time (design-aligned) */
+.topHud {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 10px);
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.iconCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  min-height: unset;
+  min-width: unset;
+  flex-shrink: 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.iconCircle:hover,
+.iconCircle:active {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
+}
+
+.songMeta {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.songTitle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.songComposer {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeDisplay {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Stats strip — 4-col card under the HUD */
+.statsStrip {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 56px);
+  left: 18px;
+  right: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 8px 4px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.liveStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.liveStatDivider {
+  border-left: 1px solid var(--border);
+}
+
+.liveStatValue {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.liveStatLabel {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Gradient progress bar — sits just under the stats strip */
+.progressTrack {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 116px);
+  left: 18px;
+  right: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--hand-left), var(--accent), var(--hand-right));
+  border-radius: 999px;
+  transition: width var(--t-fast) linear;
+}
+
+
+/* Shared PlaybackDock host — sits at bottom of overlay */
+.dockHost {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: auto;
+  z-index: 4;
+}
+
