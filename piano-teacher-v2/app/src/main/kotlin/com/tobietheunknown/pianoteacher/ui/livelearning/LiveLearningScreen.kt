@@ -36,6 +36,26 @@ import com.tobietheunknown.pianoteacher.ui.learning.LearningViewModel
 import com.tobietheunknown.pianoteacher.ui.learning.MeasureData
 import com.tobietheunknown.pianoteacher.ui.theme.*
 
+// File-level color palette: hoisted out of Canvas DrawScope to avoid per-frame
+// allocations. Without this, each Color() literal inside the per-note forEach
+// allocates ~60×/sec per dot × ~30 dots × 4 cards ≈ 7k Color objects/sec.
+private val LL_LABEL_GRAY = Color(0xFF6B7280)
+private val LL_MUTED_LABEL = Color(0xFFA8AEBD)
+private val LL_BEAT_DIV_DIM = Color(0x33FFFFFF)
+private val LL_BEAT_DIV_BRIGHT = Color(0x40FFFFFF)
+private val LL_MELODY_GLOW = Color(0x4022D3EE)
+private val LL_MELODY_BRIGHT = Color(0xFF22D3EE)
+private val LL_CHORD_GLOW = Color(0x40EC4899)
+private val LL_CHORD_BRIGHT = Color(0xFFEC4899)
+private val LL_PLAYHEAD_GLOW = Color(0x336366F1)
+private val LL_PLAYHEAD_CORE = Color(0xFF6366F1)
+private val LL_BG_DARK = Color(0xFF0F1218)
+private val LL_DIVIDER_GRAY = Color(0xFF334155)
+private val LL_ICON_GRAY = Color(0xFF94A3B8)
+private val LL_KEY_WHITE = Color(0xFFE8EAF0)
+private val LL_KEY_WHITE_SHADOW = Color(0xFFCBD0D8)
+private val LL_KEY_BLACK = Color(0xFF1A1D24)
+
 /**
  * Apprentissage mobile — measure-by-measure cards with real data.
  *
@@ -67,6 +87,14 @@ fun LiveLearningScreen(
 
     val totalMeasures = allMeasures.size
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Single measure duration computation, shared across all cells in the
+    // LazyColumn so we don't recompute (and re-allocate) per cell every recomp.
+    val measureDurationMs = remember(song?.tempo, song?.beatsPerMeasure, tempoPercent) {
+        val bpm = song?.tempo ?: 120
+        val bpmPerMeasure = song?.beatsPerMeasure ?: 4
+        (60_000L * bpmPerMeasure) / (bpm * tempoPercent).toLong().coerceAtLeast(1L)
+    }
 
     // Auto-scroll to the group containing the playing measure.
     LaunchedEffect(playingMeasure) {
@@ -112,7 +140,7 @@ fun LiveLearningScreen(
                         )
                         Text(
                             parts.joinToString(" · "),
-                            color = Color(0xFF6B7280),
+                            color = LL_LABEL_GRAY,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
                         )
@@ -125,7 +153,7 @@ fun LiveLearningScreen(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             "Aucune mesure",
-                            color = Color(0xFF6B7280),
+                            color = LL_LABEL_GRAY,
                             fontSize = 14.sp,
                         )
                     }
@@ -149,14 +177,14 @@ fun LiveLearningScreen(
                                 ) {
                                     Text(
                                         "MESURES EN COURS",
-                                        color = Color(0xFF6B7280),
+                                        color = LL_LABEL_GRAY,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.08.sp,
                                     )
                                     Text(
                                         "${String.format("%02d", startIdx)}–${String.format("%02d", endIdx)}",
-                                        color = Color(0xFF6B7280),
+                                        color = LL_LABEL_GRAY,
                                         fontSize = 10.sp,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
@@ -172,15 +200,19 @@ fun LiveLearningScreen(
                                             if (cellIdx < group.size) {
                                                 val measure = group[cellIdx]
                                                 val globalIdx = measure.globalIndex
-                                                val bpm = song?.tempo ?: 120
-                                                val mPerMeasure = (60_000L * (song?.beatsPerMeasure ?: 4)) / (bpm * tempoPercent).toLong().coerceAtLeast(1L)
+                                                // Stabilise the click lambda so MeasureCardCompact
+                                                // stays skippable across unrelated recompositions
+                                                // (e.g. tempo / hand changes).
+                                                val onCellClick = remember(globalIdx) {
+                                                    { vm.focusMeasure(globalIdx) }
+                                                }
                                                 MeasureCardCompact(
                                                     measure = measure,
                                                     beatsPerMeasure = song?.beatsPerMeasure ?: 4,
                                                     isCurrent = globalIdx == focusedMeasure || globalIdx == playingMeasure,
                                                     isPlaying = isPlaying && globalIdx == playingMeasure,
-                                                    measureDurationMs = mPerMeasure,
-                                                    onClick = { vm.focusMeasure(globalIdx) },
+                                                    measureDurationMs = measureDurationMs,
+                                                    onClick = onCellClick,
                                                     modifier = Modifier.weight(1f),
                                                 )
                                             } else {
@@ -296,7 +328,7 @@ private fun MeasureCardCompact(
             ) {
                 Text(
                     String.format("%02d", measure.globalIndex + 1),
-                    color = if (isCurrent) IndigoAccent else Color(0xFFA8AEBD),
+                    color = if (isCurrent) IndigoAccent else LL_MUTED_LABEL,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
@@ -387,7 +419,7 @@ private fun BeatStrip(
             val midY = h / 2f
             // Middle hairline divider
             drawRect(
-                color = Color(0x33FFFFFF),
+                color = LL_BEAT_DIV_DIM,
                 topLeft = Offset(0f, midY - 0.5f),
                 size = Size(w, 1f),
             )
@@ -395,7 +427,7 @@ private fun BeatStrip(
             for (i in 1 until beatsPerMeasure) {
                 val x = w * i / beatsPerMeasure
                 drawRect(
-                    color = Color(0x40FFFFFF),
+                    color = LL_BEAT_DIV_BRIGHT,
                     topLeft = Offset(x - 0.5f, 0f),
                     size = Size(1f, h),
                 )
@@ -410,26 +442,26 @@ private fun BeatStrip(
             melody.forEach { n ->
                 val frac = ((n.startTime - measureStart) / measureBeats).coerceIn(0.0, 1.0)
                 val x = w * frac.toFloat()
-                drawCircle(color = Color(0x4022D3EE), radius = 7f, center = Offset(x, cyanY))
-                drawCircle(color = Color(0xFF22D3EE), radius = 4f, center = Offset(x, cyanY))
+                drawCircle(color = LL_MELODY_GLOW, radius = 7f, center = Offset(x, cyanY))
+                drawCircle(color = LL_MELODY_BRIGHT, radius = 4f, center = Offset(x, cyanY))
             }
             // Chord dots — bottom row
             chords.forEach { n ->
                 val frac = ((n.startTime - measureStart) / measureBeats).coerceIn(0.0, 1.0)
                 val x = w * frac.toFloat()
-                drawCircle(color = Color(0x40EC4899), radius = 7f, center = Offset(x, pinkY))
-                drawCircle(color = Color(0xFFEC4899), radius = 4f, center = Offset(x, pinkY))
+                drawCircle(color = LL_CHORD_GLOW, radius = 7f, center = Offset(x, pinkY))
+                drawCircle(color = LL_CHORD_BRIGHT, radius = 4f, center = Offset(x, pinkY))
             }
             // Playhead — accent vertical line scrubbing across the strip
             if (isCurrent && isPlaying) {
                 val px = w * playheadFrac
                 drawRect(
-                    color = Color(0x336366F1),
+                    color = LL_PLAYHEAD_GLOW,
                     topLeft = Offset(px - 6f, 0f),
                     size = Size(12f, h),
                 )
                 drawRect(
-                    color = Color(0xFF6366F1),
+                    color = LL_PLAYHEAD_CORE,
                     topLeft = Offset(px - 1f, 0f),
                     size = Size(2f, h),
                 )
@@ -479,7 +511,7 @@ private fun MiniKeyboard(
 
     Column(modifier = Modifier
         .fillMaxWidth()
-        .background(Color(0xFF0F1218))
+        .background(LL_BG_DARK)
         .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(0.dp))) {
 
         // Header strip — labels + collapse toggle
@@ -492,7 +524,7 @@ private fun MiniKeyboard(
         ) {
             Text(
                 "CLAVIER",
-                color = Color(0xFF6B7280),
+                color = LL_LABEL_GRAY,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.08.sp,
@@ -510,7 +542,7 @@ private fun MiniKeyboard(
             if (leftLabels.isNotEmpty()) {
                 Text(
                     "·",
-                    color = Color(0xFF334155),
+                    color = LL_DIVIDER_GRAY,
                     fontSize = 10.sp,
                 )
                 Text(
@@ -533,7 +565,7 @@ private fun MiniKeyboard(
                     if (expanded) Icons.Default.KeyboardArrowDown
                     else Icons.Default.KeyboardArrowUp,
                     contentDescription = if (expanded) "Réduire" else "Afficher",
-                    tint = Color(0xFF94A3B8),
+                    tint = LL_ICON_GRAY,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -580,8 +612,8 @@ private fun MiniKeyboard(
                 val whiteCol = Color(0xFFE8EAF0)
                 val whiteShadow = Color(0xFFCBD0D8)
                 val blackCol = Color(0xFF1A1D24)
-                val cyan = Color(0xFF22D3EE)
-                val pink = Color(0xFFEC4899)
+                val cyan = LL_MELODY_BRIGHT
+                val pink = LL_CHORD_BRIGHT
 
                 // White keys
                 var wi = 0

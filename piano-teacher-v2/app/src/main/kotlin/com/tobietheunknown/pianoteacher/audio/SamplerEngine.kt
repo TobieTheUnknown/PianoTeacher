@@ -93,7 +93,11 @@ class SamplerEngine(private val context: Context) {
         return availableNotes.minByOrNull { kotlin.math.abs(it - pitch) } ?: pitch
     }
 
+    @Volatile private var released = false
     fun release() {
+        if (released) return
+        released = true
+        loaded = false
         scope.cancel()
         pool.release()
     }

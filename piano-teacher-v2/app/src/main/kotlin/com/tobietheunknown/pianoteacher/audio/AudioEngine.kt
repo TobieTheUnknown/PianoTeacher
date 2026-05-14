@@ -178,6 +178,12 @@ class AudioEngine(private val context: Context? = null) {
         nativeSetReady()
         oboeReady = true
         Log.i(TAG, "Oboe sampler ready: $loaded/${SAMPLE_MAP.size} samples loaded")
+
+        // Oboe is now the active backend — release SoundPool resources so the
+        // OS audio service doesn't keep ~30 decoded MP3s warm in RAM forever.
+        // (noteOn/noteOff/pedal etc. all route through the native path once
+        // oboeReady is true, so the sampler is provably unreachable.)
+        samplerEngine?.release()
     }
 
     private data class PcmData(val samples: FloatArray, val sampleRate: Int, val channels: Int)
