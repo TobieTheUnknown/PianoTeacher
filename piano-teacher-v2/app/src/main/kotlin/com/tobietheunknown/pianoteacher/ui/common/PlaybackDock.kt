@@ -339,6 +339,10 @@ private fun RangeStepper(
     onChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Tap the number → switch to inline TextField for direct entry.
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember(value, editing) { mutableStateOf(value.toString()) }
+
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
         Surface(
@@ -354,7 +358,44 @@ private fun RangeStepper(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 PixelBtn("−", enabled = value > min) { onChange(value - 1) }
-                Text("$value", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = IndigoAccent)
+                if (editing) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = draft,
+                        onValueChange = { s -> draft = s.filter { it.isDigit() }.take(4) },
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = IndigoAccent,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        ),
+                        singleLine = true,
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(IndigoAccent),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onDone = {
+                                val v = draft.toIntOrNull()
+                                if (v != null) onChange(v.coerceIn(min, max))
+                                editing = false
+                            },
+                        ),
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                    )
+                } else {
+                    Text(
+                        "$value",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = IndigoAccent,
+                        modifier = Modifier
+                            .clickable { editing = true }
+                            .padding(horizontal = 12.dp),
+                    )
+                }
                 PixelBtn("+", enabled = value < max) { onChange(value + 1) }
             }
         }

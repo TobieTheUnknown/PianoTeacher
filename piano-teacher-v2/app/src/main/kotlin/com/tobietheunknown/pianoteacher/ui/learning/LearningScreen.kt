@@ -435,8 +435,9 @@ fun LearningScreen(
                         onMetronome = vm::toggleMetronome,
                         loop = isLooping,
                         onLoop = vm::toggleLoop,
-                        loopRange = (loopStart?.coerceAtLeast(1) ?: 1)..(loopEnd?.coerceAtMost(allMeasures.size) ?: allMeasures.size),
-                        onLoopRangeChange = { r -> vm.setLoopRange(r.first, r.last) },
+                        // vm loop indices are 0-based; the dock displays 1-based measure numbers.
+                        loopRange = ((loopStart ?: 0) + 1)..((loopEnd ?: 0) + 1),
+                        onLoopRangeChange = { r -> vm.setLoopRange(r.first - 1, r.last - 1) },
                         loopEditorOpen = loopEditorOpen,
                         onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
                         totalMeasures = allMeasures.size,

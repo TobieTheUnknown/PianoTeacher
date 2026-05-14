@@ -74,6 +74,14 @@ fun AppNavHost(intent: Intent? = null) {
         }
     }
 
+    // Track the last song id seen on a music tab so tab clicks can navigate
+    // back to the right song.
+    val currentSongId = backStackEntry?.arguments?.getString("songId")
+    val lastSongIdRef = remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(currentSongId) {
+        if (!currentSongId.isNullOrBlank()) lastSongIdRef.value = currentSongId
+    }
+
     // LivePlay should be fullscreen — hide the tab bar.
     val showTabBar = currentRoute?.startsWith("liveplay") != true
 
@@ -160,12 +168,22 @@ fun AppNavHost(intent: Intent? = null) {
             BottomTabBar(
                 active = activeTab,
                 onSelect = { tab ->
-                    val target = when (tab) {
+                    val songId = lastSongIdRef.value
+                    val target: String = when (tab) {
                         AppTab.LIBRARY -> Screen.Library.route
                         AppTab.SETTINGS -> Screen.Settings.route
-                        // Music tabs need a song in context. If we have one,
-                        // navigate to it; otherwise route to Library.
-                        else -> Screen.Library.route
+                        AppTab.SHEET ->
+                            if (songId != null) Screen.Learning.route(songId)
+                            else Screen.Library.route
+                        AppTab.LEARN ->
+                            if (songId != null) Screen.LiveLearning.route(songId)
+                            else Screen.Library.route
+                        AppTab.LIVEPLAY ->
+                            if (songId != null) Screen.LivePlay.route(songId)
+                            else Screen.Library.route
+                        AppTab.EDITOR ->
+                            if (songId != null) Screen.Editor.route(songId)
+                            else Screen.Library.route
                     }
                     if (target != currentRoute) {
                         navController.navigate(target) {
