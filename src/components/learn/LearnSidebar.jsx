@@ -178,12 +178,16 @@ function HandIcon({ hand }) {
 }
 
 function MiniKeyboard({ startMidi, octaves, activeRight, activeLeft }) {
-    const whiteWidth = 14;
+    // Wider keys + scrollable so users can pan to see active notes
+    // outside the default 3-octave window. Auto-scroll to first active
+    // note when the measure changes.
+    const whiteWidth = 22;
     const totalWhites = octaves * 7;
     const totalWidth = totalWhites * whiteWidth;
-    const height = 72;
+    const height = 86;
     const blackHeight = height * 0.62;
     const blackWidthRatio = 0.6;
+    const scrollRef = React.useRef(null);
 
     const isBlack = (m) => [1, 3, 6, 8, 10].includes(m % 12);
 
@@ -201,9 +205,48 @@ function MiniKeyboard({ startMidi, octaves, activeRight, activeLeft }) {
         return null;
     };
 
+    // Auto-scroll to centre the first active note when set changes.
+    React.useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const firstActive =
+            (activeRight && activeRight.size ? Math.min(...activeRight) : null) ??
+            (activeLeft && activeLeft.size ? Math.min(...activeLeft) : null);
+        if (firstActive == null) return;
+        // Approx X of the key (white index * whiteWidth, or based on prev white for black).
+        const localIdx = firstActive - startMidi;
+        let px;
+        if (!isBlack(firstActive)) {
+            px = (whiteIndex[firstActive] ?? 0) * whiteWidth;
+        } else {
+            const prev = whiteIndex[firstActive - 1] ?? whiteIndex[firstActive + 1] ?? 0;
+            px = prev * whiteWidth + whiteWidth - (whiteWidth * blackWidthRatio) / 2;
+        }
+        const scaled = (px / totalWidth) * (el.scrollWidth);
+        const targetScroll = scaled - el.clientWidth / 2 + whiteWidth / 2;
+        el.scrollTo({ left: Math.max(0, targetScroll), behavior: 'smooth' });
+    }, [activeRight, activeLeft, startMidi, totalWidth, blackWidthRatio]);
+
     return (
-        <div style={{ position: 'relative', width: '100%', height, marginTop: 8 }}>
-            <svg viewBox={`0 0 ${totalWidth} ${height}`} width="100%" height={height} preserveAspectRatio="none">
+        <div
+            ref={scrollRef}
+            style={{
+                position: 'relative',
+                width: '100%',
+                height,
+                marginTop: 8,
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                WebkitOverflowScrolling: 'touch',
+            }}
+        >
+            <svg
+                viewBox={`0 0 ${totalWidth} ${height}`}
+                width={totalWidth}
+                height={height}
+                preserveAspectRatio="xMinYMin meet"
+                style={{ display: 'block' }}
+            >
                 {/* White keys */}
                 {Array.from({ length: octaves * 12 }, (_, i) => startMidi + i)
                     .filter((m) => !isBlack(m))

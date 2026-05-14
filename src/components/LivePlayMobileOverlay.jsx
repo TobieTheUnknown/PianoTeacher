@@ -31,6 +31,9 @@ export function LivePlayMobileOverlay({
   setHandMode,
   isLoopEnabled,
   onLoopToggle,
+  loopRange,
+  onLoopRangeChange,
+  totalMeasuresHint,
   sessionStats,
   phraseMeasureRanges,
   selectedPhraseIndex,
@@ -140,9 +143,11 @@ export function LivePlayMobileOverlay({
           onMetronomeSubdivisionChange={setMetronomeSubdivision}
           loop={!!isLoopEnabled}
           onLoop={onLoopToggle}
+          loopRange={loopRange ?? [1, totalMeasuresHint || 1]}
+          onLoopRange={onLoopRangeChange}
           loopEditorOpen={loopEditorOpen}
           onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
-          totalMeasures={phraseMeasureRanges?.length || 1}
+          totalMeasures={totalMeasuresHint || phraseMeasureRanges?.length || 1}
           onPrev={() => {
             if (phraseMeasureRanges?.length && selectedPhraseIndex != null) {
               const i = parseInt(selectedPhraseIndex, 10);

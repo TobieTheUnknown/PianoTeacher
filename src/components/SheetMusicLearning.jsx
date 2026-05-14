@@ -58,16 +58,16 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [loopRange, setLoopRange] = useState([1, 1]);
     const [loopEditorOpen, setLoopEditorOpen] = useState(false);
 
-    // When user toggles the metronome in the dock, drive AudioEngine so we
-    // hear ticks while idle too.
+    // Stop the metronome when the user toggles it off mid-playback or
+    // unmounts the page. We DON'T start it on toggle — the metronome
+    // should only tick during actual playback (after the preroll), like
+    // on the Apprentissage page.
     useEffect(() => {
-        if (metronome) {
-            const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
-            audioEngine.startMetronome(tempo, metronomeSubdivision);
-        } else {
+        if (!metronome) {
             audioEngine.stopMetronome();
         }
-    }, [metronome, metronomeSubdivision, song, speed]);
+        return () => audioEngine.stopMetronome();
+    }, [metronome]);
 
     // Concat phrases into one playable phrase so the dock's play button
     // drives the whole partition.
@@ -139,6 +139,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         await audioEngine.initialize();
         if (playing) {
             audioEngine.stop();
+            audioEngine.stopMetronome();
             setPlaying(false);
             return;
         }
@@ -166,6 +167,12 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 length: endMeasure - startMeasure + 1,
             };
         };
+
+        // Start the running metronome BEFORE playPhrase so it ticks
+        // through both the preroll and the music when enabled.
+        if (metronome) {
+            audioEngine.startMetronome(tempo, metronomeSubdivision);
+        }
 
         const playRange = (startMeasure, endMeasure, withPreroll) => {
             const phrase = buildPhrase(startMeasure, endMeasure);

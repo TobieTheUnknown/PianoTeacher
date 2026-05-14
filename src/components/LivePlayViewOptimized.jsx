@@ -879,6 +879,9 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           setHandMode={setHandMode}
           isLoopEnabled={isLoopEnabled}
           onLoopToggle={handleLoopToggle}
+          loopRange={loopConfig ? [loopConfig.startMeasure, loopConfig.endMeasure] : [1, song?.phrases?.length || 1]}
+          onLoopRangeChange={([from, to]) => handleLoopChange(from, to)}
+          totalMeasuresHint={song?.phrases?.length || 1}
           sessionStats={sessionStats}
           phraseMeasureRanges={phraseMeasureRanges}
           selectedPhraseIndex={selectedPhraseIndex}
