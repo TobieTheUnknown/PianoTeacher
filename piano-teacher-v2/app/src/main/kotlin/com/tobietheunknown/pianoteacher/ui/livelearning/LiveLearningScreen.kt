@@ -30,8 +30,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
+import com.tobietheunknown.pianoteacher.ui.common.MiniKeyboard
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackDock
 import com.tobietheunknown.pianoteacher.ui.common.HandMode
+import com.tobietheunknown.pianoteacher.ui.common.fixedKeyboardRange
 import com.tobietheunknown.pianoteacher.ui.learning.LearningViewModel
 import com.tobietheunknown.pianoteacher.ui.learning.MeasureData
 import com.tobietheunknown.pianoteacher.ui.theme.*
@@ -55,6 +57,9 @@ private val LL_ICON_GRAY = Color(0xFF94A3B8)
 private val LL_KEY_WHITE = Color(0xFFE8EAF0)
 private val LL_KEY_WHITE_SHADOW = Color(0xFFCBD0D8)
 private val LL_KEY_BLACK = Color(0xFF1A1D24)
+
+private val NOTE_NAMES = arrayOf("Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
+private fun noteName(pitch: Int): String = NOTE_NAMES[((pitch % 12) + 12) % 12]
 
 /**
  * Apprentissage mobile — measure-by-measure cards with real data.
@@ -232,30 +237,26 @@ fun LiveLearningScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()) {
                 if (focusedMeasureData != null) {
-                    // Compute the max pitch span across the whole song so the
-                    // keyboard's zoom stays constant. Only the start pitch
-                    // shifts (by octaves) to keep the focused measure visible.
+                    // Pre-compute fixed-zoom window size across the whole
+                    // song so the keyboard doesn't re-scale every measure.
                     val songSpan = remember(allMeasures) {
-                        var minPitch = Int.MAX_VALUE
-                        var maxPitch = Int.MIN_VALUE
-                        var widestRange = 12
-                        for (m in allMeasures) {
-                            val all = m.melodyNotes + m.chordNotes
-                            if (all.isEmpty()) continue
-                            val a = all.minOf { it.pitch }
-                            val b = all.maxOf { it.pitch }
-                            widestRange = maxOf(widestRange, b - a + 1)
-                            minPitch = minOf(minPitch, a)
-                            maxPitch = maxOf(maxPitch, b)
-                        }
-                        // Round up to the next octave boundary so keys land
-                        // on natural C-to-C windows.
-                        val padded = (widestRange + 8).coerceAtMost(maxPitch - minPitch + 1).coerceAtLeast(12)
-                        padded
+                        fixedKeyboardRange(
+                            allMeasures.mapNotNull { m ->
+                                val all = m.melodyNotes + m.chordNotes
+                                if (all.isEmpty()) null
+                                else all.minOf { it.pitch } to all.maxOf { it.pitch }
+                            }
+                        )
+                    }
+                    val activeRight = remember(focusedMeasureData) {
+                        focusedMeasureData.melodyNotes.map { it.pitch }.toSet()
+                    }
+                    val activeLeft = remember(focusedMeasureData) {
+                        focusedMeasureData.chordNotes.map { it.pitch }.toSet()
                     }
                     MiniKeyboard(
-                        activeRight = focusedMeasureData.melodyNotes.map { it.pitch }.toSet(),
-                        activeLeft = focusedMeasureData.chordNotes.map { it.pitch }.toSet(),
+                        activeRight = activeRight,
+                        activeLeft = activeLeft,
                         fixedRange = songSpan,
                     )
                 }
@@ -485,166 +486,3 @@ private fun HandPlayPill(label: String, color: Color) {
     }
 }
 
-private val NOTE_NAMES = arrayOf("Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
-private fun noteName(pitch: Int): String = NOTE_NAMES[((pitch % 12) + 12) % 12]
-
-/**
- * MiniKeyboard — full-screen-width strip pinned above the dock.
- * Highlights notes from the focused measure: right-hand cyan, left pink.
- * Header row with the active note labels + a chevron to collapse / expand.
- */
-@Composable
-private fun MiniKeyboard(
-    activeRight: Set<Int>,
-    activeLeft: Set<Int>,
-    fixedRange: Int = 36, // 3 octaves of semitones by default
-) {
-    var expanded by remember { mutableStateOf(true) }
-    val height = if (expanded) 64f else 0f
-
-    val rightLabels = remember(activeRight) {
-        activeRight.sorted().map { noteName(it) }.distinct()
-    }
-    val leftLabels = remember(activeLeft) {
-        activeLeft.sorted().map { noteName(it) }.distinct()
-    }
-
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .background(LL_BG_DARK)
-        .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(0.dp))) {
-
-        // Header strip — labels + collapse toggle
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "CLAVIER",
-                color = LL_LABEL_GRAY,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.08.sp,
-            )
-            if (rightLabels.isNotEmpty()) {
-                Text(
-                    rightLabels.joinToString(" · "),
-                    color = CyanMelody,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-            }
-            if (leftLabels.isNotEmpty()) {
-                Text(
-                    "·",
-                    color = LL_DIVIDER_GRAY,
-                    fontSize = 10.sp,
-                )
-                Text(
-                    leftLabels.joinToString(" · "),
-                    color = PinkChords,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                Box(modifier = Modifier.weight(1f))
-            }
-            IconButton(
-                onClick = { expanded = !expanded },
-                modifier = Modifier.size(28.dp),
-            ) {
-                Icon(
-                    if (expanded) Icons.Default.KeyboardArrowDown
-                    else Icons.Default.KeyboardArrowUp,
-                    contentDescription = if (expanded) "Réduire" else "Afficher",
-                    tint = LL_ICON_GRAY,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
-
-        if (expanded) {
-            // Fixed-zoom keyboard: window size = fixedRange semitones,
-            // shifted by octaves so the focused-measure notes are
-            // visible inside. We snap to C boundaries so key widths read
-            // naturally (C-to-C span).
-            val active = activeRight + activeLeft
-            val rangeSemis = fixedRange.coerceAtLeast(12)
-            // Round up to the next multiple of 12 so we always start on a C.
-            val windowSemis = ((rangeSemis + 11) / 12) * 12
-            val startMidi = run {
-                val baseDefault = 48 // C3
-                if (active.isEmpty()) baseDefault
-                else {
-                    val centre = (active.min() + active.max()) / 2
-                    var s = centre - windowSemis / 2
-                    // Snap down to a C boundary.
-                    s -= (s % 12).let { if (it < 0) it + 12 else it }
-                    // If high notes fall outside, shift up octave by octave.
-                    while (active.max() > s + windowSemis - 1) s += 12
-                    // If low notes fall outside, shift down octave by octave.
-                    while (active.min() < s) s -= 12
-                    s.coerceIn(12, 108 - windowSemis)
-                }
-            }
-            val endMidi = startMidi + windowSemis - 1
-
-            val isBlack = { m: Int -> (m % 12) in listOf(1, 3, 6, 8, 10) }
-            val whiteCount = (startMidi..endMidi).count { !isBlack(it) }
-            val blackWidthRatio = 0.6f
-
-            androidx.compose.foundation.Canvas(modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)) {
-                val w = size.width
-                val h = size.height
-                val whiteWidth = w / whiteCount.toFloat()
-                val blackWidth = whiteWidth * blackWidthRatio
-                val blackHeight = h * 0.62f
-                val whiteCol = Color(0xFFE8EAF0)
-                val whiteShadow = Color(0xFFCBD0D8)
-                val blackCol = Color(0xFF1A1D24)
-                val cyan = LL_MELODY_BRIGHT
-                val pink = LL_CHORD_BRIGHT
-
-                // White keys
-                var wi = 0
-                for (m in startMidi..endMidi) {
-                    if (isBlack(m)) continue
-                    val x = wi * whiteWidth
-                    val fill = when {
-                        m in activeRight -> cyan
-                        m in activeLeft -> pink
-                        else -> whiteCol
-                    }
-                    drawRect(color = fill, topLeft = Offset(x, 0f), size = Size(whiteWidth - 0.5f, h))
-                    drawRect(color = whiteShadow, topLeft = Offset(x + whiteWidth - 0.5f, 0f), size = Size(0.5f, h))
-                    wi++
-                }
-                // Black keys
-                wi = 0
-                for (m in startMidi..endMidi) {
-                    if (!isBlack(m)) {
-                        wi++
-                        continue
-                    }
-                    val x = wi * whiteWidth - blackWidth / 2f
-                    val fill = when {
-                        m in activeRight -> cyan
-                        m in activeLeft -> pink
-                        else -> blackCol
-                    }
-                    drawRect(color = fill, topLeft = Offset(x, 0f), size = Size(blackWidth, blackHeight))
-                }
-            }
-        }
-    }
-}

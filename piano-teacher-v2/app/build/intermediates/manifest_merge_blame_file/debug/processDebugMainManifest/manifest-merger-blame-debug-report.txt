@@ -1,0 +1,250 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.tobietheunknown.pianoteacher"
+4    android:versionCode="2"
+5    android:versionName="2.2.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="29"
+9        android:targetSdkVersion="35" />
+10
+11    <!-- MIDI -->
+12    <uses-feature
+12-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:5:5-87
+13        android:name="android.hardware.usb.host"
+13-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:5:19-59
+14        android:required="false" />
+14-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:5:60-84
+15
+16    <uses-permission
+16-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:6:5-95
+17        android:name="android.permission.BLUETOOTH"
+17-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:6:22-65
+18        android:maxSdkVersion="30" />
+18-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:6:66-92
+19    <uses-permission
+19-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:7:5-101
+20        android:name="android.permission.BLUETOOTH_ADMIN"
+20-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:7:22-71
+21        android:maxSdkVersion="30" />
+21-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:7:72-98
+22    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+22-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:8:5-76
+22-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:8:22-73
+23    <uses-permission
+23-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:9:5-10:58
+24        android:name="android.permission.BLUETOOTH_SCAN"
+24-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:9:22-70
+25        android:usesPermissionFlags="neverForLocation" />
+25-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:10:9-55
+26    <!-- Required for BLE scanning on Android ≤11 -->
+27    <uses-permission
+27-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:12:5-13:38
+28        android:name="android.permission.ACCESS_FINE_LOCATION"
+28-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:12:22-76
+29        android:maxSdkVersion="30" />
+29-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:13:9-35
+30
+31    <permission
+31-->[androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+32        android:name="com.tobietheunknown.pianoteacher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+32-->[androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+33        android:protectionLevel="signature" />
+33-->[androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+34
+35    <uses-permission android:name="com.tobietheunknown.pianoteacher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+35-->[androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+35-->[androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+36
+37    <application
+37-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:15:5-61:19
+38        android:allowBackup="true"
+38-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:17:9-35
+39        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+39-->[androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+40        android:debuggable="true"
+41        android:enableOnBackInvokedCallback="true"
+41-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:16:9-51
+42        android:extractNativeLibs="false"
+43        android:icon="@drawable/ic_launcher"
+43-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:19:9-45
+44        android:label="Piano Teacher"
+44-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:18:9-38
+45        android:roundIcon="@drawable/ic_launcher"
+45-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:20:9-50
+46        android:supportsRtl="true"
+46-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:21:9-35
+47        android:theme="@style/Theme.PianoTeacher" >
+47-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:22:9-50
+48        <activity
+48-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:24:9-60:20
+49            android:name="com.tobietheunknown.pianoteacher.MainActivity"
+49-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:25:13-41
+50            android:exported="true"
+50-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:26:13-36
+51            android:windowLayoutInDisplayCutoutMode="shortEdges"
+51-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:28:13-65
+52            android:windowSoftInputMode="adjustResize" >
+52-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:27:13-55
+53            <intent-filter>
+53-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:29:13-32:29
+54                <action android:name="android.intent.action.MAIN" />
+54-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:30:17-69
+54-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:30:25-66
+55
+56                <category android:name="android.intent.category.LAUNCHER" />
+56-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:31:17-77
+56-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:31:27-74
+57            </intent-filter>
+58
+59            <!-- Import .json depuis d'autres apps -->
+60            <intent-filter>
+60-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:35:13-39:29
+61                <action android:name="android.intent.action.VIEW" />
+61-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:17-69
+61-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:25-66
+62
+63                <category android:name="android.intent.category.DEFAULT" />
+63-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:17-76
+63-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:27-73
+64
+65                <data android:mimeType="application/json" />
+65-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:17-61
+65-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:23-58
+66            </intent-filter>
+67
+68            <!-- Import .mid -->
+69            <intent-filter>
+69-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:42:13-46:29
+70                <action android:name="android.intent.action.VIEW" />
+70-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:17-69
+70-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:25-66
+71
+72                <category android:name="android.intent.category.DEFAULT" />
+72-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:17-76
+72-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:27-73
+73
+74                <data android:mimeType="audio/midi" />
+74-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:17-61
+74-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:23-58
+75            </intent-filter>
+76            <intent-filter>
+76-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:47:13-51:29
+77                <action android:name="android.intent.action.VIEW" />
+77-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:17-69
+77-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:25-66
+78
+79                <category android:name="android.intent.category.DEFAULT" />
+79-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:17-76
+79-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:27-73
+80
+81                <data android:mimeType="audio/x-midi" />
+81-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:17-61
+81-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:23-58
+82            </intent-filter>
+83
+84            <!-- USB MIDI device attach -->
+85            <intent-filter>
+85-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:54:13-56:29
+86                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+86-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:55:17-90
+86-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:55:25-87
+87            </intent-filter>
+88
+89            <meta-data
+89-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:57:13-59:61
+90                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+90-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:58:17-79
+91                android:resource="@xml/usb_device_filter" />
+91-->/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:59:17-58
+92        </activity>
+93        <activity
+93-->[androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
+94            android:name="androidx.compose.ui.tooling.PreviewActivity"
+94-->[androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
+95            android:exported="true" />
+95-->[androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
+96        <activity
+96-->[androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:23:9-25:39
+97            android:name="androidx.activity.ComponentActivity"
+97-->[androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:24:13-63
+98            android:exported="true" />
+98-->[androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:25:13-36
+99
+100        <provider
+100-->[androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:24:9-32:20
+101            android:name="androidx.startup.InitializationProvider"
+101-->[androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:25:13-67
+102            android:authorities="com.tobietheunknown.pianoteacher.androidx-startup"
+102-->[androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:26:13-68
+103            android:exported="false" >
+103-->[androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:27:13-37
+104            <meta-data
+104-->[androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:29:13-31:52
+105                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+105-->[androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:30:17-78
+106                android:value="androidx.startup" />
+106-->[androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:31:17-49
+107            <meta-data
+107-->[androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+108                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+108-->[androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+109                android:value="androidx.startup" />
+109-->[androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+110            <meta-data
+110-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+111                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+111-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+112                android:value="androidx.startup" />
+112-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+113        </provider>
+114
+115        <service
+115-->[androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+116            android:name="androidx.room.MultiInstanceInvalidationService"
+116-->[androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+117            android:directBootAware="true"
+117-->[androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+118            android:exported="false" />
+118-->[androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+119
+120        <receiver
+120-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+121            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+121-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+122            android:directBootAware="false"
+122-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+123            android:enabled="true"
+123-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+124            android:exported="true"
+124-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+125            android:permission="android.permission.DUMP" >
+125-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+126            <intent-filter>
+126-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+127                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+127-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+127-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+128            </intent-filter>
+129            <intent-filter>
+129-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+130                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+130-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+130-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+131            </intent-filter>
+132            <intent-filter>
+132-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+133                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+133-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+133-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+134            </intent-filter>
+135            <intent-filter>
+135-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+136                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+136-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+136-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+137            </intent-filter>
+138        </receiver>
+139    </application>
+140
+141</manifest>

@@ -1,0 +1,482 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:2:1-63:12
+INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:2:1-63:12
+INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:2:1-63:12
+INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:2:1-63:12
+MERGED from [androidx.appcompat:appcompat-resources:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/80c4ca2fa46ee9cef80dd535f8d59389/transformed/appcompat-resources-1.7.0/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.appcompat:appcompat:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9b1dff7f915ec2e40c5c88b3387f49fd/transformed/appcompat-1.7.0/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/45261b45699b191342b42f35a63437b6/transformed/drawerlayout-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3ac400dec9e6c4d34cc6f100b3e51abd/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.navigation:navigation-common:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6cd0ec2720720c5248f42b61f153c707/transformed/navigation-common-2.8.2/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.navigation:navigation-runtime:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8e20842e7bb36ab2a225953a16b34e73/transformed/navigation-runtime-2.8.2/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.navigation:navigation-common-ktx:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/eaef1d928765335ea6df1d3dba536bf5/transformed/navigation-common-ktx-2.8.2/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.navigation:navigation-runtime-ktx:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/245c27dbe9128f8a3aa8c033720e0ee7/transformed/navigation-runtime-ktx-2.8.2/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.navigation:navigation-compose:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/32ba9a5becb2e107fd29dcb41a56758c/transformed/navigation-compose-2.8.2/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.fragment:fragment:1.5.4] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dda362da93d8a30335e16de5b7bc3e83/transformed/fragment-1.5.4/AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.activity:activity-ktx:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8598bebbf128e8add090817dbc5d87a8/transformed/activity-ktx-1.9.2/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material3:material3-android:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/830a255e8e264f06640b71cd18792a87/transformed/material3-release/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.compose.foundation:foundation-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/76d168cd4a0cd5315457151366b2c957/transformed/foundation-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.foundation:foundation-layout-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b182b984786c01baba5fb49c450f8998/transformed/foundation-layout-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-tooling-data-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/0ab20afdc75c953e74c384c8e0cc4db5/transformed/ui-tooling-data-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-geometry-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/fa8715b80f67fbed07a03ee2763428d0/transformed/ui-geometry-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/92eea4f7a7bb52d34dd2a25560022bda/transformed/ui-tooling-preview-release/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.compose.animation:animation-core-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/0e9ba4a710d37175af4ba8779a128c40/transformed/animation-core-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-util-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/267438380c067c530d34a588d6b22347/transformed/ui-util-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-unit-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7ae3fe58ab1430097fee6063844b4a01/transformed/ui-unit-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-text-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/209c966e8dea5e3171ab1b03122e1b6b/transformed/ui-text-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:17:1-28:12
+MERGED from [androidx.compose.material:material-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9f26b5f48499e6f14da9363ec3064ed8/transformed/material-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material:material-ripple-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/01a36f6a250864d93411d9ade671b43c/transformed/material-ripple-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.animation:animation-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/2c735f1b5b8e6ffc2c3937e1ba66cd22/transformed/animation-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-graphics-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dee5fbc359ce62489dc97a6d06b48b89/transformed/ui-graphics-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:17:1-28:12
+MERGED from [androidx.activity:activity:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/de086b2db13c8941fbcd9c470c1dda55/transformed/activity-1.9.2/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.activity:activity-compose:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8b35d4afcebad5793f555595a99de3ac/transformed/activity-compose-1.9.2/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.loader:loader:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/badcd41eb1d803c51d89f65c8b899288/transformed/loader-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dd32474f2b478932d33ea9f03d4ba27d/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.savedstate:savedstate:1.2.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/803b09273be9ae24217a03b140895499/transformed/savedstate-1.2.1/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-runtime-compose-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b66cd2e3d7127facfffff65d11e47834/transformed/lifecycle-runtime-compose-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e167c475fe71f8ea83dfd4eec9ed6bb5/transformed/lifecycle-livedata-core-ktx-2.8.6/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6a706225d007bc0bacaa9042c68c37b1/transformed/lifecycle-viewmodel-2.8.6/AndroidManifest.xml:2:1-5:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7ace7b5028fd62735bc23e10e03f730f/transformed/lifecycle-viewmodel-release/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-runtime-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9421617cf9104701ca9e409673e173d1/transformed/lifecycle-runtime-release/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3c3f0d1dde7a867962aaeb65d382f23e/transformed/lifecycle-livedata-2.8.6/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9a2a2bc281c99b9d83d12b71ed50ced6/transformed/lifecycle-viewmodel-ktx-2.8.6/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a50cc7393185041b665a9681916f9372/transformed/lifecycle-viewmodel-savedstate-2.8.6/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:17:1-35:12
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d725bf2d8bad32b24bfac1a7e01f3f7a/transformed/lifecycle-livedata-core-2.8.6/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/869537f9f1e37e5f3e21589434fa494d/transformed/lifecycle-runtime-ktx-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/92f5ed02d956d3ad6aa1d2acc0bf2672/transformed/lifecycle-viewmodel-compose-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/10d977773e27b292815f9aac59d9e289/transformed/material-icons-extended-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material:material-icons-core-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/20f50379ce27b1df97d2d79146570edc/transformed/material-icons-core-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/4be2d054eeab8b4078de37534a77e7e0/transformed/ui-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:17:1-35:12
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/95b1e1810a250fc611940892db7c7b81/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/1b42d2aa1de7af171fd291f4da9fbe32/transformed/vectordrawable-1.1.0/AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.viewpager:viewpager:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b7bff6281ea4d58d504fe01c3b82dc57/transformed/viewpager-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.customview:customview:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b04b957b1bf99dd5a46de333101d2220/transformed/customview-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.autofill:autofill:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/2463663ea0711f8454c0d3d7d8566740/transformed/autofill-1.0.0/AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.graphics:graphics-path:1.0.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a78560297a2e08cf9e31e8c2600c6817/transformed/graphics-path-1.0.1/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:17:1-30:12
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/60adb0e2f94a816550e11019638cad57/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:17:1-23:12
+MERGED from [androidx.core:core-ktx:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7581853607d6ae3473d8cccac1046028/transformed/core-ktx-1.13.1/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:17:1-31:12
+MERGED from [androidx.room:room-ktx:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/30ad361338e8dee8862e9a8df7d9ed65/transformed/room-ktx-2.6.1/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.datastore:datastore-core-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/74d386a15a1d846b49637cdaa7f89d73/transformed/datastore-core-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.datastore:datastore-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/1476c8af5ceeadfa6fdb5dd03370e620/transformed/datastore-release/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.datastore:datastore-preferences-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/eba56f349aa8bdb78c13d5b4cf83de2b/transformed/datastore-preferences-release/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5bd4d85268334640d179327b338dfde9/transformed/runtime-saveable-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.runtime:runtime-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8f21a7633abde1b81ed300a17ebaa5f9/transformed/runtime-release/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.sqlite:sqlite-framework:2.4.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/613046c14f54bcfc64a4519af56bc4b6/transformed/sqlite-framework-2.4.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.sqlite:sqlite:2.4.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/506749929dc865a2cb5cd174fe903ba4/transformed/sqlite-2.4.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.annotation:annotation-experimental:1.4.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5b2db36392539e5994019b0dfc29c5bd/transformed/annotation-experimental-1.4.1/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6dc59dcc03cc47c85d4f0322f8d7612a/transformed/versionedparcelable-1.1.1/AndroidManifest.xml:17:1-27:12
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/90af0e2299f5362d7883c7a3628ca807/transformed/cursoradapter-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:17:1-55:12
+MERGED from [androidx.arch.core:core-runtime:2.2.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a58c77bbb4ce264ee0b86cd6ded4b022/transformed/core-runtime-2.2.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.interpolator:interpolator:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/f81f1db34b82de6cb8ebfb87d1c1eeda/transformed/interpolator-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3a5d61ed99a5200f2a37a33d9809a771/transformed/startup-runtime-1.1.1/AndroidManifest.xml:17:1-33:12
+MERGED from [androidx.tracing:tracing:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/35d2d2f334091ece5b3054196abde0d5/transformed/tracing-1.0.0/AndroidManifest.xml:17:1-24:12
+MERGED from [com.google.oboe:oboe:1.9.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/ec30c9071be60ceec27fd361fcbc501b/transformed/oboe-1.9.0/AndroidManifest.xml:1:1-3:12
+	package
+		INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+	android:versionName
+		INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+	android:versionCode
+		INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:2:11-69
+uses-feature#android.hardware.usb.host
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:5:5-87
+	android:required
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:5:60-84
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:5:19-59
+uses-permission#android.permission.BLUETOOTH
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:6:5-95
+	android:maxSdkVersion
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:6:66-92
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:6:22-65
+uses-permission#android.permission.BLUETOOTH_ADMIN
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:7:5-101
+	android:maxSdkVersion
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:7:72-98
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:7:22-71
+uses-permission#android.permission.BLUETOOTH_CONNECT
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:8:5-76
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:8:22-73
+uses-permission#android.permission.BLUETOOTH_SCAN
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:9:5-10:58
+	android:usesPermissionFlags
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:10:9-55
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:9:22-70
+uses-permission#android.permission.ACCESS_FINE_LOCATION
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:12:5-13:38
+	android:maxSdkVersion
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:13:9-35
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:12:22-76
+application
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:15:5-61:19
+INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:15:5-61:19
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:22:5-26:19
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:22:5-26:19
+MERGED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:22:5-26:19
+MERGED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:22:5-26:19
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:28:5-89
+MERGED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:28:5-89
+MERGED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:23:5-29:19
+MERGED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:23:5-29:19
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6dc59dcc03cc47c85d4f0322f8d7612a/transformed/versionedparcelable-1.1.1/AndroidManifest.xml:24:5-25:19
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6dc59dcc03cc47c85d4f0322f8d7612a/transformed/versionedparcelable-1.1.1/AndroidManifest.xml:24:5-25:19
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:23:5-53:19
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:23:5-53:19
+MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3a5d61ed99a5200f2a37a33d9809a771/transformed/startup-runtime-1.1.1/AndroidManifest.xml:25:5-31:19
+MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3a5d61ed99a5200f2a37a33d9809a771/transformed/startup-runtime-1.1.1/AndroidManifest.xml:25:5-31:19
+	android:extractNativeLibs
+		INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+	android:appComponentFactory
+		ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+	android:supportsRtl
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:21:9-35
+	android:label
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:18:9-38
+	android:roundIcon
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:20:9-50
+	android:icon
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:19:9-45
+	android:allowBackup
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:17:9-35
+	android:theme
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:22:9-50
+	android:enableOnBackInvokedCallback
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:16:9-51
+activity#com.tobietheunknown.pianoteacher.MainActivity
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:24:9-60:20
+	android:windowLayoutInDisplayCutoutMode
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:28:13-65
+	android:windowSoftInputMode
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:27:13-55
+	android:exported
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:26:13-36
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:25:13-41
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:29:13-32:29
+action#android.intent.action.MAIN
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:30:17-69
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:30:25-66
+category#android.intent.category.LAUNCHER
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:31:17-77
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:31:27-74
+intent-filter#action:name:android.intent.action.VIEW+category:name:android.intent.category.DEFAULT+data:mimeType:application/json
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:35:13-39:29
+action#android.intent.action.VIEW
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:17-69
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:36:25-66
+category#android.intent.category.DEFAULT
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:17-76
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:37:27-73
+data
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:17-61
+	android:mimeType
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:38:23-58
+intent-filter#action:name:android.intent.action.VIEW+category:name:android.intent.category.DEFAULT+data:mimeType:audio/midi
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:42:13-46:29
+intent-filter#action:name:android.intent.action.VIEW+category:name:android.intent.category.DEFAULT+data:mimeType:audio/x-midi
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:47:13-51:29
+intent-filter#action:name:android.hardware.usb.action.USB_DEVICE_ATTACHED
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:54:13-56:29
+action#android.hardware.usb.action.USB_DEVICE_ATTACHED
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:55:17-90
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:55:25-87
+meta-data#android.hardware.usb.action.USB_DEVICE_ATTACHED
+ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:57:13-59:61
+	android:resource
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:59:17-58
+	android:name
+		ADDED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml:58:17-79
+uses-sdk
+INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+MERGED from [androidx.appcompat:appcompat-resources:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/80c4ca2fa46ee9cef80dd535f8d59389/transformed/appcompat-resources-1.7.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.appcompat:appcompat-resources:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/80c4ca2fa46ee9cef80dd535f8d59389/transformed/appcompat-resources-1.7.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.appcompat:appcompat:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9b1dff7f915ec2e40c5c88b3387f49fd/transformed/appcompat-1.7.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.appcompat:appcompat:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9b1dff7f915ec2e40c5c88b3387f49fd/transformed/appcompat-1.7.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/45261b45699b191342b42f35a63437b6/transformed/drawerlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/45261b45699b191342b42f35a63437b6/transformed/drawerlayout-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3ac400dec9e6c4d34cc6f100b3e51abd/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3ac400dec9e6c4d34cc6f100b3e51abd/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-common:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6cd0ec2720720c5248f42b61f153c707/transformed/navigation-common-2.8.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-common:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6cd0ec2720720c5248f42b61f153c707/transformed/navigation-common-2.8.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-runtime:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8e20842e7bb36ab2a225953a16b34e73/transformed/navigation-runtime-2.8.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-runtime:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8e20842e7bb36ab2a225953a16b34e73/transformed/navigation-runtime-2.8.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-common-ktx:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/eaef1d928765335ea6df1d3dba536bf5/transformed/navigation-common-ktx-2.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-common-ktx:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/eaef1d928765335ea6df1d3dba536bf5/transformed/navigation-common-ktx-2.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-runtime-ktx:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/245c27dbe9128f8a3aa8c033720e0ee7/transformed/navigation-runtime-ktx-2.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-runtime-ktx:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/245c27dbe9128f8a3aa8c033720e0ee7/transformed/navigation-runtime-ktx-2.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-compose:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/32ba9a5becb2e107fd29dcb41a56758c/transformed/navigation-compose-2.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-compose:2.8.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/32ba9a5becb2e107fd29dcb41a56758c/transformed/navigation-compose-2.8.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.fragment:fragment:1.5.4] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dda362da93d8a30335e16de5b7bc3e83/transformed/fragment-1.5.4/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.fragment:fragment:1.5.4] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dda362da93d8a30335e16de5b7bc3e83/transformed/fragment-1.5.4/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.activity:activity-ktx:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8598bebbf128e8add090817dbc5d87a8/transformed/activity-ktx-1.9.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-ktx:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8598bebbf128e8add090817dbc5d87a8/transformed/activity-ktx-1.9.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material3:material3-android:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/830a255e8e264f06640b71cd18792a87/transformed/material3-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.material3:material3-android:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/830a255e8e264f06640b71cd18792a87/transformed/material3-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.foundation:foundation-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/76d168cd4a0cd5315457151366b2c957/transformed/foundation-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.foundation:foundation-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/76d168cd4a0cd5315457151366b2c957/transformed/foundation-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.foundation:foundation-layout-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b182b984786c01baba5fb49c450f8998/transformed/foundation-layout-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.foundation:foundation-layout-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b182b984786c01baba5fb49c450f8998/transformed/foundation-layout-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-data-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/0ab20afdc75c953e74c384c8e0cc4db5/transformed/ui-tooling-data-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-data-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/0ab20afdc75c953e74c384c8e0cc4db5/transformed/ui-tooling-data-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-geometry-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/fa8715b80f67fbed07a03ee2763428d0/transformed/ui-geometry-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-geometry-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/fa8715b80f67fbed07a03ee2763428d0/transformed/ui-geometry-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/92eea4f7a7bb52d34dd2a25560022bda/transformed/ui-tooling-preview-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/92eea4f7a7bb52d34dd2a25560022bda/transformed/ui-tooling-preview-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.animation:animation-core-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/0e9ba4a710d37175af4ba8779a128c40/transformed/animation-core-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.animation:animation-core-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/0e9ba4a710d37175af4ba8779a128c40/transformed/animation-core-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-util-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/267438380c067c530d34a588d6b22347/transformed/ui-util-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-util-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/267438380c067c530d34a588d6b22347/transformed/ui-util-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-unit-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7ae3fe58ab1430097fee6063844b4a01/transformed/ui-unit-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-unit-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7ae3fe58ab1430097fee6063844b4a01/transformed/ui-unit-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-text-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/209c966e8dea5e3171ab1b03122e1b6b/transformed/ui-text-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-text-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/209c966e8dea5e3171ab1b03122e1b6b/transformed/ui-text-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.material:material-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9f26b5f48499e6f14da9363ec3064ed8/transformed/material-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9f26b5f48499e6f14da9363ec3064ed8/transformed/material-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-ripple-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/01a36f6a250864d93411d9ade671b43c/transformed/material-ripple-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-ripple-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/01a36f6a250864d93411d9ade671b43c/transformed/material-ripple-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.animation:animation-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/2c735f1b5b8e6ffc2c3937e1ba66cd22/transformed/animation-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.animation:animation-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/2c735f1b5b8e6ffc2c3937e1ba66cd22/transformed/animation-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-graphics-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dee5fbc359ce62489dc97a6d06b48b89/transformed/ui-graphics-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-graphics-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dee5fbc359ce62489dc97a6d06b48b89/transformed/ui-graphics-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.activity:activity:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/de086b2db13c8941fbcd9c470c1dda55/transformed/activity-1.9.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.activity:activity:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/de086b2db13c8941fbcd9c470c1dda55/transformed/activity-1.9.2/AndroidManifest.xml:20:5-44
+MERGED from [androidx.activity:activity-compose:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8b35d4afcebad5793f555595a99de3ac/transformed/activity-compose-1.9.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-compose:1.9.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8b35d4afcebad5793f555595a99de3ac/transformed/activity-compose-1.9.2/AndroidManifest.xml:5:5-44
+MERGED from [androidx.loader:loader:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/badcd41eb1d803c51d89f65c8b899288/transformed/loader-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.loader:loader:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/badcd41eb1d803c51d89f65c8b899288/transformed/loader-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dd32474f2b478932d33ea9f03d4ba27d/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/dd32474f2b478932d33ea9f03d4ba27d/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/803b09273be9ae24217a03b140895499/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/803b09273be9ae24217a03b140895499/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-compose-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b66cd2e3d7127facfffff65d11e47834/transformed/lifecycle-runtime-compose-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-compose-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b66cd2e3d7127facfffff65d11e47834/transformed/lifecycle-runtime-compose-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e167c475fe71f8ea83dfd4eec9ed6bb5/transformed/lifecycle-livedata-core-ktx-2.8.6/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e167c475fe71f8ea83dfd4eec9ed6bb5/transformed/lifecycle-livedata-core-ktx-2.8.6/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6a706225d007bc0bacaa9042c68c37b1/transformed/lifecycle-viewmodel-2.8.6/AndroidManifest.xml:4:5-43
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6a706225d007bc0bacaa9042c68c37b1/transformed/lifecycle-viewmodel-2.8.6/AndroidManifest.xml:4:5-43
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7ace7b5028fd62735bc23e10e03f730f/transformed/lifecycle-viewmodel-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7ace7b5028fd62735bc23e10e03f730f/transformed/lifecycle-viewmodel-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9421617cf9104701ca9e409673e173d1/transformed/lifecycle-runtime-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9421617cf9104701ca9e409673e173d1/transformed/lifecycle-runtime-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3c3f0d1dde7a867962aaeb65d382f23e/transformed/lifecycle-livedata-2.8.6/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3c3f0d1dde7a867962aaeb65d382f23e/transformed/lifecycle-livedata-2.8.6/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9a2a2bc281c99b9d83d12b71ed50ced6/transformed/lifecycle-viewmodel-ktx-2.8.6/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9a2a2bc281c99b9d83d12b71ed50ced6/transformed/lifecycle-viewmodel-ktx-2.8.6/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a50cc7393185041b665a9681916f9372/transformed/lifecycle-viewmodel-savedstate-2.8.6/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a50cc7393185041b665a9681916f9372/transformed/lifecycle-viewmodel-savedstate-2.8.6/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:21:5-44
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:21:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d725bf2d8bad32b24bfac1a7e01f3f7a/transformed/lifecycle-livedata-core-2.8.6/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d725bf2d8bad32b24bfac1a7e01f3f7a/transformed/lifecycle-livedata-core-2.8.6/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/869537f9f1e37e5f3e21589434fa494d/transformed/lifecycle-runtime-ktx-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/869537f9f1e37e5f3e21589434fa494d/transformed/lifecycle-runtime-ktx-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/92f5ed02d956d3ad6aa1d2acc0bf2672/transformed/lifecycle-viewmodel-compose-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/92f5ed02d956d3ad6aa1d2acc0bf2672/transformed/lifecycle-viewmodel-compose-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/10d977773e27b292815f9aac59d9e289/transformed/material-icons-extended-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/10d977773e27b292815f9aac59d9e289/transformed/material-icons-extended-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-core-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/20f50379ce27b1df97d2d79146570edc/transformed/material-icons-core-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-core-android:1.7.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/20f50379ce27b1df97d2d79146570edc/transformed/material-icons-core-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/4be2d054eeab8b4078de37534a77e7e0/transformed/ui-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/4be2d054eeab8b4078de37534a77e7e0/transformed/ui-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:21:5-44
+MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:21:5-44
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/95b1e1810a250fc611940892db7c7b81/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/95b1e1810a250fc611940892db7c7b81/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/1b42d2aa1de7af171fd291f4da9fbe32/transformed/vectordrawable-1.1.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/1b42d2aa1de7af171fd291f4da9fbe32/transformed/vectordrawable-1.1.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.viewpager:viewpager:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b7bff6281ea4d58d504fe01c3b82dc57/transformed/viewpager-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.viewpager:viewpager:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b7bff6281ea4d58d504fe01c3b82dc57/transformed/viewpager-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.customview:customview:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b04b957b1bf99dd5a46de333101d2220/transformed/customview-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.customview:customview:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/b04b957b1bf99dd5a46de333101d2220/transformed/customview-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.autofill:autofill:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/2463663ea0711f8454c0d3d7d8566740/transformed/autofill-1.0.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.autofill:autofill:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/2463663ea0711f8454c0d3d7d8566740/transformed/autofill-1.0.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.graphics:graphics-path:1.0.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a78560297a2e08cf9e31e8c2600c6817/transformed/graphics-path-1.0.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.graphics:graphics-path:1.0.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a78560297a2e08cf9e31e8c2600c6817/transformed/graphics-path-1.0.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/60adb0e2f94a816550e11019638cad57/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:20:5-21:38
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/60adb0e2f94a816550e11019638cad57/transformed/customview-poolingcontainer-1.0.0/AndroidManifest.xml:20:5-21:38
+MERGED from [androidx.core:core-ktx:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7581853607d6ae3473d8cccac1046028/transformed/core-ktx-1.13.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.core:core-ktx:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7581853607d6ae3473d8cccac1046028/transformed/core-ktx-1.13.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.room:room-ktx:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/30ad361338e8dee8862e9a8df7d9ed65/transformed/room-ktx-2.6.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.room:room-ktx:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/30ad361338e8dee8862e9a8df7d9ed65/transformed/room-ktx-2.6.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.datastore:datastore-core-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/74d386a15a1d846b49637cdaa7f89d73/transformed/datastore-core-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.datastore:datastore-core-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/74d386a15a1d846b49637cdaa7f89d73/transformed/datastore-core-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.datastore:datastore-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/1476c8af5ceeadfa6fdb5dd03370e620/transformed/datastore-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.datastore:datastore-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/1476c8af5ceeadfa6fdb5dd03370e620/transformed/datastore-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.datastore:datastore-preferences-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/eba56f349aa8bdb78c13d5b4cf83de2b/transformed/datastore-preferences-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.datastore:datastore-preferences-android:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/eba56f349aa8bdb78c13d5b4cf83de2b/transformed/datastore-preferences-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5bd4d85268334640d179327b338dfde9/transformed/runtime-saveable-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5bd4d85268334640d179327b338dfde9/transformed/runtime-saveable-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.runtime:runtime-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8f21a7633abde1b81ed300a17ebaa5f9/transformed/runtime-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.runtime:runtime-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8f21a7633abde1b81ed300a17ebaa5f9/transformed/runtime-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.sqlite:sqlite-framework:2.4.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/613046c14f54bcfc64a4519af56bc4b6/transformed/sqlite-framework-2.4.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.sqlite:sqlite-framework:2.4.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/613046c14f54bcfc64a4519af56bc4b6/transformed/sqlite-framework-2.4.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.sqlite:sqlite:2.4.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/506749929dc865a2cb5cd174fe903ba4/transformed/sqlite-2.4.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.sqlite:sqlite:2.4.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/506749929dc865a2cb5cd174fe903ba4/transformed/sqlite-2.4.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.annotation:annotation-experimental:1.4.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5b2db36392539e5994019b0dfc29c5bd/transformed/annotation-experimental-1.4.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.annotation:annotation-experimental:1.4.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5b2db36392539e5994019b0dfc29c5bd/transformed/annotation-experimental-1.4.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6dc59dcc03cc47c85d4f0322f8d7612a/transformed/versionedparcelable-1.1.1/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/6dc59dcc03cc47c85d4f0322f8d7612a/transformed/versionedparcelable-1.1.1/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/90af0e2299f5362d7883c7a3628ca807/transformed/cursoradapter-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/90af0e2299f5362d7883c7a3628ca807/transformed/cursoradapter-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.arch.core:core-runtime:2.2.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a58c77bbb4ce264ee0b86cd6ded4b022/transformed/core-runtime-2.2.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.arch.core:core-runtime:2.2.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/a58c77bbb4ce264ee0b86cd6ded4b022/transformed/core-runtime-2.2.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.interpolator:interpolator:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/f81f1db34b82de6cb8ebfb87d1c1eeda/transformed/interpolator-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.interpolator:interpolator:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/f81f1db34b82de6cb8ebfb87d1c1eeda/transformed/interpolator-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3a5d61ed99a5200f2a37a33d9809a771/transformed/startup-runtime-1.1.1/AndroidManifest.xml:21:5-23:41
+MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3a5d61ed99a5200f2a37a33d9809a771/transformed/startup-runtime-1.1.1/AndroidManifest.xml:21:5-23:41
+MERGED from [androidx.tracing:tracing:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/35d2d2f334091ece5b3054196abde0d5/transformed/tracing-1.0.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.tracing:tracing:1.0.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/35d2d2f334091ece5b3054196abde0d5/transformed/tracing-1.0.0/AndroidManifest.xml:20:5-22:41
+MERGED from [com.google.oboe:oboe:1.9.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/ec30c9071be60ceec27fd361fcbc501b/transformed/oboe-1.9.0/AndroidManifest.xml:2:2-70
+MERGED from [com.google.oboe:oboe:1.9.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/ec30c9071be60ceec27fd361fcbc501b/transformed/oboe-1.9.0/AndroidManifest.xml:2:2-70
+	android:targetSdkVersion
+		INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/src/main/AndroidManifest.xml
+activity#androidx.compose.ui.tooling.PreviewActivity
+ADDED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
+	android:exported
+		ADDED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
+	android:name
+		ADDED from [androidx.compose.ui:ui-tooling-android:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/9e5ab704e82aa1b51c8a6c2f1d935028/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
+activity#androidx.activity.ComponentActivity
+ADDED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:23:9-25:39
+	android:exported
+		ADDED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:25:13-36
+	android:name
+		ADDED from [androidx.compose.ui:ui-test-manifest:1.7.2] /Users/TobieRaggi/.gradle/caches/8.13/transforms/8efa61d32069b1f3b877fb7920a4bacb/transformed/ui-test-manifest-1.7.2/AndroidManifest.xml:24:13-63
+provider#androidx.startup.InitializationProvider
+ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3a5d61ed99a5200f2a37a33d9809a771/transformed/startup-runtime-1.1.1/AndroidManifest.xml:26:9-30:34
+MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/3a5d61ed99a5200f2a37a33d9809a771/transformed/startup-runtime-1.1.1/AndroidManifest.xml:26:9-30:34
+	tools:node
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:28:13-31
+	android:authorities
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:26:13-68
+	android:exported
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:27:13-37
+	android:name
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:25:13-67
+meta-data#androidx.lifecycle.ProcessLifecycleInitializer
+ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e99bd34f02625780e516356afa3a2120/transformed/lifecycle-process-2.8.6/AndroidManifest.xml:30:17-78
+meta-data#androidx.emoji2.text.EmojiCompatInitializer
+ADDED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.emoji2:emoji2:1.3.0] /Users/TobieRaggi/.gradle/caches/8.13/transforms/5dfb580e4c1e14fa39a373d96e81dd4d/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+permission#${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+	android:protectionLevel
+		ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+	android:name
+		ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+permission#com.tobietheunknown.pianoteacher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+	android:protectionLevel
+		ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+	android:name
+		ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+uses-permission#${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+	android:name
+		ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+uses-permission#com.tobietheunknown.pianoteacher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+	android:name
+		ADDED from [androidx.core:core:1.13.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/7e8977739d5439dc853b6cb26075a3cc/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+service#androidx.room.MultiInstanceInvalidationService
+ADDED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+	android:exported
+		ADDED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+	tools:ignore
+		ADDED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:28:13-60
+	android:directBootAware
+		ADDED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+	android:name
+		ADDED from [androidx.room:room-runtime:2.6.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/e9bd7e868269b1e5768900f9a8804295/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+meta-data#androidx.profileinstaller.ProfileInstallerInitializer
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+receiver#androidx.profileinstaller.ProfileInstallReceiver
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+	android:enabled
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+	android:exported
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+	android:permission
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+	android:directBootAware
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+intent-filter#action:name:androidx.profileinstaller.action.INSTALL_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+action#androidx.profileinstaller.action.INSTALL_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+intent-filter#action:name:androidx.profileinstaller.action.SKIP_FILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+action#androidx.profileinstaller.action.SKIP_FILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+intent-filter#action:name:androidx.profileinstaller.action.SAVE_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+action#androidx.profileinstaller.action.SAVE_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+intent-filter#action:name:androidx.profileinstaller.action.BENCHMARK_OPERATION
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+action#androidx.profileinstaller.action.BENCHMARK_OPERATION
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] /Users/TobieRaggi/.gradle/caches/8.13/transforms/d62f534d232fb3741b0c485cfb936316/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92

@@ -1,0 +1,2 @@
+ninja: Entering directory `/Users/TobieRaggi/Desktop/Dev/GitHub/android-apps/piano-teacher-v2/app/.cxx/Debug/1k3a5d30/x86_64'
+ninja: no work to do.

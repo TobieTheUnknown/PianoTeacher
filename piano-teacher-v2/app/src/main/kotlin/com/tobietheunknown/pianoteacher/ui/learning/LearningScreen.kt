@@ -292,20 +292,23 @@ fun LearningScreen(
 
     val focusedMeasureData = allMeasures.getOrNull(focusedMeasure)
 
-    // Piano keyboard range: 2 octaves centered on lowest note of focused measure
-    val pianoFocusOctave = remember(focusedMeasureData, hand, isLandscape) {
-        val notes = when (hand) {
-            PlaybackHand.LEFT  -> focusedMeasureData?.chordNotes
-            PlaybackHand.RIGHT -> focusedMeasureData?.melodyNotes
-            PlaybackHand.BOTH  -> focusedMeasureData?.let { it.melodyNotes + it.chordNotes }
-        }
-        val pitches = notes?.map { it.pitch } ?: emptyList()
-        if (pitches.isEmpty()) 4
-        else if (isLandscape) {
-            (pitches.min() + pitches.max()) / 2 / 12  // center on range
-        } else {
-            pitches.min() / 12  // scroll to lowest
-        }
+    // Fixed-zoom window size across the whole song so the bottom keyboard
+    // doesn't re-scale every time the focused measure changes — same logic
+    // as the Apprentissage screen.
+    val keyboardSpan = remember(allMeasures) {
+        com.tobietheunknown.pianoteacher.ui.common.fixedKeyboardRange(
+            allMeasures.mapNotNull { m ->
+                val all = m.melodyNotes + m.chordNotes
+                if (all.isEmpty()) null
+                else all.minOf { it.pitch } to all.maxOf { it.pitch }
+            }
+        )
+    }
+    val activeRightPitches = remember(focusedMeasureData) {
+        focusedMeasureData?.melodyNotes?.map { it.pitch }?.toSet() ?: emptySet()
+    }
+    val activeLeftPitches = remember(focusedMeasureData) {
+        focusedMeasureData?.chordNotes?.map { it.pitch }?.toSet() ?: emptySet()
     }
 
     Scaffold(
@@ -386,13 +389,10 @@ fun LearningScreen(
         bottomBar = {
             if (allMeasures.isNotEmpty()) {
                 Column {
-                    LearningPianoKeyboard(
-                        activeRightPitches = focusedMeasureData?.melodyNotes?.map { it.pitch }?.toSet() ?: emptySet(),
-                        activeLeftPitches = focusedMeasureData?.chordNotes?.map { it.pitch }?.toSet() ?: emptySet(),
-                        pressedKeys = pressedKeys,
-                        focusOctave = pianoFocusOctave,
-                        isLandscape = isLandscape,
-                        modifier = Modifier.fillMaxWidth().height(if (isLandscape) 56.dp else 90.dp)
+                    com.tobietheunknown.pianoteacher.ui.common.MiniKeyboard(
+                        activeRight = activeRightPitches,
+                        activeLeft = activeLeftPitches,
+                        fixedRange = keyboardSpan,
                     )
 
                     // Shared PlaybackDock (same look as the web app)

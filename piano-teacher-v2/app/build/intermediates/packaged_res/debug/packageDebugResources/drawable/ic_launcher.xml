@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Piano Teacher launcher icon — simple piano keys shape -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background -->
+    <path
+        android:fillColor="#131620"
+        android:pathData="M0,0h108v108H0z" />
+
+    <!-- White keys -->
+    <path
+        android:fillColor="#E8ECF0"
+        android:pathData="M14,30h10v48H14zM26,30h10v48H26zM38,30h10v48H38zM50,30h10v48H50zM62,30h10v48H62zM74,30h10v48H74zM86,30h8v48H86z" />
+
+    <!-- Black keys -->
+    <path
+        android:fillColor="#1A1A1A"
+        android:pathData="M21,30h7v30H21zM33,30h7v30H33zM57,30h7v30H57zM69,30h7v30H69zM81,30h7v30H81z" />
+
+    <!-- Cyan accent line (melody) -->
+    <path
+        android:fillColor="#22D3EE"
+        android:pathData="M14,78h80v4H14z" />
+</vector>
