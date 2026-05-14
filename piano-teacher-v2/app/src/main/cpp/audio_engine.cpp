@@ -21,7 +21,7 @@ struct SampleData {
     int midiNote = 69;
 };
 
-static const int MAX_VOICES = 16;
+static const int MAX_VOICES = 64;
 // Release multiplier per-sample: default ~160ms decay (was 0.9997 = ~80ms)
 static float gReleasePer = 0.9998f;
 

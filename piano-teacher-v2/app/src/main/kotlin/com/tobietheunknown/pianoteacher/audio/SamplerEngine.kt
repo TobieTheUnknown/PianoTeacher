@@ -63,9 +63,6 @@ class SamplerEngine(private val context: Context) {
             }
         }
 
-        // Wait for pool to finish loading
-        var attempts = 0
-        pool.setOnLoadCompleteListener { _, _, _ -> }
         delay(500) // SoundPool loads async — give it a moment
         loaded = true
         allLoaded
@@ -76,13 +73,16 @@ class SamplerEngine(private val context: Context) {
         val nearestNote = findNearestSample(pitch)
         val soundId = soundIds[nearestNote] ?: return
 
-        // Pitch shift via playback rate
         val semitoneOffset = pitch - nearestNote
         val rate = 2f.pow(semitoneOffset / 12f).coerceIn(0.5f, 2.0f)
         val vol = (velocity / 127f) * 0.85f
 
+        // Stop any previous stream for the same pitch first, otherwise we orphan
+        // it and silently leak into the maxStreams pool.
+        streamIds.remove(pitch)?.let { pool.stop(it) }
+
         val streamId = pool.play(soundId, vol, vol, 1, 0, rate)
-        streamIds[pitch] = streamId
+        if (streamId != 0) streamIds[pitch] = streamId
     }
 
     fun noteOff(pitch: Int) {
