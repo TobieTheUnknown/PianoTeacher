@@ -18,7 +18,7 @@ import kotlinx.coroutines.*
 class SamplerEngine(private val context: Context) {
 
     private val pool = SoundPool.Builder()
-        .setMaxStreams(12)
+        .setMaxStreams(64) // 10 fingers + sustain pedal tails; was 12 (voice stealing)
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)

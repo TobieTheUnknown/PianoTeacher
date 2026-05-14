@@ -200,9 +200,31 @@ fun LiveLearningScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()) {
                 if (focusedMeasureData != null) {
+                    // Compute the max pitch span across the whole song so the
+                    // keyboard's zoom stays constant. Only the start pitch
+                    // shifts (by octaves) to keep the focused measure visible.
+                    val songSpan = remember(allMeasures) {
+                        var minPitch = Int.MAX_VALUE
+                        var maxPitch = Int.MIN_VALUE
+                        var widestRange = 12
+                        for (m in allMeasures) {
+                            val all = m.melodyNotes + m.chordNotes
+                            if (all.isEmpty()) continue
+                            val a = all.minOf { it.pitch }
+                            val b = all.maxOf { it.pitch }
+                            widestRange = maxOf(widestRange, b - a + 1)
+                            minPitch = minOf(minPitch, a)
+                            maxPitch = maxOf(maxPitch, b)
+                        }
+                        // Round up to the next octave boundary so keys land
+                        // on natural C-to-C windows.
+                        val padded = (widestRange + 8).coerceAtMost(maxPitch - minPitch + 1).coerceAtLeast(12)
+                        padded
+                    }
                     MiniKeyboard(
                         activeRight = focusedMeasureData.melodyNotes.map { it.pitch }.toSet(),
                         activeLeft = focusedMeasureData.chordNotes.map { it.pitch }.toSet(),
+                        fixedRange = songSpan,
                     )
                 }
                 PlaybackDock(
@@ -443,6 +465,7 @@ private fun noteName(pitch: Int): String = NOTE_NAMES[((pitch % 12) + 12) % 12]
 private fun MiniKeyboard(
     activeRight: Set<Int>,
     activeLeft: Set<Int>,
+    fixedRange: Int = 36, // 3 octaves of semitones by default
 ) {
     var expanded by remember { mutableStateOf(true) }
     val height = if (expanded) 64f else 0f
@@ -517,13 +540,30 @@ private fun MiniKeyboard(
         }
 
         if (expanded) {
-            // Keyboard spans the full screen width — auto-fit measured pitch
-            // range with a small padding either side.
+            // Fixed-zoom keyboard: window size = fixedRange semitones,
+            // shifted by octaves so the focused-measure notes are
+            // visible inside. We snap to C boundaries so key widths read
+            // naturally (C-to-C span).
             val active = activeRight + activeLeft
-            val minMidi = active.minOrNull()?.let { (it - 4).coerceAtLeast(21) } ?: 48
-            val maxMidi = active.maxOrNull()?.let { (it + 4).coerceAtMost(108) } ?: 72
-            val startMidi = minMidi
-            val endMidi = maxOf(maxMidi, startMidi + 12)
+            val rangeSemis = fixedRange.coerceAtLeast(12)
+            // Round up to the next multiple of 12 so we always start on a C.
+            val windowSemis = ((rangeSemis + 11) / 12) * 12
+            val startMidi = run {
+                val baseDefault = 48 // C3
+                if (active.isEmpty()) baseDefault
+                else {
+                    val centre = (active.min() + active.max()) / 2
+                    var s = centre - windowSemis / 2
+                    // Snap down to a C boundary.
+                    s -= (s % 12).let { if (it < 0) it + 12 else it }
+                    // If high notes fall outside, shift up octave by octave.
+                    while (active.max() > s + windowSemis - 1) s += 12
+                    // If low notes fall outside, shift down octave by octave.
+                    while (active.min() < s) s -= 12
+                    s.coerceIn(12, 108 - windowSemis)
+                }
+            }
+            val endMidi = startMidi + windowSemis - 1
 
             val isBlack = { m: Int -> (m % 12) in listOf(1, 3, 6, 8, 10) }
             val whiteCount = (startMidi..endMidi).count { !isBlack(it) }
