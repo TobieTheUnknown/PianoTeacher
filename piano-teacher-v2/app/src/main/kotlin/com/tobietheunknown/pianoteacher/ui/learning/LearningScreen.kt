@@ -260,15 +260,21 @@ fun LearningScreen(
     var showRenamePhraseDialog by remember { mutableStateOf<Int?>(null) }
     var showSplitDialog by remember { mutableStateOf<Int?>(null) }
 
-    // Auto-scroll when playing measure changes
+    // Grid state hoisted so the auto-scroll effect can reach it.
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+
+    // Auto-scroll when playing measure changes — keeps the active row in view.
     LaunchedEffect(playingMeasure) {
         if (playingMeasure >= 0) {
-            val currentFirst = listState.firstVisibleItemIndex
-            if (playingMeasure < currentFirst) {
-                // Loop reset (backward jump): instant scroll
-                listState.scrollToItem(playingMeasure)
+            val cols = if (isLandscape) 4 else 2
+            // Scroll the row containing the playing measure into view a bit
+            // above centre so we always see the next measure incoming.
+            val rowStart = (playingMeasure / cols) * cols
+            val currentFirst = gridState.firstVisibleItemIndex
+            if (rowStart < currentFirst) {
+                gridState.scrollToItem(rowStart)
             } else {
-                listState.animateScrollToItem(playingMeasure)
+                gridState.animateScrollToItem(rowStart)
             }
         }
     }
@@ -500,7 +506,7 @@ fun LearningScreen(
                 val cols = if (isLandscape) 4 else 2
                 androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                     columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(cols),
-                    state = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
+                    state = gridState,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -523,21 +529,36 @@ fun LearningScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(if (isLandscape) 160.dp else 220.dp)
+                                .height(if (isLandscape) 180.dp else 280.dp)
                                 .clickable {
                                     vm.focusMeasure(measure.globalIndex)
-                                    vm.playMeasureSingle(measure.globalIndex)
                                 }
                         ) {
-                            if (!isLandscape) {
-                                MiniMeasureCard(
-                                    measure = measure,
-                                    beatsPerMeasure = song!!.beatsPerMeasure,
-                                    isPlaying = isPlaying,
-                                    isFocused = isFocused,
-                                    useFlats = useFlats,
-                                    modifier = Modifier.fillMaxWidth().height(80.dp)
+                            // Compact measure-number header (replaces the
+                            // duplicated mini timeline that was eating
+                            // ~80dp of card height).
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    String.format("%02d", measure.globalIndex + 1),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPlaying) IndigoAccent else Color(0xFF475569),
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 )
+                                if (isFocused || isPlaying) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(RoundedCornerShape(50))
+                                            .background(if (isPlaying) IndigoAccent else Color.White.copy(alpha = 0.3f))
+                                    )
+                                }
                             }
                             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                                 GrandStaffCanvas(

@@ -252,7 +252,8 @@ class LearningViewModel(
                 }
             }
 
-            var idx = 0
+            // Start from the focused measure, not always 0.
+            var idx = _focusedMeasureIndex.value.coerceIn(0, measures.size - 1)
 
             while (isActive) {
                 val lo = _loopStart.value
