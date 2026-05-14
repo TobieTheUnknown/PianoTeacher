@@ -250,19 +250,52 @@ private fun PhraseCard(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.06.sp,
                 )
+                // Inline editable: tap the number → BasicTextField for direct entry.
+                var editing by remember(splitAtMeasure, isSplitting) { mutableStateOf(false) }
+                var draft by remember(splitAtMeasure, editing) { mutableStateOf(splitAtMeasure.toString()) }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     StepperBtn("−", enabled = splitAtMeasure > 1) { onSplitAtChange(splitAtMeasure - 1) }
-                    Text(
-                        "$splitAtMeasure",
-                        color = IndigoAccent,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                    )
+                    if (editing) {
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = draft,
+                            onValueChange = { s -> draft = s.filter { it.isDigit() }.take(4) },
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = IndigoAccent,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            ),
+                            singleLine = true,
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(IndigoAccent),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                            ),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                onDone = {
+                                    draft.toIntOrNull()?.let { onSplitAtChange(it.coerceIn(1, length - 1)) }
+                                    editing = false
+                                },
+                            ),
+                            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                        )
+                    } else {
+                        Text(
+                            "$splitAtMeasure",
+                            color = IndigoAccent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp)
+                                .clickable { editing = true },
+                        )
+                    }
                     StepperBtn("+", enabled = splitAtMeasure < length - 1) { onSplitAtChange(splitAtMeasure + 1) }
                 }
                 Row(

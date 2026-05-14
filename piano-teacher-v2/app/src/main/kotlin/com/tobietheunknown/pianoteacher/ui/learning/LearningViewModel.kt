@@ -206,7 +206,24 @@ class LearningViewModel(
         }
     }
 
-    fun setLoopRange(start: Int, end: Int) {
+    fun setLoopRange(startIn: Int, endIn: Int) {
+        // Loop UX: detect which end the user moved (compare with the
+        // previous value) and pull the OTHER end along by 3 measures so
+        // the range stays non-empty.
+        val prevStart = _loopStart.value
+        val prevEnd = _loopEnd.value
+        var start = startIn
+        var end = endIn
+        if (start > end) {
+            if (start != prevStart) {
+                // User pushed start past end → drag end to start + 3
+                end = start + 3
+            } else {
+                // User pulled end below start → drag start to end - 3
+                start = (end - 3).coerceAtLeast(0)
+            }
+        }
+        @Suppress("NAME_SHADOWING")
         val total = allMeasures.value.size
         _loopStart.value = start.coerceIn(0, total - 1)
         _loopEnd.value = end.coerceIn(start, total - 1)
