@@ -399,19 +399,31 @@ fun LearningScreen(
                             val newTempo = pct / 100f
                             vm.adjustTempo(newTempo - tempoPercent)
                         },
-                        handMode = when (hand) {
-                            com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT
-                            com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT
+                        handMode = when {
+                            listenMode -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LISTEN
+                            hand == com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT
+                            hand == com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT
                             else -> com.tobietheunknown.pianoteacher.ui.common.HandMode.BOTH
                         },
                         onHandMode = { m ->
-                            vm.setHand(
-                                when (m) {
-                                    com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT
-                                    com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT
-                                    else -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH
+                            when (m) {
+                                com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT -> {
+                                    vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT)
                                 }
-                            )
+                                com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT -> {
+                                    vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT)
+                                }
+                                com.tobietheunknown.pianoteacher.ui.common.HandMode.LISTEN -> {
+                                    // Force BOTH (so vm doesn't auto-disable listen) then enable listen.
+                                    vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH)
+                                    if (!listenMode) vm.toggleListenMode()
+                                }
+                                else -> {
+                                    // BOTH — clear listen if it was on.
+                                    if (listenMode) vm.toggleListenMode()
+                                    vm.setHand(com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH)
+                                }
+                            }
                         },
                         metronome = isMetronomeEnabled,
                         onMetronome = vm::toggleMetronome,

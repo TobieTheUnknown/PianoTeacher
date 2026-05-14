@@ -229,10 +229,20 @@ class LearningViewModel(
         _isPlaying.value = true
 
         playbackJob = viewModelScope.launch {
-            // Metronome: concurrent child coroutine, runs until job is cancelled
+            val beatMs = (60_000.0 / (s.tempo * _tempoPercent.value)).toLong()
+
+            // Preroll — one bar of metronome ticks before the music starts
+            // when the metronome is enabled. Matches the web flow.
+            if (_metronomeEnabled.value) {
+                for (i in 0 until s.beatsPerMeasure) {
+                    audioEngine.playClick(isAccent = i == 0)
+                    delay(beatMs)
+                }
+            }
+
+            // Continuous metronome during music: concurrent child coroutine
             if (_metronomeEnabled.value) {
                 launch {
-                    val beatMs = (60_000.0 / (s.tempo * _tempoPercent.value)).toLong()
                     var beat = 0
                     while (isActive) {
                         audioEngine.playClick(isAccent = beat % s.beatsPerMeasure == 0)
