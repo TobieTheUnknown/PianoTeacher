@@ -200,13 +200,15 @@ private fun SongDetailSheet(
                 }
             }
 
-            // 3-col stats card
+            // 3-col stats card — IntrinsicSize.Min so vertical dividers
+            // size to the row content instead of fillMaxHeight to the sheet.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
                     .background(Color(0x06FFFFFF))
                     .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(10.dp))
+                    .height(IntrinsicSize.Min)
                     .padding(vertical = 10.dp),
             ) {
                 SheetStat("PHRASES", song.phrases.size.toString(), Modifier.weight(1f))
