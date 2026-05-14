@@ -10,6 +10,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.tobietheunknown.pianoteacher.ui.common.AppTab
+import com.tobietheunknown.pianoteacher.ui.common.BottomTabBar
 import com.tobietheunknown.pianoteacher.ui.editor.EditorScreen
 import com.tobietheunknown.pianoteacher.ui.library.LibraryScreen
 import com.tobietheunknown.pianoteacher.ui.livelearning.LiveLearningScreen
@@ -49,6 +60,25 @@ fun AppNavHost(intent: Intent? = null) {
         }
     }
 
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val activeTab = remember(currentRoute) {
+        when {
+            currentRoute == Screen.Library.route -> AppTab.LIBRARY
+            currentRoute?.startsWith("editor") == true -> AppTab.EDITOR
+            currentRoute?.startsWith("livelearning") == true -> AppTab.LEARN
+            currentRoute?.startsWith("learning") == true -> AppTab.SHEET
+            currentRoute?.startsWith("liveplay") == true -> AppTab.LIVEPLAY
+            currentRoute == Screen.Settings.route -> AppTab.SETTINGS
+            else -> AppTab.LIBRARY
+        }
+    }
+
+    // LivePlay should be fullscreen — hide the tab bar.
+    val showTabBar = currentRoute?.startsWith("liveplay") != true
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
     NavHost(navController = navController, startDestination = Screen.Library.route) {
 
         composable(Screen.Library.route) { backStack ->
@@ -120,6 +150,32 @@ fun AppNavHost(intent: Intent? = null) {
 
         composable(Screen.Settings.route) {
             SettingsScreen(onBack = { navController.popBackStack() })
+        }
+    }
+        }
+
+        // Shared BottomTabBar at the very bottom — hidden on LivePlay
+        // (fullscreen falling-notes view).
+        if (showTabBar) {
+            BottomTabBar(
+                active = activeTab,
+                onSelect = { tab ->
+                    val target = when (tab) {
+                        AppTab.LIBRARY -> Screen.Library.route
+                        AppTab.SETTINGS -> Screen.Settings.route
+                        // Music tabs need a song in context. If we have one,
+                        // navigate to it; otherwise route to Library.
+                        else -> Screen.Library.route
+                    }
+                    if (target != currentRoute) {
+                        navController.navigate(target) {
+                            popUpTo(Screen.Library.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                },
+            )
         }
     }
 }
