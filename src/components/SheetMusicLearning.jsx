@@ -228,6 +228,18 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         : '—';
     const bpm = song?.tempo || 120;
 
+    // Group measures into systems of 4 — keep this BEFORE the early return
+    // so the hook call order stays stable across renders that hit/miss the
+    // empty-song branch (React would otherwise crash on subsequent mounts).
+    const SYSTEM_SIZE = 4;
+    const systems = useMemo(() => {
+        const out = [];
+        for (let i = 0; i < measures.length; i += SYSTEM_SIZE) {
+            out.push(measures.slice(i, i + SYSTEM_SIZE));
+        }
+        return out;
+    }, [measures]);
+
     if (!song || song.phrases?.length === 0 || measures.length === 0) {
         return (
             <EmptyState
@@ -237,16 +249,6 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             />
         );
     }
-
-    // Group measures into systems of 4
-    const SYSTEM_SIZE = 4;
-    const systems = useMemo(() => {
-        const out = [];
-        for (let i = 0; i < measures.length; i += SYSTEM_SIZE) {
-            out.push(measures.slice(i, i + SYSTEM_SIZE));
-        }
-        return out;
-    }, [measures]);
 
     return (
         <div style={{ paddingBottom: 130 + (isMobile ? 64 : 0) }}>

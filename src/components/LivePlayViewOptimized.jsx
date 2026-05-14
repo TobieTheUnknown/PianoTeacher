@@ -810,20 +810,8 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     }
   };
 
-  if (!song || !song.phrases || song.phrases.length === 0) {
-    return (
-      <div style={{
-        padding: '2rem',
-        textAlign: 'center',
-        color: 'var(--text-secondary)'
-      }}>
-        <h2 style={{ marginBottom: '1rem' }}>Mode LivePlay</h2>
-        <p>Veuillez d'abord créer ou charger un morceau dans l'éditeur.</p>
-      </div>
-    );
-  }
-
-  // Desktop-only state (must be declared before any conditional returns)
+  // Canvas-size state — MUST stay above any early return so the hook order
+  // stays consistent across re-renders that hit the empty-song path.
   const currentMeasure = Math.floor(currentTime * beatsPerSecond / 4) + 1;
   const canvasSizeRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 800 });
@@ -840,6 +828,19 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  if (!song || !song.phrases || song.phrases.length === 0) {
+    return (
+      <div style={{
+        padding: '2rem',
+        textAlign: 'center',
+        color: 'var(--text-secondary)'
+      }}>
+        <h2 style={{ marginBottom: '1rem' }}>Mode LivePlay</h2>
+        <p>Veuillez d'abord créer ou charger un morceau dans l'éditeur.</p>
+      </div>
+    );
+  }
 
   // Mobile fullscreen layout
   if (isMobile) {
