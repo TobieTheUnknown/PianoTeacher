@@ -169,27 +169,43 @@ fun AppNavHost(intent: Intent? = null) {
                 active = activeTab,
                 onSelect = { tab ->
                     val songId = lastSongIdRef.value
-                    val target: String = when (tab) {
-                        AppTab.LIBRARY -> Screen.Library.route
-                        AppTab.SETTINGS -> Screen.Settings.route
-                        AppTab.SHEET ->
-                            if (songId != null) Screen.Learning.route(songId)
-                            else Screen.Library.route
-                        AppTab.LEARN ->
-                            if (songId != null) Screen.LiveLearning.route(songId)
-                            else Screen.Library.route
-                        AppTab.LIVEPLAY ->
-                            if (songId != null) Screen.LivePlay.route(songId)
-                            else Screen.Library.route
-                        AppTab.EDITOR ->
-                            if (songId != null) Screen.Editor.route(songId)
-                            else Screen.Library.route
-                    }
-                    if (target != currentRoute) {
-                        navController.navigate(target) {
-                            popUpTo(Screen.Library.route) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+                    when (tab) {
+                        AppTab.LIBRARY -> {
+                            // Pop everything back to Library — guaranteed root reset.
+                            navController.popBackStack(Screen.Library.route, inclusive = false)
+                        }
+                        AppTab.SETTINGS -> {
+                            if (currentRoute != Screen.Settings.route) {
+                                navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                            }
+                        }
+                        AppTab.SHEET -> {
+                            if (songId == null) {
+                                navController.popBackStack(Screen.Library.route, inclusive = false)
+                            } else if (currentRoute?.startsWith("learning") != true) {
+                                navController.navigate(Screen.Learning.route(songId)) { launchSingleTop = true }
+                            }
+                        }
+                        AppTab.LEARN -> {
+                            if (songId == null) {
+                                navController.popBackStack(Screen.Library.route, inclusive = false)
+                            } else if (currentRoute?.startsWith("livelearning") != true) {
+                                navController.navigate(Screen.LiveLearning.route(songId)) { launchSingleTop = true }
+                            }
+                        }
+                        AppTab.LIVEPLAY -> {
+                            if (songId == null) {
+                                navController.popBackStack(Screen.Library.route, inclusive = false)
+                            } else if (currentRoute?.startsWith("liveplay") != true) {
+                                navController.navigate(Screen.LivePlay.route(songId)) { launchSingleTop = true }
+                            }
+                        }
+                        AppTab.EDITOR -> {
+                            if (songId == null) {
+                                navController.popBackStack(Screen.Library.route, inclusive = false)
+                            } else if (currentRoute?.startsWith("editor") != true) {
+                                navController.navigate(Screen.Editor.route(songId)) { launchSingleTop = true }
+                            }
                         }
                     }
                 },

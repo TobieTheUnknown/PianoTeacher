@@ -66,7 +66,7 @@ fun LiveLearningScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 130.dp + 64.dp), // dock + tab bar
+                    .padding(bottom = 130.dp), // dock + tab bar
             ) {
                 // MobileHeader
                 Row(
@@ -167,7 +167,7 @@ fun LiveLearningScreen(
             // Sticky bottom: PlaybackDock above bottom tab bar (mobile is always 64dp)
             Box(modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 64.dp)
+                .padding(bottom = 0.dp)
                 .fillMaxWidth()) {
                 PlaybackDock(
                     playing = playing,
