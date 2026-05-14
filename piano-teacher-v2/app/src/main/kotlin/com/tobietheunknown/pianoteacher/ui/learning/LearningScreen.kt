@@ -494,11 +494,18 @@ fun LearningScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                LazyRow(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize()
+                // Vertical 2-col grid in portrait (4-col in landscape) so
+                // the user sees several measures at once and doesn't need
+                // to follow a fast horizontal scroll.
+                val cols = if (isLandscape) 4 else 2
+                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(cols),
+                    state = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize(),
                 ) {
-
                     items(
                         count = allMeasures.size,
                         key = { allMeasures[it].globalIndex }
@@ -506,21 +513,17 @@ fun LearningScreen(
                         val measure = allMeasures[idx]
                         val isPlaying = measure.globalIndex == playingMeasure
                         val isFocused = measure.globalIndex == focusedMeasure
-                        val showClefs = idx == 0 || (clefMode == ClefMode.AUTO && idx > 0 && run {
+                        // Show clefs on the first card of each row so every
+                        // line of the grid reads as a system.
+                        val showClefs = (idx % cols == 0) || idx == 0 || (clefMode == ClefMode.AUTO && idx > 0 && run {
                             val prev = allMeasures[idx - 1]
                             selectClef(prev.melodyNotes, useFlats).name != selectClef(measure.melodyNotes, useFlats).name ||
                             selectClef(prev.chordNotes, useFlats).name != selectClef(measure.chordNotes, useFlats).name
                         })
-                        val itemFrac = when {
-                            isLandscape && showClefs -> 0.30f
-                            isLandscape -> 0.25f
-                            showClefs -> 0.55f
-                            else -> 0.5f
-                        }
                         Column(
                             modifier = Modifier
-                                .fillParentMaxWidth(itemFrac)
-                                .fillParentMaxHeight()
+                                .fillMaxWidth()
+                                .height(if (isLandscape) 160.dp else 220.dp)
                                 .clickable {
                                     vm.focusMeasure(measure.globalIndex)
                                     vm.playMeasureSingle(measure.globalIndex)

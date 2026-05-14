@@ -224,7 +224,7 @@ private fun SongDetailSheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 ActionBtn(
-                    label = "Apprendre",
+                    label = "Partition",
                     icon = Icons.AutoMirrored.Filled.LibraryBooks,
                     primary = true,
                     onClick = onLearn,
