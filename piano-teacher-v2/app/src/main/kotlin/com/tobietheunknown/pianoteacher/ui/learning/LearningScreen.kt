@@ -388,7 +388,46 @@ fun LearningScreen(
                         isLandscape = isLandscape,
                         modifier = Modifier.fillMaxWidth().height(if (isLandscape) 56.dp else 90.dp)
                     )
-                    TransportBar(
+
+                    // Shared PlaybackDock (same look as the web app)
+                    var loopEditorOpen by remember { mutableStateOf(false) }
+                    com.tobietheunknown.pianoteacher.ui.common.PlaybackDock(
+                        playing = isPlaying,
+                        onPlayPause = { if (isPlaying) vm.stop() else vm.play() },
+                        speed = (tempoPercent * 100).toInt(),
+                        onSpeed = { pct ->
+                            val newTempo = pct / 100f
+                            vm.adjustTempo(newTempo - tempoPercent)
+                        },
+                        handMode = when (hand) {
+                            com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT
+                            com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT
+                            else -> com.tobietheunknown.pianoteacher.ui.common.HandMode.BOTH
+                        },
+                        onHandMode = { m ->
+                            vm.setHand(
+                                when (m) {
+                                    com.tobietheunknown.pianoteacher.ui.common.HandMode.LEFT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.LEFT
+                                    com.tobietheunknown.pianoteacher.ui.common.HandMode.RIGHT -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.RIGHT
+                                    else -> com.tobietheunknown.pianoteacher.ui.common.PlaybackHand.BOTH
+                                }
+                            )
+                        },
+                        metronome = isMetronomeEnabled,
+                        onMetronome = vm::toggleMetronome,
+                        loop = isLooping,
+                        onLoop = vm::toggleLoop,
+                        loopRange = (loopStart?.coerceAtLeast(1) ?: 1)..(loopEnd?.coerceAtMost(allMeasures.size) ?: allMeasures.size),
+                        onLoopRangeChange = { r -> vm.setLoopRange(r.first, r.last) },
+                        loopEditorOpen = loopEditorOpen,
+                        onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
+                        totalMeasures = allMeasures.size,
+                        onPrev = { /* TODO: prev measure/phrase */ },
+                        onNext = { /* TODO: next measure/phrase */ },
+                    )
+
+                    /* OLD TransportBar — kept as fallback during dev */
+                    if (false) TransportBar(
                         isPlaying = isPlaying,
                         hand = hand,
                         tempoPercent = tempoPercent,
