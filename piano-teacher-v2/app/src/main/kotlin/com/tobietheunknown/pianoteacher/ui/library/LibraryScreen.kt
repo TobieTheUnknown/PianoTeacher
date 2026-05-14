@@ -37,6 +37,7 @@ fun LibraryScreen(
     onImportConsumed: () -> Unit = {},
     onSongSelected: (String) -> Unit,
     onPlaySong: (String) -> Unit,
+    onApprentissageSong: (String) -> Unit = onSongSelected,
     onSettings: () -> Unit,
     vm: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(LocalContext.current))
 ) {
@@ -140,13 +141,28 @@ fun LibraryScreen(
         )
     }
 
+    var renameSong by remember { mutableStateOf<Song?>(null) }
+
     sheetSong?.let { song ->
         SongDetailSheet(
             song = song,
             onDismiss = { sheetSong = null },
-            onLearn = { sheetSong = null; onSongSelected(song.id) },
+            onPartition = { sheetSong = null; onSongSelected(song.id) },
+            onApprentissage = { sheetSong = null; onApprentissageSong(song.id) },
             onLivePlay = { sheetSong = null; onPlaySong(song.id) },
+            onRename = { sheetSong = null; renameSong = song },
             onDelete = { sheetSong = null; showDeleteDialog = song },
+        )
+    }
+
+    renameSong?.let { song ->
+        RenameDialog(
+            initial = song.title,
+            onCancel = { renameSong = null },
+            onConfirm = { newTitle ->
+                vm.renameSong(song.id, newTitle)
+                renameSong = null
+            },
         )
     }
 }
@@ -156,8 +172,10 @@ fun LibraryScreen(
 private fun SongDetailSheet(
     song: Song,
     onDismiss: () -> Unit,
-    onLearn: () -> Unit,
+    onPartition: () -> Unit,
+    onApprentissage: () -> Unit,
     onLivePlay: () -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -218,7 +236,7 @@ private fun SongDetailSheet(
                 SheetStat("MESURES", song.totalMeasures.toString(), Modifier.weight(1f))
             }
 
-            // Apprendre / LivePlay actions (2-col grid)
+            // Partition / Apprentissage / LivePlay actions (3-col grid)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -227,7 +245,14 @@ private fun SongDetailSheet(
                     label = "Partition",
                     icon = Icons.AutoMirrored.Filled.LibraryBooks,
                     primary = true,
-                    onClick = onLearn,
+                    onClick = onPartition,
+                    modifier = Modifier.weight(1f),
+                )
+                ActionBtn(
+                    label = "Apprent.",
+                    icon = Icons.Default.School,
+                    primary = false,
+                    onClick = onApprentissage,
                     modifier = Modifier.weight(1f),
                 )
                 ActionBtn(
@@ -239,6 +264,18 @@ private fun SongDetailSheet(
                 )
             }
 
+            // Renommer — outline button (accent)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                com.tobietheunknown.pianoteacher.ui.common.OutlineButton(
+                    text = "Renommer",
+                    onClick = onRename,
+                    color = IndigoAccent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                )
+            }
+
             // Supprimer — red outline button
             Box(modifier = Modifier.fillMaxWidth()) {
                 com.tobietheunknown.pianoteacher.ui.common.OutlineButton(
@@ -246,8 +283,7 @@ private fun SongDetailSheet(
                     onClick = onDelete,
                     color = RedError,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
+                        .fillMaxWidth(),
                 )
             }
 
@@ -302,6 +338,37 @@ private fun SheetDivider() {
             .width(1.dp)
             .fillMaxHeight()
             .background(Color(0x14FFFFFF)),
+    )
+}
+
+@Composable
+private fun RenameDialog(
+    initial: String,
+    onCancel: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var value by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("Renommer le morceau") },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                singleLine = true,
+                label = { Text("Nouveau titre") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(value) }, enabled = value.trim().isNotEmpty()) {
+                Text("Enregistrer", color = IndigoAccent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text("Annuler") }
+        },
+        containerColor = Surface,
     )
 }
 

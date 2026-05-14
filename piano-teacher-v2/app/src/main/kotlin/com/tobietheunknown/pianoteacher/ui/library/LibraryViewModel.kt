@@ -43,6 +43,12 @@ class LibraryViewModel(private val repo: SongRepository) : ViewModel() {
         viewModelScope.launch { repo.deleteSong(song) }
     }
 
+    fun renameSong(songId: String, newTitle: String) {
+        val trimmed = newTitle.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch { repo.updateSongTitle(songId, trimmed) }
+    }
+
     fun clearImportState() {
         _importState.value = ImportState.Idle
     }

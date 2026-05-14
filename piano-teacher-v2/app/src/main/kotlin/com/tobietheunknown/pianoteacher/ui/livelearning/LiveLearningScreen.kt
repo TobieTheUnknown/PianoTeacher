@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -170,11 +172,14 @@ fun LiveLearningScreen(
                                             if (cellIdx < group.size) {
                                                 val measure = group[cellIdx]
                                                 val globalIdx = measure.globalIndex
+                                                val bpm = song?.tempo ?: 120
+                                                val mPerMeasure = (60_000L * (song?.beatsPerMeasure ?: 4)) / (bpm * tempoPercent).toLong().coerceAtLeast(1L)
                                                 MeasureCardCompact(
                                                     measure = measure,
                                                     beatsPerMeasure = song?.beatsPerMeasure ?: 4,
                                                     isCurrent = globalIdx == focusedMeasure || globalIdx == playingMeasure,
                                                     isPlaying = isPlaying && globalIdx == playingMeasure,
+                                                    measureDurationMs = mPerMeasure,
                                                     onClick = { vm.focusMeasure(globalIdx) },
                                                     modifier = Modifier.weight(1f),
                                                 )
@@ -248,6 +253,7 @@ private fun MeasureCardCompact(
     isPlaying: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    measureDurationMs: Long = 2000L,
 ) {
     val border = if (isCurrent) IndigoAccent else Color(0x14FFFFFF)
     val bg = if (isCurrent) Color(0x14346FCF) else SurfaceVariant
@@ -289,6 +295,7 @@ private fun MeasureCardCompact(
                 isPlaying = isPlaying,
                 melody = measure.melodyNotes,
                 chords = measure.chordNotes,
+                measureDurationMs = measureDurationMs,
             )
         }
     }
@@ -329,9 +336,24 @@ private fun BeatStrip(
     isPlaying: Boolean,
     melody: List<NoteEvent>,
     chords: List<NoteEvent>,
+    measureDurationMs: Long = 2000L,
 ) {
     // Two-row visible track: cyan dots on top, pink dots on bottom, with
     // a thicker divider mid-line and brighter dots.
+    // Wall-clock playhead progress within the active measure.
+    val playheadFrac by androidx.compose.runtime.produceState(
+        initialValue = 0f,
+        isCurrent, isPlaying, measureDurationMs,
+    ) {
+        if (!(isCurrent && isPlaying)) { value = 0f; return@produceState }
+        val start = android.os.SystemClock.elapsedRealtime()
+        while (true) {
+            val elapsed = android.os.SystemClock.elapsedRealtime() - start
+            value = ((elapsed.toFloat() / measureDurationMs.coerceAtLeast(1L)) % 1f).coerceIn(0f, 1f)
+            kotlinx.coroutines.delay(16)
+        }
+    }
+
     Box(modifier = Modifier
         .fillMaxWidth()
         .height(22.dp)) {
@@ -376,6 +398,20 @@ private fun BeatStrip(
                 drawCircle(color = Color(0x40EC4899), radius = 7f, center = Offset(x, pinkY))
                 drawCircle(color = Color(0xFFEC4899), radius = 4f, center = Offset(x, pinkY))
             }
+            // Playhead — accent vertical line scrubbing across the strip
+            if (isCurrent && isPlaying) {
+                val px = w * playheadFrac
+                drawRect(
+                    color = Color(0x336366F1),
+                    topLeft = Offset(px - 6f, 0f),
+                    size = Size(12f, h),
+                )
+                drawRect(
+                    color = Color(0xFF6366F1),
+                    topLeft = Offset(px - 1f, 0f),
+                    size = Size(2f, h),
+                )
+            }
         }
     }
 }
@@ -399,105 +435,143 @@ private val NOTE_NAMES = arrayOf("Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", 
 private fun noteName(pitch: Int): String = NOTE_NAMES[((pitch % 12) + 12) % 12]
 
 /**
- * MiniKeyboard — strip at the bottom of Apprentissage, sized 56dp tall.
- * Highlights notes from the focused measure: right-hand in cyan, left
- * in pink (LearnDS sidebar style).
+ * MiniKeyboard — full-screen-width strip pinned above the dock.
+ * Highlights notes from the focused measure: right-hand cyan, left pink.
+ * Header row with the active note labels + a chevron to collapse / expand.
  */
 @Composable
 private fun MiniKeyboard(
     activeRight: Set<Int>,
     activeLeft: Set<Int>,
 ) {
-    // 3 octaves starting at C3 (48) — covers most piano teacher tunes.
-    val startMidi = 48
-    val octaves = 3
-    val whiteWidthRaw = 22f
-    val totalWhites = octaves * 7
-    val totalWidth = totalWhites * whiteWidthRaw
-    val height = 56f
-    val blackHeight = height * 0.62f
-    val blackWidthRatio = 0.6f
+    var expanded by remember { mutableStateOf(true) }
+    val height = if (expanded) 64f else 0f
 
-    val isBlack = { m: Int -> (m % 12) in listOf(1, 3, 6, 8, 10) }
-    val whiteIndex = remember {
-        val map = HashMap<Int, Int>()
-        var wi = 0
-        for (i in 0 until octaves * 12) {
-            val m = startMidi + i
-            if (!isBlack(m)) {
-                map[m] = wi
-                wi++
+    val rightLabels = remember(activeRight) {
+        activeRight.sorted().map { noteName(it) }.distinct()
+    }
+    val leftLabels = remember(activeLeft) {
+        activeLeft.sorted().map { noteName(it) }.distinct()
+    }
+
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .background(Color(0xFF0F1218))
+        .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(0.dp))) {
+
+        // Header strip — labels + collapse toggle
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "CLAVIER",
+                color = Color(0xFF6B7280),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.08.sp,
+            )
+            if (rightLabels.isNotEmpty()) {
+                Text(
+                    rightLabels.joinToString(" · "),
+                    color = CyanMelody,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
+            if (leftLabels.isNotEmpty()) {
+                Text(
+                    "·",
+                    color = Color(0xFF334155),
+                    fontSize = 10.sp,
+                )
+                Text(
+                    leftLabels.joinToString(" · "),
+                    color = PinkChords,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Box(modifier = Modifier.weight(1f))
+            }
+            IconButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    if (expanded) Icons.Default.KeyboardArrowDown
+                    else Icons.Default.KeyboardArrowUp,
+                    contentDescription = if (expanded) "Réduire" else "Afficher",
+                    tint = Color(0xFF94A3B8),
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
-        map
-    }
 
-    val scrollState = androidx.compose.foundation.rememberScrollState()
-    // Auto-scroll to centre first active note when measure changes.
-    LaunchedEffect(activeRight, activeLeft) {
-        val first = (activeRight + activeLeft).minOrNull() ?: return@LaunchedEffect
-        val idx = whiteIndex[first] ?: whiteIndex[first - 1] ?: 0
-        val px = idx * whiteWidthRaw
-        val target = (px - 200f).toInt().coerceAtLeast(0)
-        scrollState.animateScrollTo(target)
-    }
+        if (expanded) {
+            // Keyboard spans the full screen width — auto-fit measured pitch
+            // range with a small padding either side.
+            val active = activeRight + activeLeft
+            val minMidi = active.minOrNull()?.let { (it - 4).coerceAtLeast(21) } ?: 48
+            val maxMidi = active.maxOrNull()?.let { (it + 4).coerceAtMost(108) } ?: 72
+            val startMidi = minMidi
+            val endMidi = maxOf(maxMidi, startMidi + 12)
 
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .height(height.dp)
-        .background(Color(0xFF0F1218))
-        .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(0.dp))
-        .horizontalScroll(scrollState),
-    ) {
-        androidx.compose.foundation.Canvas(modifier = Modifier
-            .width(totalWidth.dp)
-            .height(height.dp)) {
-            val whiteCol = Color(0xFFE8EAF0)
-            val whiteShadow = Color(0xFFCBD0D8)
-            val blackCol = Color(0xFF1A1D24)
-            val cyan = Color(0xFF22D3EE)
-            val pink = Color(0xFFEC4899)
-            // White keys
-            for (i in 0 until octaves * 12) {
-                val m = startMidi + i
-                if (isBlack(m)) continue
-                val idx = whiteIndex[m] ?: continue
-                val x = idx * whiteWidthRaw
-                val isActive = m in activeRight || m in activeLeft
-                val fill = when {
-                    m in activeRight -> cyan
-                    m in activeLeft -> pink
-                    else -> whiteCol
+            val isBlack = { m: Int -> (m % 12) in listOf(1, 3, 6, 8, 10) }
+            val whiteCount = (startMidi..endMidi).count { !isBlack(it) }
+            val blackWidthRatio = 0.6f
+
+            androidx.compose.foundation.Canvas(modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)) {
+                val w = size.width
+                val h = size.height
+                val whiteWidth = w / whiteCount.toFloat()
+                val blackWidth = whiteWidth * blackWidthRatio
+                val blackHeight = h * 0.62f
+                val whiteCol = Color(0xFFE8EAF0)
+                val whiteShadow = Color(0xFFCBD0D8)
+                val blackCol = Color(0xFF1A1D24)
+                val cyan = Color(0xFF22D3EE)
+                val pink = Color(0xFFEC4899)
+
+                // White keys
+                var wi = 0
+                for (m in startMidi..endMidi) {
+                    if (isBlack(m)) continue
+                    val x = wi * whiteWidth
+                    val fill = when {
+                        m in activeRight -> cyan
+                        m in activeLeft -> pink
+                        else -> whiteCol
+                    }
+                    drawRect(color = fill, topLeft = Offset(x, 0f), size = Size(whiteWidth - 0.5f, h))
+                    drawRect(color = whiteShadow, topLeft = Offset(x + whiteWidth - 0.5f, 0f), size = Size(0.5f, h))
+                    wi++
                 }
-                drawRect(
-                    color = fill,
-                    topLeft = Offset(x, 0f),
-                    size = Size(whiteWidthRaw - 0.5f, height),
-                )
-                drawRect(
-                    color = whiteShadow,
-                    topLeft = Offset(x + whiteWidthRaw - 0.5f, 0f),
-                    size = Size(0.5f, height),
-                )
-            }
-            // Black keys
-            for (i in 0 until octaves * 12) {
-                val m = startMidi + i
-                if (!isBlack(m)) continue
-                val prev = m - 1
-                val idx = whiteIndex[prev] ?: continue
-                val w = whiteWidthRaw * blackWidthRatio
-                val x = idx * whiteWidthRaw + whiteWidthRaw - w / 2f
-                val fill = when {
-                    m in activeRight -> cyan
-                    m in activeLeft -> pink
-                    else -> blackCol
+                // Black keys
+                wi = 0
+                for (m in startMidi..endMidi) {
+                    if (!isBlack(m)) {
+                        wi++
+                        continue
+                    }
+                    val x = wi * whiteWidth - blackWidth / 2f
+                    val fill = when {
+                        m in activeRight -> cyan
+                        m in activeLeft -> pink
+                        else -> blackCol
+                    }
+                    drawRect(color = fill, topLeft = Offset(x, 0f), size = Size(blackWidth, blackHeight))
                 }
-                drawRect(
-                    color = fill,
-                    topLeft = Offset(x, 0f),
-                    size = Size(w, blackHeight),
-                )
             }
         }
     }

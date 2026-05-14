@@ -101,6 +101,9 @@ fun AppNavHost(intent: Intent? = null) {
                 onPlaySong = { songId ->
                     navController.navigate(Screen.LivePlay.route(songId))
                 },
+                onApprentissageSong = { songId ->
+                    navController.navigate(Screen.LiveLearning.route(songId))
+                },
                 onSettings = {
                     navController.navigate(Screen.Settings.route)
                 }
