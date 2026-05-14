@@ -333,7 +333,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       midiInputService.removeEventListener('noteOn', handleNoteOn);
       midiInputService.removeEventListener('noteOff', handleNoteOff);
     };
-  }, [expectedNotes, playedNotes, currentTime, beatsPerSecond, allNotes, waitMode, handMode, audioInitialized, freePlayMode]);
+  }, [expectedNotes, playedNotes, currentTime, beatsPerSecond, allNotes, waitMode, handMode, audioInitialized, freePlayMode, resumeAfterWait]);
 
   // Calculate phrase measure ranges
   const phraseMeasureRanges = useMemo(() => {
@@ -600,13 +600,13 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
   }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision, beatsPerMeasure]);
 
-  const resumeAfterWait = () => {
+  const resumeAfterWait = useCallback(() => {
     if (pausedAtTimeRef.current !== null) {
       setIsPlaying(true);
       startTimeRef.current = performance.now() - (pausedAtTimeRef.current / playbackSpeed) * 1000;
       pausedAtTimeRef.current = null;
     }
-  };
+  }, [playbackSpeed]);
 
   const addFeedback = (message, type, noteNum, accuracy = null) => {
     const feedback = {
@@ -695,19 +695,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     };
   }, [isPlaying, playbackSpeed, waitMode, expectedNotes, allNotes, beatsPerSecond, playedNotes, isLoopEnabled, loopConfig, handMode, beatsPerMeasure]);
 
-  // Check if song completed
-  useEffect(() => {
-    if (allNotes.length > 0 && currentTime > 0) {
-      const lastNote = allNotes[allNotes.length - 1];
-      const lastNoteTime = (lastNote.startTime + lastNote.duration) / beatsPerSecond;
-
-      if (currentTime > lastNoteTime + 1 && !sessionStats.completed) {
-        handleSongCompleted();
-      }
-    }
-  }, [currentTime, allNotes, sessionStats.completed, beatsPerSecond]);
-
-  const handleSongCompleted = () => {
+  const handleSongCompleted = useCallback(() => {
     setIsPlaying(false);
     setSessionStats(prev => ({ ...prev, completed: true }));
 
@@ -732,7 +720,19 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     setSongStats(stats);
 
     alert(`Bravo ! Morceau terminé !\nPrécision: ${accuracy}%\nNotes correctes: ${sessionStats.correctNotes}/${sessionStats.totalNotes}`);
-  };
+  }, [sessionStats, playbackSpeed, currentTime, song?.id]);
+
+  // Check if song completed
+  useEffect(() => {
+    if (allNotes.length > 0 && currentTime > 0) {
+      const lastNote = allNotes[allNotes.length - 1];
+      const lastNoteTime = (lastNote.startTime + lastNote.duration) / beatsPerSecond;
+
+      if (currentTime > lastNoteTime + 1 && !sessionStats.completed) {
+        handleSongCompleted();
+      }
+    }
+  }, [currentTime, allNotes, sessionStats.completed, beatsPerSecond, handleSongCompleted]);
 
   // Play/Pause controls — when metronome is on, run a 1-bar preroll
   // before the falling notes start moving.

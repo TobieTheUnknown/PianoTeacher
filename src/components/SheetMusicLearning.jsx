@@ -217,7 +217,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             playRange(start, measures.length, true);
         }
         setPlaying(true);
-    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure, metronome, loop, loopRange, measures]);
+    }, [playing, combinedPhrase, song, speed, handMode, currentMeasure, metronome, metronomeSubdivision, loop, loopRange, measures]);
 
     const totalMeasures = measures.length;
     const tsText = song?.timeSignature
@@ -514,7 +514,7 @@ function SystemMeasure({
     }, [
         dims, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
         useFlats, showClefs, upperShift, lowerShift, keySig, isCurrent,
-        playheadFrac,
+        playheadFrac, measureData.measureStart,
     ]);
 
     return (

@@ -970,7 +970,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
             // the preroll, keeping the focused measure visually correct.
             doPlay();
         }
-    }, [isPlaying, combinedPhrase, analysis, focusedMeasure, playbackHand, currentBPM, isLooping, loopConfig, isMetronomeOn, startPlaybackTracking]);
+    }, [isPlaying, combinedPhrase, analysis, focusedMeasure, playbackHand, currentBPM, isLooping, loopConfig, isMetronomeOn, metronomeSubdivision, startPlaybackTracking]);
 
     const handleStop = useCallback(() => {
         audioEngine.stop();
