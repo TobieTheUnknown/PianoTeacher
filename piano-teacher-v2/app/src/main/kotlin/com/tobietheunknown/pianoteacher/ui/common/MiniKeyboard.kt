@@ -12,6 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -154,24 +155,28 @@ fun MiniKeyboard(
         }
 
         if (expanded) {
-            val active = activeRight + activeLeft
             val rangeSemis = fixedRange.coerceAtLeast(12)
             // Round up to the next multiple of 12 so we always start on a C.
             val windowSemis = ((rangeSemis + 11) / 12) * 12
 
-            val startMidi = run {
-                val baseDefault = 48 // C3
-                if (active.isEmpty()) baseDefault
-                else {
-                    val centre = (active.min() + active.max()) / 2
-                    var s = centre - windowSemis / 2
-                    // Snap down to a C boundary.
-                    s -= (s % 12).let { if (it < 0) it + 12 else it }
-                    // If notes spill outside the window, shift by octaves.
-                    while (active.max() > s + windowSemis - 1) s += 12
-                    while (active.min() < s) s -= 12
-                    s.coerceIn(12, 108 - windowSemis)
-                }
+            // Persistent window start: only shifts when an active note actually
+            // spills outside the current viewport. Same-octave content across
+            // measures keeps the keyboard fixed — no octave jumps for a hand
+            // whose notes were already visible.
+            var startMidi by remember(fixedRange) {
+                mutableStateOf(48 - windowSemis / 2 - ((48 - windowSemis / 2) % 12).let {
+                    if (it < 0) it + 12 else it
+                })
+            }
+            LaunchedEffect(activeRight, activeLeft, fixedRange) {
+                val active = activeRight + activeLeft
+                if (active.isEmpty()) return@LaunchedEffect
+                var s = startMidi
+                // Only adjust by octaves to bring spilled notes back into view.
+                while (active.max() > s + windowSemis - 1) s += 12
+                while (active.min() < s) s -= 12
+                val clamped = s.coerceIn(12, 108 - windowSemis)
+                if (clamped != startMidi) startMidi = clamped
             }
             val endMidi = startMidi + windowSemis - 1
 
