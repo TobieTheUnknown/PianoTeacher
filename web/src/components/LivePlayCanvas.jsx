@@ -594,6 +594,9 @@ const LivePlayCanvas = memo(({
 
         if (isMobile) {
           ctx.fillRect(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT);
+          ctx.strokeStyle = '#cbd0d8';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 0.5, keyboardY + 0.5, WHITE_KEY_WIDTH - 2, KEYBOARD_HEIGHT - 1);
           ctx.fillStyle = isPressed ? '#ffffff' : '#555';
           const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
           ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
@@ -629,6 +632,9 @@ const LivePlayCanvas = memo(({
 
         if (isMobile) {
           ctx.fillRect(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight);
+          ctx.strokeStyle = '#0a0c10';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 0.5, keyboardY + 0.5, BLACK_KEY_WIDTH - 1, blackKeyHeight - 1);
         } else {
           const isPressed = activeNotes.has(i);
           if (isPressed && visualEffects) {

@@ -12,7 +12,26 @@ import { getFrenchNoteName } from '../../models/song';
  *
  * 340px wide, full-height column, color-mix surface-1 background.
  */
-export function LearnSidebar({ measure, keySignature, displayNoteName }) {
+export function LearnSidebar({ measure, allMeasures, keySignature, displayNoteName }) {
+    // Fixed-zoom window for the whole song: keyboard doesn't rescale on
+    // each measure; it only shifts by octaves when notes spill out. Same
+    // logic as the Android app's MiniKeyboard.
+    const keyboardSpan = React.useMemo(
+        () => fixedKeyboardRange(
+            (allMeasures || []).map((m) => {
+                const all = [...(m.melody || []), ...(m.chords || [])];
+                if (all.length === 0) return null;
+                let min = Infinity, max = -Infinity;
+                for (const n of all) {
+                    if (n.pitch < min) min = n.pitch;
+                    if (n.pitch > max) max = n.pitch;
+                }
+                return [min, max];
+            }).filter(Boolean),
+        ),
+        [allMeasures],
+    );
+
     if (!measure) {
         return (
             <aside style={sidebarStyle}>
@@ -51,10 +70,26 @@ export function LearnSidebar({ measure, keySignature, displayNoteName }) {
                 borderRadius: 'var(--r-md)',
             }}>
                 <div style={eyebrow}>Clavier</div>
-                <MiniKeyboard startMidi={48} octaves={3} activeRight={activeRight} activeLeft={activeLeft} />
+                <MiniKeyboard fixedRange={keyboardSpan} activeRight={activeRight} activeLeft={activeLeft} />
             </div>
         </aside>
     );
+}
+
+/**
+ * Compute fixed window size (semitones) so every measure fits without
+ * re-zooming. Mirrors `fixedKeyboardRange` in the Android codebase.
+ */
+function fixedKeyboardRange(perMeasureRanges) {
+    if (perMeasureRanges.length === 0) return 24; // 2 octaves default
+    let widest = 12;
+    let minP = Infinity, maxP = -Infinity;
+    for (const [a, b] of perMeasureRanges) {
+        if (b - a + 1 > widest) widest = b - a + 1;
+        if (a < minP) minP = a;
+        if (b > maxP) maxP = b;
+    }
+    return Math.max(12, Math.min(widest + 8, maxP - minP + 1));
 }
 
 const sidebarStyle = {
@@ -177,27 +212,54 @@ function HandIcon({ hand }) {
     );
 }
 
-function MiniKeyboard({ startMidi, octaves, activeRight, activeLeft }) {
-    // Wider keys + scrollable so users can pan to see active notes
-    // outside the default 3-octave window. Auto-scroll to first active
-    // note when the measure changes.
-    const whiteWidth = 22;
-    const totalWhites = octaves * 7;
-    const totalWidth = totalWhites * whiteWidth;
-    const height = 86;
+function MiniKeyboard({ fixedRange, activeRight, activeLeft }) {
+    // Fixed pitch window for the whole song. The keyboard never re-scales
+    // when the focused measure changes; the window only shifts in octave
+    // increments to keep active notes visible. Same approach as the
+    // Android MiniKeyboard so the UX stays consistent across platforms.
+    const rangeSemis = Math.max(12, fixedRange ?? 24);
+    const windowSemis = Math.ceil(rangeSemis / 12) * 12;
+
+    // Persistent window start (centred around C3, snapped to a C boundary).
+    const initialStart = React.useMemo(() => {
+        const raw = 48 - windowSemis / 2;
+        const mod = ((raw % 12) + 12) % 12;
+        return raw - mod;
+    }, [windowSemis]);
+    const [startMidi, setStartMidi] = React.useState(initialStart);
+
+    React.useEffect(() => {
+        setStartMidi(initialStart);
+    }, [initialStart]);
+
+    React.useEffect(() => {
+        const active = [
+            ...(activeRight ? Array.from(activeRight) : []),
+            ...(activeLeft ? Array.from(activeLeft) : []),
+        ];
+        if (active.length === 0) return;
+        const hi = Math.max(...active);
+        const lo = Math.min(...active);
+        let s = startMidi;
+        while (hi > s + windowSemis - 1) s += 12;
+        while (lo < s) s -= 12;
+        const clamped = Math.min(108 - windowSemis, Math.max(12, s));
+        if (clamped !== startMidi) setStartMidi(clamped);
+    }, [activeRight, activeLeft, startMidi, windowSemis]);
+
+    const endMidi = startMidi + windowSemis - 1;
+    const isBlack = (m) => [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
+
+    const whiteIndex = {};
+    let whiteCount = 0;
+    for (let m = startMidi; m <= endMidi; m++) {
+        if (!isBlack(m)) whiteIndex[m] = whiteCount++;
+    }
+
+    const whiteWidth = 100 / whiteCount; // percent units in viewBox
+    const height = 52;
     const blackHeight = height * 0.62;
     const blackWidthRatio = 0.6;
-    const scrollRef = React.useRef(null);
-
-    const isBlack = (m) => [1, 3, 6, 8, 10].includes(m % 12);
-
-    // Build white-key index map
-    const whiteIndex = {};
-    let wi = 0;
-    for (let i = 0; i < octaves * 12; i++) {
-        const m = startMidi + i;
-        if (!isBlack(m)) whiteIndex[m] = wi++;
-    }
 
     const colorFor = (m) => {
         if (activeRight?.has(m)) return 'var(--hand-right)';
@@ -205,81 +267,54 @@ function MiniKeyboard({ startMidi, octaves, activeRight, activeLeft }) {
         return null;
     };
 
-    // Auto-scroll to centre the first active note when set changes.
-    React.useEffect(() => {
-        const el = scrollRef.current;
-        if (!el) return;
-        const firstActive =
-            (activeRight && activeRight.size ? Math.min(...activeRight) : null) ??
-            (activeLeft && activeLeft.size ? Math.min(...activeLeft) : null);
-        if (firstActive == null) return;
-        // Approx X of the key (white index * whiteWidth, or based on prev white for black).
-        const localIdx = firstActive - startMidi;
-        let px;
-        if (!isBlack(firstActive)) {
-            px = (whiteIndex[firstActive] ?? 0) * whiteWidth;
+    const whites = [];
+    const blacks = [];
+    for (let m = startMidi; m <= endMidi; m++) {
+        if (isBlack(m)) {
+            const prev = m - 1;
+            const x = whiteIndex[prev] * whiteWidth + whiteWidth - (whiteWidth * blackWidthRatio) / 2;
+            blacks.push(
+                <rect
+                    key={`b${m}`}
+                    x={x}
+                    y={0}
+                    width={whiteWidth * blackWidthRatio}
+                    height={blackHeight}
+                    fill={colorFor(m) || 'var(--key-black, #1a1d24)'}
+                    stroke="var(--key-border, #0a0c10)"
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                />,
+            );
         } else {
-            const prev = whiteIndex[firstActive - 1] ?? whiteIndex[firstActive + 1] ?? 0;
-            px = prev * whiteWidth + whiteWidth - (whiteWidth * blackWidthRatio) / 2;
+            const x = whiteIndex[m] * whiteWidth;
+            whites.push(
+                <rect
+                    key={`w${m}`}
+                    x={x}
+                    y={0}
+                    width={whiteWidth}
+                    height={height}
+                    fill={colorFor(m) || 'var(--key-white, #f2f4f8)'}
+                    stroke="var(--key-white-shadow, #cbd0d8)"
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                />,
+            );
         }
-        const scaled = (px / totalWidth) * (el.scrollWidth);
-        const targetScroll = scaled - el.clientWidth / 2 + whiteWidth / 2;
-        el.scrollTo({ left: Math.max(0, targetScroll), behavior: 'smooth' });
-    }, [activeRight, activeLeft, startMidi, totalWidth, blackWidthRatio]);
+    }
 
     return (
-        <div
-            ref={scrollRef}
-            style={{
-                position: 'relative',
-                width: '100%',
-                height,
-                marginTop: 8,
-                overflowX: 'auto',
-                overflowY: 'hidden',
-                WebkitOverflowScrolling: 'touch',
-            }}
+        <svg
+            viewBox={`0 0 100 ${height}`}
+            width="100%"
+            height={height}
+            preserveAspectRatio="none"
+            style={{ display: 'block', marginTop: 8 }}
         >
-            <svg
-                viewBox={`0 0 ${totalWidth} ${height}`}
-                width={totalWidth}
-                height={height}
-                preserveAspectRatio="xMinYMin meet"
-                style={{ display: 'block' }}
-            >
-                {/* White keys */}
-                {Array.from({ length: octaves * 12 }, (_, i) => startMidi + i)
-                    .filter((m) => !isBlack(m))
-                    .map((m) => {
-                        const x = whiteIndex[m] * whiteWidth;
-                        const fill = colorFor(m) || 'var(--key-white, #f2f4f8)';
-                        return (
-                            <rect
-                                key={`w${m}`}
-                                x={x}
-                                y={0}
-                                width={whiteWidth - 0.5}
-                                height={height}
-                                fill={fill}
-                                stroke="var(--key-white-shadow, #cbd0d8)"
-                                strokeWidth={0.5}
-                            />
-                        );
-                    })}
-                {/* Black keys */}
-                {Array.from({ length: octaves * 12 }, (_, i) => startMidi + i)
-                    .filter((m) => isBlack(m))
-                    .map((m) => {
-                        const prevWhite = m - 1;
-                        const x = whiteIndex[prevWhite] * whiteWidth + whiteWidth - (whiteWidth * blackWidthRatio) / 2;
-                        const w = whiteWidth * blackWidthRatio;
-                        const fill = colorFor(m) || 'var(--key-black, #1a1d24)';
-                        return (
-                            <rect key={`b${m}`} x={x} y={0} width={w} height={blackHeight} fill={fill} />
-                        );
-                    })}
-            </svg>
-        </div>
+            {whites}
+            {blacks}
+        </svg>
     );
 }
 

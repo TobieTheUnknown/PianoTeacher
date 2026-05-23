@@ -39,6 +39,9 @@ export function PlaybackDock({
   loopEditorOpen = false,
   onToggleLoopEditor,
   totalMeasures = 1,
+  // Optional list of phrases to enable quick-pick in the loop editor.
+  // Shape: [{ name, startMeasure, endMeasure }, ...]
+  phrases = [],
 
   onPrev,
   onNext,
@@ -69,6 +72,7 @@ export function PlaybackDock({
           range={loopRange}
           onChange={onLoopRange}
           totalMeasures={totalMeasures}
+          phrases={phrases}
           onClose={onToggleLoopEditor}
         />
       )}
@@ -417,10 +421,22 @@ function ToggleIconBtn({ children, active, onClick, ...rest }) {
   );
 }
 
-function LoopRangeEditor({ range, onChange, totalMeasures, onClose }) {
+function LoopRangeEditor({ range, onChange, totalMeasures, phrases = [], onClose }) {
   const [from, to] = range;
   const setFrom = (v) => onChange?.([Math.max(1, Math.min(v, to - 1)), to]);
   const setTo = (v) => onChange?.([from, Math.max(from + 1, Math.min(v, totalMeasures))]);
+
+  // Highlight the phrase whose bounds match the current range, if any.
+  const selectedPhraseIdx = phrases.findIndex(
+    (p) => p.startMeasure === from && p.endMeasure === to,
+  );
+
+  const handlePhraseSelect = (e) => {
+    const idx = parseInt(e.target.value, 10);
+    if (Number.isNaN(idx) || !phrases[idx]) return;
+    const { startMeasure, endMeasure } = phrases[idx];
+    onChange?.([startMeasure, endMeasure]);
+  };
 
   return (
     <div
@@ -456,6 +472,34 @@ function LoopRangeEditor({ range, onChange, totalMeasures, onClose }) {
           ×
         </button>
       </div>
+
+      {phrases.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>Phrase</span>
+          <select
+            value={selectedPhraseIdx >= 0 ? selectedPhraseIdx : ''}
+            onChange={handlePhraseSelect}
+            style={{
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-sm)',
+              color: 'var(--text-primary)',
+              fontSize: 13,
+              padding: '4px 8px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <option value="" disabled>Sélectionner une phrase…</option>
+            {phrases.map((p, i) => (
+              <option key={i} value={i}>
+                {(p.name || `Phrase ${i + 1}`)} (m. {p.startMeasure}–{p.endMeasure})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <RangeStepper label="De" value={from} max={to - 1} min={1} onChange={setFrom} />
         <span style={{ color: 'var(--text-tertiary)' }}>→</span>

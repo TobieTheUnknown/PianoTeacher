@@ -441,6 +441,18 @@ fun LearningScreen(
                         loopEditorOpen = loopEditorOpen,
                         onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
                         totalMeasures = allMeasures.size,
+                        phrases = remember(song) {
+                            val list = song?.phrases ?: emptyList()
+                            var start = 1
+                            list.mapIndexed { i, p ->
+                                val end = start + p.length - 1
+                                val r = com.tobietheunknown.pianoteacher.ui.common.PhraseRange(
+                                    p.name.ifBlank { "Phrase ${i + 1}" }, start, end,
+                                )
+                                start = end + 1
+                                r
+                            }
+                        },
                         onPrev = { /* TODO: prev measure/phrase */ },
                         onNext = { /* TODO: next measure/phrase */ },
                     )

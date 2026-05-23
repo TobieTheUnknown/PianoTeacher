@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,6 +40,7 @@ private val MK_ICON_GRAY = Color(0xFF94A3B8)
 private val MK_KEY_WHITE = Color(0xFFE8EAF0)
 private val MK_KEY_WHITE_SHADOW = Color(0xFFCBD0D8)
 private val MK_KEY_BLACK = Color(0xFF1A1D24)
+private val MK_KEY_BORDER = Color(0xFF0A0C10)
 
 private val NOTE_NAMES_FR = arrayOf(
     "Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"
@@ -229,6 +231,12 @@ fun MiniKeyboard(
                         else -> MK_KEY_BLACK
                     }
                     drawRect(color = fill, topLeft = Offset(x, 0f), size = Size(blackWidth, blackHeight))
+                    drawRect(
+                        color = MK_KEY_BORDER,
+                        topLeft = Offset(x, 0f),
+                        size = Size(blackWidth, blackHeight),
+                        style = Stroke(width = 1f),
+                    )
                 }
             }
         }

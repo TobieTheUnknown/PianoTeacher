@@ -1277,6 +1277,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 {!isMobile && (
                     <LearnSidebar
                         measure={analysis.measures.find(m => m.number === focusedMeasure)}
+                        allMeasures={analysis.measures}
                         keySignature={song.key}
                         displayNoteName={displayNoteName}
                     />
@@ -1310,6 +1311,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         loopEditorOpen={loopEditorOpen}
                         onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
                         totalMeasures={analysis.totalMeasures}
+                        phrases={phraseMeasureRanges}
                         onPrev={() => {
                             if (phraseMeasureRanges?.length) {
                                 const idx = parseInt(selectedPhraseIndex, 10);

@@ -148,6 +148,7 @@ export function LivePlayMobileOverlay({
           loopEditorOpen={loopEditorOpen}
           onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
           totalMeasures={totalMeasuresHint || phraseMeasureRanges?.length || 1}
+          phrases={phraseMeasureRanges || []}
           onPrev={() => {
             if (phraseMeasureRanges?.length && selectedPhraseIndex != null) {
               const i = parseInt(selectedPhraseIndex, 10);

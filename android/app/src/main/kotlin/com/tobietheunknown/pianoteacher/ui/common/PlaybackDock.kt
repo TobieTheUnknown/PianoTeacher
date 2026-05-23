@@ -27,6 +27,9 @@ import com.tobietheunknown.pianoteacher.ui.theme.*
 
 enum class HandMode { LEFT, BOTH, RIGHT, LISTEN }
 
+/** Phrase reference used by the loop editor's quick-pick dropdown. */
+data class PhraseRange(val name: String, val startMeasure: Int, val endMeasure: Int)
+
 /**
  * PlaybackDock — shared playback control bar across all music pages in
  * the APK. Mirrors the web's PlaybackDock exactly.
@@ -48,6 +51,7 @@ fun PlaybackDock(
     loopEditorOpen: Boolean = false,
     onToggleLoopEditor: () -> Unit = {},
     totalMeasures: Int = 1,
+    phrases: List<PhraseRange> = emptyList(),
     onPrev: () -> Unit = {},
     onNext: () -> Unit = {},
 ) {
@@ -62,6 +66,7 @@ fun PlaybackDock(
                 LoopRangeEditor(
                     range = loopRange,
                     totalMeasures = totalMeasures,
+                    phrases = phrases,
                     onChange = onLoopRangeChange,
                     onClose = onToggleLoopEditor,
                 )
@@ -280,6 +285,7 @@ private fun LoopActiveStrip(range: IntRange, onClick: () -> Unit) {
 private fun LoopRangeEditor(
     range: IntRange,
     totalMeasures: Int,
+    phrases: List<PhraseRange>,
     onChange: (IntRange) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -307,6 +313,9 @@ private fun LoopRangeEditor(
                     Icon(Icons.Default.Close, null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
                 }
             }
+            if (phrases.isNotEmpty()) {
+                PhrasePicker(phrases = phrases, currentRange = from..to, onPick = onChange)
+            }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 RangeStepper(
                     label = "De",
@@ -325,6 +334,81 @@ private fun LoopRangeEditor(
                     onChange = { v -> onChange(from..v) },
                     modifier = Modifier.weight(1f),
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PhrasePicker(
+    phrases: List<PhraseRange>,
+    currentRange: IntRange,
+    onPick: (IntRange) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val matchIdx = phrases.indexOfFirst {
+        it.startMeasure == currentRange.first && it.endMeasure == currentRange.last
+    }
+    val display = if (matchIdx >= 0) {
+        val p = phrases[matchIdx]
+        "${p.name} (m. ${p.startMeasure}–${p.endMeasure})"
+    } else {
+        "Sélectionner une phrase…"
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Phrase", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+        ) {
+            Surface(
+                color = SurfaceVariant,
+                border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+                shape = RoundedCornerShape(6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        display,
+                        color = if (matchIdx >= 0) IndigoAccent else Color(0xFF94A3B8),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Icon(
+                        Icons.Default.KeyboardArrowDown, null,
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                phrases.forEachIndexed { i, p ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "${p.name} (m. ${p.startMeasure}–${p.endMeasure})",
+                                fontSize = 13.sp,
+                            )
+                        },
+                        onClick = {
+                            onPick(p.startMeasure..p.endMeasure)
+                            expanded = false
+                        },
+                    )
+                }
             }
         }
     }

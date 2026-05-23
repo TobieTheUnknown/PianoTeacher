@@ -251,6 +251,14 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     };
   }, []);
 
+  const resumeAfterWait = useCallback(() => {
+    if (pausedAtTimeRef.current !== null) {
+      setIsPlaying(true);
+      startTimeRef.current = performance.now() - (pausedAtTimeRef.current / playbackSpeed) * 1000;
+      pausedAtTimeRef.current = null;
+    }
+  }, [playbackSpeed]);
+
   // Setup MIDI Input Service listener
   useEffect(() => {
     const handleNoteOn = (event) => {
@@ -599,14 +607,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
 
   }, [currentTime, isPlaying, isMetronomeOn, audioInitialized, beatsPerSecond, metronomeDivision, beatsPerMeasure]);
-
-  const resumeAfterWait = useCallback(() => {
-    if (pausedAtTimeRef.current !== null) {
-      setIsPlaying(true);
-      startTimeRef.current = performance.now() - (pausedAtTimeRef.current / playbackSpeed) * 1000;
-      pausedAtTimeRef.current = null;
-    }
-  }, [playbackSpeed]);
 
   const addFeedback = (message, type, noteNum, accuracy = null) => {
     const feedback = {
@@ -992,7 +992,8 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           onLoopRange={([from, to]) => handleLoopChange(from, to)}
           loopEditorOpen={loopEditorOpen}
           onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
-          totalMeasures={song?.phrases?.length || 1}
+          totalMeasures={totalMeasures}
+          phrases={phraseMeasureRanges}
           onPrev={() => jumpToTime(Math.max(0, currentTime - 4))}
           onNext={() => jumpToTime(currentTime + 4)}
         />

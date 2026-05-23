@@ -92,6 +92,23 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         };
     }, [song]);
 
+    // Phrase ranges (1-indexed measure bounds) — used by the loop editor's
+    // quick-pick dropdown.
+    const phraseMeasureRanges = useMemo(() => {
+        if (!song || !song.phrases) return [];
+        let startMeasure = 1;
+        return song.phrases.map((phrase, index) => {
+            const endMeasure = startMeasure + phrase.length - 1;
+            const range = {
+                name: phrase.name || `Phrase ${index + 1}`,
+                startMeasure,
+                endMeasure,
+            };
+            startMeasure = endMeasure + 1;
+            return range;
+        });
+    }, [song]);
+
     // Capture the starting measure when playback begins so the tick loop
     // doesn't depend on `currentMeasure` (which it itself updates).
     const startMeasureRef = useRef(1);
@@ -397,6 +414,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 loopEditorOpen={loopEditorOpen}
                 onToggleLoopEditor={() => setLoopEditorOpen((o) => !o)}
                 totalMeasures={totalMeasures}
+                phrases={phraseMeasureRanges}
                 onPrev={() => setCurrentMeasure((m) => Math.max(1, m - 1))}
                 onNext={() => setCurrentMeasure((m) => Math.min(totalMeasures, m + 1))}
             />

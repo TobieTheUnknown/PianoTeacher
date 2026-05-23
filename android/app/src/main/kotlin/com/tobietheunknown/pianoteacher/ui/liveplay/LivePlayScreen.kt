@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -178,6 +179,18 @@ fun LivePlayScreen(
             loopEditorOpen = loopEditorOpen,
             onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
             totalMeasures = totalMeasures,
+            phrases = remember(state.song) {
+                val list = state.song?.phrases ?: emptyList()
+                var start = 1
+                list.mapIndexed { i, p ->
+                    val end = start + p.length - 1
+                    val r = com.tobietheunknown.pianoteacher.ui.common.PhraseRange(
+                        p.name.ifBlank { "Phrase ${i + 1}" }, start, end,
+                    )
+                    start = end + 1
+                    r
+                }
+            },
             onPrev = { vm.seekToBeat((state.currentBeat - beatsPerMeasure).coerceAtLeast(0.0)) },
             onNext = { vm.seekToBeat((state.currentBeat + beatsPerMeasure).coerceAtMost(state.totalBeats)) },
         )
@@ -552,6 +565,13 @@ private fun PianoKeyboard(
                 else -> Color(0xFFE8ECF0)
             }
             drawRoundRect(color, Offset(x + 0.5f, 0f), Size(whiteKeyWidth - 1f, keyHeight), CornerRadius(2f))
+            drawRoundRect(
+                Color(0xFFCBD0D8),
+                Offset(x + 0.5f, 0f),
+                Size(whiteKeyWidth - 1f, keyHeight),
+                CornerRadius(2f),
+                style = Stroke(width = 1f),
+            )
         }
 
         // Pass 2: Black keys (shorter, positioned between white keys)
@@ -572,6 +592,13 @@ private fun PianoKeyboard(
                 else -> Color(0xFF1A1A1A)
             }
             drawRoundRect(color, Offset(x, 0f), Size(bw, blackHeight), CornerRadius(2f))
+            drawRoundRect(
+                Color(0xFF0A0C10),
+                Offset(x, 0f),
+                Size(bw, blackHeight),
+                CornerRadius(2f),
+                style = Stroke(width = 1f),
+            )
         }
     }
 }

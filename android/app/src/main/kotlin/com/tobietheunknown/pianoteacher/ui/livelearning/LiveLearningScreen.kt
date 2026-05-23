@@ -33,6 +33,7 @@ import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.ui.common.MiniKeyboard
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackDock
 import com.tobietheunknown.pianoteacher.ui.common.HandMode
+import com.tobietheunknown.pianoteacher.ui.common.PhraseRange
 import com.tobietheunknown.pianoteacher.ui.common.fixedKeyboardRange
 import com.tobietheunknown.pianoteacher.ui.learning.LearningViewModel
 import com.tobietheunknown.pianoteacher.ui.learning.MeasureData
@@ -286,6 +287,16 @@ fun LiveLearningScreen(
                     loopEditorOpen = loopEditorOpen,
                     onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
                     totalMeasures = totalMeasures.coerceAtLeast(1),
+                    phrases = remember(song) {
+                        val list = song?.phrases ?: emptyList()
+                        var start = 1
+                        list.mapIndexed { i, p ->
+                            val end = start + p.length - 1
+                            val r = PhraseRange(p.name.ifBlank { "Phrase ${i + 1}" }, start, end)
+                            start = end + 1
+                            r
+                        }
+                    },
                     onPrev = {
                         val tgt = (focusedMeasure - 1).coerceAtLeast(0)
                         vm.focusMeasure(tgt)
