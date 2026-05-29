@@ -243,16 +243,20 @@ export function slicePhraseIntoMeasures(phrase, beatsPerMeasure = 4) {
     if (!phrase) return [];
     const length = phrase.length || 1;
     const measures = [];
+    // Snap notes within EPSILON of a measure boundary forward to the next
+    // measure, mirroring measureUtils.getMeasuresFromPhrase. Without this, a
+    // downbeat stored as e.g. 27.99999999999996 (FP noise from legacy imports)
+    // would render at the very end of measure 6 instead of the start of 7.
+    const EPSILON = 0.001;
     for (let m = 0; m < length; m++) {
         const measureStart = m * beatsPerMeasure;
-        const melody = (phrase.tracks?.melody || []).filter((n) => {
+        const measureEnd = measureStart + beatsPerMeasure;
+        const inMeasure = (n) => {
             const t = n.startTime ?? 0;
-            return t >= measureStart && t < measureStart + beatsPerMeasure;
-        });
-        const chords = (phrase.tracks?.chords || []).filter((n) => {
-            const t = n.startTime ?? 0;
-            return t >= measureStart && t < measureStart + beatsPerMeasure;
-        });
+            return t >= measureStart - EPSILON && t < measureEnd - EPSILON;
+        };
+        const melody = (phrase.tracks?.melody || []).filter(inMeasure);
+        const chords = (phrase.tracks?.chords || []).filter(inMeasure);
         measures.push({ measureIndex: m, measureStart, melodyNotes: melody, chordNotes: chords });
     }
     return measures;

@@ -1,6 +1,7 @@
 package com.tobietheunknown.pianoteacher.data.parser
 
 import com.tobietheunknown.pianoteacher.data.model.*
+import com.tobietheunknown.pianoteacher.utils.MEASURE_EPSILON
 import java.io.InputStream
 import java.util.UUID
 import kotlin.math.roundToInt
@@ -116,10 +117,12 @@ object MidiParser {
             val phraseMeasures = maxOf(1, (phraseBeats / beatsPerMeasure).roundToInt())
             val phraseIndex = boundaries.indexOf(start) + 1
 
-            val phraseMelody = melody.filter { it.startTime >= start && it.startTime < end }
-                .map { it.copy(startTime = it.startTime - start) }
-            val phraseChords = chords.filter { it.startTime >= start && it.startTime < end }
-                .map { it.copy(startTime = it.startTime - start) }
+            val phraseMelody = melody.filter {
+                it.startTime >= start - MEASURE_EPSILON && it.startTime < end - MEASURE_EPSILON
+            }.map { it.copy(startTime = it.startTime - start) }
+            val phraseChords = chords.filter {
+                it.startTime >= start - MEASURE_EPSILON && it.startTime < end - MEASURE_EPSILON
+            }.map { it.copy(startTime = it.startTime - start) }
 
             Phrase(
                 id = UUID.randomUUID().toString(),

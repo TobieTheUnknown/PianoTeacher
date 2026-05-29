@@ -16,6 +16,7 @@ import com.tobietheunknown.pianoteacher.utils.ChordInfo
 import com.tobietheunknown.pianoteacher.utils.KeySignature
 import com.tobietheunknown.pianoteacher.utils.detectArpeggioMotifs
 import com.tobietheunknown.pianoteacher.utils.detectChordOrArpeggio
+import com.tobietheunknown.pianoteacher.utils.MEASURE_EPSILON
 import com.tobietheunknown.pianoteacher.utils.detectKeySignature
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -592,12 +593,19 @@ class LearningViewModel(
                 val end = (mi + 1) * bpm
 
                 val isLastMeasure = mi == phrase.length - 1
+                // EPSILON matches web/src/utils/measureUtils.js: a downbeat stored
+                // with FP noise (e.g. 27.9999... for beat 28) snaps forward to
+                // the next measure instead of rendering at the end of the current.
+                val inMeasure: (Double) -> Boolean = { t ->
+                    t >= start - MEASURE_EPSILON &&
+                        (if (isLastMeasure) t <= end + MEASURE_EPSILON else t < end - MEASURE_EPSILON)
+                }
                 val melody = phrase.tracks.melody
-                    .filter { it.startTime >= start && (if (isLastMeasure) it.startTime <= end else it.startTime < end) }
+                    .filter { inMeasure(it.startTime) }
                     .map { it.copy(startTime = it.startTime - start) }
 
                 val chords = phrase.tracks.chords
-                    .filter { it.startTime >= start && (if (isLastMeasure) it.startTime <= end else it.startTime < end) }
+                    .filter { inMeasure(it.startTime) }
                     .map { it.copy(startTime = it.startTime - start) }
 
                 val chordInfo = if (chords.isNotEmpty()) {

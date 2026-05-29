@@ -84,8 +84,11 @@ export const parseMidiFile = async (file) => {
         }
 
         // Create a single large phrase for the whole song (user can split later)
-        // We'll estimate length based on the last note
-        const durationInBeats = midi.duration * (song.tempo / 60);
+        // We'll estimate length based on the last note. Use ticks (integer) rather
+        // than seconds × tempo to avoid floating-point noise that would push
+        // downbeats slightly before measure boundaries.
+        const ppq = midi.header.ppq;
+        const durationInBeats = midi.durationTicks / ppq;
         // Calculate beats per measure based on time signature
         const beatsPerMeasure = (song.timeSignature.numerator / song.timeSignature.denominator) * 4;
         let phraseLength = Math.ceil(durationInBeats / beatsPerMeasure); // in measures
@@ -123,9 +126,10 @@ export const parseMidiFile = async (file) => {
                 : (trackInfo.avgPitch < 60 ? 'chords' : 'melody');
 
             trackInfo.track.notes.forEach(note => {
-                // Convert seconds to beats (no quantization - preserve original timing)
-                const startTimeBeats = note.time * (song.tempo / 60);
-                const durationBeats = Math.max(0.0625, note.duration * (song.tempo / 60)); // Min 1/16 note
+                // Use ticks (exact integers) instead of seconds to avoid FP noise
+                // that would put downbeats at e.g. 27.99999... instead of 28.
+                const startTimeBeats = note.ticks / ppq;
+                const durationBeats = Math.max(0.0625, note.durationTicks / ppq); // Min 1/16 note
 
                 const event = createNoteEvent(note.midi, startTimeBeats, durationBeats);
                 phrase.tracks[targetTrack].push(event);

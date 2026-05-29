@@ -2,6 +2,12 @@ package com.tobietheunknown.pianoteacher.utils
 
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 
+// Tolerance (in beats) for measure-boundary comparisons. A note within EPSILON
+// before a measure boundary snaps forward to the next measure. Mirrors the
+// `EPSILON = 0.001` convention in web/src/utils/measureUtils.js so all
+// platforms agree on which measure a downbeat belongs to.
+const val MEASURE_EPSILON = 0.001
+
 // ─── Note names ───────────────────────────────────────────────────────────────
 
 private val SHARP_NAMES_FR = arrayOf(
