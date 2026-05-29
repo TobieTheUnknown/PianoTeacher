@@ -210,7 +210,7 @@ fun LiveLearningScreen(
                                                 // stays skippable across unrelated recompositions
                                                 // (e.g. tempo / hand changes).
                                                 val onCellClick = remember(globalIdx) {
-                                                    { vm.focusMeasure(globalIdx) }
+                                                    { vm.playMeasureSingle(globalIdx) }
                                                 }
                                                 MeasureCardCompact(
                                                     measure = measure,
@@ -345,10 +345,6 @@ private fun MeasureCardCompact(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HandPlayPill("MG", PinkChords)
-                    HandPlayPill("MD", CyanMelody)
-                }
             }
             // Right-hand notes (cyan, top row)
             NotesRow(measure.melodyNotes, color = CyanMelody)
@@ -373,8 +369,7 @@ private fun NotesRow(notes: List<NoteEvent>, color: Color) {
         notes
             .sortedBy { it.startTime }
             .map { noteName(it.pitch) }
-            .distinct()
-            .take(4)
+            .take(8)
     }
     if (labels.isEmpty()) {
         Box(modifier = Modifier.fillMaxWidth().height(18.dp))
@@ -479,21 +474,6 @@ private fun BeatStrip(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun HandPlayPill(label: String, color: Color) {
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .border(1.dp, color.copy(alpha = 0.5f), CircleShape)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Icon(Icons.Default.PlayArrow, null, tint = color, modifier = Modifier.size(10.dp))
-        Text(label, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 

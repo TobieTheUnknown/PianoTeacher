@@ -544,7 +544,7 @@ fun LearningScreen(
                                 .fillMaxWidth()
                                 .height(if (isLandscape) 180.dp else 280.dp)
                                 .clickable {
-                                    vm.focusMeasure(measure.globalIndex)
+                                    vm.playMeasureSingle(measure.globalIndex)
                                 }
                         ) {
                             // Compact measure-number header (replaces the

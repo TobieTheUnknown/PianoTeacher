@@ -465,13 +465,15 @@ const MeasureCard = React.memo(function MeasureCard({
         return Math.max(0, Math.min(1, (t - measureStartUnits) / unitsPerMeasure));
     });
 
-    // Unique pitch labels (deduped)
-    const rightLabels = [...new Set(sortedMelody.map(n => n.pitch))]
-        .slice(0, isMobile ? 4 : 6)
-        .map(p => displayNoteName(p, keySignature));
-    const leftLabels = [...new Set((measure.chords || []).map(n => n.pitch))]
-        .slice(0, isMobile ? 4 : 6)
-        .map(p => displayNoteName(p, keySignature));
+    // Pitch labels in playback order — keep duplicates so a run like
+    // "la si do la" shows all four notes, not three.
+    const rightLabels = sortedMelody
+        .slice(0, isMobile ? 8 : 12)
+        .map(n => displayNoteName(n.pitch, keySignature));
+    const leftLabels = [...(measure.chords || [])]
+        .sort((a, b) => a.startTime - b.startTime)
+        .slice(0, isMobile ? 8 : 12)
+        .map(n => displayNoteName(n.pitch, keySignature));
 
     return (
         <div onClick={() => onPlay(measure, 'both')} style={cardStyle}>
@@ -514,8 +516,6 @@ const MeasureCard = React.memo(function MeasureCard({
                             whiteSpace: 'nowrap',
                         }}>{chordName}</span>
                     )}
-                    <MeasurePlayButton hand="left" onClick={(e) => { e.stopPropagation(); onPlay(measure, 'left'); }} />
-                    <MeasurePlayButton hand="right" onClick={(e) => { e.stopPropagation(); onPlay(measure, 'right'); }} />
                 </div>
             </div>
 
@@ -616,33 +616,6 @@ const MeasureCard = React.memo(function MeasureCard({
         </div>
     );
 });
-
-// Compact play button for the right-hand / left-hand quick-play next to chord chip
-function MeasurePlayButton({ hand, onClick }) {
-    const isRight = hand === 'right';
-    const color = isRight ? 'var(--hand-right)' : 'var(--hand-left)';
-    const border = isRight ? 'var(--hand-right-border)' : 'var(--hand-left-border)';
-    return (
-        <button
-            onClick={onClick}
-            title={isRight ? 'Jouer main droite' : 'Jouer main gauche'}
-            style={{
-                fontFamily: 'inherit',
-                fontSize: 9,
-                fontWeight: 700,
-                color,
-                background: 'transparent',
-                border: `1px solid ${border}`,
-                borderRadius: 'var(--r-sm)',
-                padding: '2px 5px',
-                cursor: 'pointer',
-                letterSpacing: '0.02em',
-            }}
-        >
-            ▶ {isRight ? 'MD' : 'MG'}
-        </button>
-    );
-}
 
 // ── TipCard (memoized) ────────────────────────────────────────────────────────
 

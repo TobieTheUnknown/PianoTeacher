@@ -152,6 +152,26 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     useEffect(() => { loopRef.current = loop; }, [loop]);
     useEffect(() => { loopRangeRef.current = loopRange; }, [loopRange]);
 
+    // Tap a measure → position the playhead at it AND play that single
+    // measure as a preview. Subsequent Play picks up from currentMeasure.
+    const handleMeasureClick = useCallback(async (measureNumber) => {
+        const idx = measureNumber - 1;
+        if (idx < 0 || idx >= measures.length) return;
+        await audioEngine.initialize();
+        if (playing) {
+            audioEngine.stop();
+            audioEngine.stopMetronome();
+            setPlaying(false);
+        }
+        setCurrentMeasure(measureNumber);
+        const m = measures[idx];
+        const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
+        let notes = [];
+        if (handMode !== 'left') notes = notes.concat(m.melodyNotes);
+        if (handMode !== 'right') notes = notes.concat(m.chordNotes);
+        if (notes.length > 0) audioEngine.playNotes(notes, tempo);
+    }, [measures, playing, song, speed, handMode]);
+
     const handlePlayPause = useCallback(async () => {
         await audioEngine.initialize();
         if (playing) {
@@ -367,6 +387,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                             measureProgress={measureProgress}
                             isPlaying={playing}
                             isMobile={isMobile}
+                            onMeasureClick={handleMeasureClick}
                         />
                     ))}
                 </div>
@@ -428,7 +449,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 function SheetSystem({
     systemIndex, systemSize, measures, beatsPerMeasure,
     useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure,
-    measureProgress = 0, isPlaying = false, isMobile,
+    measureProgress = 0, isPlaying = false, isMobile, onMeasureClick,
 }) {
     return (
         <div style={{
@@ -458,6 +479,7 @@ function SheetSystem({
                         isLast={i === measures.length - 1}
                         flex={i === 0 ? '1.4 1 0' : '1 1 0'}
                         height={isMobile ? 130 : 220}
+                        onClick={onMeasureClick ? () => onMeasureClick(globalIdx) : undefined}
                     />
                 );
             })}
@@ -468,7 +490,7 @@ function SheetSystem({
 function SystemMeasure({
     measureData, measureNumber, showClefs, beatsPerMeasure, useFlats,
     upperShift, lowerShift, keySig, handMode, isCurrent, playheadFrac,
-    isLast, flex, height,
+    isLast, flex, height, onClick,
 }) {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
@@ -538,6 +560,7 @@ function SystemMeasure({
     return (
         <div
             ref={containerRef}
+            onClick={onClick}
             style={{
                 flex,
                 minWidth: 0,
@@ -545,6 +568,7 @@ function SystemMeasure({
                 background: 'transparent',
                 borderRight: isLast ? 'none' : '1px solid var(--border)',
                 position: 'relative',
+                cursor: onClick ? 'pointer' : 'default',
             }}
         >
             <canvas ref={canvasRef} style={{ display: 'block' }} />
