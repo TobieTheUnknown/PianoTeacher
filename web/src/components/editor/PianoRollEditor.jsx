@@ -32,7 +32,6 @@ export function PianoRollEditor({
     onAddNote,
     onRemoveNote,
     onUpdateNote,
-    // eslint-disable-next-line no-unused-vars
     onUpdatePhraseLength,
 
     // UI state

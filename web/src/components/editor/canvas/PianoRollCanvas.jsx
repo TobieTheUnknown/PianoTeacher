@@ -50,7 +50,6 @@ const PianoRollCanvas = memo(({
     beatsPerMeasure = 4,
 
     // State
-    playbackPosition = 0, // used only for non-animation reads (paste, etc.)
     positionRef = null,    // ref updated every frame for smooth animation
     isPlaying = false,
     gridSize = 0.25,

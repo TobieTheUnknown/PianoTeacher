@@ -60,19 +60,19 @@ fun EditorScreen(
                 // Header
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = TextPrimary)
                     }
                     Column {
                         Text(
                             "Éditeur",
-                            color = Color.White,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp,
                             letterSpacing = (-0.02).sp,
                         )
                         Text(
                             song?.title ?: songId,
-                            color = Color(0xFF6B7280),
+                            color = TextTertiary,
                             fontSize = 11.sp,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                         )
@@ -93,7 +93,7 @@ fun EditorScreen(
                         item {
                             Text(
                                 "PHRASES",
-                                color = Color(0xFF6B7280),
+                                color = TextTertiary,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.08.sp,
@@ -173,7 +173,7 @@ private fun PhraseCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(SurfaceVariant)
-            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(12.dp))
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -185,13 +185,13 @@ private fun PhraseCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     name,
-                    color = Color.White,
+                    color = TextPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                 )
                 Text(
                     "$length mesures",
-                    color = Color(0xFF94A3B8),
+                    color = TextSecondary,
                     fontSize = 11.sp,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                 )
@@ -205,7 +205,7 @@ private fun PhraseCard(
                     Icon(
                         Icons.Default.ContentCut,
                         contentDescription = "Découper",
-                        tint = if (length > 1) IndigoAccent else Color(0xFF334155),
+                        tint = if (length > 1) IndigoAccent else TextMuted,
                     )
                 }
                 IconButton(
@@ -216,7 +216,7 @@ private fun PhraseCard(
                     Icon(
                         Icons.Default.MergeType,
                         contentDescription = "Recoller avec précédente",
-                        tint = if (canMerge) Color(0xFFA8AEBD) else Color(0xFF334155),
+                        tint = if (canMerge) TextSecondary else TextMuted,
                     )
                 }
             }
@@ -331,8 +331,8 @@ private fun PhrasePreview(
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x06FFFFFF))
-            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(8.dp))
+            .background(Hairline)
+            .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
     ) {
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
@@ -341,7 +341,7 @@ private fun PhrasePreview(
             for (m in 1 until length) {
                 val x = w * m / length
                 drawRect(
-                    color = Color(0x18FFFFFF),
+                    color = BorderStrong,
                     topLeft = Offset(x - 0.5f, 6f),
                     size = Size(1f, h - 12f),
                 )
@@ -355,7 +355,7 @@ private fun PhrasePreview(
                 val x = (n.startTime.toFloat() / totalBeats) * w
                 if (x in 0f..w) {
                     drawCircle(
-                        color = Color(0xFF22D3EE),
+                        color = HandRight,
                         radius = 3f,
                         center = Offset(x, topRowY),
                     )
@@ -365,7 +365,7 @@ private fun PhrasePreview(
                 val x = (n.startTime.toFloat() / totalBeats) * w
                 if (x in 0f..w) {
                     drawCircle(
-                        color = Color(0xFFEC4899),
+                        color = HandLeft,
                         radius = 3f,
                         center = Offset(x, botRowY),
                     )
@@ -393,7 +393,7 @@ private fun PhrasePreview(
                 Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Text(
                         "${m + 1}",
-                        color = Color(0xFF475569),
+                        color = TextMuted,
                         fontSize = 9.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                         modifier = Modifier
@@ -415,10 +415,10 @@ private fun StepperBtn(label: String, enabled: Boolean, onClick: () -> Unit) {
             .size(36.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(SurfaceVariant)
-            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(6.dp))
+            .border(1.dp, BorderColor, RoundedCornerShape(6.dp))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = Color(0xFFA8AEBD), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(label, color = TextSecondary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }

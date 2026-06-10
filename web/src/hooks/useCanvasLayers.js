@@ -54,7 +54,7 @@ export const useCanvasLayers = (width, height, { forceDpr } = {}) => {
     ctx.imageSmoothingEnabled = false;
 
     return ctx;
-  }, []);
+  }, [forceDpr]);
 
   // Mark as mounted after first render
   useEffect(() => {
@@ -117,7 +117,7 @@ export const useCanvasLayers = (width, height, { forceDpr } = {}) => {
 
     // Marquer comme à jour
     needsRedrawRef.current[layerName] = false;
-  }, []);
+  }, [forceDpr]);
 
   // Clear un layer spécifique
   const clearLayer = useCallback((layerName) => {

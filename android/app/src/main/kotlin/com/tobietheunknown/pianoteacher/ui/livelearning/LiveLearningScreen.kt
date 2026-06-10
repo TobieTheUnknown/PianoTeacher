@@ -42,22 +42,24 @@ import com.tobietheunknown.pianoteacher.ui.theme.*
 // File-level color palette: hoisted out of Canvas DrawScope to avoid per-frame
 // allocations. Without this, each Color() literal inside the per-note forEach
 // allocates ~60×/sec per dot × ~30 dots × 4 cards ≈ 7k Color objects/sec.
-private val LL_LABEL_GRAY = Color(0xFF6B7280)
-private val LL_MUTED_LABEL = Color(0xFFA8AEBD)
+private val IndigoAccentRaw = Color(0xFF6366F1)
+private val LL_LABEL_GRAY = TextTertiary
+private val LL_MUTED_LABEL = TextSecondary
 private val LL_BEAT_DIV_DIM = Color(0x33FFFFFF)
 private val LL_BEAT_DIV_BRIGHT = Color(0x40FFFFFF)
-private val LL_MELODY_GLOW = Color(0x4022D3EE)
-private val LL_MELODY_BRIGHT = Color(0xFF22D3EE)
-private val LL_CHORD_GLOW = Color(0x40EC4899)
-private val LL_CHORD_BRIGHT = Color(0xFFEC4899)
-private val LL_PLAYHEAD_GLOW = Color(0x336366F1)
-private val LL_PLAYHEAD_CORE = Color(0xFF6366F1)
+// Hand colors routed through design tokens (default classic preset).
+private val LL_MELODY_BRIGHT = Tokens.HandRight
+private val LL_MELODY_GLOW = Tokens.HandRight.copy(alpha = 0.25f)
+private val LL_CHORD_BRIGHT = Tokens.HandLeft
+private val LL_CHORD_GLOW = Tokens.HandLeft.copy(alpha = 0.25f)
+private val LL_PLAYHEAD_CORE = IndigoAccentRaw
+private val LL_PLAYHEAD_GLOW = IndigoAccentRaw.copy(alpha = 0.20f)
 private val LL_BG_DARK = Color(0xFF0F1218)
-private val LL_DIVIDER_GRAY = Color(0xFF334155)
-private val LL_ICON_GRAY = Color(0xFF94A3B8)
-private val LL_KEY_WHITE = Color(0xFFE8EAF0)
-private val LL_KEY_WHITE_SHADOW = Color(0xFFCBD0D8)
-private val LL_KEY_BLACK = Color(0xFF1A1D24)
+private val LL_DIVIDER_GRAY = TextMuted
+private val LL_ICON_GRAY = TextSecondary
+private val LL_KEY_WHITE = KeyWhite
+private val LL_KEY_WHITE_SHADOW = KeyWhiteShadow
+private val LL_KEY_BLACK = KeyBlack
 
 private val NOTE_NAMES = arrayOf("Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
 private fun noteName(pitch: Int): String = NOTE_NAMES[((pitch % 12) + 12) % 12]
@@ -128,12 +130,12 @@ fun LiveLearningScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = TextPrimary)
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             song?.title ?: "Sans titre",
-                            color = Color.White,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp,
                             letterSpacing = (-0.02).sp,
@@ -321,8 +323,8 @@ private fun MeasureCardCompact(
     modifier: Modifier = Modifier,
     measureDurationMs: Long = 2000L,
 ) {
-    val border = if (isCurrent) IndigoAccent else Color(0x14FFFFFF)
-    val bg = if (isCurrent) Color(0x14346FCF) else SurfaceVariant
+    val border = if (isCurrent) IndigoAccent else BorderColor
+    val bg = if (isCurrent) IndigoAccent.copy(alpha = 0.08f) else SurfaceVariant
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))

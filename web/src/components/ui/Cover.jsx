@@ -16,7 +16,7 @@ const COVER_GRADIENTS = {
 };
 
 /** Stable gradient picker — same id always → same gradient. */
-export function gradientForId(id) {
+function gradientForId(id) {
     if (!id) return COVER_GRADIENTS['gradient-1'];
     if (COVER_GRADIENTS[id]) return COVER_GRADIENTS[id];
     // Hash any string id to one of 8 gradients

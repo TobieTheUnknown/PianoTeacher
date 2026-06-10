@@ -17,8 +17,8 @@ data class ThemeColors(
     val accent: Color,
     val melodyColor: Color,
     val chordsColor: Color,
-    val textPrimary: Color = Color.White,
-    val textSecondary: Color = Color(0xFF94A3B8)
+    val textPrimary: Color = Tokens.TextPrimary,
+    val textSecondary: Color = Tokens.TextSecondary,
 )
 
 // Bases — ported pixel-fidelity from src/styles/tokens.css.

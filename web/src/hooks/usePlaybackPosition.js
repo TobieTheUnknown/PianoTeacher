@@ -16,10 +16,6 @@ export function usePlaybackPosition() {
     const positionRef = useRef(0);
     const animationFrameRef = useRef(null);
     const wasPlayingRef = useRef(false);
-    const lastStateUpdateRef = useRef(0);
-
-    // How often to sync state for UI display (ms) - infrequent to avoid re-renders
-    const STATE_SYNC_INTERVAL = 500;
 
     // Poll for play/stop changes at low frequency (4Hz) when idle
     // Switch to RAF (60fps) only while playing for smooth playhead

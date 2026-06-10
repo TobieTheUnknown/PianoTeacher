@@ -70,14 +70,14 @@ fun LibraryScreen(
                         Text(
                             "Bibliothèque",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = TextPrimary,
                             fontSize = 20.sp
                         )
                         val phraseCount = songs.count { it.phrases.isNotEmpty() }
                         Text(
                             "${songs.size} morceaux · $phraseCount avec phrases",
                             fontSize = 11.sp,
-                            color = Color(0xFF94A3B8),
+                            color = TextSecondary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                         )
                     }
@@ -88,7 +88,7 @@ fun LibraryScreen(
                         Icon(Icons.Default.Add, "Importer", tint = CyanMelody)
                     }
                     IconButton(onClick = onSettings) {
-                        Icon(Icons.Default.Settings, "Réglages", tint = Color(0xFF94A3B8))
+                        Icon(Icons.Default.Settings, "Réglages", tint = TextSecondary)
                     }
                 }
             )
@@ -205,14 +205,14 @@ private fun SongDetailSheet(
                     Text(
                         song.title,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = TextPrimary,
                         fontSize = 18.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         if (song.artist.isNotBlank()) song.artist else "Artiste inconnu",
-                        color = Color(0xFF94A3B8),
+                        color = TextSecondary,
                         fontSize = 13.sp,
                     )
                 }
@@ -224,8 +224,8 @@ private fun SongDetailSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x06FFFFFF))
-                    .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(10.dp))
+                    .background(Hairline)
+                    .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
                     .height(IntrinsicSize.Min)
                     .padding(vertical = 10.dp),
             ) {
@@ -294,7 +294,7 @@ private fun SongDetailSheet(
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
             ) {
-                Text("Annuler", color = Color(0xFF94A3B8))
+                Text("Annuler", color = TextSecondary)
             }
         }
     }
@@ -309,14 +309,14 @@ private fun SheetStat(label: String, value: String, modifier: Modifier = Modifie
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 value,
-                color = Color.White,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
             )
             suffix?.let {
                 Text(
                     it,
-                    color = Color(0xFF94A3B8),
+                    color = TextSecondary,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(start = 3.dp, bottom = 3.dp),
                 )
@@ -324,7 +324,7 @@ private fun SheetStat(label: String, value: String, modifier: Modifier = Modifie
         }
         Text(
             label,
-            color = Color(0xFF94A3B8),
+            color = TextSecondary,
             fontSize = 10.sp,
             letterSpacing = 0.06.sp,
         )
@@ -337,7 +337,7 @@ private fun SheetDivider() {
         modifier = Modifier
             .width(1.dp)
             .fillMaxHeight()
-            .background(Color(0x14FFFFFF)),
+            .background(BorderColor),
     )
 }
 
@@ -383,10 +383,10 @@ private fun ActionBtn(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(if (primary) IndigoAccent else Color(0x12FFFFFF))
+            .background(if (primary) IndigoAccent else Surface2)
             .border(
                 1.dp,
-                if (primary) IndigoAccent else Color(0x14FFFFFF),
+                if (primary) IndigoAccent else BorderColor,
                 RoundedCornerShape(10.dp),
             )
             .clickable(onClick = onClick)
@@ -399,13 +399,13 @@ private fun ActionBtn(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (primary) Color.White else Color(0xFFE8EAF0),
+                tint = if (primary) Color.White else TextPrimary,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 label,
-                color = if (primary) Color.White else Color(0xFFE8EAF0),
+                color = if (primary) Color.White else TextPrimary,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
             )
@@ -443,7 +443,7 @@ private fun SongCard(
                 Text(
                     text = song.title,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -451,7 +451,7 @@ private fun SongCard(
                 Text(
                     text = if (song.artist.isNotBlank()) song.artist else "Artiste inconnu",
                     fontSize = 12.sp,
-                    color = Color(0xFF94A3B8),
+                    color = TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -466,7 +466,7 @@ private fun SongCard(
                     )
                     Text(
                         "${song.tempo} BPM",
-                        color = Color(0xFF94A3B8),
+                        color = TextSecondary,
                         fontSize = 11.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
@@ -489,10 +489,10 @@ private fun MetaChip(label: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(Hairline)
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
-        Text(label, fontSize = 11.sp, color = Color(0xFF94A3B8))
+        Text(label, fontSize = 11.sp, color = TextSecondary)
     }
 }
 
@@ -514,7 +514,7 @@ private fun ImportBanner(state: ImportState, onDismiss: () -> Unit) {
     ) {
         Text(text, color = Color.White, fontSize = 14.sp)
         if (state !is ImportState.Loading) {
-            TextButton(onClick = onDismiss) { Text("OK", color = Color(0xFF94A3B8)) }
+            TextButton(onClick = onDismiss) { Text("OK", color = TextSecondary) }
         }
     }
 }
@@ -530,14 +530,14 @@ private fun EmptyLibrary(onImport: () -> Unit) {
             Icons.Default.MusicNote,
             null,
             modifier = Modifier.size(64.dp),
-            tint = Color(0xFF334155)
+            tint = TextMuted
         )
         Spacer(Modifier.height(16.dp))
-        Text("Bibliothèque vide", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+        Text("Bibliothèque vide", color = TextTertiary, fontWeight = FontWeight.Medium)
         Text(
             "Importe un fichier .mid ou .json",
             fontSize = 13.sp,
-            color = Color(0xFF475569)
+            color = TextMuted
         )
         Spacer(Modifier.height(24.dp))
         Button(

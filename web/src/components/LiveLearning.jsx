@@ -422,7 +422,7 @@ function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, key
 const MeasureCard = React.memo(function MeasureCard({
     measure, keySignature, isHighlighted, onToggleHighlight, onPlay,
     showDetails, displayNoteName, expandedChordReps, onToggleChordRep,
-    isMelodyExpanded, onToggleMelodyExpand, isMobile, handColors,
+    isMobile, handColors,
     isCurrent = false, isPlaying = false,
     // Real measure duration in seconds. Drives the beat-fill animation so
     // the progress bar lines up with audio (start of fill = start of
@@ -665,8 +665,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const [currentBPM, setCurrentBPM] = useState(song?.tempo || 120);
     const [isLooping, setIsLooping] = useState(false);
     const [selectedPhraseIndex, setSelectedPhraseIndex] = useState('');
-    const [customRangeStart, setCustomRangeStart] = useState('');
-    const [customRangeEnd, setCustomRangeEnd] = useState('');
     const [loopConfig, setLoopConfig] = useState(null);
     const [playingMeasure, setPlayingMeasure] = useState(-1);
     const [isMetronomeOn, setIsMetronomeOn] = useState(false);
@@ -690,8 +688,9 @@ export function LiveLearning({ song, onToggleHighlight }) {
         return themeService.addListener(update);
     }, []);
 
-    // Reset BPM when song changes
+    // Reset BPM when song changes — intentional sync from prop, not a cascade
     useEffect(() => {
+        /* eslint-disable-next-line react-hooks/set-state-in-effect */
         if (song?.tempo) setCurrentBPM(song.tempo);
     }, [song?.tempo]);
 
@@ -945,15 +944,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
         }
     }, [isPlaying, combinedPhrase, analysis, focusedMeasure, playbackHand, currentBPM, isLooping, loopConfig, isMetronomeOn, metronomeSubdivision, startPlaybackTracking]);
 
-    const handleStop = useCallback(() => {
-        audioEngine.stop();
-        audioEngine.stopMetronome();
-        if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
-        setIsPlaying(false);
-        setPlayingMeasure(-1);
-        playingMeasureRef.current = -1;
-    }, []);
-
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -983,22 +973,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
             }
         }
     }, [phraseMeasureRanges]);
-
-    const handleCustomRangeLoop = useCallback(() => {
-        const start = parseInt(customRangeStart);
-        const end = parseInt(customRangeEnd);
-        if (start && end && start <= end) {
-            setLoopConfig({ startMeasure: start, endMeasure: end });
-            setFocusedMeasure(start);
-        }
-    }, [customRangeStart, customRangeEnd]);
-
-    const handleClearLoop = useCallback(() => {
-        setLoopConfig(null);
-        setSelectedPhraseIndex('');
-        setCustomRangeStart('');
-        setCustomRangeEnd('');
-    }, []);
 
     // Auto-scroll to focused/playing measure card
     useEffect(() => {

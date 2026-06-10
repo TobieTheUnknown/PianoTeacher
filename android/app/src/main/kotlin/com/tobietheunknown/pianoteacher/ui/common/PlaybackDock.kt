@@ -111,7 +111,7 @@ fun PlaybackDock(
 private fun HandPill(handMode: HandMode, onHandMode: (HandMode) -> Unit) {
     Surface(
         color = SurfaceVariant,
-        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+        border = BorderStroke(1.dp, BorderColor),
         shape = RoundedCornerShape(50)
     ) {
         Row(
@@ -143,7 +143,7 @@ private fun HandSegment(label: String, active: Boolean, activeColor: Color, onCl
             label,
             fontSize = 10.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = if (active) Color.White else Color(0xFF64748B)
+            color = if (active) TextPrimary else TextTertiary
         )
     }
 }
@@ -154,20 +154,20 @@ private fun SpeedCluster(speed: Int, onSpeed: (Int) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Icon(Icons.Default.Speed, null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+        Icon(Icons.Default.Speed, null, tint = TextTertiary, modifier = Modifier.size(14.dp))
         Row {
             Text(
                 "$speed",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 fontFamily = FontFamily.Monospace
             )
             Text(
                 "%",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF64748B),
+                color = TextTertiary,
                 fontFamily = FontFamily.Monospace
             )
         }
@@ -185,12 +185,12 @@ private fun PixelBtn(label: String, enabled: Boolean, onClick: () -> Unit) {
             .size(24.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(SurfaceVariant)
-            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(6.dp))
+            .border(1.dp, BorderColor, RoundedCornerShape(6.dp))
             .alpha(if (enabled) 1f else 0.3f)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
     }
 }
 
@@ -201,11 +201,11 @@ private fun TransportBtn(onClick: () -> Unit, icon: ImageVector) {
             .size(40.dp)
             .clip(CircleShape)
             .background(SurfaceVariant)
-            .border(1.dp, Color(0x14FFFFFF), CircleShape)
+            .border(1.dp, BorderColor, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -235,14 +235,14 @@ private fun ToggleIconBtn(active: Boolean, onClick: () -> Unit, icon: ImageVecto
             .size(40.dp)
             .clip(CircleShape)
             .background(if (active) IndigoAccent.copy(alpha = 0.16f) else SurfaceVariant)
-            .border(1.dp, if (active) IndigoAccent else Color(0x14FFFFFF), CircleShape)
+            .border(1.dp, if (active) IndigoAccent else BorderColor, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon,
             null,
-            tint = if (active) IndigoAccent else Color(0xFF64748B),
+            tint = if (active) IndigoAccent else TextTertiary,
             modifier = Modifier.size(18.dp)
         )
     }
@@ -269,13 +269,13 @@ private fun LoopActiveStrip(range: IntRange, onClick: () -> Unit) {
                 Text("BOUCLE ACTIVE", color = IndigoAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${range.first}", color = Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text(" → ", color = Color(0xFF64748B), fontFamily = FontFamily.Monospace, fontSize = 13.sp)
-                Text("${range.last}", color = Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("${range.first}", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(" → ", color = TextTertiary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+                Text("${range.last}", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Modifier", color = Color(0xFF64748B), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(11.dp))
+                Text("Modifier", color = TextTertiary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Default.KeyboardArrowDown, null, tint = TextTertiary, modifier = Modifier.size(11.dp))
             }
         }
     }
@@ -294,7 +294,7 @@ private fun LoopRangeEditor(
 
     Surface(
         color = Surface,
-        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+        border = BorderStroke(1.dp, BorderColor),
         shape = RoundedCornerShape(10.dp),
         shadowElevation = 12.dp,
         modifier = Modifier.fillMaxWidth(),
@@ -308,9 +308,9 @@ private fun LoopRangeEditor(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("PLAGE DE BOUCLE", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("PLAGE DE BOUCLE", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 IconButton(onClick = onClose, modifier = Modifier.size(22.dp)) {
-                    Icon(Icons.Default.Close, null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Close, null, tint = TextTertiary, modifier = Modifier.size(14.dp))
                 }
             }
             if (phrases.isNotEmpty()) {
@@ -325,7 +325,7 @@ private fun LoopRangeEditor(
                     onChange = { v -> onChange(v..to) },
                     modifier = Modifier.weight(1f),
                 )
-                Text("→", color = Color(0xFF64748B))
+                Text("→", color = TextTertiary)
                 RangeStepper(
                     label = "À",
                     value = to,
@@ -358,14 +358,14 @@ private fun PhrasePicker(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Phrase", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+        Text("Phrase", fontSize = 10.sp, color = TextTertiary, fontWeight = FontWeight.SemiBold)
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },
         ) {
             Surface(
                 color = SurfaceVariant,
-                border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+                border = BorderStroke(1.dp, BorderColor),
                 shape = RoundedCornerShape(6.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -380,13 +380,13 @@ private fun PhrasePicker(
                 ) {
                     Text(
                         display,
-                        color = if (matchIdx >= 0) IndigoAccent else Color(0xFF94A3B8),
+                        color = if (matchIdx >= 0) IndigoAccent else TextSecondary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Icon(
                         Icons.Default.KeyboardArrowDown, null,
-                        tint = Color(0xFF94A3B8),
+                        tint = TextSecondary,
                         modifier = Modifier.size(16.dp),
                     )
                 }
@@ -428,10 +428,10 @@ private fun RangeStepper(
     var draft by remember(value, editing) { mutableStateOf(value.toString()) }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = 10.sp, color = TextTertiary, fontWeight = FontWeight.SemiBold)
         Surface(
             color = SurfaceVariant,
-            border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+            border = BorderStroke(1.dp, BorderColor),
             shape = RoundedCornerShape(6.dp),
         ) {
             Row(

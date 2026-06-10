@@ -95,7 +95,7 @@ export function useMidiAudio() {
             // Resume context if the gesture listener was registered after
             // a non-gesture path resumed it (defensive — usually a no-op).
             if (Tone.context.state !== 'running') {
-                try { await Tone.start(); } catch (_) {}
+                try { await Tone.start(); } catch { /* audio context resume failed */ }
             }
 
             try {
@@ -155,7 +155,7 @@ export function useMidiAudio() {
                 heldByPedal.current.forEach((midi) => {
                     try {
                         audioEngine.sampler.triggerRelease(getNoteNameFromMidi(midi), now);
-                    } catch (_) {}
+                    } catch { /* note already released */ }
                 });
                 heldByPedal.current.clear();
             }

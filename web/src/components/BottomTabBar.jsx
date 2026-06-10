@@ -21,7 +21,8 @@ export function BottomTabBar({ activeMode, onChangeMode, visible = true, onOpenS
 
   return (
     <nav className={styles.tabBar}>
-      {TABS.map(({ id, label, Icon }) => {
+      {TABS.map((tab) => {
+        const { id, label, Icon } = tab;
         const isActive = id === 'settings'
           ? false // Settings is never "active" as a mode
           : activeMode === id;

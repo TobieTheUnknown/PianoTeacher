@@ -18,8 +18,6 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
     }, []);
 
     useEffect(() => {
-        // Initial data load - setState here is intentional and necessary
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadSongs();
     }, [loadSongs]);
 

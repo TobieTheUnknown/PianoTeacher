@@ -42,10 +42,6 @@ export function LivePlayMobileOverlay({
   setIsMetronomeOn,
   metronomeSubdivision = 'quarter',
   setMetronomeSubdivision,
-  visualEffects,
-  setVisualEffects,
-  waitMode,
-  setWaitMode,
   hideDock = false,
 }) {
   const [visible, setVisible] = useState(true);
@@ -61,7 +57,8 @@ export function LivePlayMobileOverlay({
   }, [isPlaying]);
 
   useEffect(() => {
-    resetHideTimer();
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    resetHideTimer(); // intentionally resets visible state on play/pause
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };

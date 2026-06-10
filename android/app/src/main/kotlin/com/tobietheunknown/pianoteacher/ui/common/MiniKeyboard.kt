@@ -27,20 +27,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tobietheunknown.pianoteacher.ui.theme.CyanMelody
-import com.tobietheunknown.pianoteacher.ui.theme.PinkChords
+import com.tobietheunknown.pianoteacher.ui.theme.*
 
 // File-level palette: hoisted out of the Canvas DrawScope so we don't
-// allocate Color objects on every frame.
+// allocate Color objects on every frame. Routed through design tokens.
 private val MK_BG_DARK = Color(0xFF0F1218)
-private val MK_BORDER = Color(0x14FFFFFF)
-private val MK_LABEL_GRAY = Color(0xFF6B7280)
-private val MK_DIVIDER_GRAY = Color(0xFF334155)
-private val MK_ICON_GRAY = Color(0xFF94A3B8)
-private val MK_KEY_WHITE = Color(0xFFE8EAF0)
-private val MK_KEY_WHITE_SHADOW = Color(0xFFCBD0D8)
-private val MK_KEY_BLACK = Color(0xFF1A1D24)
-private val MK_KEY_BORDER = Color(0xFF0A0C10)
+private val MK_BORDER = BorderColor
+private val MK_LABEL_GRAY = TextTertiary
+private val MK_DIVIDER_GRAY = TextMuted
+private val MK_ICON_GRAY = TextSecondary
+private val MK_KEY_WHITE = KeyWhite
+private val MK_KEY_WHITE_SHADOW = KeyWhiteShadow
+private val MK_KEY_BLACK = KeyBlack
+private val MK_KEY_BORDER = TokenBackground
 
 private val NOTE_NAMES_FR = arrayOf(
     "Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"

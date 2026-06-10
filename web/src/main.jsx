@@ -16,7 +16,7 @@ try {
   document.documentElement.setAttribute('data-theme', theme);
   document.documentElement.setAttribute('data-accent', accent);
   document.documentElement.setAttribute('data-hands', hands);
-} catch (_) { /* localStorage may be unavailable on first paint */ }
+} catch { /* localStorage may be unavailable on first paint */ }
 
 // Initialiser les préférences de typographie
 try {
@@ -28,20 +28,19 @@ try {
   if (savedFontFamily) {
     document.documentElement.style.setProperty('--font-family', savedFontFamily);
   }
-} catch (err) {
-  // localStorage may not be available yet on some Android WebViews
-}
+} catch { /* localStorage not available yet on some Android WebViews */ }
 
 // Dynamic import sans top-level await (compatible es2020)
 const appImport = isMobilePlatform
   ? import('./AppMobile.jsx')
   : import('./AppDesktop.jsx');
 
-appImport.then(({ default: AppComponent }) => {
+appImport.then((module) => {
+  const App = module.default;
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <ErrorBoundary>
-        <AppComponent />
+        <App />
       </ErrorBoundary>
     </StrictMode>
   );

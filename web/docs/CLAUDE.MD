@@ -1,236 +1,139 @@
-# Piano Teacher - Project Documentation
+# Piano Teacher — Web App Documentation
 
-## Project Overview
+## Overview
 
-Piano Teacher is a web-based music education application that helps users learn piano pieces through phrase-based practice. The application allows users to build songs from individual musical phrases, import MIDI files, and practice with visual and audio feedback.
+Piano Teacher is a French-language piano learning app. Users import MIDI files, study songs phrase by phrase, and practice with real-time feedback.
 
-**Tagline**: "Maîtrisez vos morceaux, phrase par phrase" (Master your pieces, phrase by phrase)
+Tech stack: **React 19**, **Vite 7**, **Tone.js 15** (audio), **@tonejs/midi** (MIDI parse), LocalStorage persistence.
 
-## Tech Stack
+---
 
-- **Framework**: React 19.2.0
-- **Build Tool**: Vite 7.2.2
-- **Audio Engine**: Tone.js 15.1.22 (Unified Single Engine)
-- **MIDI Processing**: @tonejs/midi 2.0.28
-- **Styling**: CSS with CSS Custom Properties (CSS Variables)
-- **Storage**: Browser LocalStorage
-- **Language**: JavaScript (ES Modules)
+## Entry Points
+
+`src/main.jsx` selects the app shell at build time via `VITE_PLATFORM`:
+
+| `VITE_PLATFORM` | Shell | Target |
+|---|---|---|
+| *(unset / desktop)* | `AppDesktop.jsx` | Tauri desktop + browser |
+| `mobile` | `AppMobile.jsx` | Android WebView (Tauri mobile) |
+
+Both shells share the same pages and services; they differ only in layout chrome (top nav vs. bottom tab bar).
+
+---
+
+## Pages / Modes
+
+| Mode ID | Component | Description |
+|---|---|---|
+| `library` | `SongLibrary.jsx` | Browse, import, delete songs |
+| `editor` | `SongEditor.jsx` + `PianoRollEditor` | Note editing, phrase management |
+| `learn` | `LiveLearning.jsx` | Phrase-by-phrase practice (Apprentissage) |
+| `sheet` | `SheetMusicLearning.jsx` | Sheet music reading practice (Partition) |
+| `liveplay` | `LivePlayViewOptimized.jsx` | Synthesia falling-note view (LivePlay) |
+
+---
 
 ## Project Structure
 
 ```
-Piano/
-├── src/
-│   ├── components/          # React components
-│   │   ├── Layout.jsx       # Main layout wrapper with header/footer
-│   │   ├── PhraseBuilder.jsx # Component for building musical phrases
-│   │   ├── PianoRoll.jsx    # Visual piano roll interface
-│   │   ├── SongEditor.jsx   # Song composition and editing interface
-│   │   ├── SongLibrary.jsx  # Song management and library view
-│   │   └── SongViewer.jsx   # Practice/learning mode interface
-│   ├── models/
-│   │   └── song.js          # Song data model and schema
-│   ├── services/
-│   │   ├── AudioEngine.js   # Tone.js audio playback service
-│   │   ├── MidiService.js   # MIDI file import/export service
-│   │   └── StorageService.js # LocalStorage persistence layer
-│   ├── App.jsx              # Main application component
-│   ├── App.css              # Application styles
-│   ├── index.css            # Global styles and CSS variables
-│   ├── main.jsx             # Application entry point
-│   └── useSong.js           # Custom hook for song state management
-├── public/                  # Static assets
-├── index.html               # HTML entry point
-├── vite.config.js           # Vite configuration
-├── eslint.config.js         # ESLint configuration
-└── package.json             # Dependencies and scripts
-
+web/src/
+├── AppDesktop.jsx          # Desktop shell (top nav, sidebar)
+├── AppMobile.jsx           # Mobile shell (bottom tab bar)
+├── main.jsx                # Entry point — platform branch + theme init
+├── index.css               # Element resets & spacing; vars from tokens.css
+├── styles/
+│   └── tokens.css          # SOLE source of CSS design tokens (see below)
+├── components/
+│   ├── SongLibrary.jsx
+│   ├── SongEditor.jsx
+│   ├── LiveLearning.jsx
+│   ├── SheetMusicLearning.jsx
+│   ├── LivePlayViewOptimized.jsx
+│   ├── LivePlayCanvas.jsx  # Canvas renderer for falling notes
+│   ├── PianoRoll.jsx       # Compact inline piano roll (practice view)
+│   ├── editor/             # PianoRollEditor + canvas + controls
+│   ├── learn/              # Sub-components for LiveLearning
+│   └── ui/                 # Design primitives (Cover, Pill, HandBadge…)
+├── hooks/
+│   ├── usePlaybackPosition.js
+│   ├── useCanvasLayers.js
+│   ├── useMidiAudio.js
+│   └── …
+├── services/
+│   ├── AudioEngine.js      # Tone.js clock + Salamander sampler + metronome
+│   ├── MidiInputService.js # Web MIDI API — physical keyboard input
+│   ├── MidiService.js      # MIDI file import/export
+│   ├── StorageService.js   # LocalStorage CRUD for songs
+│   ├── ScoreService.js     # Practice score / accuracy tracking
+│   └── ThemeService.js     # data-theme/accent/hands attribute sync
+├── models/
+│   └── song.js             # Song/phrase/note schema + helpers
+└── utils/
+    └── sheetMusic.js       # Sheet music layout helpers
 ```
 
-## Application Architecture
+---
 
-### Three Main Modes
+## Design Tokens
 
-1. **Bibliothèque (Library)**: Browse and manage saved songs
-2. **Éditeur (Editor)**: Create and edit songs with phrase-based composition
-3. **Apprentissage (Learning)**: Practice mode for learning songs
+`src/styles/tokens.css` is the **single source of truth** for all CSS variables.
 
-### State Management
+Switches applied to `<html>` via `data-*` attributes:
 
-- Primary state management through `useSong` custom hook (src/useSong.js)
-- Handles song CRUD operations, phrase management, and note manipulation
-- Persistence layer through `StorageService` (LocalStorage)
+| Attribute | Values | Effect |
+|---|---|---|
+| `data-theme` | `dark` *(default)*, `light` | Background / surface / text palette |
+| `data-accent` | `blue` *(default)*, `violet`, `emerald`, `amber` | `--accent`, `--accent-hover`, `--accent-dim` |
+| `data-hands` | `classic` *(default)*, `ocean`, `forest`, `sunset`, `mono` | `--hand-right`, `--hand-left` |
 
-### Data Flow
+Key token families: `--bg`, `--surface-{1-3}`, `--text-*`, `--accent*`, `--hand-*`, `--border*`, `--r-*` (radius), `--t-*` (timing), `--s-*` (spacing).
 
-```
-User Input → App Component → useSong Hook → Song Model → StorageService → LocalStorage
-                    ↓
-          Child Components (Editor/Viewer/Library)
-                    ↓
-          Services (Audio/MIDI)
-```
+Compatibility aliases (`--bg-primary`, `--radius-md`, `--transition-fast` …) are re-exported in the same file so older components still work.
 
-## Key Features
+`main.jsx` imports `index.css` before `tokens.css`, so tokens.css always wins.
 
-- **Phrase-Based Composition**: Build songs from individual musical phrases
-- **MIDI Import**: Import existing MIDI files
-- **Visual Piano Roll**: Visual representation of notes and timing
-- **Unified Audio Engine**: High-quality piano samples (Salamander) with integrated Metronome
-- **Synthesia Mode**: 
-  - Falling notes visualization
-  - **Watch Mode**: Computer plays both hands automatically
-  - **Hand Separation**: Practice Left, Right, or Both hands
-  - **Wait Mode**: Flow pauses until correct note is hit
-- **Performance Tracking**: Score and accuracy stats for practice sessions
-- **LocalStorage Persistence**: Save and load songs locally
-- **Responsive UI**: Modern, gradient-based design with French localization
-
-## Development
-
-### Installation
-
-```bash
-npm install
-```
-
-### Available Scripts
-
-- `npm run dev` - Start development server (Vite)
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-
-### Development Server
-
-The dev server runs on Vite's default port (usually http://localhost:5173) with Hot Module Replacement (HMR).
-
-## Styling Conventions
-
-The application uses CSS custom properties for theming. Key variables include:
-- `--accent-primary` - Primary accent color
-- `--accent-secondary` - Secondary accent color
-- `--bg-tertiary` - Tertiary background color
-- `--border-color` - Border color
-- `--text-secondary` - Secondary text color
-
-Styles are primarily inline in components, with global styles in `index.css` and component-specific styles in `App.css`.
-
-## Code Patterns
-
-### Component Structure
-- Functional components with hooks
-- Props destructuring in function parameters
-- Inline styles for component-specific styling
-- French UI text and labels
-
-### State Management
-- Custom hooks for complex state logic (see `useSong.js`)
-- useState for component-local state
-- Props drilling for state sharing (no global state management library)
-
-### Naming Conventions
-- Components: PascalCase (e.g., `SongEditor`)
-- Hooks: camelCase with 'use' prefix (e.g., `useSong`)
-- Services: PascalCase with 'Service' suffix (e.g., `StorageService`)
-- Event handlers: 'handle' prefix (e.g., `handleLoadSong`)
+---
 
 ## Services
 
 ### AudioEngine.js
-Unified audio system managing all sound output:
-- **Tone.Sampler**: Loaded with Salamander Grand Piano samples for realistic sound
-- **Metronome**: MembraneSynth for timing click, with tempo control
-- **Playback**: Phrase and Note playback logic handling specific timings
-- **Cleanup**: Efficient resource management (stop/cancel)
+Tone.js wrapper — single audio clock for the whole app.
+- `Tone.Sampler` loaded with Salamander Grand Piano samples.
+- Integrated metronome (`MembraneSynth`).
+- `schedulePhrase()` pre-queues notes at exact Transport times.
+- `getMusicSeconds()` / `getIsActuallyPlaying()` for cross-component sync.
+
+### MidiInputService.js
+Web MIDI API wrapper for physical MIDI keyboard input. Emits `noteOn`, `noteOff`, `sustainPedal` events.
 
 ### MidiService.js
-Handles MIDI file operations:
-- Import MIDI files and convert to internal format
-- Parse MIDI data structure
-- Map MIDI notes to application data model
+MIDI file import: parses via `@tonejs/midi`, maps tracks to internal melody/chord format.
 
 ### StorageService.js
-Manages LocalStorage persistence:
-- Save/load songs
-- List all saved songs
-- Delete songs
-- Data serialization/deserialization
+LocalStorage CRUD. Saves songs as JSON; supports Tauri file-system export on desktop.
 
-## Data Models
+### ScoreService.js
+Accuracy tracking: correct/missed notes, streak, percentage score per session.
 
-### Song Structure (src/models/song.js)
-```javascript
-{
-  id: string,           // Unique identifier
-  title: string,        // Song title
-  artist: string,       // Artist name
-  tempo: number,        // BPM
-  phrases: [            // Array of phrases
-    {
-      id: string,       // Unique phrase identifier
-      name: string,     // Phrase name/label
-      notes: [          // Array of notes in phrase
-        {
-          pitch: string,    // Note name (e.g., "C4")
-          duration: number, // Note duration
-          time: number      // Start time
-        }
-      ]
-    }
-  ]
-}
-```
-
-## Testing
-
-Currently no automated testing is configured. Consider adding:
-- Vitest for unit testing
-- React Testing Library for component testing
-- Playwright or Cypress for E2E testing
-
-## Future Considerations
-
-- TypeScript migration (devDependencies already include @types/react)
-- React Compiler (see README.md note)
-- Backend integration for cloud storage
-- User authentication
-- Sharing capabilities
-- Mobile responsive improvements
-- Accessibility (ARIA labels, keyboard navigation)
-
-## Language and Localization
-
-The UI is currently in French:
-- "Bibliothèque" (Library)
-- "Éditeur" (Editor)
-- "Apprentissage" (Learning)
-
-Consider adding i18n if internationalization is needed.
-
-## Browser Compatibility
-
-Requires modern browser with:
-- ES Module support
-- LocalStorage
-- Web Audio API (for Tone.js)
-- CSS Custom Properties
-
-## Performance Notes
-
-- No code splitting currently implemented
-- Vite provides optimized production builds
-- Consider lazy loading components for larger applications
-- Audio engine initialization may have startup latency
-
-## Additional Files
-
-- `test_midi.js` - MIDI testing script in project root
-- `LaputaTwitch(2).mid` - Sample MIDI file for testing
+### ThemeService.js
+Reads/writes `data-theme`, `data-accent`, `data-hands` on `document.documentElement`. Uses a `MutationObserver` to notify listeners on change.
 
 ---
 
-**Last Updated**: 2025-12-20
-**Project Version**: 0.0.0
-**React Version**: 19.2.0
-**Vite Version**: 7.2.2
+## Packaging
+
+- **Web / Desktop**: Tauri (`src-tauri/`). `vite build` → Tauri bundles into a native app.
+- **Android**: Separate native Kotlin/Compose app in `../android/`. Not a WebView wrapper — it is a fully independent codebase with its own design token system.
+
+---
+
+## Development
+
+```bash
+npm install
+npm run dev        # Vite dev server (http://localhost:5173)
+npm run build      # Production build
+npm run lint       # ESLint
+```
+
+Set `VITE_PLATFORM=mobile` to develop the mobile shell in the browser.

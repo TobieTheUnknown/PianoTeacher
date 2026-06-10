@@ -322,7 +322,7 @@ fun LearningScreen(
                                 Text(
                                     song?.title ?: "",
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = TextPrimary,
                                     fontSize = 18.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -339,7 +339,7 @@ fun LearningScreen(
                                 Text(
                                     parts.joinToString("  ·  "),
                                     fontSize = 11.sp,
-                                    color = Color(0xFF94A3B8),
+                                    color = TextSecondary,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -348,7 +348,7 @@ fun LearningScreen(
                         },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = TextPrimary)
                             }
                         },
                         actions = {
@@ -367,7 +367,7 @@ fun LearningScreen(
                             TextButton(onClick = vm::toggleOctaves) {
                                 Text(
                                     "Oct",
-                                    color = if (showOctaves) IndigoAccent else Color(0xFF64748B),
+                                    color = if (showOctaves) IndigoAccent else TextTertiary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -375,7 +375,7 @@ fun LearningScreen(
                             TextButton(onClick = vm::toggleDetails) {
                                 Text(
                                     "Détails",
-                                    color = if (showDetails) IndigoAccent else Color(0xFF64748B),
+                                    color = if (showDetails) IndigoAccent else TextTertiary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -500,11 +500,11 @@ fun LearningScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.MusicOff, null, modifier = Modifier.size(48.dp), tint = Color(0xFF334155))
+                    Icon(Icons.Default.MusicOff, null, modifier = Modifier.size(48.dp), tint = TextMuted)
                     Spacer(Modifier.height(12.dp))
-                    Text("Aucune phrase trouvée", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                    Text("Aucune phrase trouvée", color = TextTertiary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
-                    Text("Supprime ce morceau et réimporte-le", fontSize = 12.sp, color = Color(0xFF475569))
+                    Text("Supprime ce morceau et réimporte-le", fontSize = 12.sp, color = TextMuted)
                 }
             }
 
@@ -561,7 +561,7 @@ fun LearningScreen(
                                     String.format("%02d", measure.globalIndex + 1),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isPlaying) IndigoAccent else Color(0xFF475569),
+                                    color = if (isPlaying) IndigoAccent else TextMuted,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 )
                                 if (isFocused || isPlaying) {
@@ -683,7 +683,7 @@ fun LearningScreen(
                 confirmButton = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { vm.deletePhrase(phraseIdx); showRenamePhraseDialog = null }, enabled = canDelete) {
-                            Text("Supprimer", color = if (canDelete) Color(0xFFEF4444) else Color(0xFF64748B))
+                            Text("Supprimer", color = if (canDelete) Error else TextTertiary)
                         }
                         TextButton(onClick = { vm.renamePhrase(phraseIdx, text); showRenamePhraseDialog = null }) { Text("OK") }
                     }
@@ -794,7 +794,7 @@ private fun MiniMeasureCard(
         Text(
             "${measure.globalIndex + 1}",
             fontSize = 9.sp,
-            color = if (isPlaying) IndigoAccent else Color(0xFF475569),
+            color = if (isPlaying) IndigoAccent else TextMuted,
             fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
         )
         Spacer(Modifier.height(2.dp))
@@ -905,7 +905,7 @@ private fun GrandStaffCanvas(
         // ── Measure number ─────────────────────────────────────────────────
         val numStyle = TextStyle(
             fontSize = 13.sp,
-            color = if (isPlaying) IndigoAccent else Color(0xFF64748B),
+            color = if (isPlaying) IndigoAccent else TextTertiary,
             fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
         )
         val numLayout = textMeasurer.measure("$measureNumber", numStyle)
@@ -1199,10 +1199,10 @@ private fun OctaveKeys(
         intArrayOf(0, 2, 4, 5, 7, 9, 11).forEachIndexed { wi, semi ->
             val midi = cMidi + semi
             val color = when {
-                midi in pressedKeys        -> Color(0xFF4ADE80)            // green for MIDI input
+                midi in pressedKeys        -> Success            // green for MIDI input
                 midi in activeRightPitches -> CyanMelody.copy(alpha = 0.52f)
                 midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.52f)
-                else                       -> Color(0xFFE8ECF0)
+                else                       -> KeyWhite
             }
             drawRoundRect(color, Offset(wi * wkW + 0.5f, 0f), Size(wkW - 1f, size.height), CornerRadius(2f))
         }
@@ -1211,10 +1211,10 @@ private fun OctaveKeys(
         listOf(1 to 1, 3 to 2, 6 to 4, 8 to 5, 10 to 6).forEach { (semi, rw) ->
             val midi = cMidi + semi
             val color = when {
-                midi in pressedKeys        -> Color(0xFF4ADE80).copy(alpha = 0.40f) // green tint, stays dark
+                midi in pressedKeys        -> Success.copy(alpha = 0.40f) // green tint, stays dark
                 midi in activeRightPitches -> CyanMelody.copy(alpha = 0.18f)
                 midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.18f)
-                else                       -> Color(0xFF1A1A1A)
+                else                       -> KeyBlack
             }
             val x = rw * wkW - bkW / 2f
             drawRoundRect(color, Offset(x, 0f), Size(bkW, bkH), CornerRadius(2f))
@@ -1370,15 +1370,15 @@ private fun TransportBar(
                 horizontalArrangement = Arrangement.Center
             ) {
                 IconButton(onClick = onToggleMetronome, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else TextMuted, modifier = Modifier.size(14.dp))
                 }
-                val tempoTint = if (isPlaying) Color(0xFF334155) else Color(0xFF94A3B8)
+                val tempoTint = if (isPlaying) TextMuted else TextSecondary
                 IconButton(onClick = { onTempoAdjust(-0.1f) }, enabled = !isPlaying, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Remove, null, tint = tempoTint, modifier = Modifier.size(14.dp))
                 }
                 Text(
                     "${(tempoPercent * 100).toInt()}%",
-                    color = if (tempoPercent != 1.0f) IndigoAccent else Color.White,
+                    color = if (tempoPercent != 1.0f) IndigoAccent else TextPrimary,
                     fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.widthIn(min = 36.dp), textAlign = TextAlign.Center
                 )
@@ -1386,10 +1386,10 @@ private fun TransportBar(
                     Icon(Icons.Default.Add, null, tint = tempoTint, modifier = Modifier.size(14.dp))
                 }
                 IconButton(onClick = onToggleLoop, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else TextMuted, modifier = Modifier.size(14.dp))
                 }
                 IconButton(onClick = onToggleWaitMode, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.PanTool, "Attente", tint = if (waitMode) Color(0xFF4ADE80) else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.PanTool, "Attente", tint = if (waitMode) Success else TextMuted, modifier = Modifier.size(14.dp))
                 }
             }
 
@@ -1404,14 +1404,14 @@ private fun TransportBar(
                         onClick = onToggleDetails,
                         modifier = Modifier.size(28.dp)
                     ) {
-                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else TextTertiary, modifier = Modifier.size(14.dp))
                     }
                 }
                 IconButton(
                     onClick = onStop,
                     modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.Stop, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Stop, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
                 }
                 IconButton(
                     onClick = onPlay,
@@ -1423,7 +1423,7 @@ private fun TransportBar(
                     onClick = onSplit,
                     modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.ContentCut, "Diviser", tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.ContentCut, "Diviser", tint = TextTertiary, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -1445,7 +1445,7 @@ private fun HandButton(label: String, selected: Boolean, activeColor: Color, onC
             .padding(horizontal = 8.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = 11.sp, color = if (selected) activeColor else Color(0xFF64748B), fontWeight = FontWeight.Bold)
+        Text(label, fontSize = 11.sp, color = if (selected) activeColor else TextTertiary, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1454,21 +1454,21 @@ private fun LoopRangeRow(loopStart: Int, loopEnd: Int, totalMeasures: Int, onRan
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
         Text("Boucle", fontSize = 10.sp, color = AmberWarning, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(8.dp))
-        Text("m.", fontSize = 10.sp, color = Color(0xFF64748B))
+        Text("m.", fontSize = 10.sp, color = TextTertiary)
         Spacer(Modifier.width(4.dp))
         MeasureStepper(
             value = loopStart + 1,
             onDecrement = { if (loopStart > 0) onRangeChange(loopStart - 1, loopEnd) },
             onIncrement = { if (loopStart < loopEnd) onRangeChange(loopStart + 1, loopEnd) }
         )
-        Text("→", fontSize = 10.sp, color = Color(0xFF64748B), modifier = Modifier.padding(horizontal = 6.dp))
+        Text("→", fontSize = 10.sp, color = TextTertiary, modifier = Modifier.padding(horizontal = 6.dp))
         MeasureStepper(
             value = loopEnd + 1,
             onDecrement = { if (loopEnd > loopStart) onRangeChange(loopStart, loopEnd - 1) },
             onIncrement = { if (loopEnd < totalMeasures - 1) onRangeChange(loopStart, loopEnd + 1) }
         )
         Spacer(Modifier.width(4.dp))
-        Text("/ $totalMeasures", fontSize = 10.sp, color = Color(0xFF475569))
+        Text("/ $totalMeasures", fontSize = 10.sp, color = TextMuted)
     }
 }
 

@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tobietheunknown.pianoteacher.ui.theme.*
 
 /**
  * Pill — small rounded chip used for level / key / status indicators.
@@ -28,9 +29,9 @@ fun Pill(
     mono: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val bg = color?.copy(alpha = 0.16f) ?: Color(0x12FFFFFF)
-    val border = color?.copy(alpha = 0.35f) ?: Color(0x14FFFFFF)
-    val textColor = color ?: Color(0xFFA8AEBD)
+    val bg = color?.copy(alpha = 0.16f) ?: Surface2
+    val border = color?.copy(alpha = 0.35f) ?: BorderColor
+    val textColor = color ?: TextSecondary
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))

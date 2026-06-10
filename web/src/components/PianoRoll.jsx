@@ -127,7 +127,8 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
 
     // Animate playhead via RAF (no React re-renders)
     const cellWidthRef = useRef(cellWidth);
-    cellWidthRef.current = cellWidth;
+    // Keep ref in sync with prop via layout effect to avoid mutating during render
+    React.useLayoutEffect(() => { cellWidthRef.current = cellWidth; });
     useEffect(() => {
         if (!isCurrentlyPlaying || !isPlaying) return;
         let rafId;

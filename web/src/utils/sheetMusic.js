@@ -17,20 +17,102 @@ export const STAFF_BOTTOM_PAD_DP = 8;
 export const STAFF_H_MAX_DP = 120;
 export const STAFF_H_MAX_LANDSCAPE_DP = 70;
 
-// ─── Color palette (matches Theme.kt indigo/cyan/pink defaults) ──────────────
+// ─── Color palette (fallbacks — live values come from CSS vars at runtime) ───
+//
+// The canvas can't read CSS custom properties directly, so the React layer
+// resolves the theme tokens (see resolveSheetTheme) and passes them into
+// renderMeasure() via opts.theme. These constants are only fallbacks used when
+// no theme is supplied (e.g. in tests).
 
-export const COLOR_MELODY = '#22D3EE';      // CyanMelody — right hand (treble)
-export const COLOR_CHORDS = '#EC4899';      // PinkChords — left hand (bass)
-export const COLOR_PLAYING = '#6366F1';     // IndigoAccent — currently playing
-export const COLOR_STAFF_LINE = 'rgba(255, 255, 255, 0.32)';
-export const COLOR_STAFF_LINE_KEY = (handColor) => handColor; // key line uses hand color
-export const COLOR_LEDGER = 'rgba(255, 255, 255, 0.5)';
-export const COLOR_CLEF = 'rgba(255, 255, 255, 0.35)';
-export const COLOR_KEYSIG = 'rgba(255, 255, 255, 0.6)';
-export const COLOR_BRACKET = 'rgba(255, 255, 255, 0.35)';
-export const COLOR_BAR = 'rgba(255, 255, 255, 0.28)';
+export const COLOR_MELODY = '#22D3EE';      // --hand-right (right hand / treble)
+export const COLOR_CHORDS = '#EC4899';      // --hand-left  (left hand / bass)
+export const COLOR_PLAYING = '#3b82f6';     // --accent — currently playing
+export const COLOR_STAFF_LINE = 'rgba(255, 255, 255, 0.14)';
+export const COLOR_LEDGER = 'rgba(255, 255, 255, 0.45)';
+export const COLOR_CLEF = 'rgba(255, 255, 255, 0.42)';
+export const COLOR_KEYSIG = 'rgba(255, 255, 255, 0.66)';
+export const COLOR_BRACKET = 'rgba(255, 255, 255, 0.30)';
+export const COLOR_BAR = 'rgba(255, 255, 255, 0.22)';
 export const COLOR_MEASURE_NUM = '#64748B';
-export const COLOR_NOTE_ALPHA = 0.72;       // applied to melody/chord note color
+
+const DEFAULT_SHEET_THEME = {
+    melody: COLOR_MELODY,
+    chords: COLOR_CHORDS,
+    accent: COLOR_PLAYING,
+    staffLine: COLOR_STAFF_LINE,
+    staffLineKey: 'rgba(255, 255, 255, 0.22)',
+    ledger: COLOR_LEDGER,
+    clef: COLOR_CLEF,
+    keySig: COLOR_KEYSIG,
+    bracket: COLOR_BRACKET,
+    bar: COLOR_BAR,
+    measureNum: COLOR_MEASURE_NUM,
+};
+
+/**
+ * Read the live theme tokens from the DOM so the canvas renderer follows the
+ * theme editor (accent / hand-color presets). Falls back to the static palette
+ * when no document is available. Call from React and memoise on the theme key.
+ */
+export function resolveSheetTheme(rootEl) {
+    if (typeof window === 'undefined' || !rootEl) return DEFAULT_SHEET_THEME;
+    const cs = getComputedStyle(rootEl);
+    const v = (name, fallback) => {
+        const raw = cs.getPropertyValue(name);
+        return raw && raw.trim() ? raw.trim() : fallback;
+    };
+    return {
+        melody: v('--hand-right', COLOR_MELODY),
+        chords: v('--hand-left', COLOR_CHORDS),
+        accent: v('--accent', COLOR_PLAYING),
+        staffLine: v('--sheet-staff-line', COLOR_STAFF_LINE),
+        staffLineKey: v('--sheet-staff-key', 'rgba(255, 255, 255, 0.22)'),
+        ledger: v('--sheet-ledger', COLOR_LEDGER),
+        clef: v('--text-secondary', COLOR_CLEF),
+        keySig: v('--text-secondary', COLOR_KEYSIG),
+        bracket: v('--border-strong', COLOR_BRACKET),
+        bar: v('--border-strong', COLOR_BAR),
+        measureNum: v('--text-tertiary', COLOR_MEASURE_NUM),
+    };
+}
+
+// ─── Duration → engraving classification ─────────────────────────────────────
+
+/**
+ * Classify a note duration (in quarter-note beats) into engraving attributes.
+ * Pragmatic, not exhaustive: maps to the nearest standard value and detects
+ * dotted notes (≈1.5× a base value).
+ *
+ * Returns:
+ *   filled  — solid notehead (quarter and shorter) vs hollow (half / whole)
+ *   stem    — whether the note carries a stem (whole notes don't)
+ *   flags   — number of flags/beams (0 = quarter+, 1 = eighth, 2 = sixteenth…)
+ *   dotted  — augmentation dot present
+ */
+export function classifyDuration(durationBeats) {
+    const d = durationBeats > 0 ? durationBeats : 1;
+    // Base values in quarter-note beats: whole=4, half=2, quarter=1, eighth=0.5…
+    const BASES = [
+        { beats: 4, filled: false, stem: false, flags: 0 }, // whole
+        { beats: 2, filled: false, stem: true, flags: 0 },  // half
+        { beats: 1, filled: true, stem: true, flags: 0 },   // quarter
+        { beats: 0.5, filled: true, stem: true, flags: 1 }, // eighth
+        { beats: 0.25, filled: true, stem: true, flags: 2 },// sixteenth
+        { beats: 0.125, filled: true, stem: true, flags: 3 },
+    ];
+    let best = BASES[2];
+    let bestErr = Infinity;
+    let dotted = false;
+    for (const base of BASES) {
+        // plain
+        let err = Math.abs(d - base.beats) / base.beats;
+        if (err < bestErr) { bestErr = err; best = base; dotted = false; }
+        // dotted (1.5×)
+        err = Math.abs(d - base.beats * 1.5) / (base.beats * 1.5);
+        if (err < bestErr) { bestErr = err; best = base; dotted = true; }
+    }
+    return { ...best, dotted };
+}
 
 // ─── Diatonic mapping ────────────────────────────────────────────────────────
 
@@ -328,7 +410,9 @@ export function renderMeasure(ctx, opts) {
         keySig = null,
         isLandscape = false,
         dp = (n) => n, // 1 dp = 1 px by default
+        theme = DEFAULT_SHEET_THEME,
     } = opts;
+    const T = theme || DEFAULT_SHEET_THEME;
 
     // Background
     if (isPlaying) {
@@ -345,15 +429,30 @@ export function renderMeasure(ctx, opts) {
 
     const totalAvail   = h - topPad - bottomPad;
     const staffHMax    = isLandscape ? dp(STAFF_H_MAX_LANDSCAPE_DP) : dp(STAFF_H_MAX_DP);
-    const staffH       = Math.min(totalAvail / 2.5, staffHMax);
-    const lineSpacing  = staffH / 4;
+    // Reserve vertical headroom above the treble staff and below the bass staff
+    // so notes (+ ledger lines + accidentals) that sit outside the staves —
+    // e.g. C#2, well below the bass staff — aren't clipped by the canvas edge.
+    // HEADROOM_STEPS counts ledger *steps* (half a line spacing each); 7 steps ≈
+    // 3.5 ledger lines of clearance on each side. The staff block is
+    // 10 line-spacings tall (2 staves of 4 + a 2-spacing gap), so the headroom
+    // budget on each side is HEADROOM_STEPS/2 line-spacings.
+    const HEADROOM_STEPS = 7;
+    const headroomUnitsPerStaff = HEADROOM_STEPS / 2; // in line-spacings, per side
+    // Solve for the largest lineSpacing whose staves + both headroom margins fit
+    // the available height: 10·ls (staves) + 2·headroom·ls ≤ totalAvail.
+    const lineSpacing  = Math.min(
+        totalAvail / (10 + 2 * headroomUnitsPerStaff),
+        staffHMax / 4,
+    );
+    const staffH       = lineSpacing * 4;
     const gap          = lineSpacing * 2; // exactly 2 line spacings — middle C falls between staves
     const totalStavesH = staffH * 2 + gap;
     const stavesOriginY = topPad + (totalAvail - totalStavesH) / 2;
 
     const showKeySig = showClefs && clefMode !== 'AUTO';
     const numAccidentals = showKeySig ? keySignatureAccidentalCount(keySig) : 0;
-    const ksW = numAccidentals > 0 ? numAccidentals * dp(7) + dp(4) : 0;
+    const accStep = dp(9);          // horizontal step between key-sig accidentals
+    const ksW = numAccidentals > 0 ? numAccidentals * accStep + dp(5) : 0;
     const clefW = showClefs ? Math.max(staffH * 0.26, dp(22)) + ksW : 0;
     const pureClefW = clefW - ksW;
     const barPad = dp(10);
@@ -374,16 +473,16 @@ export function renderMeasure(ctx, opts) {
     }
 
     // Measure number (top center)
-    ctx.fillStyle = isPlaying ? COLOR_PLAYING : COLOR_MEASURE_NUM;
-    ctx.font = `${isPlaying ? '700 ' : '400 '}${dp(13)}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = isPlaying ? T.accent : T.measureNum;
+    ctx.font = `${isPlaying ? '600 ' : '500 '}${dp(12)}px "IBM Plex Mono", ui-monospace, monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`${measureNumber}`, w / 2, dp(4));
+    ctx.fillText(`${measureNumber}`, w / 2, dp(5));
 
     // Left bracket
     const bracketX = isLandscape ? 0 : dp(1);
-    ctx.strokeStyle = COLOR_BRACKET;
-    ctx.lineWidth = dp(3);
+    ctx.strokeStyle = T.bracket;
+    ctx.lineWidth = dp(2.5);
     ctx.beginPath();
     ctx.moveTo(bracketX, stavesOriginY);
     ctx.lineTo(bracketX, stavesOriginY + totalStavesH);
@@ -393,8 +492,8 @@ export function renderMeasure(ctx, opts) {
     const staffTops = [stavesOriginY, stavesOriginY + staffH + gap];
     const staffClefs = [upperClef, lowerClef];
     const staffNotes = [
-        upperNotes.map(n => ({ note: n, color: COLOR_MELODY })),
-        lowerNotes.map(n => ({ note: n, color: COLOR_CHORDS })),
+        upperNotes.map(n => ({ note: n, color: T.melody })),
+        lowerNotes.map(n => ({ note: n, color: T.chords })),
     ];
     const staffShifts = [upperOctaveShift, lowerOctaveShift];
 
@@ -404,20 +503,17 @@ export function renderMeasure(ctx, opts) {
         const topDiatonic = clef.lines[clef.lines.length - 1];
         const bottomDiatonic = clef.lines[0];
 
-        // Staff lines (5)
+        // Staff lines (5). The hand-coloured "key line" of the old design read
+        // as a noisy stripe through the staff — hand identity now comes from
+        // the notehead colour, so all lines are neutral and uniform. The clef's
+        // anchor line gets a barely-stronger weight for a subtle reference.
         for (let li = 0; li <= 4; li++) {
             const y = lineTop + li * lineSpacing;
             const lineDiatonic = clef.lines[4 - li];
             const isKey = lineDiatonic === clef.keyDiatonic;
-            if (isKey) {
-                ctx.strokeStyle = si === 0 ? COLOR_MELODY : COLOR_CHORDS;
-                ctx.globalAlpha = COLOR_NOTE_ALPHA;
-                ctx.lineWidth = dp(1.6);
-            } else {
-                ctx.strokeStyle = COLOR_STAFF_LINE;
-                ctx.globalAlpha = 1;
-                ctx.lineWidth = dp(1.2);
-            }
+            ctx.strokeStyle = isKey ? T.staffLineKey : T.staffLine;
+            ctx.globalAlpha = 1;
+            ctx.lineWidth = isKey ? dp(1.1) : dp(0.9);
             ctx.beginPath();
             ctx.moveTo(bracketX + dp(2), y);
             ctx.lineTo(w, y);
@@ -428,7 +524,7 @@ export function renderMeasure(ctx, opts) {
         // Clef glyph
         if (showClefs) {
             const clefFontPx = staffH * clef.fontScale;
-            ctx.fillStyle = COLOR_CLEF;
+            ctx.fillStyle = T.clef;
             ctx.font = `${clefFontPx}px "Noto Music", "Bravura", "Symbola", "Times New Roman", serif`;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabetic';
@@ -452,13 +548,13 @@ export function renderMeasure(ctx, opts) {
                     ? (isTreble ? TREBLE_FLAT_POS : BASS_FLAT_POS)
                     : (isTreble ? TREBLE_SHARP_POS : BASS_SHARP_POS);
                 const accLabel = ks.useFlats ? '♭' : '♯';
-                ctx.fillStyle = COLOR_KEYSIG;
-                ctx.font = `700 ${lineSpacing * 0.9}px system-ui, sans-serif`;
+                ctx.fillStyle = T.keySig;
+                ctx.font = `${lineSpacing * 1.9}px "Noto Music", "Bravura", "Times New Roman", serif`;
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
                 for (let i = 0; i < numAccidentals; i++) {
                     const d = positions[i];
-                    const ax = pureClefW + dp(2) + i * dp(7);
+                    const ax = pureClefW + dp(3) + i * accStep;
                     const ay = lineTop + (topDiatonic - d) * (lineSpacing / 2);
                     ctx.fillText(accLabel, ax, ay);
                 }
@@ -470,7 +566,7 @@ export function renderMeasure(ctx, opts) {
         if (showClefs && octShift !== 0) {
             const lbl = octaveShiftLabel(octShift);
             if (lbl) {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+                ctx.fillStyle = T.measureNum;
                 ctx.font = `700 ${dp(9)}px system-ui, sans-serif`;
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'top';
@@ -481,72 +577,157 @@ export function renderMeasure(ctx, opts) {
             }
         }
 
-        // Notes
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        for (const { note, color } of staffNotes[si]) {
+        // Notes — duration-aware engraving.
+        const color = si === 0 ? T.melody : T.chords;
+        const midLineY = lineTop + 2 * lineSpacing;           // middle (3rd) line
+        const headRx = dotR * 1.08;                            // notehead radii
+        const headRy = dotR * 0.84;
+        const leftPad = barPad + dotR * 2;
+        const noteAreaStart = clefW + leftPad;
+        const noteAreaEnd = w - barPad - dotR;
+
+        const xForTime = (startTime) => {
+            const frac = Math.max(0, Math.min(1, (startTime - measureStart) / beatsPerMeasure));
+            return noteAreaStart + frac * (noteAreaEnd - noteAreaStart);
+        };
+        const yForDiatonic = (d) => lineTop + (topDiatonic - d) * (lineSpacing / 2);
+
+        // Group notes sounding at the same time into chords (shared stem).
+        const groups = new Map();
+        for (const note of staffNotes[si].map((s) => s.note)) {
             const midi = normalizePitch(note.pitch);
             if (midi == null) continue;
-            const d = midiToDiatonic(midi, useFlats) + octShift;
-            const frac = Math.max(0, Math.min(1,
-                ((note.startTime - measureStart) / beatsPerMeasure)
-            ));
-            const leftPad = barPad + dotR * 2;
-            const noteAreaStart = clefW + leftPad;
-            const noteAreaEnd = w - barPad - dotR;
-            const x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart);
-            const y = lineTop + (topDiatonic - d) * (lineSpacing / 2);
+            const key = Math.round((note.startTime ?? 0) * 1000) / 1000;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push({ note, midi });
+        }
 
-            // Note head
-            ctx.globalAlpha = COLOR_NOTE_ALPHA;
+        const drawLedgers = (x, d) => {
+            ctx.strokeStyle = T.ledger;
+            ctx.lineWidth = dp(1);
+            const lx0 = x - headRx - dp(2);
+            const lx1 = x + headRx + dp(2);
+            if (d > topDiatonic + 1) {
+                for (let ld = topDiatonic + 2; ld <= d; ld += 2) {
+                    const ly = yForDiatonic(ld);
+                    ctx.beginPath(); ctx.moveTo(lx0, ly); ctx.lineTo(lx1, ly); ctx.stroke();
+                }
+            }
+            if (d < bottomDiatonic - 1) {
+                for (let ld = bottomDiatonic - 2; ld >= d; ld -= 2) {
+                    const ly = yForDiatonic(ld);
+                    ctx.beginPath(); ctx.moveTo(lx0, ly); ctx.lineTo(lx1, ly); ctx.stroke();
+                }
+            }
+        };
+
+        // Draw an oval notehead, filled or hollow. Slightly italicised look via
+        // rotation gives the engraved feel without a music font.
+        const drawHead = (x, y, filled) => {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(-0.32);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, headRx, headRy, 0, 0, Math.PI * 2);
+            if (filled) {
+                ctx.fillStyle = color;
+                ctx.fill();
+            } else {
+                ctx.lineWidth = dp(1.7);
+                ctx.strokeStyle = color;
+                ctx.stroke();
+            }
+            ctx.restore();
+        };
+
+        const drawDot = (x, y, d) => {
+            // Place the augmentation dot to the right, nudged into the nearest
+            // space if the note sits on a line.
+            const onLine = ((topDiatonic - d) % 2) === 0;
+            const dy = onLine ? -lineSpacing / 2 : 0;
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(x, y, dotR, 0, Math.PI * 2);
+            ctx.arc(x + headRx + dp(4), y + dy, dp(1.6), 0, Math.PI * 2);
             ctx.fill();
-            ctx.globalAlpha = 1;
+        };
 
-            // Ledger lines above
-            if (d > topDiatonic + 1) {
-                ctx.strokeStyle = COLOR_LEDGER;
-                ctx.lineWidth = 0.9;
-                for (let ld = topDiatonic + 2; ld <= d; ld += 2) {
-                    const ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2);
-                    ctx.beginPath();
-                    ctx.moveTo(x - dotR * 1.5, ly);
-                    ctx.lineTo(x + dotR * 1.5, ly);
-                    ctx.stroke();
+        for (const [, chord] of groups) {
+            // Resolve geometry per note.
+            const items = chord.map(({ note, midi }) => {
+                const d = midiToDiatonic(midi, useFlats) + octShift;
+                return {
+                    note, midi, d,
+                    x: xForTime(note.startTime ?? 0),
+                    y: yForDiatonic(d),
+                    dur: classifyDuration(note.duration ?? 1),
+                };
+            }).sort((a, b) => a.d - b.d); // bottom → top
+
+            const x = items[0].x;
+            // Stem direction: down if the chord's centre is above the middle
+            // line, up otherwise. Whole notes carry no stem.
+            const avgY = items.reduce((s, it) => s + it.y, 0) / items.length;
+            const stemUp = avgY >= midLineY;
+            const anyStem = items.some((it) => it.dur.stem);
+            const maxFlags = items.reduce((m, it) => Math.max(m, it.dur.flags), 0);
+
+            // Ledger lines + noteheads + dots + per-note accidentals.
+            for (const it of items) {
+                drawLedgers(x, it.d);
+                drawHead(x, it.y, it.dur.filled);
+                if (it.dur.dotted) drawDot(x, it.y, it.d);
+                if (isBlackKey(it.midi)) {
+                    ctx.fillStyle = color;
+                    ctx.font = `${lineSpacing * 1.55}px "Noto Music", "Bravura", "Times New Roman", serif`;
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(useFlats ? '♭' : '♯', x - headRx - dp(2), it.y);
                 }
             }
-            // Ledger lines below
-            if (d < bottomDiatonic - 1) {
-                ctx.strokeStyle = COLOR_LEDGER;
-                ctx.lineWidth = 0.9;
-                for (let ld = bottomDiatonic - 2; ld >= d; ld -= 2) {
-                    const ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2);
-                    ctx.beginPath();
-                    ctx.moveTo(x - dotR * 1.5, ly);
-                    ctx.lineTo(x + dotR * 1.5, ly);
-                    ctx.stroke();
-                }
-            }
 
-            // Accidental (#/b) for black keys
-            if (isBlackKey(midi)) {
-                ctx.fillStyle = color;
-                ctx.globalAlpha = 0.95;
-                ctx.font = `700 ${dp(9)}px system-ui, sans-serif`;
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'bottom';
-                const label = useFlats ? 'b' : '#';
-                ctx.fillText(label, x + dotR * 1.3, y - dotR);
-                ctx.globalAlpha = 1;
+            // Shared stem across the chord.
+            if (anyStem) {
+                const stemLen = lineSpacing * 3.2;
+                const topY = items[items.length - 1].y;
+                const botY = items[0].y;
+                const stemX = stemUp ? x + headRx - dp(0.5) : x - headRx + dp(0.5);
+                const yA = stemUp ? topY - headRy : botY + headRy;
+                const yB = stemUp ? botY - stemLen : topY + stemLen;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = dp(1.5);
+                ctx.beginPath();
+                ctx.moveTo(stemX, yA);
+                ctx.lineTo(stemX, yB);
+                ctx.stroke();
+
+                // Flags (eighth and shorter). One per beam level, drawn as a
+                // simple curved hook on the stem end.
+                if (maxFlags > 0) {
+                    const dir = stemUp ? 1 : -1;
+                    ctx.fillStyle = color;
+                    for (let f = 0; f < maxFlags; f++) {
+                        const fy = yB + f * lineSpacing * 0.9 * dir;
+                        ctx.beginPath();
+                        ctx.moveTo(stemX, fy);
+                        ctx.quadraticCurveTo(
+                            stemX + dp(7), fy + dir * lineSpacing * 0.5,
+                            stemX + dp(5), fy + dir * lineSpacing * 1.3,
+                        );
+                        ctx.quadraticCurveTo(
+                            stemX + dp(6), fy + dir * lineSpacing * 0.6,
+                            stemX, fy + dir * lineSpacing * 0.35,
+                        );
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
             }
         }
     }
 
     // Right bar line
     const barMargin = dp(4);
-    ctx.strokeStyle = COLOR_BAR;
+    ctx.strokeStyle = T.bar;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(w - 1, stavesOriginY + barMargin);
@@ -565,11 +746,11 @@ export function renderMeasure(ctx, opts) {
         const top = stavesOriginY + barMargin;
         const bottom = stavesOriginY + totalStavesH - barMargin;
         // Soft halo
-        ctx.fillStyle = COLOR_PLAYING || '#3b82f6';
-        ctx.globalAlpha = 0.10;
-        ctx.fillRect(playX - dp(10), top, dp(20), bottom - top);
+        ctx.fillStyle = T.accent;
+        ctx.globalAlpha = 0.12;
+        ctx.fillRect(playX - dp(8), top, dp(16), bottom - top);
         // Sharp line
-        ctx.globalAlpha = 0.95;
+        ctx.globalAlpha = 0.9;
         ctx.fillRect(playX - 1, top, 2, bottom - top);
         ctx.globalAlpha = 1;
     }

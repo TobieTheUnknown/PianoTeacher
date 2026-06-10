@@ -10,6 +10,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tobietheunknown.pianoteacher.ui.theme.*
 
 /**
  * MobileHeader — shared compact header bar at the top of mobile screens.
@@ -32,7 +33,7 @@ fun MobileHeader(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 title,
-                color = Color.White,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 24.sp,
                 letterSpacing = (-0.02).sp,
@@ -43,7 +44,7 @@ fun MobileHeader(
             subtitle?.let {
                 Text(
                     it,
-                    color = Color(0xFF6B7280),
+                    color = TextTertiary,
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

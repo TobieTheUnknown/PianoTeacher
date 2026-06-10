@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     flattenSongMeasures,
     renderMeasure,
+    resolveSheetTheme,
     suggestUpperOctaveShift,
     suggestLowerOctaveShift,
     TREBLE_CLEF,
@@ -22,7 +23,47 @@ import { audioEngine } from '../services/AudioEngine';
  * Each SheetSystem stacks 4 measure canvases side-by-side, sharing one
  * row. The first measure of each row shows clefs + key signature.
  */
+// Compact toolbar pill — shared by key / time-signature / tempo chips.
+const TOOLBAR_PILL = {
+    padding: '5px 10px',
+    background: 'var(--surface-1)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--r-sm)',
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    height: 30,
+    boxSizing: 'border-box',
+};
+
+/**
+ * Resolve the canvas colour palette from the live CSS theme tokens so the
+ * engraving follows the theme editor (accent + hand-colour presets). Re-resolves
+ * when the theme/accent/hands data-attributes change on <html>.
+ */
+function useSheetTheme() {
+    const [theme, setTheme] = useState(() =>
+        resolveSheetTheme(typeof document !== 'undefined' ? document.documentElement : null)
+    );
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const root = document.documentElement;
+        const update = () => setTheme(resolveSheetTheme(root));
+        update();
+        const mo = new MutationObserver(update);
+        mo.observe(root, {
+            attributes: true,
+            attributeFilter: ['data-theme', 'data-accent', 'data-hands'],
+        });
+        return () => mo.disconnect();
+    }, []);
+    return theme;
+}
+
 export function SheetMusicLearning({ song, isMobile = false }) {
+    const sheetTheme = useSheetTheme();
     const beatsPerMeasure = song?.timeSignature?.numerator || 4;
     const measures = useMemo(
         () => flattenSongMeasures(song, beatsPerMeasure),
@@ -288,7 +329,11 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     }
 
     return (
-        <div style={{ paddingBottom: 130 + (isMobile ? 64 : 0) }}>
+        <div style={{
+            // Clear the fixed PlaybackDock (~130px) plus the mobile tab bar
+            // (64px) and the device safe-area inset so nothing hides behind it.
+            paddingBottom: `calc(${130 + (isMobile ? 64 : 0)}px + env(safe-area-inset-bottom, 0px))`,
+        }}>
             <MobileHeader
                 title={song.title || 'Sans titre'}
                 subtitle={`Mesure ${currentMeasure}/${totalMeasures}${tsText ? ` · ${tsText}` : ''}`}
@@ -298,56 +343,51 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             <div style={{
                 padding: '4px 16px 12px',
             }}>
-                {/* Key + tempo bar */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    <span style={{
-                        padding: '6px 10px',
-                        background: 'var(--surface-1)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--r-sm)',
-                        fontSize: 12,
-                        color: 'var(--text-secondary)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        flex: 1,
-                    }}>
-                        <span style={{ fontFamily: 'serif', fontSize: 16, color: 'var(--text-primary)' }}>
+                {/* Compact toolbar — key · time signature · tempo. Sizes to
+                    content (no full-width stretch) and wraps on narrow mobile. */}
+                <div style={{
+                    display: 'flex',
+                    gap: 6,
+                    marginBottom: 10,
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                }}>
+                    {/* Key signature */}
+                    <span style={TOOLBAR_PILL}>
+                        <span style={{
+                            fontFamily: '"Noto Music", "Bravura", serif',
+                            fontSize: 15,
+                            lineHeight: 1,
+                            color: 'var(--text-secondary)',
+                        }}>
                             {useFlats ? '♭' : '♯'}
                         </span>
-                        <span>{keyText}</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{keyText}</span>
                     </span>
-                    <span style={{
-                        padding: '6px 10px',
-                        background: 'var(--surface-1)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--r-sm)',
-                        fontSize: 12,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                    }}>
-                        {tsText && (
+
+                    {/* Time signature */}
+                    {tsText && (
+                        <span style={TOOLBAR_PILL}>
                             <span style={{
-                                fontFamily: 'serif',
-                                fontSize: 11,
-                                lineHeight: 1,
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 10,
+                                lineHeight: 0.95,
                                 display: 'inline-flex',
                                 flexDirection: 'column',
+                                alignItems: 'center',
                                 color: 'var(--text-primary)',
+                                fontWeight: 700,
                             }}>
-                                <b>{tsText.split('/')[0]}</b>
-                                <b>{tsText.split('/')[1]}</b>
+                                <span>{tsText.split('/')[0]}</span>
+                                <span>{tsText.split('/')[1]}</span>
                             </span>
-                        )}
-                        <span style={{ color: 'var(--text-tertiary)' }}>·</span>
-                        <span style={{
-                            fontFamily: 'var(--font-mono)',
-                            color: 'var(--text-primary)',
-                            fontWeight: 700,
-                        }}>
-                            ♩={bpm}
                         </span>
+                    )}
+
+                    {/* Tempo */}
+                    <span style={{ ...TOOLBAR_PILL, fontFamily: 'var(--font-mono)' }}>
+                        <span style={{ color: 'var(--text-tertiary)' }}>♩</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>= {bpm}</span>
                     </span>
                 </div>
 
@@ -387,6 +427,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                             measureProgress={measureProgress}
                             isPlaying={playing}
                             isMobile={isMobile}
+                            sheetTheme={sheetTheme}
                             onMeasureClick={handleMeasureClick}
                         />
                     ))}
@@ -449,7 +490,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 function SheetSystem({
     systemIndex, systemSize, measures, beatsPerMeasure,
     useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure,
-    measureProgress = 0, isPlaying = false, isMobile, onMeasureClick,
+    measureProgress = 0, isPlaying = false, isMobile, sheetTheme, onMeasureClick,
 }) {
     return (
         <div style={{
@@ -478,7 +519,8 @@ function SheetSystem({
                         playheadFrac={isCurrent && isPlaying ? measureProgress : null}
                         isLast={i === measures.length - 1}
                         flex={i === 0 ? '1.4 1 0' : '1 1 0'}
-                        height={isMobile ? 130 : 220}
+                        height={isMobile ? 132 : 224}
+                        sheetTheme={sheetTheme}
                         onClick={onMeasureClick ? () => onMeasureClick(globalIdx) : undefined}
                     />
                 );
@@ -490,7 +532,7 @@ function SheetSystem({
 function SystemMeasure({
     measureData, measureNumber, showClefs, beatsPerMeasure, useFlats,
     upperShift, lowerShift, keySig, handMode, isCurrent, playheadFrac,
-    isLast, flex, height, onClick,
+    isLast, flex, height, sheetTheme, onClick,
 }) {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
@@ -540,13 +582,14 @@ function SystemMeasure({
             useFlats,
             showClefs,
             isPlaying: false,
-            isFocused: isCurrent,
+            isFocused: false,
             clefMode: 'STANDARD',
             upperOctaveShift: upperShift,
             lowerOctaveShift: lowerShift,
             keySig,
             isLandscape: false,
             dp: (n) => n,
+            theme: sheetTheme,
             // Playhead drawn inside the note area (skips clefs) so it
             // aligns exactly with note X positions.
             playheadFrac: playheadFrac != null ? playheadFrac : null,
@@ -554,7 +597,7 @@ function SystemMeasure({
     }, [
         dims, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
         useFlats, showClefs, upperShift, lowerShift, keySig, isCurrent,
-        playheadFrac, measureData.measureStart,
+        playheadFrac, measureData.measureStart, sheetTheme,
     ]);
 
     return (
@@ -575,13 +618,10 @@ function SystemMeasure({
             {isCurrent && (
                 <div style={{
                     position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    background: 'color-mix(in oklab, var(--accent), transparent 92%)',
+                    inset: 0,
+                    background: 'var(--accent-dim)',
+                    boxShadow: 'inset 2px 0 0 0 var(--accent)',
                     pointerEvents: 'none',
-                    borderLeft: '2px solid var(--accent)',
                 }} />
             )}
             {/* Playhead is now drawn directly on the canvas inside
