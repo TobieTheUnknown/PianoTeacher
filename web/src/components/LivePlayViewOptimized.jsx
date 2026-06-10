@@ -787,6 +787,35 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     }
   };
 
+  // Restart: stop playback, seek to 0, clear feedback and reset session stats.
+  const handleRestart = useCallback(() => {
+    // Stop any active playback / preroll
+    setIsPlaying(false);
+    setIsPrerolling(false);
+    if (prerollTimerRef.current) {
+      clearTimeout(prerollTimerRef.current);
+      prerollTimerRef.current = null;
+    }
+    // Seek to the very beginning
+    seekTo(0);
+    anchorRef.current = null;
+    // Clear feedback messages
+    setFeedbackMessages([]);
+    // Reset session stats to their initial shape
+    setSessionStats({
+      correctNotes: 0,
+      wrongNotes: 0,
+      missedNotes: 0,
+      perfectNotes: 0,
+      goodNotes: 0,
+      totalNotes: allNotes.length,
+      startTime: null,
+      completed: false,
+      currentCombo: 0,
+      maxCombo: 0,
+    });
+  }, [seekTo, allNotes.length]);
+
   // Change tempo while preserving the BEAT position (no time jump, and no
   // quadratic speed: X% tempo now really plays at X%).
   const handleBPMChange = (newBPM) => {
@@ -884,6 +913,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           allNotes={allNotes}
           isPlaying={isPlaying}
           onPlayPause={handlePlayPause}
+          onRestart={handleRestart}
           onBack={onBack || (() => window.history.back())}
           currentTime={currentTime}
           currentBPM={currentBPM}
@@ -1008,6 +1038,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           phrases={phraseMeasureRanges}
           onPrev={() => jumpToTime(Math.max(0, songTimeRef.current - 4))}
           onNext={() => jumpToTime(songTimeRef.current + 4)}
+          onRestart={handleRestart}
         />
       </div>
     </div>

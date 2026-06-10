@@ -193,6 +193,7 @@ fun LivePlayScreen(
             },
             onPrev = { vm.seekToBeat((state.currentBeat - beatsPerMeasure).coerceAtLeast(0.0)) },
             onNext = { vm.seekToBeat((state.currentBeat + beatsPerMeasure).coerceAtMost(state.totalBeats)) },
+            onRestart = vm::restart,
         )
     }
 

@@ -54,6 +54,7 @@ fun PlaybackDock(
     phrases: List<PhraseRange> = emptyList(),
     onPrev: () -> Unit = {},
     onNext: () -> Unit = {},
+    onRestart: (() -> Unit)? = null,
 ) {
     Surface(color = Surface) {
         Column(
@@ -92,6 +93,9 @@ fun PlaybackDock(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (onRestart != null) {
+                        TransportBtn(onClick = onRestart, icon = Icons.Default.SkipPrevious, contentDescription = "Recommencer")
+                    }
                     TransportBtn(onClick = onPrev, icon = Icons.AutoMirrored.Filled.NavigateBefore)
                     PlayPauseButton(playing = playing, onClick = onPlayPause)
                     TransportBtn(onClick = onNext, icon = Icons.AutoMirrored.Filled.NavigateNext)
@@ -195,7 +199,7 @@ private fun PixelBtn(label: String, enabled: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TransportBtn(onClick: () -> Unit, icon: ImageVector) {
+private fun TransportBtn(onClick: () -> Unit, icon: ImageVector, contentDescription: String? = null) {
     Box(
         modifier = Modifier
             .size(40.dp)
@@ -205,7 +209,7 @@ private fun TransportBtn(onClick: () -> Unit, icon: ImageVector) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription, tint = TextSecondary, modifier = Modifier.size(20.dp))
     }
 }
 

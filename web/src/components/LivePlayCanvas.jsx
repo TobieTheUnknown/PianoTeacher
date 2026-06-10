@@ -324,7 +324,7 @@ const LivePlayCanvas = memo(({
       if (clampedBottom > clampedTop) {
         if (measure % 2 === 0) {
           ctx.fillStyle = '#ffffff';
-          ctx.globalAlpha = 0.03;
+          ctx.globalAlpha = 0.05;
           ctx.fillRect(0, clampedTop, CANVAS_WIDTH, clampedBottom - clampedTop);
         }
       }
@@ -335,7 +335,7 @@ const LivePlayCanvas = memo(({
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.strokeStyle = '#ffffff';
-    ctx.globalAlpha = 0.1;
+    ctx.globalAlpha = 0.14;
 
     for (let i = firstKey; i <= lastKey + 1; i++) {
       if (!isBlackKey(i)) {
@@ -348,44 +348,41 @@ const LivePlayCanvas = memo(({
     }
     ctx.stroke();
 
-    // Black key lanes (skip on mobile for perf)
-    if (!isMobile) {
-      ctx.fillStyle = '#ffffff';
+    // Black key lanes
+    ctx.fillStyle = '#ffffff';
 
-      for (let i = firstKey; i <= lastKey; i++) {
-        if (isBlackKey(i)) {
-          const x = getNoteX(i);
-          if (x !== null) {
-            ctx.globalAlpha = 0.03;
-            ctx.fillRect(x, 0, BLACK_KEY_WIDTH, keyboardY);
+    for (let i = firstKey; i <= lastKey; i++) {
+      if (isBlackKey(i)) {
+        const x = getNoteX(i);
+        if (x !== null) {
+          ctx.globalAlpha = 0.03;
+          ctx.fillRect(x, 0, BLACK_KEY_WIDTH, keyboardY);
 
-            ctx.beginPath();
-            ctx.strokeStyle = '#ffffff';
-            ctx.globalAlpha = 0.05;
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, keyboardY);
-            ctx.moveTo(x + BLACK_KEY_WIDTH, 0);
-            ctx.lineTo(x + BLACK_KEY_WIDTH, keyboardY);
-            ctx.stroke();
-          }
+          ctx.beginPath();
+          ctx.strokeStyle = '#ffffff';
+          ctx.globalAlpha = 0.05;
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, keyboardY);
+          ctx.moveTo(x + BLACK_KEY_WIDTH, 0);
+          ctx.lineTo(x + BLACK_KEY_WIDTH, keyboardY);
+          ctx.stroke();
         }
       }
     }
 
-    // Horizontal beat lines (mobile: measure lines only)
+    // Horizontal beat lines
     ctx.strokeStyle = '#ffffff';
     const firstVisibleBeat = Math.ceil(visibleStartTime / secondsPerBeat);
 
     for (let beat = firstVisibleBeat; beat * secondsPerBeat < visibleEndTime; beat++) {
       const isMeasureLine = (beat % beatsPerMeasure) === 0;
-      if (isMobile && !isMeasureLine) continue; // Skip beat subdivisions on mobile
 
       const beatTime = beat * secondsPerBeat;
       const timeDiff = beatTime - currentTime;
       const y = NOTE_FALL_HEIGHT * (1 - timeDiff / lookAheadTime);
 
       if (y >= 0 && y <= NOTE_FALL_HEIGHT) {
-        ctx.globalAlpha = isMeasureLine ? 0.5 : 0.15;
+        ctx.globalAlpha = isMeasureLine ? 0.5 : 0.2;
         ctx.lineWidth = isMeasureLine ? 2 : 1;
         ctx.beginPath();
         ctx.moveTo(0, y);
@@ -396,12 +393,7 @@ const LivePlayCanvas = memo(({
 
     ctx.globalAlpha = 1.0;
 
-    // Measure numbers (skip on mobile)
-    if (isMobile) {
-      ctx.globalAlpha = 1.0;
-      // Skip loop zone on mobile too (handled by overlay)
-      return;
-    }
+    // Measure numbers
     ctx.textAlign = 'left';
 
     for (let measure = firstVisibleMeasure; measure <= lastVisibleMeasure; measure++) {
@@ -467,7 +459,7 @@ const LivePlayCanvas = memo(({
         }
       }
     }
-  }, [beatsPerSecond, isBlackKey, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, isMobile]);
+  }, [beatsPerSecond, isBlackKey, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey]);
 
   // Draw dynamic layer (falling notes, keyboard) - changes every frame
   const drawDynamicLayer = useCallback((ctx, currentTime, visibleStartIdx) => {

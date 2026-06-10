@@ -440,9 +440,16 @@ export function renderMeasure(ctx, opts) {
     const headroomUnitsPerStaff = HEADROOM_STEPS / 2; // in line-spacings, per side
     // Solve for the largest lineSpacing whose staves + both headroom margins fit
     // the available height: 10·ls (staves) + 2·headroom·ls ≤ totalAvail.
-    const lineSpacing  = Math.min(
-        totalAvail / (10 + 2 * headroomUnitsPerStaff),
-        staffHMax / 4,
+    // Enforce a minimum of dp(7) so stems (3.2·ls ≈ 22 px) and noteheads remain
+    // readable on compact mobile canvases (h=132 px).  At this floor the staves
+    // still fit: topPad(30) + 10·7(70) + bottomPad(8) = 108 px < 132 px, with the
+    // leftover split evenly as narrower-but-sufficient ledger-line headroom.
+    const lineSpacing  = Math.max(
+        dp(7),
+        Math.min(
+            totalAvail / (10 + 2 * headroomUnitsPerStaff),
+            staffHMax / 4,
+        ),
     );
     const staffH       = lineSpacing * 4;
     const gap          = lineSpacing * 2; // exactly 2 line spacings — middle C falls between staves

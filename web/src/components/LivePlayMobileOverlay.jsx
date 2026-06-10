@@ -22,6 +22,7 @@ export function LivePlayMobileOverlay({
   allNotes,
   isPlaying,
   onPlayPause,
+  onRestart,
   onBack,
   currentTime,
   currentBPM,
@@ -158,6 +159,7 @@ export function LivePlayMobileOverlay({
               if (i < phraseMeasureRanges.length - 1) onPhraseSelect?.({ target: { value: String(i + 1) } });
             }
           }}
+          onRestart={onRestart}
         />
       </div>
       )}

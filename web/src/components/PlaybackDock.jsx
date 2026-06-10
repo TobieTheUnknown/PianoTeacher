@@ -45,6 +45,9 @@ export function PlaybackDock({
 
   onPrev,
   onNext,
+
+  // Optional restart button (LivePlay only). When absent, nothing renders.
+  onRestart,
 }) {
   const onMiddleHand = () => {
     onHandMode?.(handMode === 'listen' ? 'both' : 'listen');
@@ -142,6 +145,11 @@ export function PlaybackDock({
         />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {onRestart && (
+            <TransportBtn onClick={onRestart} title="Recommencer" aria-label="Recommencer">
+              <RestartIcon />
+            </TransportBtn>
+          )}
           <TransportBtn onClick={onPrev} aria-label="Précédent">
             <RewindIcon />
           </TransportBtn>
@@ -597,6 +605,13 @@ const RepeatIcon = ({ small = false }) => (
 const ChevronDownIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+// Restart / skip-to-start: vertical bar + left-pointing triangle
+const RestartIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <line x1="5" y1="3" x2="5" y2="21" />
+    <polygon points="19,3 9,12 19,21" />
   </svg>
 );
 

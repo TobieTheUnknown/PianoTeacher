@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { getFrenchNoteName, getFrenchKeyName, getNoteNameFromMidi } from '../models/song';
-import { detectArpeggioMotifs } from '../utils/chordDetection';
+import { detectArpeggioMotifs, qualifyArpeggioMeasure } from '../utils/chordDetection';
 import { getMeasuresFromPhrase, groupNotesByTime } from '../utils/measureUtils';
 import { audioEngine } from '../services/AudioEngine';
 import { useDeviceContext } from '../hooks/useDeviceContext';
@@ -164,7 +164,7 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
     return (
         <div style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
             <div style={STYLES.sectionLabel}>
-                {isArpeggio && detectedChord && motifInfo?.repetitions > 1 ? (
+                {isArpeggio && detectedChord && motifInfo?.exactCycle && motifInfo?.repetitions > 1 ? (
                     <>Accords (arpège de {chordGroups.length} notes, {motifInfo.repetitions}x{motifInfo.notesPerCycle})</>
                 ) : isArpeggio && detectedChord ? (
                     <>Accord (arpège de {chordGroups.length} notes)</>
@@ -417,6 +417,60 @@ function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, key
     );
 }
 
+// ── ArpeggioBadge ────────────────────────────────────────────────────────────
+// Distinct from the note pills and the simultaneous-chord badge. A chord
+// badge means notes struck together; this pill means the chord is spread
+// out as a single-line arpeggio across the measure. Visual language:
+// --accent-dim fill + accent text + a small "ascending dots" glyph.
+
+function ArpeggioGlyph() {
+    // Three dots rising left→right on a baseline — reads as a broken/rolled
+    // chord (arpège) and is intentionally unlike the chord badge.
+    return (
+        <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden
+            style={{ flexShrink: 0 }}>
+            <circle cx="2.5" cy="9.5" r="1.7" fill="currentColor" />
+            <circle cx="7" cy="6" r="1.7" fill="currentColor" />
+            <circle cx="11.5" cy="2.5" r="1.7" fill="currentColor" />
+            <path d="M2.5 9.5 L7 6 L11.5 2.5" stroke="currentColor" strokeWidth="1"
+                strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
+        </svg>
+    );
+}
+
+const ArpeggioBadge = React.memo(function ArpeggioBadge({ label, altered = false, alteredNoteName = null }) {
+    // Orange variant marks a measure whose arpeggio carries one passing
+    // tone / small alteration outside the chord.
+    const tone = altered ? 'var(--warning)' : 'var(--accent)';
+    const dim = altered
+        ? 'color-mix(in srgb, var(--warning) 16%, transparent)'
+        : 'var(--accent-dim)';
+    return (
+        <span
+            title={altered
+                ? `Arpège avec altération de passage${alteredNoteName ? ` (${alteredNoteName})` : ''}`
+                : 'Arpège — accord joué note par note'}
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '3px 9px',
+                borderRadius: 'var(--r-pill)',
+                background: dim,
+                border: `1px solid ${tone}`,
+                color: tone,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.01em',
+                whiteSpace: 'nowrap',
+            }}
+        >
+            <ArpeggioGlyph />
+            {label}
+        </span>
+    );
+});
+
 // ── MeasureCard (memoized) — compact design-aligned card ─────────────────────
 
 const MeasureCard = React.memo(function MeasureCard({
@@ -431,7 +485,10 @@ const MeasureCard = React.memo(function MeasureCard({
 }) {
     // Pre-sorted melody (stable reference from getMeasuresFromPhrase)
     const sortedMelody = measure.sortedMelody;
-    const chordName = measure.detectedChord?.displayName;
+    const arpeggioBadge = measure.arpeggioBadge;
+    // Hide the top-row chord chip when the arpeggio badge owns the measure
+    // (it would otherwise duplicate the chord with different casing).
+    const chordName = (arpeggioBadge && !showDetails) ? null : measure.detectedChord?.displayName;
 
     // Highlighted == manually starred (border accent), current == playback target
     const accentBorder = isCurrent || isHighlighted;
@@ -535,8 +592,18 @@ const MeasureCard = React.memo(function MeasureCard({
                 </div>
             ) : <div style={{ marginBottom: 5, minHeight: 18 }} />}
 
-            {/* Left hand notes (pink pills) */}
-            {leftLabels.length > 0 ? (
+            {/* Left hand: arpeggio badge takes over the raw note dump when a
+                consecutive-arpeggio run is active and Détail is OFF. Détail
+                ON always falls back to showing every note. */}
+            {arpeggioBadge && !showDetails ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, minHeight: 18, alignItems: 'center' }}>
+                    <ArpeggioBadge
+                        label={arpeggioBadge.label}
+                        altered={arpeggioBadge.altered}
+                        alteredNoteName={arpeggioBadge.alteredNoteName}
+                    />
+                </div>
+            ) : leftLabels.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 18 }}>
                     {leftLabels.map((n, i) => (
                         <span key={`l${i}`} style={{
@@ -729,6 +796,14 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 const motifInfo = isArpeggio ? detectArpeggioMotifs(chordGroups, song.key) : null;
                 const detectedChord = motifInfo ? motifInfo.chord : null;
 
+                // Measure-level arpeggio qualifier (regular rhythm + all
+                // pitch classes form exactly one chord). This is a superset
+                // of the clean-cycle motif logic — it also catches irregular
+                // patterns like Departure's do-mib-sol-mib… that have no
+                // homogeneous cycle. Activation (badge) is decided AFTER all
+                // measures exist, by the consecutive-measures pass below.
+                const arpeggioMeasure = qualifyArpeggioMeasure(chordGroups, song.key);
+
                 measures.push({
                     number: measures.length + 1,
                     chordGroups,
@@ -741,10 +816,49 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     unitsPerMeasure: measure.unitsPerMeasure || 4,
                     isArpeggio,
                     detectedChord,
-                    motifInfo
+                    motifInfo,
+                    arpeggioMeasure,
+                    // Filled in by the consecutive-measures pass below.
+                    arpeggioBadge: null,
                 });
             });
         });
+
+        // ── Consecutive-measures arpeggio trigger ──────────────────────────
+        // The arpeggio badge only activates across a RUN of ≥2 consecutive
+        // qualifying measures. Chords may differ between measures (m1 = do m,
+        // m2 = fa m/do still counts); each measure then shows its OWN badge.
+        let runStart = 0;
+        while (runStart < measures.length) {
+            if (!measures[runStart].arpeggioMeasure) { runStart++; continue; }
+            let runEnd = runStart;
+            while (runEnd + 1 < measures.length && measures[runEnd + 1].arpeggioMeasure) {
+                runEnd++;
+            }
+            if (runEnd - runStart + 1 >= 2) {
+                for (let i = runStart; i <= runEnd; i++) {
+                    const m = measures[i];
+                    const aq = m.arpeggioMeasure;
+                    // Append ×N only when the existing clean-cycle motif logic
+                    // found a homogeneous repeating cycle (repetitions > 1).
+                    // The irregular fallback path shows no ×N.
+                    // ×N only when the EXACT ordered note sequence repeats N
+                    // times (motifInfo.exactCycle): the motif must literally
+                    // repeat. The "distinct chords per cycle" branch also
+                    // reports repetitions>1 but those are NOT motif repeats.
+                    const reps = (m.motifInfo && m.motifInfo.exactCycle
+                        && m.motifInfo.repetitions > 1
+                        && m.motifInfo.notesPerCycle * m.motifInfo.repetitions === aq.noteCount)
+                        ? m.motifInfo.repetitions : 1;
+                    const label = reps > 1 ? `${aq.badge} ×${reps}` : aq.badge;
+                    m.arpeggioBadge = {
+                        label, chord: aq.chord, reps,
+                        altered: aq.altered, alteredNoteName: aq.alteredNoteName,
+                    };
+                }
+            }
+            runStart = runEnd + 1;
+        }
 
         return {
             measures,
