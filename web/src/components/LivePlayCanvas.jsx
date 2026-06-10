@@ -27,17 +27,24 @@ const FIRST_KEY = 21;
 const LAST_KEY = 108;
 
 /**
- * Composant Canvas optimisé pour LivePlayView
- * Utilise des layers séparés pour minimiser les redraws
- * Supports dynamic dimensions via canvasWidth/canvasHeight props
+ * LivePlay canvas — render loop architecture
+ *
+ * The playhead time is read from `timeRef` (a mutable ref owned by the view's
+ * timing loop) INSIDE the rAF callback, so the canvas renders at full display
+ * refresh without a single React re-render per frame. Event-rate props
+ * (pressed keys, played-note statuses, feedback) are mirrored into `liveRef`
+ * on each render and read from there by the draw functions — this keeps the
+ * draw callbacks referentially stable so the rAF loop is mounted once, not
+ * torn down per frame.
+ *
+ * Particle physics and other animations are scaled by deltaTime so they run
+ * at identical speed on 60Hz and 120Hz displays.
  */
 const LivePlayCanvas = memo(({
-  currentTime,
+  timeRef,
   activeNotes,
   playedNotes,
   feedbackMessages,
-  // eslint-disable-next-line no-unused-vars
-  expectedNotes,
   allNotes,
   beatsPerSecond,
   song,
@@ -88,9 +95,31 @@ const LivePlayCanvas = memo(({
     needsRedraw
   } = useCanvasLayers(CANVAS_WIDTH, CANVAS_HEIGHT, { forceDpr: isMobile ? 1 : undefined });
 
-  const lastDrawTimeRef = useRef(0);
+  // Event-rate props mirrored for the rAF loop (assigned every render — the
+  // draw functions read the latest values without depending on them).
+  const liveRef = useRef({});
+  liveRef.current = {
+    activeNotes,
+    playedNotes,
+    feedbackMessages,
+    sessionStats,
+    isLoopEnabled,
+    loopConfig,
+    song,
+  };
+
   const particlesRef = useRef([]);
-  const prevActiveNotesRef = useRef(new Set());
+  const prevActiveNotesObjRef = useRef(null);
+  const prevActivePitchesRef = useRef(new Set());
+  const visibleStartIdxRef = useRef(0);
+  const lastDrawnTimeRef = useRef(-1);
+
+  // Longest note duration (beats) — used to advance the visible-window
+  // pointer without ever skipping a long note that is still on screen.
+  const maxDurBeats = useMemo(
+    () => allNotes.reduce((m, n) => Math.max(m, n.duration || 0), 0),
+    [allNotes]
+  );
 
   // Pre-compute consecutive repetition counts (cached, not per-frame)
   const { repeatCount, skipLabel } = useMemo(() => {
@@ -136,7 +165,7 @@ const LivePlayCanvas = memo(({
     return cache;
   }, [firstKey, lastKey, WHITE_KEY_WIDTH]);
 
-  // Subscribe to hand color changes from ThemeService
+  // Subscribe to hand color changes from ThemeService (theme editor support)
   const [handColors, setHandColors] = useState(() => themeService.getColors());
 
   useEffect(() => {
@@ -147,22 +176,19 @@ const LivePlayCanvas = memo(({
     return unsubscribe;
   }, [markDynamicDirty]);
 
-  // Function to get dynamic colors using the reactive state
-  const getDynamicColors = useCallback(() => {
-    return {
-      ...STATIC_COLORS,
-      // Hand colors from state (reactive)
-      rightHand: handColors.rightHand.primary,
-      rightHandLight: handColors.rightHand.light,
-      rightHandDark: handColors.rightHand.dark,
-      leftHand: handColors.leftHand.primary,
-      leftHandLight: handColors.leftHand.light,
-      leftHandDark: handColors.leftHand.dark,
-      // Key pressed colors based on hands
-      whiteKeyPressed: handColors.leftHand.light, // Default to left hand for freeplay
-      blackKeyPressed: handColors.leftHand.dark,
-    };
-  }, [handColors]);
+  // Colors object (only changes when handColors change)
+  const dynamicColors = useMemo(() => ({
+    ...STATIC_COLORS,
+    rightHand: handColors.rightHand.primary,
+    rightHandLight: handColors.rightHand.light,
+    rightHandDark: handColors.rightHand.dark,
+    leftHand: handColors.leftHand.primary,
+    leftHandLight: handColors.leftHand.light,
+    leftHandDark: handColors.leftHand.dark,
+    // Key pressed colors based on hands
+    whiteKeyPressed: handColors.leftHand.light, // Default to left hand for freeplay
+    blackKeyPressed: handColors.leftHand.dark,
+  }), [handColors]);
 
   // Pre-compute darkened colors for black key notes (avoid hex parsing per frame)
   const darkenedColors = useMemo(() => {
@@ -193,55 +219,6 @@ const LivePlayCanvas = memo(({
     return noteXCache.get(midiNote) ?? null;
   }, [noteXCache]);
 
-  // Pre-build pitch->hand lookup for notes near current time (avoids .find() per key per frame)
-  const activeNoteHandMap = useMemo(() => {
-    const map = new Map();
-    const lookAheadTime = 0.5;
-    for (let i = 0; i < allNotes.length; i++) {
-      const note = allNotes[i];
-      const noteStartTime = note.startTime / beatsPerSecond;
-      const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
-      if (currentTime >= noteStartTime - lookAheadTime && currentTime <= noteEndTime + 0.1) {
-        if (!map.has(note.pitch)) {
-          map.set(note.pitch, note.hand);
-        }
-      }
-      // Early exit: notes are sorted by startTime, skip far future
-      if (noteStartTime > currentTime + lookAheadTime + 1) break;
-    }
-    return map;
-  }, [allNotes, beatsPerSecond, currentTime]);
-
-  // Cache colors object (only changes when handColors change, not per call)
-  const dynamicColors = useMemo(() => getDynamicColors(), [getDynamicColors]);
-
-  const getKeyColor = useCallback((midiNote, isBlack) => {
-    const isPressed = activeNotes.has(midiNote);
-    const colors = dynamicColors;
-
-    if (isPressed) {
-      const recentFeedback = feedbackMessages.find(f => f.noteNum === midiNote);
-      if (recentFeedback) {
-        if (recentFeedback.type === 'correct') {
-          return isBlack ? STATIC_COLORS.blackKeyCorrect : STATIC_COLORS.whiteKeyCorrect;
-        } else if (recentFeedback.type === 'wrong') {
-          return isBlack ? STATIC_COLORS.blackKeyWrong : STATIC_COLORS.whiteKeyWrong;
-        }
-      }
-
-      const hand = activeNoteHandMap.get(midiNote);
-      if (hand === 'right') {
-        return isBlack ? colors.rightHandDark : colors.rightHandLight;
-      } else if (hand === 'left') {
-        return isBlack ? colors.leftHandDark : colors.leftHandLight;
-      }
-
-      return isBlack ? colors.blackKeyPressed : colors.whiteKeyPressed;
-    }
-
-    return isBlack ? STATIC_COLORS.blackKey : STATIC_COLORS.whiteKey;
-  }, [activeNotes, feedbackMessages, activeNoteHandMap, dynamicColors]);
-
   const darkenColor = useCallback((color, amount = 0.3) => {
     if (!color.startsWith('#')) return color;
 
@@ -271,14 +248,60 @@ const LivePlayCanvas = memo(({
     ctx.closePath();
   }, []);
 
-  // Draw static layer (grid, measure numbers) - rarely changes
-  const drawStaticLayer = useCallback((ctx) => {
+  // Build pitch→hand map for notes near `time` (called once per frame,
+  // starting from the visible-window pointer — no full-array scan).
+  const buildHandMap = useCallback((time, fromIdx) => {
+    const map = new Map();
+    const lookBehind = 0.5;
+    for (let j = fromIdx; j < allNotes.length; j++) {
+      const n = allNotes[j];
+      const ns = n.startTime / beatsPerSecond;
+      if (ns > time + lookBehind) break;
+      const ne = (n.startTime + n.duration) / beatsPerSecond;
+      if (time >= ns - lookBehind && time <= ne + 0.1 && !map.has(n.pitch)) {
+        map.set(n.pitch, n.hand);
+      }
+    }
+    return map;
+  }, [allNotes, beatsPerSecond]);
+
+  const getKeyColor = useCallback((midiNote, isBlack, handMap) => {
+    const { activeNotes: pressed, feedbackMessages: feedbacks } = liveRef.current;
+    const isPressed = pressed.has(midiNote);
+    const colors = dynamicColors;
+
+    if (isPressed) {
+      const recentFeedback = feedbacks.find(f => f.noteNum === midiNote);
+      if (recentFeedback) {
+        if (recentFeedback.type === 'correct') {
+          return isBlack ? STATIC_COLORS.blackKeyCorrect : STATIC_COLORS.whiteKeyCorrect;
+        } else if (recentFeedback.type === 'wrong') {
+          return isBlack ? STATIC_COLORS.blackKeyWrong : STATIC_COLORS.whiteKeyWrong;
+        }
+      }
+
+      const hand = handMap.get(midiNote);
+      if (hand === 'right') {
+        return isBlack ? colors.rightHandDark : colors.rightHandLight;
+      } else if (hand === 'left') {
+        return isBlack ? colors.leftHandDark : colors.leftHandLight;
+      }
+
+      return isBlack ? colors.blackKeyPressed : colors.whiteKeyPressed;
+    }
+
+    return isBlack ? STATIC_COLORS.blackKey : STATIC_COLORS.whiteKey;
+  }, [dynamicColors]);
+
+  // Draw static layer (grid, measure numbers, loop zone)
+  const drawStaticLayer = useCallback((ctx, currentTime) => {
+    const { song: songNow, isLoopEnabled: loopOn, loopConfig: loopCfg } = liveRef.current;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
     const lookAheadTime = 4;
     const beatsPerMeasure = 4;
     const currentBeat = currentTime * beatsPerSecond;
     const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
-    const highlightedMeasures = new Set(song.highlightedMeasures || []);
+    const highlightedMeasures = new Set(songNow?.highlightedMeasures || []);
     const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
 
     // Alternating measure bands (scroll with notes)
@@ -407,10 +430,10 @@ const LivePlayCanvas = memo(({
     ctx.globalAlpha = 1.0;
 
     // Loop zone
-    if (isLoopEnabled && loopConfig) {
+    if (loopOn && loopCfg) {
       const bpm = 4;
-      const startMeasure = loopConfig.startMeasure - 1;
-      const endMeasure = loopConfig.endMeasure;
+      const startMeasure = loopCfg.startMeasure - 1;
+      const endMeasure = loopCfg.endMeasure;
 
       const loopStartTime = (startMeasure * bpm) / beatsPerSecond;
       const loopEndTime = (endMeasure * bpm) / beatsPerSecond;
@@ -444,58 +467,64 @@ const LivePlayCanvas = memo(({
         }
       }
     }
-  }, [currentTime, beatsPerSecond, song, isLoopEnabled, loopConfig, isBlackKey, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey]);
+  }, [beatsPerSecond, isBlackKey, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, isMobile]);
 
   // Draw dynamic layer (falling notes, keyboard) - changes every frame
-  const drawDynamicLayer = useCallback((ctx) => {
+  const drawDynamicLayer = useCallback((ctx, currentTime, visibleStartIdx) => {
+    const { activeNotes: pressed, playedNotes: played } = liveRef.current;
     const lookAheadTime = 4;
     const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
-    // Falling notes
     const noteColors = dynamicColors;
+    const handMap = buildHandMap(currentTime, visibleStartIdx);
 
-    // Spawn particles on newly activated notes (only when effects enabled, desktop only)
+    // Spawn particles on newly activated notes (only when effects enabled,
+    // desktop only). Set rebuilds only when the activeNotes object changed.
     if (visualEffects && !isMobile) {
-      activeNotes.forEach(midi => {
-        if (!prevActiveNotesRef.current.has(midi)) {
-          const nx = getNoteX(midi);
-          if (nx !== null) {
-            const isBlack = isBlackKey(midi);
-            const nw = isBlack ? WHITE_KEY_WIDTH * 0.5 : WHITE_KEY_WIDTH - 2;
-            const noteData = allNotes.find(n => n.pitch === midi);
-            const pColor = (noteData?.hand === 'right') ? noteColors.rightHand : noteColors.leftHand;
-            for (let j = 0; j < 7; j++) {
-              particlesRef.current.push({
-                x: nx + nw / 2 + (Math.random() - 0.5) * nw * 1.5,
-                y: NOTE_FALL_HEIGHT,
-                vx: (Math.random() - 0.5) * 4,
-                vy: -Math.random() * 6 - 2,
-                life: 1.0,
-                radius: (Math.random() * 2 + 1.5) * fontScale,
-                color: pColor,
-              });
-            }
-            if (particlesRef.current.length > 100) {
-              particlesRef.current = particlesRef.current.slice(-100);
+      if (pressed !== prevActiveNotesObjRef.current) {
+        pressed.forEach(midi => {
+          if (!prevActivePitchesRef.current.has(midi)) {
+            const nx = getNoteX(midi);
+            if (nx !== null) {
+              const isBlack = isBlackKey(midi);
+              const nw = isBlack ? WHITE_KEY_WIDTH * 0.5 : WHITE_KEY_WIDTH - 2;
+              const hand = handMap.get(midi);
+              const pColor = (hand === 'right') ? noteColors.rightHand : noteColors.leftHand;
+              for (let j = 0; j < 7; j++) {
+                particlesRef.current.push({
+                  x: nx + nw / 2 + (Math.random() - 0.5) * nw * 1.5,
+                  y: NOTE_FALL_HEIGHT,
+                  vx: (Math.random() - 0.5) * 4,
+                  vy: -Math.random() * 6 - 2,
+                  life: 1.0,
+                  radius: (Math.random() * 2 + 1.5) * fontScale,
+                  color: pColor,
+                });
+              }
+              if (particlesRef.current.length > 100) {
+                particlesRef.current = particlesRef.current.slice(-100);
+              }
             }
           }
-        }
-      });
+        });
+        prevActiveNotesObjRef.current = pressed;
+        prevActivePitchesRef.current = new Set(pressed);
+      }
     }
-    prevActiveNotesRef.current = new Set(activeNotes);
 
     // Set font once for all note labels
     const noteFontSize = Math.round(12 * fontScale);
     const noteSmallFontSize = Math.round(10 * fontScale);
     ctx.textAlign = 'center';
 
-    for (let ni = 0; ni < allNotes.length; ni++) {
+    for (let ni = visibleStartIdx; ni < allNotes.length; ni++) {
       const note = allNotes[ni];
       const noteStartTime = note.startTime / beatsPerSecond;
+      if (noteStartTime > currentTime + lookAheadTime) break; // sorted: rest is later
       const noteEndTime = (note.startTime + note.duration) / beatsPerSecond;
 
-      if (noteEndTime < currentTime - 0.5 || noteStartTime > currentTime + lookAheadTime) {
+      if (noteEndTime < currentTime - 0.5) {
         continue;
       }
 
@@ -508,7 +537,7 @@ const LivePlayCanvas = memo(({
 
       if (endY < 0 && startY < 0) continue;
 
-      const playStatus = playedNotes.get(note.id);
+      const playStatus = played.get(note.id);
 
       let color = note.hand === 'right' ? noteColors.rightHand : noteColors.leftHand;
 
@@ -587,8 +616,8 @@ const LivePlayCanvas = memo(({
       if (!isBlackKey(i)) {
         const x = getNoteX(i);
         if (x === null) continue;
-        const keyColor = getKeyColor(i, false);
-        const isPressed = activeNotes.has(i);
+        const keyColor = getKeyColor(i, false, handMap);
+        const isPressed = pressed.has(i);
 
         ctx.fillStyle = keyColor;
 
@@ -602,8 +631,8 @@ const LivePlayCanvas = memo(({
           ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
         } else {
           if (isPressed && visualEffects) {
-            const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
-            ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandLight : noteColors.leftHandLight;
+            const hand = handMap.get(i);
+            ctx.shadowColor = hand === 'right' ? noteColors.rightHandLight : noteColors.leftHandLight;
             ctx.shadowBlur = 18;
           }
           drawKeyShape(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT, 4 * fontScale);
@@ -613,11 +642,11 @@ const LivePlayCanvas = memo(({
           ctx.lineWidth = 1;
           drawKeyShape(x, keyboardY, WHITE_KEY_WIDTH - 1, KEYBOARD_HEIGHT, 4 * fontScale);
           ctx.stroke();
-        }
 
-        ctx.fillStyle = isPressed ? '#ffffff' : '#555';
-        const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
-        ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
+          ctx.fillStyle = isPressed ? '#ffffff' : '#555';
+          const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
+          ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
+        }
       }
     }
 
@@ -626,7 +655,7 @@ const LivePlayCanvas = memo(({
       if (isBlackKey(i)) {
         const x = getNoteX(i);
         if (x === null) continue;
-        const keyColor = getKeyColor(i, true);
+        const keyColor = getKeyColor(i, true, handMap);
 
         ctx.fillStyle = keyColor;
 
@@ -636,10 +665,10 @@ const LivePlayCanvas = memo(({
           ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, keyboardY + 0.5, BLACK_KEY_WIDTH - 1, blackKeyHeight - 1);
         } else {
-          const isPressed = activeNotes.has(i);
+          const isPressed = pressed.has(i);
           if (isPressed && visualEffects) {
-            const pd = allNotes.find(n => n.pitch === i && Math.abs(n.startTime / beatsPerSecond - currentTime) < 0.6);
-            ctx.shadowColor = pd?.hand === 'right' ? noteColors.rightHandDark : noteColors.leftHandDark;
+            const hand = handMap.get(i);
+            ctx.shadowColor = hand === 'right' ? noteColors.rightHandDark : noteColors.leftHandDark;
             ctx.shadowBlur = 14;
           }
           drawKeyShape(x, keyboardY, BLACK_KEY_WIDTH, blackKeyHeight, 3 * fontScale);
@@ -678,17 +707,20 @@ const LivePlayCanvas = memo(({
     ctx.lineTo(CANVAS_WIDTH, keyboardY);
     ctx.stroke();
     ctx.shadowBlur = 0;
-  }, [currentTime, allNotes, beatsPerSecond, playedNotes, activeNotes, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, getDynamicColors, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel]);
+  }, [allNotes, beatsPerSecond, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, dynamicColors, buildHandMap, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel]);
 
-  // Draw overlay layer (feedback, combo) - changes occasionally
-  const drawOverlayLayer = useCallback((ctx) => {
+  // Draw overlay layer (feedback, combo, particles)
+  // dtFrames ≈ 1.0 at 60Hz, 0.5 at 120Hz — keeps animation speed identical
+  // across display refresh rates.
+  const drawOverlayLayer = useCallback((ctx, currentTime, dtFrames) => {
     // Skip overlay entirely on mobile — mobile overlay component handles UI
     if (isMobile) return;
 
+    const { feedbackMessages: feedbacks, sessionStats: stats } = liveRef.current;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
     // Feedback messages
-    feedbackMessages.forEach((feedback, index) => {
+    feedbacks.forEach((feedback, index) => {
       const x = getNoteX(feedback.noteNum);
       if (x === null) return;
 
@@ -701,7 +733,7 @@ const LivePlayCanvas = memo(({
 
       let color = STATIC_COLORS.playedCorrect;
       let fontSize = Math.round(18 * fontScale);
-      let fontWeight = 'bold';
+      const fontWeight = 'bold';
 
       if (feedback.type === 'correct') {
         if (feedback.accuracy === 'perfect') {
@@ -732,7 +764,7 @@ const LivePlayCanvas = memo(({
     });
 
     // Combo counter
-    if (sessionStats.currentCombo > 2) {
+    if (stats.currentCombo > 2) {
       const comboBoxWidth = 140 * fontScale;
       const comboBoxHeight = 70 * fontScale;
       const comboX = CANVAS_WIDTH - comboBoxWidth - 10;
@@ -740,34 +772,34 @@ const LivePlayCanvas = memo(({
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       ctx.fillRect(comboX - 20 * fontScale, comboY - 50 * fontScale, comboBoxWidth, comboBoxHeight);
-      ctx.strokeStyle = sessionStats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
+      ctx.strokeStyle = stats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
       ctx.lineWidth = 3;
       ctx.strokeRect(comboX - 20 * fontScale, comboY - 50 * fontScale, comboBoxWidth, comboBoxHeight);
 
       ctx.textAlign = 'center';
-      ctx.fillStyle = sessionStats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
+      ctx.fillStyle = stats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
 
       ctx.font = `bold ${Math.round(32 * fontScale)}px Arial`;
-      ctx.fillText(`${sessionStats.currentCombo}x`, comboX + comboBoxWidth / 2 - 20 * fontScale, comboY - 10 * fontScale);
+      ctx.fillText(`${stats.currentCombo}x`, comboX + comboBoxWidth / 2 - 20 * fontScale, comboY - 10 * fontScale);
 
       ctx.font = `bold ${Math.round(14 * fontScale)}px Arial`;
       ctx.fillText('COMBO', comboX + comboBoxWidth / 2 - 20 * fontScale, comboY + 5 * fontScale);
     }
 
-    // Particles (only when effects enabled)
+    // Particles (only when effects enabled) — deltaTime-scaled physics
     if (visualEffects) {
       const particles = particlesRef.current;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        ctx.globalAlpha = p.life;
+        ctx.globalAlpha = Math.max(0, p.life);
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += 0.2;    // gravity
-        p.life -= 0.028;
+        p.x += p.vx * dtFrames;
+        p.y += p.vy * dtFrames;
+        p.vy += 0.2 * dtFrames;    // gravity
+        p.life -= 0.028 * dtFrames;
         if (p.life <= 0) particles.splice(i, 1);
       }
     } else {
@@ -776,26 +808,51 @@ const LivePlayCanvas = memo(({
     }
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
-  }, [feedbackMessages, sessionStats, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, WHITE_KEY_WIDTH, fontScale, visualEffects]);
+  }, [getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, WHITE_KEY_WIDTH, fontScale, visualEffects, isMobile]);
 
-  // Render loop with throttling for better performance
+  // Render loop — mounted once per layout/theme change, NOT per frame.
+  // Reads timeRef each frame; skips drawing entirely when nothing changed
+  // (paused, no animations) to save battery.
   useEffect(() => {
     let animationFrameId;
+    let lastTs = 0;
 
-    const render = (timestamp) => {
-      lastDrawTimeRef.current = timestamp;
+    const render = (ts) => {
+      const dt = lastTs > 0 ? Math.min((ts - lastTs) / 1000, 0.05) : 1 / 60;
+      lastTs = ts;
+      const dtFrames = dt * 60; // 1.0 at 60Hz
 
-      if (isMobile) {
-        // On mobile: draw everything into dynamic canvas only (single canvas, DPR=1)
-        drawLayer('dynamic', (ctx) => {
-          drawStaticLayer(ctx);
-          drawDynamicLayer(ctx);
-          drawOverlayLayer(ctx);
-        });
-      } else {
-        drawLayer('static', drawStaticLayer);
-        drawLayer('dynamic', drawDynamicLayer);
-        if (needsRedraw.current.overlay || (visualEffects && particlesRef.current.length > 0)) drawLayer('overlay', drawOverlayLayer);
+      const time = timeRef?.current ?? 0;
+      const timeChanged = time !== lastDrawnTimeRef.current;
+      const hasParticles = particlesRef.current.length > 0;
+      const hasFeedback = liveRef.current.feedbackMessages.length > 0;
+      const dirty = needsRedraw.current;
+
+      if (timeChanged || dirty.static || dirty.dynamic || dirty.overlay || hasParticles || hasFeedback) {
+        // Advance the shared visible-window pointer (reset on backward seek)
+        if (time < lastDrawnTimeRef.current) visibleStartIdxRef.current = 0;
+        let v = visibleStartIdxRef.current;
+        while (v < allNotes.length &&
+          (allNotes[v].startTime + maxDurBeats) / beatsPerSecond < time - 0.5) v++;
+        visibleStartIdxRef.current = v;
+
+        if (isMobile) {
+          // On mobile: draw everything into dynamic canvas only (single canvas, DPR=1)
+          drawLayer('dynamic', (ctx) => {
+            drawStaticLayer(ctx, time);
+            drawDynamicLayer(ctx, time, v);
+            drawOverlayLayer(ctx, time, dtFrames);
+          });
+          dirty.static = false;
+          dirty.overlay = false;
+        } else {
+          if (timeChanged || dirty.static) drawLayer('static', (ctx) => drawStaticLayer(ctx, time));
+          if (timeChanged || dirty.dynamic) drawLayer('dynamic', (ctx) => drawDynamicLayer(ctx, time, v));
+          if (timeChanged || dirty.overlay || hasParticles || hasFeedback) {
+            drawLayer('overlay', (ctx) => drawOverlayLayer(ctx, time, dtFrames));
+          }
+        }
+        lastDrawnTimeRef.current = time;
       }
 
       animationFrameId = requestAnimationFrame(render);
@@ -808,19 +865,18 @@ const LivePlayCanvas = memo(({
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, visualEffects, isMobile]);
+  }, [drawLayer, drawStaticLayer, drawDynamicLayer, drawOverlayLayer, isMobile, timeRef, needsRedraw, allNotes, beatsPerSecond, maxDurBeats]);
 
-  // Mark static layer dirty when relevant props change
+  // Mark layers dirty when event-rate props change so updates render even
+  // while paused (the loop skips clean frames otherwise).
   useEffect(() => {
     markStaticDirty();
   }, [song, isLoopEnabled, loopConfig, markStaticDirty]);
 
-  // Mark dynamic layer dirty on every frame
   useEffect(() => {
     markDynamicDirty();
-  }, [currentTime, allNotes, playedNotes, activeNotes, markDynamicDirty]);
+  }, [allNotes, playedNotes, activeNotes, markDynamicDirty]);
 
-  // Mark overlay dirty when feedback, combo, or active notes change (particles need update)
   useEffect(() => {
     markOverlayDirty();
   }, [feedbackMessages, sessionStats.currentCombo, activeNotes, markOverlayDirty]);
@@ -848,11 +904,14 @@ const LivePlayCanvas = memo(({
   );
 }, (prevProps, nextProps) => {
   return (
-    prevProps.currentTime === nextProps.currentTime &&
+    prevProps.timeRef === nextProps.timeRef &&
     prevProps.activeNotes === nextProps.activeNotes &&
     prevProps.playedNotes === nextProps.playedNotes &&
-    prevProps.feedbackMessages.length === nextProps.feedbackMessages.length &&
+    prevProps.feedbackMessages === nextProps.feedbackMessages &&
     prevProps.sessionStats.currentCombo === nextProps.sessionStats.currentCombo &&
+    prevProps.allNotes === nextProps.allNotes &&
+    prevProps.beatsPerSecond === nextProps.beatsPerSecond &&
+    prevProps.song === nextProps.song &&
     prevProps.isLoopEnabled === nextProps.isLoopEnabled &&
     prevProps.loopConfig === nextProps.loopConfig &&
     prevProps.canvasWidth === nextProps.canvasWidth &&

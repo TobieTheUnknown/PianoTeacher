@@ -31,12 +31,26 @@ class AudioEngine {
     }
 
     /**
+     * Stable clock function for a play session. Returns the audio-context
+     * clock (Tone.now()) when available so visuals and scheduled audio share
+     * the same time base; falls back to performance.now() before init.
+     * Callers must capture ONE clock per play session — never mix sources.
+     */
+    getClock() {
+        if (Tone) {
+            const T = Tone;
+            return () => T.now();
+        }
+        return () => performance.now() / 1000;
+    }
+
+    /**
      * Subscribe to "samples loaded" — fires once. Used by the loading indicator
      * and by useMidiAudio to flush queued MIDI events.
      */
     onReady(callback) {
         if (this.samplerLoaded) {
-            try { callback(); } catch (_) {}
+            try { callback(); } catch { /* listener errors must not break audio */ }
         } else {
             this._readyCallbacks.push(callback);
         }
@@ -123,7 +137,7 @@ class AudioEngine {
                     const cbs = this._readyCallbacks.slice();
                     this._readyCallbacks = [];
                     for (const cb of cbs) {
-                        try { cb(); } catch (_) {}
+                        try { cb(); } catch { /* listener errors must not break audio */ }
                     }
                     resolve();
                 }
