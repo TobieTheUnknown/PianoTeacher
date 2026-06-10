@@ -495,6 +495,21 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     }
   }, [allNotes.length, sessionStats.totalNotes]);
 
+  // Auto-pause when the tab/app goes to background: rAF stops firing there
+  // while the real-time clock keeps running, so without this the song would
+  // fast-forward (and instantly "finish") when the tab becomes visible again.
+  useEffect(() => {
+    if (!isPlaying) return;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        setIsPlaying(false);
+        setCurrentTime(songTimeRef.current);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [isPlaying]);
+
   // ── Main timing loop ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!isPlaying) return;
