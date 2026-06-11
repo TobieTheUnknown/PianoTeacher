@@ -6,6 +6,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -368,22 +370,26 @@ private fun MeasureCardCompact(
 
             // ── RIGHT hand (melody) ──────────────────────────────────────────
             //   Détail OFF + a role → role badge (HandRight).
-            //   Détail ON + ostinato → note chips grouped by motif (MotifRows).
-            //   otherwise           → melody note chips (a real melody IS the lesson).
+            //   Détail ON + ostinato → note chips grouped by motif occurrence.
+            //   Détail ON + chord-reducible arpeggio (reps > 1) → grouped by cycle.
+            //   otherwise → wrapped melody note chips (a real melody IS the lesson).
             val rightRole = measure.rightRole
             when {
                 !showDetails && rightRole != null ->
                     HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
                 showDetails && measure.rightOstinato != null && measure.melodyNotes.isNotEmpty() ->
                     MotifRows(measure.melodyNotes, measure.rightOstinato!!.motifPcs.size, CyanMelody)
+                showDetails && chordCycleLen(measure.rightRole, measure.melodyNotes.size) != null ->
+                    MotifRows(measure.melodyNotes, chordCycleLen(measure.rightRole, measure.melodyNotes.size)!!, CyanMelody)
                 else -> NotesRow(measure.melodyNotes, color = CyanMelody)
             }
 
             // ── LEFT hand (chords) ───────────────────────────────────────────
             //   Détail OFF + a role → role badge (HandLeft).
             //   Détail OFF + no role + notes → ≤4 note chips + "…".
-            //   Détail ON + ostinato → note chips grouped by motif (MotifRows).
-            //   Détail ON           → full left-hand note sequence chips.
+            //   Détail ON + ostinato → note chips grouped by motif occurrence.
+            //   Détail ON + chord-reducible arpeggio (reps > 1) → grouped by cycle.
+            //   Détail ON → full left-hand note sequence chips (wrapped flow).
             val leftRole = measure.leftRole
             when {
                 !showDetails && leftRole != null ->
@@ -394,6 +400,8 @@ private fun MeasureCardCompact(
                     Box(modifier = Modifier.fillMaxWidth().height(18.dp))
                 showDetails && measure.leftOstinato != null && measure.chordNotes.isNotEmpty() ->
                     MotifRows(measure.chordNotes, measure.leftOstinato!!.motifPcs.size, PinkChords)
+                showDetails && chordCycleLen(measure.leftRole, measure.chordNotes.size) != null ->
+                    MotifRows(measure.chordNotes, chordCycleLen(measure.leftRole, measure.chordNotes.size)!!, PinkChords)
                 else -> NotesRow(measure.chordNotes, color = PinkChords)
             }
 
@@ -434,6 +442,28 @@ private fun MeasureCardCompact(
 
 /** Which hand a role badge belongs to (color resolved at render via theme tokens). */
 private enum class HandSide { RIGHT, LEFT }
+
+/**
+ * Détail-ON cycle length for a CHORD-REDUCIBLE arpeggio hand — mirrors the web
+ * `arpeggioBadge && motifInfo.notesPerCycle` MotifRows path. The role is a
+ * HandRole.Ostinato with a literal motif absent (`ostinato == null`) whose
+ * exact ordered cycle repeats (`chordReps > 1`). One cycle spans
+ * noteCount / chordReps notes, so we chunk the ordered notes by that length.
+ * Returns null when the hand is not a chord-reducible arpeggio with a real ×N
+ * (the caller then falls back to a wrapped NotesRow — never a single line).
+ */
+private fun chordCycleLen(
+    role: com.tobietheunknown.pianoteacher.utils.HandRole?,
+    noteCount: Int,
+): Int? {
+    val ost = role as? com.tobietheunknown.pianoteacher.utils.HandRole.Ostinato ?: return null
+    // Literal-motif ostinatos are handled by the dedicated leftOstinato /
+    // rightOstinato MotifRows branch; this path is the chord-reducible one.
+    if (ost.ostinato != null) return null
+    if (ost.chordReps <= 1 || noteCount <= 0) return null
+    if (noteCount % ost.chordReps != 0) return null
+    return noteCount / ost.chordReps
+}
 
 @Composable
 private fun handSideColor(hand: HandSide): Color =
@@ -654,6 +684,7 @@ private fun LeftHandChips(notes: List<NoteEvent>) {
  * Row per repetition; the last row may be the truncated prefix. Mirrors web
  * MotifRows.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MotifRows(notes: List<NoteEvent>, motifLen: Int, tone: Color) {
     val labels = remember(notes) {
@@ -667,46 +698,56 @@ private fun MotifRows(notes: List<NoteEvent>, motifLen: Int, tone: Color) {
         modifier = Modifier.heightIn(min = 18.dp),
     ) {
         rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            // Each motif occurrence is itself a FlowRow so a long cycle wraps to
+            // the next line instead of overflowing the card width.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
                 row.forEach { lab ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(tone.copy(alpha = 0.22f))
-                            .border(1.dp, tone.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 5.dp, vertical = 1.dp),
-                    ) {
-                        Text(lab, color = tone, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
+                    NoteChip(lab, tone)
                 }
             }
         }
     }
 }
 
+/** Small dense note chip — 10sp bold, padding ~1×5dp, rounded 4dp. */
+@Composable
+private fun NoteChip(label: String, tone: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(tone.copy(alpha = 0.22f))
+            .border(1.dp, tone.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    ) {
+        Text(label, color = tone, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NotesRow(notes: List<NoteEvent>, color: Color) {
     val labels = remember(notes) {
         notes
             .sortedBy { it.startTime }
             .map { noteName(it.pitch) }
-            .take(8)
+            .take(16)
     }
     if (labels.isEmpty()) {
         Box(modifier = Modifier.fillMaxWidth().height(18.dp))
         return
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    // FlowRow so a long sequence wraps onto multiple lines instead of
+    // overflowing the card on a single unreadable line (the Détail-ON bug).
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
         labels.forEach { lab ->
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(color.copy(alpha = 0.22f))
-                    .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
-            ) {
-                Text(lab, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
+            NoteChip(lab, color)
         }
     }
 }
