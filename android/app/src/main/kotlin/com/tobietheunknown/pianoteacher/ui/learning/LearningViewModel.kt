@@ -38,6 +38,9 @@ data class MeasureData(
     val chordNotes: List<NoteEvent>,
     val chordInfo: ChordInfo?,
     val arpeggioMotif: ArpeggioMotifResult? = null,
+    // Activated arpeggio badge from the consecutive-measures run pass; null when
+    // this measure is not part of a qualifying ≥2-measure arpeggio run.
+    val arpeggioBadge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge? = null,
     val measureStart: Double  // beat offset within phrase
 )
 
@@ -587,7 +590,7 @@ class LearningViewModel(
         val bpm = song.beatsPerMeasure.toDouble()
         val useFlats = keySig?.useFlats ?: false
         var globalIdx = 0
-        return song.phrases.mapIndexed { phraseIndex, phrase ->
+        val sections = song.phrases.mapIndexed { phraseIndex, phrase ->
             val measures = (0 until phrase.length).map { mi ->
                 val start = mi * bpm
                 val end = (mi + 1) * bpm
@@ -633,6 +636,25 @@ class LearningViewModel(
             }
             PhraseSectionData(phrase, phraseIndex, measures, phrase.id in mastered)
         }
+
+        // ── Consecutive-measures arpeggio trigger ──────────────────────────
+        // The badge only activates across a RUN of ≥2 consecutive qualifying
+        // measures, which may span phrase boundaries — so run the pass over the
+        // flattened measure list, then re-attach badges by global index.
+        val flat = sections.flatMap { it.measures }
+        val badges = com.tobietheunknown.pianoteacher.utils.computeArpeggioBadges(
+            flat.map { it.chordNotes },
+            keySig,
+        )
+        if (badges.any { it != null }) {
+            val byGlobal = flat.indices.associate { flat[it].globalIndex to badges[it] }
+            return sections.map { sec ->
+                sec.copy(measures = sec.measures.map { m ->
+                    m.copy(arpeggioBadge = byGlobal[m.globalIndex])
+                })
+            }
+        }
+        return sections
     }
 
     class Factory(private val context: Context, private val songId: String) : ViewModelProvider.Factory {

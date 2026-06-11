@@ -218,8 +218,10 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
     );
 });
 
-function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature, isMobile, handColors }) {
-    const leftColor = handColors?.left || '#3b82f6';
+function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature, isMobile }) {
+    // Same tones as the combined arpeggio badge so toggling Détails never
+    // recolors the chips: accent blue, warning yellow when altered.
+    const leftColor = measure.arpeggioMeasure?.altered ? 'var(--warning)' : 'var(--accent)';
     const reps = motifInfo?.repetitions || 1;
     const chords = motifInfo?.chords || [detectedChord];
     const totalNotes = measure.chordGroups.length;
@@ -439,8 +441,9 @@ function ArpeggioGlyph() {
 }
 
 const ArpeggioBadge = React.memo(function ArpeggioBadge({ label, altered = false, alteredNoteName = null }) {
-    // Orange variant marks a measure whose arpeggio carries one passing
-    // tone / small alteration outside the chord.
+    // The large outlined chip carrying the chord name. Orange variant marks
+    // a measure whose arpeggio carries one passing tone / small alteration
+    // (or an incomplete chord) outside the clean chord.
     const tone = altered ? 'var(--warning)' : 'var(--accent)';
     const dim = altered
         ? 'color-mix(in srgb, var(--warning) 16%, transparent)'
@@ -453,15 +456,16 @@ const ArpeggioBadge = React.memo(function ArpeggioBadge({ label, altered = false
             style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '3px 9px',
-                borderRadius: 'var(--r-pill)',
+                gap: 6,
+                padding: '5px 11px',
+                borderRadius: 8,
                 background: dim,
-                border: `1px solid ${tone}`,
+                border: `2px solid ${tone}`,
                 color: tone,
-                fontSize: 11,
-                fontWeight: 700,
+                fontSize: 14,
+                fontWeight: 800,
                 letterSpacing: '0.01em',
+                lineHeight: 1.1,
                 whiteSpace: 'nowrap',
             }}
         >
@@ -470,6 +474,58 @@ const ArpeggioBadge = React.memo(function ArpeggioBadge({ label, altered = false
         </span>
     );
 });
+
+// ── ArpeggioNotePills ────────────────────────────────────────────────────────
+// The small, neutral outlined chips listed BELOW the arpeggio badge. They
+// spell out the left-hand note sequence in played order. They are deliberately
+// NOT hand-colored — they sit under an already-colored badge. When the exact
+// motif repeats (motifInfo.exactCycle && repetitions > 1) we show only ONE
+// cycle's notes (the ×N on the badge already says it repeats); otherwise we
+// show the full sequence, capped with an ellipsis pill.
+
+const ARP_PILL_CAP = 12;
+
+function ArpeggioNotePills({ measure, displayNoteName, keySignature }) {
+    const groups = measure.chordGroups || [];
+    const motif = measure.motifInfo;
+
+    let visibleCount = groups.length;
+    if (motif?.exactCycle && motif.repetitions > 1 && motif.notesPerCycle) {
+        visibleCount = motif.notesPerCycle;
+    }
+
+    const truncated = visibleCount > ARP_PILL_CAP;
+    const shown = groups.slice(0, Math.min(visibleCount, ARP_PILL_CAP));
+
+    if (shown.length === 0) return null;
+
+    return (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6, minHeight: 18 }}>
+            {shown.map((g, i) => (
+                <span key={`arp${i}`} style={{
+                    fontSize: 10, fontWeight: 600,
+                    padding: '2px 6px',
+                    borderRadius: 5,
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-strong)',
+                    whiteSpace: 'nowrap',
+                }}>
+                    {displayNoteName(g.notes[0].pitch, keySignature)}
+                </span>
+            ))}
+            {truncated && (
+                <span style={{
+                    fontSize: 10, fontWeight: 600,
+                    padding: '2px 6px',
+                    borderRadius: 5,
+                    color: 'var(--text-tertiary)',
+                    border: '1px solid var(--border-strong)',
+                }}>…</span>
+            )}
+        </div>
+    );
+}
 
 // ── MeasureCard (memoized) — compact design-aligned card ─────────────────────
 
@@ -592,15 +648,23 @@ const MeasureCard = React.memo(function MeasureCard({
                 </div>
             ) : <div style={{ marginBottom: 5, minHeight: 18 }} />}
 
-            {/* Left hand: arpeggio badge takes over the raw note dump when a
-                consecutive-arpeggio run is active and Détail is OFF. Détail
-                ON always falls back to showing every note. */}
+            {/* Left hand. When a consecutive-arpeggio run is active and Détail
+                is OFF, the combined layout shows the large arpeggio badge AND,
+                below it, the neutral note pills detailing the arpeggio sequence.
+                Détail ON always falls back to showing every raw note. */}
             {arpeggioBadge && !showDetails ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, minHeight: 18, alignItems: 'center' }}>
-                    <ArpeggioBadge
-                        label={arpeggioBadge.label}
-                        altered={arpeggioBadge.altered}
-                        alteredNoteName={arpeggioBadge.alteredNoteName}
+                <div style={{ minHeight: 18 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                        <ArpeggioBadge
+                            label={arpeggioBadge.label}
+                            altered={arpeggioBadge.altered}
+                            alteredNoteName={arpeggioBadge.alteredNoteName}
+                        />
+                    </div>
+                    <ArpeggioNotePills
+                        measure={measure}
+                        displayNoteName={displayNoteName}
+                        keySignature={keySignature}
                     />
                 </div>
             ) : leftLabels.length > 0 ? (
@@ -1065,6 +1129,19 @@ export function LiveLearning({ song, onToggleHighlight }) {
         };
     }, []);
 
+    // Restart: stop and snap back to the first measure (shared dock button)
+    const handleRestart = useCallback(() => {
+        if (isPlaying) {
+            audioEngine.stop();
+            audioEngine.stopMetronome();
+            if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+            setIsPlaying(false);
+            setPlayingMeasure(-1);
+            playingMeasureRef.current = -1;
+        }
+        setFocusedMeasure(1);
+    }, [isPlaying]);
+
     const handleTempoChange = useCallback((bpm) => {
         setCurrentBPM(bpm);
         if (audioEngine.isPlaying) {
@@ -1357,6 +1434,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     <PlaybackDock
                         playing={isPlaying}
                         onPlayPause={handlePlayPause}
+                        onRestart={handleRestart}
                         speed={Math.round((currentBPM / Math.max(song.tempo, 1)) * 100)}
                         onSpeed={(pct) => handleTempoChange(Math.round((pct / 100) * song.tempo))}
                         handMode={playbackHand}

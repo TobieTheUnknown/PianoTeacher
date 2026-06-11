@@ -90,6 +90,7 @@ fun LiveLearningScreen(
     val isLooping by vm.isLooping.collectAsState()
     val loopStart by vm.loopStart.collectAsState()
     val loopEnd by vm.loopEnd.collectAsState()
+    val showDetails by vm.showDetails.collectAsState()
 
     var loopEditorOpen by remember { mutableStateOf(false) }
 
@@ -153,6 +154,8 @@ fun LiveLearningScreen(
                             fontFamily = FontFamily.Monospace,
                         )
                     }
+                    DetailToggle(active = showDetails, onClick = vm::toggleDetails)
+                    Spacer(Modifier.width(8.dp))
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -220,6 +223,7 @@ fun LiveLearningScreen(
                                                     isCurrent = globalIdx == focusedMeasure || globalIdx == playingMeasure,
                                                     isPlaying = isPlaying && globalIdx == playingMeasure,
                                                     measureDurationMs = measureDurationMs,
+                                                    showDetails = showDetails,
                                                     onClick = onCellClick,
                                                     modifier = Modifier.weight(1f),
                                                 )
@@ -307,6 +311,11 @@ fun LiveLearningScreen(
                         val tgt = (focusedMeasure + 1).coerceAtMost(totalMeasures - 1)
                         vm.focusMeasure(tgt)
                     },
+                    // Recommencer: stop playback and return to the first measure.
+                    onRestart = {
+                        vm.stop()
+                        vm.focusMeasure(0)
+                    },
                 )
             }
         }
@@ -322,6 +331,7 @@ private fun MeasureCardCompact(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     measureDurationMs: Long = 2000L,
+    showDetails: Boolean = false,
 ) {
     val border = if (isCurrent) IndigoAccent else BorderColor
     val bg = if (isCurrent) IndigoAccent.copy(alpha = 0.08f) else SurfaceVariant
@@ -350,8 +360,15 @@ private fun MeasureCardCompact(
             }
             // Right-hand notes (cyan, top row)
             NotesRow(measure.melodyNotes, color = CyanMelody)
-            // Left-hand notes (pink, bottom row)
-            NotesRow(measure.chordNotes, color = PinkChords)
+            // Left-hand: when a consecutive-arpeggio run is active and Détail is
+            // OFF, the arpeggio badge + its note-chip breakdown take over the
+            // raw note dump. Détail ON always shows every note.
+            val badge = measure.arpeggioBadge
+            if (badge != null && !showDetails) {
+                ArpeggioBadgeBlock(badge)
+            } else {
+                NotesRow(measure.chordNotes, color = PinkChords)
+            }
             // Beat strip with cyan/pink dots aligned to note startTime
             BeatStrip(
                 beatsPerMeasure = beatsPerMeasure,
@@ -361,6 +378,76 @@ private fun MeasureCardCompact(
                 chords = measure.chordNotes,
                 measureDurationMs = measureDurationMs,
             )
+        }
+    }
+}
+
+/** Small "Détail" pill toggle in the header — ON shows the full per-note
+ *  breakdown, OFF shows the combined arpeggio-badge layout. */
+@Composable
+private fun DetailToggle(active: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (active) IndigoAccent else SurfaceVariant)
+            .border(1.dp, if (active) IndigoAccent else BorderColor, RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            "Détail",
+            color = if (active) Color.White else TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+/**
+ * Combined arpeggio layout for the measure card: the chord badge (bold text,
+ * 2px border, rounded — Accent blue when clean, Warning yellow when altered)
+ * on top, and below it a row of small outlined note chips detailing the
+ * arpeggio sequence (one cycle when exact ×N, else full sequence capped ~12).
+ */
+@Composable
+private fun ArpeggioBadgeBlock(badge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge) {
+    val tone = if (badge.altered) Warning else Accent
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Badge chip
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(tone.copy(alpha = 0.14f))
+                .border(2.dp, tone, RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+        ) {
+            Text(
+                badge.label,
+                color = tone,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.2.sp,
+            )
+        }
+        // Note chips detailing the arpeggio sequence (one cycle or capped seq)
+        if (badge.cycleNotes.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                badge.cycleNotes.take(12).forEach { pitch ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .border(1.dp, BorderStrong, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    ) {
+                        Text(
+                            noteName(pitch),
+                            color = TextSecondary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -112,22 +112,27 @@ export function arpeggioToChord(chordGroups, keySignature) {
     return identifyChord(midiPitches, keySignature);
 }
 
+/** Capitalize the first letter only: "mib"/"MIB" → "Mib". */
+function capitalizeNote(name) {
+    if (!name) return name;
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+}
+
 /**
- * Format chord display name with major/minor casing convention.
- * Minor chords → lowercase root (sol min7), Major chords → UPPERCASE root (SOL Maj7)
- * Plain major triad → just "SOL", plain minor triad → just "sol"
+ * Format chord display name with the major/minor casing convention:
+ * every note starts with a capital — minor → Capitalized root ("Do"),
+ * Major → UPPERCASE root ("DO"). The casing alone carries the quality,
+ * so plain triads need no suffix. Extensions keep their digits:
+ * min7 → "Do 7", Maj7 → "DO Maj7", dominant 7 → "DO 7"…
  */
 function formatChordDisplayName(rootName, quality) {
     const isMinor = quality.startsWith('min');
-    const root = isMinor ? rootName.toLowerCase() : rootName.toUpperCase();
+    const root = isMinor ? capitalizeNote(rootName) : rootName.toUpperCase();
 
-    if (quality === 'Maj') return root;
-    if (quality === 'min') return root;
+    if (quality === 'Maj' || quality === 'min') return root;
 
-    // Strip leading "min" for minor qualities to avoid "sol min7" → keep suffix only
     const suffix = isMinor ? quality.slice(3) : quality;
-    const qualityLabel = isMinor ? (suffix ? `min${suffix}` : 'min') : quality;
-    return `${root} ${qualityLabel}`;
+    return suffix ? `${root} ${suffix}` : root;
 }
 
 /**
@@ -318,29 +323,15 @@ export function detectArpeggioMotifs(chordGroups, keySignature) {
  */
 export function formatArpeggioBadge(chord, bassPitchClass, keySignature) {
     if (!chord) return '';
-    const isMinor = chord.quality.startsWith('min');
-    const root = isMinor ? chord.rootName.toLowerCase() : chord.rootName.toUpperCase();
-
-    // Quality suffix. Spec examples: MAJOR → bare uppercase root ("DO",
-    // "FA"); minor → lowercase root + " m" ("do m", "fa m"). Extended
-    // qualities keep their French suffix (e.g. "do min7", "DO 7").
-    let label;
-    if (chord.quality === 'Maj') {
-        label = root;                 // "DO"
-    } else if (chord.quality === 'min') {
-        label = `${root} m`;          // "do m"
-    } else if (isMinor) {
-        // Compact minor extensions: min7 → "ré m7", min6 → "ré m6"…
-        label = `${root} m${chord.quality.slice(3)}`;
-    } else {
-        label = `${root} ${chord.quality}`;
-    }
+    // Every note starts with a capital; the CASING carries the quality:
+    // "Do" = Do mineur, "DO" = DO majeur. No "m" suffix needed.
+    let label = formatChordDisplayName(chord.rootName, chord.quality);
 
     // Slash bass when bass note differs from the chord root.
     if (chord.rootPitchClass !== undefined &&
         bassPitchClass !== undefined &&
         chord.rootPitchClass !== bassPitchClass) {
-        const bassName = getRootName(bassPitchClass, keySignature).toLowerCase();
+        const bassName = capitalizeNote(getRootName(bassPitchClass, keySignature));
         label += `/${bassName}`;
     }
     return label;

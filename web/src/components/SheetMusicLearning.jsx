@@ -213,6 +213,17 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         if (notes.length > 0) audioEngine.playNotes(notes, tempo);
     }, [measures, playing, song, speed, handMode]);
 
+    // Restart: stop any active playback and seek back to measure 1.
+    const handleRestart = useCallback(() => {
+        if (playing) {
+            audioEngine.stop();
+            audioEngine.stopMetronome();
+            setPlaying(false);
+        }
+        setCurrentMeasure(1);
+        setMeasureProgress(0);
+    }, [playing]);
+
     const handlePlayPause = useCallback(async () => {
         await audioEngine.initialize();
         if (playing) {
@@ -461,6 +472,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             <PlaybackDock
                 playing={playing}
                 onPlayPause={handlePlayPause}
+                onRestart={handleRestart}
                 speed={speed}
                 onSpeed={setSpeed}
                 handMode={handMode}

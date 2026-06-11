@@ -145,6 +145,8 @@ fun EditorScreen(
                     loopEditorOpen = loopEditorOpen,
                     onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
                     totalMeasures = song?.totalMeasures ?: 1,
+                    // Recommencer: stop preview playback (back to start).
+                    onRestart = { playing = false },
                 )
             }
         }

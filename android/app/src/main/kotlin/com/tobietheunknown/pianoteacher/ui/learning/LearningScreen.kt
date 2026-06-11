@@ -455,6 +455,11 @@ fun LearningScreen(
                         },
                         onPrev = { /* TODO: prev measure/phrase */ },
                         onNext = { /* TODO: next measure/phrase */ },
+                        // Recommencer: stop playback and return to the first measure.
+                        onRestart = {
+                            vm.stop()
+                            vm.focusMeasure(0)
+                        },
                     )
 
                     /* OLD TransportBar — kept as fallback during dev */

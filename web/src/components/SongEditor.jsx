@@ -99,6 +99,12 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         setPlayingPhraseId(null);
     };
 
+    // Restart: stop playback and jump back to the first phrase.
+    const handleRestart = () => {
+        handleStop();
+        setActivePhraseIndex(0);
+    };
+
     // Move phrase up/down
     const handleMovePhraseUp = (phraseIndex) => {
         if (phraseIndex > 0 && onReorderPhrases) {
@@ -1087,6 +1093,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             if (playingPhraseId) handleStop();
                             else handlePlayPhrase(phrase);
                         }}
+                        onRestart={handleRestart}
                         speed={dockSpeed}
                         onSpeed={setDockSpeed}
                         handMode={dockHandMode}
