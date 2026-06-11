@@ -472,10 +472,8 @@ private fun HandRoleBadge(
     keySignature: MusicKeySignature? = null,
 ) {
     when (role) {
-        is com.tobietheunknown.pianoteacher.utils.HandRole.Arpeggio ->
-            ArpeggioRoleBadge(role.badge, hand)
         is com.tobietheunknown.pianoteacher.utils.HandRole.Ostinato ->
-            OstinatoRoleBadge(role.ostinato, hand)
+            OstinatoRoleBadge(role, hand)
         is com.tobietheunknown.pianoteacher.utils.HandRole.Pedal ->
             PedalRoleBadge(role.pedal, hand)
     }
@@ -500,36 +498,30 @@ private fun RoleChip(
 }
 
 @Composable
-private fun ArpeggioRoleBadge(
-    badge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge,
-    hand: HandSide,
-) {
-    val tone = handSideColor(hand)
-    val desc = if (badge.altered)
-        "Arpège ${badge.label}, altéré" + (badge.alteredNoteName?.let { " ($it)" } ?: "")
-    else "Arpège ${badge.label}"
-    RoleChip(tone, desc) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ArpeggioGlyph(tone)
-            Text(
-                badge.label, color = tone, fontSize = 11.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = 0.2.sp,
-            )
-        }
-    }
-}
-
-@Composable
 private fun OstinatoRoleBadge(
-    ostinato: com.tobietheunknown.pianoteacher.utils.OstinatoQualification,
+    role: com.tobietheunknown.pianoteacher.utils.HandRole.Ostinato,
     hand: HandSide,
 ) {
+    // Unified badge (user decision): every badged figure repeats across ≥2
+    // measures, so it IS an ostinato — "arpège" survives in the description.
     val tone = handSideColor(hand)
-    val notes = ostinato.motifLabels.joinToString("·")
-    val desc = "Ostinato — motif répété ${ostinato.repetitions}× ($notes)"
+    val isChord = role.chordLabel != null
+    val label: String
+    val desc: String
+    val reps: Int
+    if (isChord) {
+        label = "Ostinato ${role.chordLabel}"
+        val altMention = if (role.chordAltered)
+            " — altération" + (role.chordAlteredNote?.let { " ($it)" } ?: "")
+        else ""
+        desc = "Ostinato — accord ${role.chordLabel} égrené (arpège)$altMention"
+        reps = role.chordReps
+    } else {
+        val notes = role.ostinato!!.motifLabels.joinToString("·")
+        label = "Ostinato $notes"
+        desc = "Ostinato — motif répété ${role.ostinato.repetitions}× ($notes)"
+        reps = role.ostinato.repetitions
+    }
     // The note list ellipsizes on narrow cards but the ×N never clips: it sits
     // as a non-shrinking suffix outside the weighted/ellipsized text. The chip
     // fills the card width so the weighted text actually has a bound to shrink to.
@@ -540,15 +532,15 @@ private fun OstinatoRoleBadge(
         ) {
             OstinatoGlyph(tone)
             Text(
-                "Ostinato $notes",
+                label,
                 color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                 letterSpacing = 0.2.sp, maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            if (ostinato.repetitions > 1) {
+            if (reps > 1) {
                 Text(
-                    "×${ostinato.repetitions}",
+                    "×$reps",
                     color = tone.copy(alpha = 0.8f), fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -576,23 +568,6 @@ private fun PedalRoleBadge(
                 letterSpacing = 0.2.sp,
             )
         }
-    }
-}
-
-// Arpeggio glyph — three dots rising left→right on a baseline (broken chord).
-@Composable
-private fun ArpeggioGlyph(tone: Color) {
-    Canvas(modifier = Modifier.size(width = 14.dp, height = 12.dp)) {
-        val r = 1.7.dp.toPx()
-        val pts = listOf(
-            Offset(2.5.dp.toPx(), 9.5.dp.toPx()),
-            Offset(7.dp.toPx(), 6.dp.toPx()),
-            Offset(11.5.dp.toPx(), 2.5.dp.toPx()),
-        )
-        for (i in 0 until pts.size - 1) {
-            drawLine(tone.copy(alpha = 0.5f), pts[i], pts[i + 1], strokeWidth = 1.dp.toPx())
-        }
-        pts.forEach { drawCircle(tone, r, it) }
     }
 }
 

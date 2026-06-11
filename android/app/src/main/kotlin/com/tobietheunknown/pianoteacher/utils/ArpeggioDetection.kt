@@ -85,6 +85,11 @@ data class ArpeggioBadge(
     val alteredNoteName: String?,
     val cycleNotes: List<Int>,
     val chord: ChordDetectionResult? = null,
+    // Chord label WITHOUT the composed " ×N" suffix, plus the literal
+    // intra-measure repetition count — the unified Ostinato badge renders
+    // them separately so the ×N can never be doubled or clipped.
+    val bareLabel: String = label,
+    val reps: Int = 1,
 )
 
 /**
@@ -511,6 +516,8 @@ fun computeArpeggioBadges(
                     alteredNoteName = aq.alteredNoteName,
                     cycleNotes = if (validReps > 1) cycleNotes else ordered.take(12),
                     chord = aq.chord,
+                    bareLabel = aq.badge,
+                    reps = validReps,
                 )
             }
         }
@@ -531,8 +538,26 @@ fun computeArpeggioBadges(
 
 /** A resolved per-hand role badge for one measure. */
 sealed class HandRole {
-    data class Arpeggio(val badge: ArpeggioBadge) : HandRole()
-    data class Ostinato(val ostinato: OstinatoQualification) : HandRole()
+    /**
+     * Ostinato badge — covers both the old "arpège" (chord-reducible figure) and the
+     * "ostinato" (literal repeating motif) paths. When `chordLabel` is non-null the
+     * figure is chord-reducible and the UI shows "Ostinato <chordLabel>" (+ altered
+     * mention when `chordAltered`). Otherwise `ostinato` carries the motif and the UI
+     * shows "Ostinato Fa·Sib·La ×N".
+     *
+     * `×N` is appended only for literal intra-measure cycle repetitions:
+     *   · chord-reducible path: supplied via `chordReps` (from exactCycleReps on the
+     *     arpeggio notes) — never fabricated.
+     *   · motif path: from OstinatoQualification.repetitions (≥2 by construction).
+     */
+    data class Ostinato(
+        val ostinato: OstinatoQualification?,
+        // Chord-reducible fields — non-null only when the source was qualifyArpeggioMeasure.
+        val chordLabel: String? = null,
+        val chordAltered: Boolean = false,
+        val chordAlteredNote: String? = null,
+        val chordReps: Int = 1,
+    ) : HandRole()
     data class Pedal(val pedal: PedalQualification) : HandRole()
 }
 
@@ -612,7 +637,13 @@ fun computeMeasureRoles(
         val leftArpClean = leftBadge != null && !leftBadge.altered
         val leftRole: HandRole? = when {
             leftBadge != null && (leftArpClean || !leftOstinatoActive[i]) ->
-                HandRole.Arpeggio(leftBadge)
+                HandRole.Ostinato(
+                    ostinato = null,
+                    chordLabel = leftBadge.bareLabel,
+                    chordAltered = leftBadge.altered,
+                    chordAlteredNote = leftBadge.alteredNoteName,
+                    chordReps = leftBadge.reps,
+                )
             leftOstinatoActive[i] && leftOstinato[i] != null ->
                 HandRole.Ostinato(leftOstinato[i]!!)
             leftPedal[i] != null -> HandRole.Pedal(leftPedal[i]!!)
@@ -624,14 +655,12 @@ fun computeMeasureRoles(
         val rightArpClean = rightArp != null && !rightArp.altered
         val rightRole: HandRole? = when {
             rightArp != null && (rightArpClean || !rightOstinatoActive[i]) ->
-                HandRole.Arpeggio(
-                    ArpeggioBadge(
-                        label = rightArp.badge,
-                        altered = rightArp.altered,
-                        alteredNoteName = rightArp.alteredNoteName,
-                        cycleNotes = emptyList(),
-                        chord = rightArp.chord,
-                    )
+                HandRole.Ostinato(
+                    ostinato = null,
+                    chordLabel = rightArp.badge,
+                    chordAltered = rightArp.altered,
+                    chordAlteredNote = rightArp.alteredNoteName,
+                    chordReps = 1,
                 )
             rightOstinatoActive[i] && rightOstinato[i] != null ->
                 HandRole.Ostinato(rightOstinato[i]!!)

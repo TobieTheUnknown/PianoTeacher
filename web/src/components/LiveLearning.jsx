@@ -421,27 +421,6 @@ function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, key
     );
 }
 
-// ── ArpeggioBadge ────────────────────────────────────────────────────────────
-// Distinct from the note pills and the simultaneous-chord badge. A chord
-// badge means notes struck together; this pill means the chord is spread
-// out as a single-line arpeggio across the measure. Visual language:
-// --accent-dim fill + accent text + a small "ascending dots" glyph.
-
-function ArpeggioGlyph() {
-    // Three dots rising left→right on a baseline — reads as a broken/rolled
-    // chord (arpège) and is intentionally unlike the chord badge.
-    return (
-        <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden
-            style={{ flexShrink: 0 }}>
-            <circle cx="2.5" cy="9.5" r="1.7" fill="currentColor" />
-            <circle cx="7" cy="6" r="1.7" fill="currentColor" />
-            <circle cx="11.5" cy="2.5" r="1.7" fill="currentColor" />
-            <path d="M2.5 9.5 L7 6 L11.5 2.5" stroke="currentColor" strokeWidth="1"
-                strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
-        </svg>
-    );
-}
-
 // Hand → theme-token trio (fill / border / text).
 function handTokens(hand) {
     return hand === 'right'
@@ -464,25 +443,7 @@ const ROLE_BADGE_STYLE = {
     whiteSpace: 'nowrap',
 };
 
-const ArpeggioBadge = React.memo(function ArpeggioBadge({ label, altered = false, alteredNoteName = null, hand = 'left' }) {
-    // The large outlined chip carrying the chord name. Hand-colored.
-    // altered is communicated via tooltip only, no color change.
-    const t = handTokens(hand);
-    return (
-        <span
-            title={altered
-                ? `Arpège avec altération de passage${alteredNoteName ? ` (${alteredNoteName})` : ''}`
-                : 'Arpège — accord joué note par note'}
-            style={{ ...ROLE_BADGE_STYLE, background: t.bg, border: `2px solid ${t.border}`, color: t.fg }}
-        >
-            <ArpeggioGlyph />
-            {label}
-        </span>
-    );
-});
-
-// Repeating-wave glyph — reads as "ostinato" (a motif looping), distinct
-// from the arpeggio's ascending dots.
+// Repeating-wave glyph — reads as "ostinato" (a motif looping).
 function OstinatoGlyph() {
     return (
         <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden
@@ -495,14 +456,38 @@ function OstinatoGlyph() {
     );
 }
 
-const OstinatoBadge = React.memo(function OstinatoBadge({ motif, hand = 'left' }) {
-    // "Ostinato Fa·Sib·La ×N" — N = number of FULL motif repetitions.
-    // The note list may ellipsize on narrow cards, but the ×N never clips.
+const OstinatoBadge = React.memo(function OstinatoBadge({ ostInfo, hand = 'left' }) {
+    // Unified badge for both chord-reducible arpeggios and literal motif ostinatos.
+    // ostInfo shape:
+    //   { kind: 'chord', label: 'Do', reps: 1, altered: false, alteredNoteName: null }
+    //   { kind: 'motif', motifLabels: ['Fa','Sib','La'], repetitions: 2 }
     const t = handTokens(hand);
-    const notes = motif.motifLabels.join('·');
+
+    let displayLabel, titleText, repsEl;
+
+    if (ostInfo.kind === 'chord') {
+        displayLabel = `Ostinato ${ostInfo.label}`;
+        const altMention = ostInfo.altered
+            ? `${ostInfo.alteredNoteName ? ` — altération : ${ostInfo.alteredNoteName}` : ' — accord altéré/incomplet'}`
+            : '';
+        titleText = `Ostinato — accord ${ostInfo.label} égrené (arpège)${altMention}`;
+        // ×N only when the exact ordered cycle repeats
+        repsEl = ostInfo.reps > 1
+            ? <span style={{ fontSize: '0.78em', opacity: 0.8, flexShrink: 0 }}>×{ostInfo.reps}</span>
+            : null;
+    } else {
+        // kind === 'motif'
+        const notes = ostInfo.motifLabels.join('·');
+        displayLabel = `Ostinato ${notes}`;
+        titleText = `Ostinato — motif répété ${ostInfo.repetitions}× (${notes})`;
+        repsEl = ostInfo.repetitions > 1
+            ? <span style={{ fontSize: '0.78em', opacity: 0.8, flexShrink: 0 }}>×{ostInfo.repetitions}</span>
+            : null;
+    }
+
     return (
         <span
-            title={`Ostinato — motif répété ${motif.repetitions}× (${notes})`}
+            title={titleText}
             style={{
                 ...ROLE_BADGE_STYLE,
                 background: t.bg, border: `2px solid ${t.border}`, color: t.fg,
@@ -514,11 +499,9 @@ const OstinatoBadge = React.memo(function OstinatoBadge({ motif, hand = 'left' }
                 minWidth: 0,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-                Ostinato {notes}
+                {displayLabel}
             </span>
-            {motif.repetitions > 1 && (
-                <span style={{ fontSize: '0.78em', opacity: 0.8, flexShrink: 0 }}>×{motif.repetitions}</span>
-            )}
+            {repsEl}
         </span>
     );
 });
@@ -612,17 +595,34 @@ function MotifRows({ labels, motifLen, hand }) {
 // or null when the hand has no special role (fallback handled by caller).
 function HandRoleBadge({ role, hand }) {
     if (!role) return null;
+    // Unified concept (user decision): every badged figure repeats across
+    // ≥2 measures, so it IS an ostinato — "arpège" survives in the tooltip.
     if (role.kind === 'arpeggio') {
         return (
-            <ArpeggioBadge
-                label={role.badge.label}
-                altered={role.badge.altered}
-                alteredNoteName={role.badge.alteredNoteName}
+            <OstinatoBadge
+                ostInfo={{
+                    kind: 'chord',
+                    label: role.badge.bareLabel ?? role.badge.label,
+                    reps: role.badge.reps || 1,
+                    altered: role.badge.altered,
+                    alteredNoteName: role.badge.alteredNoteName,
+                }}
                 hand={hand}
             />
         );
     }
-    if (role.kind === 'ostinato') return <OstinatoBadge motif={role.ostinato} hand={hand} />;
+    if (role.kind === 'ostinato') {
+        return (
+            <OstinatoBadge
+                ostInfo={{
+                    kind: 'motif',
+                    motifLabels: role.ostinato.motifLabels,
+                    repetitions: role.ostinato.repetitions,
+                }}
+                hand={hand}
+            />
+        );
+    }
     if (role.kind === 'pedal') return <PedalBadge pedal={role.pedal} hand={hand} />;
     return null;
 }
@@ -1128,7 +1128,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                         ? m.motifInfo.repetitions : 1;
                     const label = reps > 1 ? `${aq.badge} ×${reps}` : aq.badge;
                     m.arpeggioBadge = {
-                        label, chord: aq.chord, reps,
+                        label, bareLabel: aq.badge, chord: aq.chord, reps,
                         altered: aq.altered, alteredNoteName: aq.alteredNoteName,
                     };
                 }
@@ -1194,7 +1194,8 @@ export function LiveLearning({ song, onToggleHighlight }) {
                 m.rightRole = {
                     kind: 'arpeggio',
                     badge: {
-                        label: rightArp.badge, chord: rightArp.chord, reps: 1,
+                        label: rightArp.badge, bareLabel: rightArp.badge,
+                        chord: rightArp.chord, reps: 1,
                         altered: rightArp.altered, alteredNoteName: rightArp.alteredNoteName,
                     },
                 };

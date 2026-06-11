@@ -1159,17 +1159,21 @@ private fun GrandStaffCanvas(
                         }
                     }
 
-                    // Accidental (#/b). Refinement 5: nudge LEFT (closer to the
-                    // notehead) and a few px UP from the previous placement.
+                    // Accidental (#/b). Small superscript hugging the notehead's
+                    // top-right — glyph baseline sits ~0.55×lineSpacing above
+                    // the note centre (matching the web canvas fillText baseline).
                     if (isBlackKey(it2.pitch)) {
                         val label = if (useFlats) "b" else "#"
                         val labelLayout = textMeasurer.measure(
                             label,
                             TextStyle(fontSize = 9.sp, color = it2.color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
                         )
+                        // topLeft.y = noteY − 0.55×lineSpacing − ascent
+                        // Ascent ≈ 80% of the measured text height for sp fonts.
+                        val accTopY = it2.y - lineSpacing * 0.55f - labelLayout.size.height * 0.8f
                         drawText(labelLayout, topLeft = Offset(
                             it2.x + dotR * 0.85f,
-                            it2.y - dotR - labelLayout.size.height - 2.dp.toPx()
+                            accTopY
                         ))
                     }
                 }
@@ -1202,10 +1206,10 @@ private fun GrandStaffCanvas(
                     dotR = dotR,
                     stemLenBase = stemLenBase,
                     dpHalf = 0.5.dp.toPx(),
-                    stemWidth = 1.5.dp.toPx(),
-                    flag7 = 7.dp.toPx(),
-                    flag5 = 5.dp.toPx(),
-                    flag6 = 6.dp.toPx(),
+                    stemWidth = 0.9.dp.toPx(),
+                    flag7 = 5.dp.toPx(),
+                    flag5 = 3.5.dp.toPx(),
+                    flag6 = 4.dp.toPx(),
                 )
             }
         }
@@ -1320,7 +1324,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     val beamItems = beamable.map { BeamItem(it.startBeat, it.durBeats, it.flags) }
     val groups = computeBeamGroups(beamItems)
 
-    val beamThickness = lineSpacing * 0.5f
+    val beamThickness = lineSpacing * 0.42f
 
     for (group in groups) {
         val gChords = group.map { beamable[it] }
