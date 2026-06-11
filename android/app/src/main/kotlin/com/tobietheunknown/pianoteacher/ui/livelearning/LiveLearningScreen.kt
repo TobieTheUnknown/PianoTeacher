@@ -24,6 +24,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -358,14 +360,20 @@ private fun MeasureCardCompact(
                     fontWeight = FontWeight.Bold,
                 )
             }
-            // Right-hand notes (cyan, top row)
+            // Right-hand melody chips (HandRight) — shown in both states.
             NotesRow(measure.melodyNotes, color = CyanMelody)
-            // Left-hand: when a consecutive-arpeggio run is active and Détail is
-            // OFF, the arpeggio badge + its note-chip breakdown take over the
-            // raw note dump. Détail ON always shows every note.
+            // Left-hand layout:
+            //   Détail OFF → ONLY the chord/arpeggio badge (HandLeft colored).
+            //     No individual left-hand note chips. A measure with left-hand
+            //     notes but no badge shows a single discreet "N notes" chip.
+            //   Détail ON → the full left-hand note sequence chips.
             val badge = measure.arpeggioBadge
-            if (badge != null && !showDetails) {
-                ArpeggioBadgeBlock(badge)
+            if (!showDetails) {
+                when {
+                    badge != null -> ArpeggioBadgeBlock(badge)
+                    measure.chordNotes.isNotEmpty() -> LeftHandCountChip(measure.chordNotes.size)
+                    else -> Box(modifier = Modifier.fillMaxWidth().height(18.dp))
+                }
             } else {
                 NotesRow(measure.chordNotes, color = PinkChords)
             }
@@ -404,23 +412,40 @@ private fun DetailToggle(active: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * Combined arpeggio layout for the measure card: the chord badge (bold text,
- * 2px border, rounded — Accent blue when clean, Warning yellow when altered)
- * on top, and below it a row of small outlined note chips detailing the
- * arpeggio sequence (one cycle when exact ×N, else full sequence capped ~12).
+ * Détail-OFF left-hand badge for the measure card: a single chord/arpeggio
+ * badge chip, LEFT-HAND colored (HandLeft + dim/alpha variants — no more
+ * Accent/Warning). A small arpeggio glyph distinguishes arpeggio badges from
+ * plain chord badges. The `altered` flag no longer changes color; it survives
+ * only as a contentDescription/tooltip. No per-note chip row in this state.
  */
 @Composable
 private fun ArpeggioBadgeBlock(badge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge) {
-    val tone = if (badge.altered) Warning else Accent
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        // Badge chip
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(tone.copy(alpha = 0.14f))
-                .border(2.dp, tone, RoundedCornerShape(8.dp))
-                .padding(horizontal = 8.dp, vertical = 3.dp),
+    val tone = PinkChords  // HandLeft
+    val desc = if (badge.altered) {
+        "Arpège ${badge.label}, altéré" + (badge.alteredNoteName?.let { " ($it)" } ?: "")
+    } else {
+        "Arpège ${badge.label}"
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(tone.copy(alpha = 0.14f))
+            .border(2.dp, tone, RoundedCornerShape(8.dp))
+            .semantics { contentDescription = desc }
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Arpeggio glyph — a wavy chord symbol (♪~) keeping arpeggio badges
+            // visually distinct from plain chord badges.
+            Text(
+                "⤳",  // ⤳ rightwards arrow with wavy tail
+                color = tone,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
             Text(
                 badge.label,
                 color = tone,
@@ -429,26 +454,30 @@ private fun ArpeggioBadgeBlock(badge: com.tobietheunknown.pianoteacher.utils.Arp
                 letterSpacing = 0.2.sp,
             )
         }
-        // Note chips detailing the arpeggio sequence (one cycle or capped seq)
-        if (badge.cycleNotes.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                badge.cycleNotes.take(12).forEach { pitch ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .border(1.dp, BorderStrong, RoundedCornerShape(4.dp))
-                            .padding(horizontal = 5.dp, vertical = 1.dp),
-                    ) {
-                        Text(
-                            noteName(pitch),
-                            color = TextSecondary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-            }
-        }
+    }
+}
+
+/**
+ * Détail-OFF discreet chip for measures that have left-hand notes but no
+ * arpeggio/chord badge — a single "N notes" pill (HandLeft styling) instead of
+ * dumping every note.
+ */
+@Composable
+private fun LeftHandCountChip(count: Int) {
+    val tone = PinkChords  // HandLeft
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(tone.copy(alpha = 0.12f))
+            .border(1.dp, tone.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    ) {
+        Text(
+            "$count note" + if (count > 1) "s" else "",
+            color = tone.copy(alpha = 0.85f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 

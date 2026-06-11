@@ -390,6 +390,7 @@ export function flattenSongMeasures(song, beatsPerMeasure = 4) {
  *   - keySig: { root, isMinor, useFlats } or { note, mode }
  *   - isLandscape: bool
  *   - dp: function (n) => px — scales dp to canvas px (handles DPR + density)
+ *   - showStems: bool — when false, skip stems/flags/augmentation dots (default true)
  */
 export function renderMeasure(ctx, opts) {
     const {
@@ -411,6 +412,7 @@ export function renderMeasure(ctx, opts) {
         isLandscape = false,
         dp = (n) => n, // 1 dp = 1 px by default
         theme = DEFAULT_SHEET_THEME,
+        showStems = true,
     } = opts;
     const T = theme || DEFAULT_SHEET_THEME;
 
@@ -682,18 +684,20 @@ export function renderMeasure(ctx, opts) {
             for (const it of items) {
                 drawLedgers(x, it.d);
                 drawHead(x, it.y, it.dur.filled);
-                if (it.dur.dotted) drawDot(x, it.y, it.d);
+                if (showStems && it.dur.dotted) drawDot(x, it.y, it.d);
                 if (isBlackKey(it.midi)) {
+                    // Accidental placed AFTER (right of) the altered note —
+                    // app convention, mirrors the Android renderer.
                     ctx.fillStyle = color;
                     ctx.font = `${lineSpacing * 1.55}px "Noto Music", "Bravura", "Times New Roman", serif`;
-                    ctx.textAlign = 'right';
+                    ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(useFlats ? '♭' : '♯', x - headRx - dp(2), it.y);
+                    ctx.fillText(useFlats ? '♭' : '♯', x + headRx + dp(3), it.y);
                 }
             }
 
-            // Shared stem across the chord.
-            if (anyStem) {
+            // Shared stem across the chord — only in detailed (showStems) mode.
+            if (showStems && anyStem) {
                 const stemLen = lineSpacing * 3.2;
                 const topY = items[items.length - 1].y;
                 const botY = items[0].y;

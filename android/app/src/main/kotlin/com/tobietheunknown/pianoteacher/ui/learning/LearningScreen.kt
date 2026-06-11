@@ -63,6 +63,41 @@ private fun midiToDiatonic(pitch: Int, useFlats: Boolean = false): Int {
 private fun isBlackKey(midi: Int): Boolean =
     when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
 
+// ─── Duration engraving (ported from web/src/utils/sheetMusic.js) ─────────────
+//   filled — solid notehead (quarter and shorter) vs hollow (half / whole)
+//   stem   — whether the note carries a stem (whole notes don't)
+//   flags  — number of flags (0 = quarter+, 1 = eighth, 2 = sixteenth…)
+private data class NoteDuration(
+    val filled: Boolean,
+    val stem: Boolean,
+    val flags: Int,
+    val dotted: Boolean,
+)
+
+private fun classifyDuration(durationBeats: Double): NoteDuration {
+    val d = if (durationBeats > 0.0) durationBeats else 1.0
+    // Base values in quarter-note beats: whole=4, half=2, quarter=1, eighth=0.5…
+    data class Base(val beats: Double, val filled: Boolean, val stem: Boolean, val flags: Int)
+    val bases = listOf(
+        Base(4.0, false, false, 0),   // whole
+        Base(2.0, false, true, 0),    // half
+        Base(1.0, true, true, 0),     // quarter
+        Base(0.5, true, true, 1),     // eighth
+        Base(0.25, true, true, 2),    // sixteenth
+        Base(0.125, true, true, 3),
+    )
+    var best = bases[2]
+    var bestErr = Double.POSITIVE_INFINITY
+    var dotted = false
+    for (base in bases) {
+        var err = abs(d - base.beats) / base.beats
+        if (err < bestErr) { bestErr = err; best = base; dotted = false }
+        err = abs(d - base.beats * 1.5) / (base.beats * 1.5)
+        if (err < bestErr) { bestErr = err; best = base; dotted = true }
+    }
+    return NoteDuration(best.filled, best.stem, best.flags, dotted)
+}
+
 // ─── Staff clef configuration ────────────────────────────────────────────────
 
 private data class StaffClefConfig(
@@ -593,6 +628,7 @@ fun LearningScreen(
                                     upperOctaveShift = upperStaffOctaveShift,
                                     isLandscape = isLandscape,
                                     keySig = keySignature,
+                                    showDetails = showDetails,
                                     modifier = Modifier.fillMaxSize()
                                 )
                                 // Animated playhead — vertical accent line
@@ -842,6 +878,7 @@ private fun GrandStaffCanvas(
     upperOctaveShift: Int = 0,
     isLandscape: Boolean = false,
     keySig: MusicKeySignature? = null,
+    showDetails: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -1015,48 +1052,124 @@ private fun GrandStaffCanvas(
             }
 
             // ── Notes ───────────────────────────────────────────────────
-            staffNotesList[si].forEach { (note, color) ->
+            // Geometry helpers shared by every notehead on this staff.
+            val leftPad = barPad + dotR * 2f  // extra space from left bar line
+            val noteAreaStart = clefW + leftPad
+            val noteAreaEnd = w - barPad - dotR
+            val midLineY = lineTop + 2 * lineSpacing  // middle (3rd) staff line
+
+            // Per-note resolved geometry + duration class.
+            data class StaffNote(
+                val d: Int, val x: Float, val y: Float,
+                val dur: NoteDuration, val pitch: Int, val color: Color,
+            )
+            val resolved = staffNotesList[si].map { (note, color) ->
                 val d = midiToDiatonic(note.pitch, useFlats) + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
-                val leftPad = barPad + dotR * 2f  // extra space from left bar line
-                val noteAreaStart = clefW + leftPad
-                val noteAreaEnd = w - barPad - dotR
                 val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
+                StaffNote(d, x, y, classifyDuration(note.duration), note.pitch, color)
+            }
 
-                drawCircle(color = color, radius = dotR, center = Offset(x, y))
+            // Group notes sounding at the same beat into chords (shared stem).
+            // Quantise x to a pixel so FP startTime noise still groups cleanly.
+            val groups = resolved.groupBy { kotlin.math.round(it.x).toInt() }
 
-                // Ledger lines (only when note is ≥2 diatonic steps outside staff)
-                if (d > topDiatonic + 1) {
-                    var ld = topDiatonic + 2
-                    while (ld <= d) {
-                        val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                        drawLine(Color.White.copy(alpha = 0.5f),
-                            Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
-                        ld += 2
+            groups.forEach { (_, chord) ->
+                val items = chord.sortedBy { it.d }  // bottom → top
+                val x = items.first().x
+
+                // Noteheads + ledger lines + accidentals per note.
+                items.forEach { it2 ->
+                    // Notehead: filled (solid) for ≤ quarter, hollow (ring) for ≥ half.
+                    if (it2.dur.filled) {
+                        drawCircle(color = it2.color, radius = dotR, center = Offset(it2.x, it2.y))
+                    } else {
+                        drawCircle(
+                            color = it2.color, radius = dotR, center = Offset(it2.x, it2.y),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.7.dp.toPx()),
+                        )
+                    }
+
+                    // Ledger lines (only when note is ≥2 diatonic steps outside staff)
+                    if (it2.d > topDiatonic + 1) {
+                        var ld = topDiatonic + 2
+                        while (ld <= it2.d) {
+                            val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
+                            drawLine(Color.White.copy(alpha = 0.5f),
+                                Offset(it2.x - dotR * 1.5f, ly), Offset(it2.x + dotR * 1.5f, ly), 0.9f)
+                            ld += 2
+                        }
+                    }
+                    if (it2.d < bottomDiatonic - 1) {
+                        var ld = bottomDiatonic - 2
+                        while (ld >= it2.d) {
+                            val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
+                            drawLine(Color.White.copy(alpha = 0.5f),
+                                Offset(it2.x - dotR * 1.5f, ly), Offset(it2.x + dotR * 1.5f, ly), 0.9f)
+                            ld -= 2
+                        }
+                    }
+
+                    // Accidental (#/b)
+                    if (isBlackKey(it2.pitch)) {
+                        val label = if (useFlats) "b" else "#"
+                        val labelLayout = textMeasurer.measure(
+                            label,
+                            TextStyle(fontSize = 9.sp, color = it2.color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
+                        )
+                        drawText(labelLayout, topLeft = Offset(
+                            it2.x + dotR * 1.3f,
+                            it2.y - dotR - labelLayout.size.height
+                        ))
                     }
                 }
-                if (d < bottomDiatonic - 1) {
-                    var ld = bottomDiatonic - 2
-                    while (ld >= d) {
-                        val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                        drawLine(Color.White.copy(alpha = 0.5f),
-                            Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
-                        ld -= 2
-                    }
-                }
 
-                // Accidental (#/b)
-                if (isBlackKey(note.pitch)) {
-                    val label = if (useFlats) "b" else "#"
-                    val labelLayout = textMeasurer.measure(
-                        label,
-                        TextStyle(fontSize = 9.sp, color = color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
+                // ── Stems + flags — Détail layer only. ──────────────────
+                // Direction: down if the chord centre is above the middle line,
+                // up otherwise. Whole notes carry no stem. Stems use the chord's
+                // notehead colour (hand color).
+                val anyStem = items.any { it.dur.stem }
+                if (showDetails && anyStem) {
+                    val stemColor = items.first().color
+                    val avgY = items.map { it.y }.average().toFloat()
+                    val stemUp = avgY >= midLineY
+                    val maxFlags = items.maxOf { it.dur.flags }
+                    val stemLen = lineSpacing * 3.2f
+                    val topY = items.last().y   // highest note (smallest y)
+                    val botY = items.first().y  // lowest note (largest y)
+                    // Attach to right edge for up-stems, left edge for down-stems.
+                    val stemX = if (stemUp) x + dotR - 0.5.dp.toPx() else x - dotR + 0.5.dp.toPx()
+                    val yA = if (stemUp) topY - dotR else botY + dotR
+                    val yB = if (stemUp) botY - stemLen else topY + stemLen
+                    drawLine(
+                        color = stemColor,
+                        start = Offset(stemX, yA),
+                        end = Offset(stemX, yB),
+                        strokeWidth = 1.5.dp.toPx(),
                     )
-                    drawText(labelLayout, topLeft = Offset(
-                        x + dotR * 1.3f,
-                        y - dotR - labelLayout.size.height
-                    ))
+
+                    // Flags (eighth and shorter) — simple curved hook at the
+                    // stem end, one per beam level.
+                    if (maxFlags > 0) {
+                        val dir = if (stemUp) 1f else -1f
+                        for (f in 0 until maxFlags) {
+                            val fy = yB + f * lineSpacing * 0.9f * dir
+                            val flagPath = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(stemX, fy)
+                                quadraticTo(
+                                    stemX + 7.dp.toPx(), fy + dir * lineSpacing * 0.5f,
+                                    stemX + 5.dp.toPx(), fy + dir * lineSpacing * 1.3f,
+                                )
+                                quadraticTo(
+                                    stemX + 6.dp.toPx(), fy + dir * lineSpacing * 0.6f,
+                                    stemX, fy + dir * lineSpacing * 0.35f,
+                                )
+                                close()
+                            }
+                            drawPath(flagPath, color = stemColor)
+                        }
+                    }
                 }
             }
         }

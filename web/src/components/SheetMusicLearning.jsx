@@ -99,6 +99,19 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [loopRange, setLoopRange] = useState([1, 1]);
     const [loopEditorOpen, setLoopEditorOpen] = useState(false);
 
+    // Details toggle — persisted in localStorage, OFF by default (stemless view)
+    const LS_KEY = 'piano-teacher-sheet-details';
+    const [showDetails, setShowDetails] = useState(() => {
+        try { return localStorage.getItem(LS_KEY) === 'true'; } catch { return false; }
+    });
+    const handleToggleDetails = () => {
+        setShowDetails((prev) => {
+            const next = !prev;
+            try { localStorage.setItem(LS_KEY, String(next)); } catch { /* ignore */ }
+            return next;
+        });
+    };
+
     // Stop the metronome when the user toggles it off mid-playback or
     // unmounts the page. We DON'T start it on toggle — the metronome
     // should only tick during actual playback (after the preroll), like
@@ -400,6 +413,27 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                         <span style={{ color: 'var(--text-tertiary)' }}>♩</span>
                         <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>= {bpm}</span>
                     </span>
+
+                    {/* Détails toggle — shows/hides stems, flags, augmentation dots */}
+                    <button
+                        onClick={handleToggleDetails}
+                        style={{
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            borderRadius: 'var(--r-pill)',
+                            border: `1px solid ${showDetails ? 'var(--accent)' : 'var(--border)'}`,
+                            background: showDetails ? 'var(--accent-dim)' : 'transparent',
+                            color: showDetails ? 'var(--accent)' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            minHeight: 0,
+                            height: 30,
+                            boxSizing: 'border-box',
+                            transition: 'all var(--t-fast)',
+                        }}
+                    >
+                        Détails
+                    </button>
                 </div>
 
                 {/* Sheet music staves */}
@@ -439,6 +473,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                             isPlaying={playing}
                             isMobile={isMobile}
                             sheetTheme={sheetTheme}
+                            showDetails={showDetails}
                             onMeasureClick={handleMeasureClick}
                         />
                     ))}
@@ -502,7 +537,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 function SheetSystem({
     systemIndex, systemSize, measures, beatsPerMeasure,
     useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure,
-    measureProgress = 0, isPlaying = false, isMobile, sheetTheme, onMeasureClick,
+    measureProgress = 0, isPlaying = false, isMobile, sheetTheme, showDetails, onMeasureClick,
 }) {
     return (
         <div style={{
@@ -533,6 +568,7 @@ function SheetSystem({
                         flex={i === 0 ? '1.4 1 0' : '1 1 0'}
                         height={isMobile ? 132 : 224}
                         sheetTheme={sheetTheme}
+                        showDetails={showDetails}
                         onClick={onMeasureClick ? () => onMeasureClick(globalIdx) : undefined}
                     />
                 );
@@ -544,7 +580,7 @@ function SheetSystem({
 function SystemMeasure({
     measureData, measureNumber, showClefs, beatsPerMeasure, useFlats,
     upperShift, lowerShift, keySig, handMode, isCurrent, playheadFrac,
-    isLast, flex, height, sheetTheme, onClick,
+    isLast, flex, height, sheetTheme, showDetails, onClick,
 }) {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
@@ -602,6 +638,7 @@ function SystemMeasure({
             isLandscape: false,
             dp: (n) => n,
             theme: sheetTheme,
+            showStems: showDetails,
             // Playhead drawn inside the note area (skips clefs) so it
             // aligns exactly with note X positions.
             playheadFrac: playheadFrac != null ? playheadFrac : null,
@@ -609,7 +646,7 @@ function SystemMeasure({
     }, [
         dims, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
         useFlats, showClefs, upperShift, lowerShift, keySig, isCurrent,
-        playheadFrac, measureData.measureStart, sheetTheme,
+        playheadFrac, measureData.measureStart, sheetTheme, showDetails,
     ]);
 
     return (

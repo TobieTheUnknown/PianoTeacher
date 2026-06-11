@@ -219,9 +219,8 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
 });
 
 function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature, isMobile }) {
-    // Same tones as the combined arpeggio badge so toggling Détails never
-    // recolors the chips: accent blue, warning yellow when altered.
-    const leftColor = measure.arpeggioMeasure?.altered ? 'var(--warning)' : 'var(--accent)';
+    // Always hand-left — altered info lives only in the tooltip on the badge.
+    const leftColor = 'var(--hand-left)';
     const reps = motifInfo?.repetitions || 1;
     const chords = motifInfo?.chords || [detectedChord];
     const totalNotes = measure.chordGroups.length;
@@ -441,13 +440,8 @@ function ArpeggioGlyph() {
 }
 
 const ArpeggioBadge = React.memo(function ArpeggioBadge({ label, altered = false, alteredNoteName = null }) {
-    // The large outlined chip carrying the chord name. Orange variant marks
-    // a measure whose arpeggio carries one passing tone / small alteration
-    // (or an incomplete chord) outside the clean chord.
-    const tone = altered ? 'var(--warning)' : 'var(--accent)';
-    const dim = altered
-        ? 'color-mix(in srgb, var(--warning) 16%, transparent)'
-        : 'var(--accent-dim)';
+    // The large outlined chip carrying the chord name. Color is always
+    // hand-left — altered is communicated via tooltip only, no color change.
     return (
         <span
             title={altered
@@ -459,9 +453,9 @@ const ArpeggioBadge = React.memo(function ArpeggioBadge({ label, altered = false
                 gap: 6,
                 padding: '5px 11px',
                 borderRadius: 8,
-                background: dim,
-                border: `2px solid ${tone}`,
-                color: tone,
+                background: 'var(--hand-left-dim)',
+                border: '2px solid var(--hand-left-border)',
+                color: 'var(--hand-left)',
                 fontSize: 14,
                 fontWeight: 800,
                 letterSpacing: '0.01em',
@@ -648,25 +642,31 @@ const MeasureCard = React.memo(function MeasureCard({
                 </div>
             ) : <div style={{ marginBottom: 5, minHeight: 18 }} />}
 
-            {/* Left hand. When a consecutive-arpeggio run is active and Détail
-                is OFF, the combined layout shows the large arpeggio badge AND,
-                below it, the neutral note pills detailing the arpeggio sequence.
-                Détail ON always falls back to showing every raw note. */}
-            {arpeggioBadge && !showDetails ? (
-                <div style={{ minHeight: 18 }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+            {/* Left hand.
+                Détails OFF + arpeggio badge  → badge only (no note pills).
+                Détails OFF + no badge + notes → single discreet "N notes" pill.
+                Détails ON                     → full raw note pills. */}
+            {!showDetails ? (
+                arpeggioBadge ? (
+                    <div style={{ minHeight: 18, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                         <ArpeggioBadge
                             label={arpeggioBadge.label}
                             altered={arpeggioBadge.altered}
                             alteredNoteName={arpeggioBadge.alteredNoteName}
                         />
                     </div>
-                    <ArpeggioNotePills
-                        measure={measure}
-                        displayNoteName={displayNoteName}
-                        keySignature={keySignature}
-                    />
-                </div>
+                ) : leftLabels.length > 0 ? (
+                    <div style={{ minHeight: 18, display: 'flex', alignItems: 'center' }}>
+                        <span style={{
+                            fontSize: 9.5, fontWeight: 600,
+                            padding: '2px 7px',
+                            borderRadius: 4,
+                            background: 'var(--hand-left-dim)',
+                            color: 'var(--hand-left)',
+                            border: '1px solid var(--hand-left-border)',
+                        }}>{leftLabels.length} notes</span>
+                    </div>
+                ) : <div style={{ minHeight: 18 }} />
             ) : leftLabels.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 18 }}>
                     {leftLabels.map((n, i) => (
