@@ -393,6 +393,270 @@ export function formatArpeggioBadge(chord, bassPitchClass, keySignature) {
 }
 
 /**
+ * Identify a chord from a set of MIDI pitches with the two tolerances used
+ * across the measure analysis (arpeggio + combined-harmony badges):
+ *   · the exact `identifyChord` match (lax — extra octave doublings allowed);
+ *     then re-check the matched template against ALL pitch classes and tolerate
+ *     at most ONE foreign pitch class (a passing tone / small alteration).
+ *   · if no direct match, an INCOMPLETE 4-note chord: exactly 3 of a 4-tone
+ *     template's pitch classes, no foreign tone (e.g. {Fa,Sib,La} = Sib Maj7
+ *     without the Ré). Roots are tried bass-first so the most grounded
+ *     reading wins.
+ *
+ * @param {number[]} pitches  MIDI note numbers (order matters only for bass).
+ * @param {object} keySignature  { note, mode }
+ * @returns {{ chord: {rootName,quality,displayName,rootPitchClass}, altered: boolean, alteredNoteName: string|null } | null}
+ */
+export function identifyChordWithTolerance(pitches, keySignature) {
+    if (!pitches || pitches.length === 0) return null;
+    const pitchClasses = [...new Set(pitches.map(p => p % 12))];
+    if (pitchClasses.length < 3) return null;
+
+    // EXACT pre-pass: prefer the reading whose template pitch classes EXACTLY
+    // equal the measure's set (no foreign, no missing tone). `identifyChord`
+    // is lax — it accepts a triad that is a strict subset of a richer set
+    // (e.g. {Ré,Fa,La,Sib} → Ré min because [0,3,7] ⊂ {0,3,7,8}), which hides
+    // the true Sib Maj7. CHORD_TEMPLATES is ordered most-specific first, so
+    // the first exact full match is the richest one. Roots are tried
+    // bass-first so a grounded reading wins ties.
+    const pcSet = new Set(pitchClasses);
+    const exactRoots = [pitches[0] % 12, ...pitchClasses.filter(pc => pc !== pitches[0] % 12)];
+    for (const template of CHORD_TEMPLATES) {
+        if (template.intervals.length !== pcSet.size) continue;
+        for (const root of exactRoots) {
+            const templatePcs = new Set(template.intervals.map(iv => (root + iv) % 12));
+            if (templatePcs.size === pcSet.size
+                && [...pcSet].every(pc => templatePcs.has(pc))) {
+                const rootName = getRootName(root, keySignature);
+                return {
+                    chord: {
+                        rootName,
+                        quality: template.quality,
+                        displayName: formatChordDisplayName(rootName, template.quality),
+                        rootPitchClass: root,
+                    },
+                    altered: false,
+                    alteredNoteName: null,
+                };
+            }
+        }
+    }
+
+    let chord = identifyChord(pitches, keySignature);
+    let altered = false;
+    let alteredNoteName = null;
+
+    if (chord && chord.rootPitchClass !== undefined) {
+        // identifyChord tolerates extra notes, so re-check the identified
+        // chord's interval template against ALL pitch classes and count the
+        // foreign ones.
+        const template = CHORD_TEMPLATES.find(t => t.quality === chord.quality);
+        if (!template) return null;
+        const allowed = new Set(template.intervals);
+        const foreignPcs = pitchClasses.filter(
+            pc => !allowed.has((pc - chord.rootPitchClass + 12) % 12)
+        );
+        if (foreignPcs.length > 1) return null; // too many foreign notes
+        // The chord itself must still be fully present (≥3 chord tones).
+        if (pitchClasses.length - foreignPcs.length < 3) return null;
+
+        // The foreign tone must stay a passing event, not a structural
+        // voice: cap its occurrences at 1 (or more in longer measures).
+        if (foreignPcs.length === 1) {
+            const foreignPc = foreignPcs[0];
+            const foreignInstances = pitches.filter(p => p % 12 === foreignPc).length;
+            if (foreignInstances > Math.max(1, Math.floor(pitches.length / 4))) return null;
+            altered = true;
+            alteredNoteName = getRootName(foreignPc, keySignature);
+        }
+        return { chord, altered, alteredNoteName };
+    }
+
+    // No direct match: try an INCOMPLETE 4-note chord — exactly 3 of a
+    // 4-tone template's pitch classes, no foreign tone. Roots are tried
+    // bass-first so the most grounded reading wins.
+    const rootsToTry = [pitches[0] % 12, ...pitchClasses.filter(pc => pc !== pitches[0] % 12)];
+    for (const root of rootsToTry) {
+        for (const template of CHORD_TEMPLATES) {
+            if (template.intervals.length !== 4) continue;
+            const allowed = new Set(template.intervals);
+            const intervals = pitchClasses.map(pc => (pc - root + 12) % 12);
+            if (pitchClasses.length === 3 && intervals.every(iv => allowed.has(iv))) {
+                const rootName = getRootName(root, keySignature);
+                return {
+                    chord: {
+                        rootName,
+                        quality: template.quality,
+                        displayName: formatChordDisplayName(rootName, template.quality),
+                        rootPitchClass: root,
+                    },
+                    altered: true, // incomplete chord → flagged
+                    alteredNoteName: null,
+                };
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * French note label for a pitch class, capitalized like a single note name
+ * ("Fa", "Sib", "La") regardless of chord quality. Used for ostinato/pédale
+ * motif labels.
+ * @param {number} pc  pitch class 0-11
+ * @param {object} keySignature
+ * @returns {string}
+ */
+export function noteLabelForPitchClass(pc, keySignature) {
+    return capitalizeNote(getRootName(pc, keySignature));
+}
+
+/**
+ * Combined-harmony badge for a measure: identify the chord from ALL pitch
+ * classes of BOTH hands together, using identifyChordWithTolerance. The bass
+ * is the LOWEST sounding pitch of the whole measure (slash when ≠ chord root).
+ *
+ * @param {number[]} allPitches  MIDI pitches of both hands in this measure.
+ * @param {object} keySignature  { note, mode }
+ * @returns {{ chord, altered, label, degree, bassPitchClass } | null}
+ */
+export function getMeasureHarmony(allPitches, keySignature) {
+    if (!allPitches || allPitches.length === 0) return null;
+    const identified = identifyChordWithTolerance(allPitches, keySignature);
+    if (!identified) return null;
+    const { chord, altered } = identified;
+
+    const bassPitchClass = Math.min(...allPitches) % 12;
+    // formatArpeggioBadge already applies the casing convention + slash bass.
+    const label = formatArpeggioBadge(chord, bassPitchClass, keySignature);
+    const degree = getChordDegree(chord, keySignature);
+    return { chord, altered, label, degree, bassPitchClass };
+}
+
+/**
+ * Measure-level OSTINATO qualifier.
+ *
+ * A measure is an ostinato when it is a single-line, regular-rhythm pattern
+ * whose ORDERED pitch-class sequence is a motif of length 2..4 repeated ≥2
+ * full times (the LAST repetition may be a strict prefix of the motif).
+ * Among all valid motif lengths the SHORTEST wins.
+ *
+ * @param {Array<{startTime:number, notes:Array<{pitch:number|string, startTime?:number, duration?:number}>}>} chordGroups
+ * @param {object} keySignature
+ * @returns {{ motifPcs:number[], motifLabels:string[], repetitions:number, rhythmSig:string } | null}
+ */
+export function qualifyOstinatoMeasure(chordGroups, keySignature) {
+    if (!chordGroups || chordGroups.length < 4) return null;
+    if (!chordGroups.every(g => g.notes.length === 1)) return null;
+
+    const groups = [...chordGroups].sort((a, b) => a.startTime - b.startTime);
+    const pitches = [];
+    const starts = [];
+    for (const g of groups) {
+        const note = g.notes[0];
+        const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiFromName(note.pitch);
+        if (pitch === null) return null;
+        pitches.push(pitch);
+        starts.push(note.startTime ?? g.startTime);
+    }
+    const total = pitches.length;
+    if (total < 4) return null;
+
+    // Regular rhythm: evenly-spaced onsets (same check as arpeggios).
+    const EPS = 0.06;
+    const firstGap = starts[1] - starts[0];
+    if (firstGap <= 0) return null;
+    for (let i = 1; i < starts.length; i++) {
+        if (Math.abs((starts[i] - starts[i - 1]) - firstGap) > EPS) return null;
+    }
+
+    const pcs = pitches.map(p => p % 12);
+
+    // Need at least 2 distinct pitch classes — a single repeated pitch is a
+    // pédale, not an ostinato.
+    if (new Set(pcs).size < 2) return null;
+
+    // Shortest motif length 2..4 that tiles the sequence with ≥2 full reps,
+    // last rep allowed to be a strict prefix.
+    for (let len = 2; len <= 4; len++) {
+        if (len >= total) break;
+        const fullReps = Math.floor(total / len);
+        if (fullReps < 2) continue;
+        const motif = pcs.slice(0, len);
+        // The motif itself must not be a single repeated pitch.
+        if (new Set(motif).size < 2) continue;
+        let ok = true;
+        for (let i = len; i < total; i++) {
+            if (pcs[i] !== motif[i % len]) { ok = false; break; }
+        }
+        if (!ok) continue;
+        return {
+            motifPcs: motif,
+            motifLabels: motif.map(pc => noteLabelForPitchClass(pc, keySignature)),
+            repetitions: fullReps,
+            // Rhythm signature for the consecutive-run rule: note count + gap.
+            rhythmSig: `${total}@${firstGap.toFixed(2)}`,
+        };
+    }
+    return null;
+}
+
+/**
+ * Measure-level PÉDALE qualifier.
+ *
+ * The hand has ≤2 distinct pitch classes AND its notes are either HELD
+ * (duration ≥ half the measure) or simply repeated on the same pitch(es).
+ * Returns the held/repeated note label, plus an "8va" flag when two
+ * simultaneous pitches sit exactly an octave apart.
+ *
+ * @param {Array<{startTime:number, notes:Array}>} chordGroups
+ * @param {number} unitsPerMeasure  duration units that span one full measure (default 4)
+ * @param {object} keySignature
+ * @returns {{ label:string, octave:boolean } | null}
+ */
+export function qualifyPedalMeasure(chordGroups, unitsPerMeasure, keySignature) {
+    if (!chordGroups || chordGroups.length === 0) return null;
+
+    const span = unitsPerMeasure || 4;
+    const allPitches = [];
+    let maxDuration = 0;
+    let octave = false;
+    for (const g of chordGroups) {
+        const groupPitches = [];
+        for (const note of g.notes) {
+            const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiFromName(note.pitch);
+            if (pitch === null) return null;
+            allPitches.push(pitch);
+            groupPitches.push(pitch);
+            if (note.duration !== undefined) maxDuration = Math.max(maxDuration, note.duration);
+        }
+        // Two simultaneous pitches an octave apart → 8va pédale.
+        if (groupPitches.length >= 2) {
+            for (let i = 0; i < groupPitches.length; i++) {
+                for (let j = i + 1; j < groupPitches.length; j++) {
+                    if (Math.abs(groupPitches[i] - groupPitches[j]) === 12) octave = true;
+                }
+            }
+        }
+    }
+
+    const pcs = [...new Set(allPitches.map(p => p % 12))];
+    if (pcs.length > 2) return null;
+
+    // Held (long duration) OR simply repeated on the same pitch(es).
+    const held = maxDuration >= span / 2;
+    const repeated = chordGroups.length >= 2;
+    if (!held && !repeated) return null;
+
+    // Label = the lowest sounding pitch class (the pedal tone).
+    const bassPc = Math.min(...allPitches) % 12;
+    return {
+        label: noteLabelForPitchClass(bassPc, keySignature),
+        octave,
+    };
+}
+
+/**
  * Measure-level arpeggio qualifier (spec — Departure fix).
  *
  * A measure qualifies as an "arpeggio measure" when BOTH hold:
@@ -457,66 +721,16 @@ export function qualifyArpeggioMeasure(chordGroups, keySignature) {
     if (leaps / (pitches.length - 1) < 0.6) return null;
 
     // (b) The pitch classes must form one identifiable chord, with two
-    // tolerated deviations — both flagged as `altered` (orange badge):
+    // tolerated deviations (see identifyChordWithTolerance):
     //   · ONE extra foreign pitch class (a passing tone / small alteration)
     //   · ONE missing tone from a 4-note chord (e.g. do-ré-fa = ré m7
     //     without the la). Anything looser → detailed display.
     const pitchClasses = [...new Set(pitches.map(p => p % 12))];
     if (pitchClasses.length < 3 || pitchClasses.length > 5) return null;
 
-    let chord = identifyChord(pitches, keySignature);
-    let altered = false;
-    let alteredNoteName = null;
-
-    if (chord && chord.rootPitchClass !== undefined) {
-        // identifyChord tolerates extra notes, so re-check the identified
-        // chord's interval template against ALL pitch classes and count the
-        // foreign ones.
-        const template = CHORD_TEMPLATES.find(t => t.quality === chord.quality);
-        if (!template) return null;
-        const allowed = new Set(template.intervals);
-        const foreignPcs = pitchClasses.filter(
-            pc => !allowed.has((pc - chord.rootPitchClass + 12) % 12)
-        );
-        if (foreignPcs.length > 1) return null; // too many foreign notes
-        // The chord itself must still be fully present (≥3 chord tones).
-        if (pitchClasses.length - foreignPcs.length < 3) return null;
-
-        // The foreign tone must stay a passing event, not a structural
-        // voice: cap its occurrences at 1 (or 2 in measures of 8+ notes).
-        if (foreignPcs.length === 1) {
-            const foreignPc = foreignPcs[0];
-            const foreignInstances = pitches.filter(p => p % 12 === foreignPc).length;
-            if (foreignInstances > Math.max(1, Math.floor(pitches.length / 4))) return null;
-            altered = true;
-            alteredNoteName = getRootName(foreignPc, keySignature);
-        }
-    } else {
-        // No direct match: try an INCOMPLETE 4-note chord — exactly 3 of a
-        // 4-tone template's pitch classes, no foreign tone. Roots are tried
-        // bass-first so the most grounded reading wins.
-        chord = null;
-        const rootsToTry = [pitches[0] % 12, ...pitchClasses.filter(pc => pc !== pitches[0] % 12)];
-        outer: for (const root of rootsToTry) {
-            for (const template of CHORD_TEMPLATES) {
-                if (template.intervals.length !== 4) continue;
-                const allowed = new Set(template.intervals);
-                const intervals = pitchClasses.map(pc => (pc - root + 12) % 12);
-                if (pitchClasses.length === 3 && intervals.every(iv => allowed.has(iv))) {
-                    const rootName = getRootName(root, keySignature);
-                    chord = {
-                        rootName,
-                        quality: template.quality,
-                        displayName: formatChordDisplayName(rootName, template.quality),
-                        rootPitchClass: root,
-                    };
-                    altered = true; // incomplete chord → orange badge
-                    break outer;
-                }
-            }
-        }
-        if (!chord) return null;
-    }
+    const identified = identifyChordWithTolerance(pitches, keySignature);
+    if (!identified) return null;
+    const { chord, altered, alteredNoteName } = identified;
 
     const bassPitchClass = pitches[0] % 12;
     return {

@@ -351,7 +351,7 @@ private fun MeasureCardCompact(
             .padding(10.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            // Measure number + MG/MD play pills
+            // Measure number (the harmony degree lives ONLY in the watermark).
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -365,23 +365,38 @@ private fun MeasureCardCompact(
                     fontWeight = FontWeight.Bold,
                 )
             }
-            // Right-hand melody chips (HandRight) — shown in both states.
-            NotesRow(measure.melodyNotes, color = CyanMelody)
-            // Left-hand layout:
-            //   Détail OFF → ONLY the chord/arpeggio badge (HandLeft colored).
-            //     No individual left-hand note chips. A measure with left-hand
-            //     notes but no badge shows a single discreet "N notes" chip.
-            //   Détail ON → the full left-hand note sequence chips.
-            val badge = measure.arpeggioBadge
-            if (!showDetails) {
-                when {
-                    badge != null -> ArpeggioBadgeBlock(badge, keySignature)
-                    measure.chordNotes.isNotEmpty() -> LeftHandCountChip(measure.chordNotes.size)
-                    else -> Box(modifier = Modifier.fillMaxWidth().height(18.dp))
-                }
-            } else {
-                NotesRow(measure.chordNotes, color = PinkChords)
+
+            // ── RIGHT hand (melody) ──────────────────────────────────────────
+            //   Détail OFF + a role → role badge (HandRight).
+            //   Détail ON + ostinato → note chips grouped by motif (MotifRows).
+            //   otherwise           → melody note chips (a real melody IS the lesson).
+            val rightRole = measure.rightRole
+            when {
+                !showDetails && rightRole != null ->
+                    HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
+                showDetails && measure.rightOstinato != null && measure.melodyNotes.isNotEmpty() ->
+                    MotifRows(measure.melodyNotes, measure.rightOstinato!!.motifPcs.size, CyanMelody)
+                else -> NotesRow(measure.melodyNotes, color = CyanMelody)
             }
+
+            // ── LEFT hand (chords) ───────────────────────────────────────────
+            //   Détail OFF + a role → role badge (HandLeft).
+            //   Détail OFF + no role + notes → ≤4 note chips + "…".
+            //   Détail ON + ostinato → note chips grouped by motif (MotifRows).
+            //   Détail ON           → full left-hand note sequence chips.
+            val leftRole = measure.leftRole
+            when {
+                !showDetails && leftRole != null ->
+                    HandRoleBadge(leftRole, hand = HandSide.LEFT, keySignature = keySignature)
+                !showDetails && measure.chordNotes.isNotEmpty() ->
+                    LeftHandChips(measure.chordNotes)
+                !showDetails ->
+                    Box(modifier = Modifier.fillMaxWidth().height(18.dp))
+                showDetails && measure.leftOstinato != null && measure.chordNotes.isNotEmpty() ->
+                    MotifRows(measure.chordNotes, measure.leftOstinato!!.motifPcs.size, PinkChords)
+                else -> NotesRow(measure.chordNotes, color = PinkChords)
+            }
+
             // Beat strip with cyan/pink dots aligned to note startTime
             BeatStrip(
                 beatsPerMeasure = beatsPerMeasure,
@@ -392,8 +407,37 @@ private fun MeasureCardCompact(
                 measureDurationMs = measureDurationMs,
             )
         }
+
+        // ── Combined-harmony WATERMARK ───────────────────────────────────────
+        // Very top-right, discreet semi-transparent monospace, no border/box.
+        // Carries the harmonic degree exclusively. "SIB Maj7/Ré · VI7".
+        val harmony = measure.harmony
+        if (harmony != null) {
+            val text = harmony.degree?.let { "${harmony.label} · $it" } ?: harmony.label
+            Text(
+                text,
+                color = LL_MUTED_LABEL.copy(alpha = 0.55f),
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 0.3.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .fillMaxWidth(0.68f)
+                    .wrapContentWidth(Alignment.End),
+            )
+        }
     }
 }
+
+/** Which hand a role badge belongs to (color resolved at render via theme tokens). */
+private enum class HandSide { RIGHT, LEFT }
+
+@Composable
+private fun handSideColor(hand: HandSide): Color =
+    if (hand == HandSide.RIGHT) CyanMelody else PinkChords
 
 /** Small "Détail" pill toggle in the header — ON shows the full per-note
  *  breakdown, OFF shows the combined arpeggio-badge layout. */
@@ -417,94 +461,251 @@ private fun DetailToggle(active: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * Détail-OFF left-hand badge for the measure card: a single chord/arpeggio
- * badge chip, LEFT-HAND colored (HandLeft + dim/alpha variants — no more
- * Accent/Warning). A small arpeggio glyph distinguishes arpeggio badges from
- * plain chord badges. The `altered` flag no longer changes color; it survives
- * only as a contentDescription/tooltip. No per-note chip row in this state.
- * When a chord and key signature are available, a small harmonic-degree label
- * (e.g. "i", "V7", "♭VII") is shown next to the badge using TextTertiary.
+ * Renders the resolved per-hand role badge (arpège / ostinato / pédale) for a
+ * measure card, hand-colored. The harmonic degree lives ONLY in the watermark,
+ * so role badges no longer carry it. Mirrors web HandRoleBadge.
  */
 @Composable
-private fun ArpeggioBadgeBlock(
-    badge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge,
+private fun HandRoleBadge(
+    role: com.tobietheunknown.pianoteacher.utils.HandRole,
+    hand: HandSide,
     keySignature: MusicKeySignature? = null,
 ) {
-    val tone = PinkChords  // HandLeft
-    val desc = if (badge.altered) {
+    when (role) {
+        is com.tobietheunknown.pianoteacher.utils.HandRole.Arpeggio ->
+            ArpeggioRoleBadge(role.badge, hand)
+        is com.tobietheunknown.pianoteacher.utils.HandRole.Ostinato ->
+            OstinatoRoleBadge(role.ostinato, hand)
+        is com.tobietheunknown.pianoteacher.utils.HandRole.Pedal ->
+            PedalRoleBadge(role.pedal, hand)
+    }
+}
+
+// Shared dense role-chip frame: 11sp bold, padding ~3×8dp, radius 8dp.
+@Composable
+private fun RoleChip(
+    tone: Color,
+    contentDesc: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(tone.copy(alpha = 0.14f))
+            .border(2.dp, tone, RoundedCornerShape(8.dp))
+            .semantics { contentDescription = contentDesc }
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) { content() }
+}
+
+@Composable
+private fun ArpeggioRoleBadge(
+    badge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge,
+    hand: HandSide,
+) {
+    val tone = handSideColor(hand)
+    val desc = if (badge.altered)
         "Arpège ${badge.label}, altéré" + (badge.alteredNoteName?.let { " ($it)" } ?: "")
-    } else {
-        "Arpège ${badge.label}"
-    }
-    val degree = remember(badge.chord, keySignature) {
-        if (badge.chord != null) chordDegree(badge.chord, keySignature) else null
-    }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(tone.copy(alpha = 0.14f))
-                .border(2.dp, tone, RoundedCornerShape(8.dp))
-                .semantics { contentDescription = desc }
-                .padding(horizontal = 8.dp, vertical = 3.dp),
+    else "Arpège ${badge.label}"
+    RoleChip(tone, desc) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Arpeggio glyph — a wavy chord symbol (♪~) keeping arpeggio badges
-                // visually distinct from plain chord badges.
-                Text(
-                    "⤳",  // ⤳ rightwards arrow with wavy tail
-                    color = tone,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    badge.label,
-                    color = tone,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.2.sp,
-                )
-            }
-        }
-        if (degree != null) {
+            ArpeggioGlyph(tone)
             Text(
-                degree,
-                color = TextTertiary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
+                badge.label, color = tone, fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 0.2.sp,
             )
         }
     }
 }
 
+@Composable
+private fun OstinatoRoleBadge(
+    ostinato: com.tobietheunknown.pianoteacher.utils.OstinatoQualification,
+    hand: HandSide,
+) {
+    val tone = handSideColor(hand)
+    val notes = ostinato.motifLabels.joinToString("·")
+    val desc = "Ostinato — motif répété ${ostinato.repetitions}× ($notes)"
+    // The note list ellipsizes on narrow cards but the ×N never clips: it sits
+    // as a non-shrinking suffix outside the weighted/ellipsized text. The chip
+    // fills the card width so the weighted text actually has a bound to shrink to.
+    RoleChip(tone, desc, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OstinatoGlyph(tone)
+            Text(
+                "Ostinato $notes",
+                color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.2.sp, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (ostinato.repetitions > 1) {
+                Text(
+                    "×${ostinato.repetitions}",
+                    color = tone.copy(alpha = 0.8f), fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PedalRoleBadge(
+    pedal: com.tobietheunknown.pianoteacher.utils.PedalQualification,
+    hand: HandSide,
+) {
+    val tone = handSideColor(hand)
+    val desc = if (pedal.octave) "Pédale jouée en octave (8va)" else "Pédale — note tenue / répétée"
+    RoleChip(tone, desc) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PedalGlyph(tone)
+            Text(
+                "Pédale ${pedal.label}" + if (pedal.octave) " · 8va" else "",
+                color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.2.sp,
+            )
+        }
+    }
+}
+
+// Arpeggio glyph — three dots rising left→right on a baseline (broken chord).
+@Composable
+private fun ArpeggioGlyph(tone: Color) {
+    Canvas(modifier = Modifier.size(width = 14.dp, height = 12.dp)) {
+        val r = 1.7.dp.toPx()
+        val pts = listOf(
+            Offset(2.5.dp.toPx(), 9.5.dp.toPx()),
+            Offset(7.dp.toPx(), 6.dp.toPx()),
+            Offset(11.5.dp.toPx(), 2.5.dp.toPx()),
+        )
+        for (i in 0 until pts.size - 1) {
+            drawLine(tone.copy(alpha = 0.5f), pts[i], pts[i + 1], strokeWidth = 1.dp.toPx())
+        }
+        pts.forEach { drawCircle(tone, r, it) }
+    }
+}
+
+// Repeating-wave glyph — reads as "ostinato" (a motif looping).
+@Composable
+private fun OstinatoGlyph(tone: Color) {
+    Canvas(modifier = Modifier.size(width = 16.dp, height = 12.dp)) {
+        val w = size.width
+        fun wave(yMid: Float, alpha: Float) {
+            val path = androidx.compose.ui.graphics.Path()
+            val amp = 2.dp.toPx()
+            val seg = w / 6f
+            path.moveTo(seg * 0.3f, yMid)
+            var x = seg * 0.3f
+            var up = true
+            while (x < w) {
+                val cx = x + seg / 2f
+                val cy = if (up) yMid - amp else yMid + amp
+                path.quadraticTo(cx, cy, x + seg, yMid)
+                x += seg; up = !up
+            }
+            drawPath(path, tone.copy(alpha = alpha),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.4.dp.toPx()))
+        }
+        wave(size.height * 0.58f, 1f)
+        wave(size.height * 0.83f, 0.5f)
+    }
+}
+
+// Sustained-line glyph for a pédale (a single long held tone): dot + line.
+@Composable
+private fun PedalGlyph(tone: Color) {
+    Canvas(modifier = Modifier.size(width = 16.dp, height = 12.dp)) {
+        val midY = size.height / 2f
+        drawCircle(tone, radius = 2.dp.toPx(), center = Offset(3.dp.toPx(), midY))
+        drawLine(
+            tone, Offset(5.dp.toPx(), midY), Offset(15.dp.toPx(), midY),
+            strokeWidth = 1.6.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+    }
+}
+
 /**
- * Détail-OFF discreet chip for measures that have left-hand notes but no
- * arpeggio/chord badge — a single "N notes" pill (HandLeft styling) instead of
- * dumping every note.
+ * Détail-OFF fallback for a left hand with notes but no role badge: up to 4
+ * note chips + a trailing "…" when truncated. Mirrors the web LH fallback.
  */
 @Composable
-private fun LeftHandCountChip(count: Int) {
+private fun LeftHandChips(notes: List<NoteEvent>) {
+    val labels = remember(notes) {
+        notes.sortedBy { it.startTime }.map { noteName(it.pitch) }
+    }
     val tone = PinkChords  // HandLeft
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(tone.copy(alpha = 0.12f))
-            .border(1.dp, tone.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 7.dp, vertical = 2.dp),
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.heightIn(min = 18.dp),
     ) {
-        Text(
-            "$count note" + if (count > 1) "s" else "",
-            color = tone.copy(alpha = 0.85f),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        labels.take(4).forEach { lab ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(tone.copy(alpha = 0.22f))
+                    .border(1.dp, tone.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            ) {
+                Text(lab, color = tone, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        if (labels.size > 4) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .border(1.dp, tone.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            ) {
+                Text("…", color = TextTertiary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Détail-ON note chips for an ostinato hand, grouped BY MOTIF OCCURRENCE — one
+ * Row per repetition; the last row may be the truncated prefix. Mirrors web
+ * MotifRows.
+ */
+@Composable
+private fun MotifRows(notes: List<NoteEvent>, motifLen: Int, tone: Color) {
+    val labels = remember(notes) {
+        notes.sortedBy { it.startTime }.map { noteName(it.pitch) }
+    }
+    val rows = remember(labels, motifLen) {
+        if (motifLen <= 0) listOf(labels) else labels.chunked(motifLen)
+    }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.heightIn(min = 18.dp),
+    ) {
+        rows.forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                row.forEach { lab ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(tone.copy(alpha = 0.22f))
+                            .border(1.dp, tone.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    ) {
+                        Text(lab, color = tone, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -134,6 +134,245 @@ private fun capitalizeNote(name: String): String =
     else name.first().uppercaseChar() + name.drop(1).lowercase()
 
 /**
+ * French note label for a pitch class, capitalized like a single note name
+ * ("Fa", "Sib", "La") regardless of chord quality. Used for ostinato / pédale
+ * motif labels. Mirrors web's noteLabelForPitchClass.
+ */
+fun noteLabelForPitchClass(pc: Int, keySignature: KeySignature?): String =
+    capitalizeNote(arpeggioRootName(pc, keySignature))
+
+/** Result of identifyChordWithTolerance — the chord plus alteration metadata. */
+data class ToleratedChord(
+    val chord: ChordDetectionResult,
+    val altered: Boolean,
+    val alteredNoteName: String?,
+)
+
+/**
+ * Identify a chord from MIDI pitches with the two tolerances used across the
+ * measure analysis (mirrors web's identifyChordWithTolerance):
+ *   · EXACT pre-pass — prefer a template whose pitch classes EXACTLY equal the
+ *     measure's set (no foreign, no missing tone), roots tried bass-first, the
+ *     richest template winning (CHORD_TEMPLATES is most-specific first).
+ *   · lax identifyChord + re-check: at most ONE foreign pitch class (a passing
+ *     tone), instance-capped; the chord itself must still be fully present.
+ *   · INCOMPLETE 4-note fallback: exactly 3 of a 4-tone template's pitch
+ *     classes, no foreign tone (e.g. {Fa,Sib,La} = Sib Maj7 without the Ré).
+ *
+ * Roots resolved key-aware (enharmonic correction) like web's getRootName.
+ */
+fun identifyChordWithTolerance(
+    pitches: List<Int>,
+    keySignature: KeySignature?,
+): ToleratedChord? {
+    if (pitches.isEmpty()) return null
+    val pitchClasses = pitches.map { it % 12 }.toSet().toList()
+    if (pitchClasses.size < 3) return null
+
+    fun makeChord(root: Int, quality: String): ChordDetectionResult {
+        val rootName = arpeggioRootName(root, keySignature)
+        return ChordDetectionResult(
+            rootName = rootName,
+            quality = quality,
+            displayName = formatChordDisplayName(rootName, quality),
+            rootPitchClass = root,
+        )
+    }
+
+    // EXACT pre-pass: the first exact full match (richest, bass-first roots).
+    val pcSet = pitchClasses.toSet()
+    val bassPc = pitches[0] % 12
+    val exactRoots = listOf(bassPc) + pitchClasses.filter { it != bassPc }
+    for (template in CHORD_TEMPLATES) {
+        if (template.intervals.size != pcSet.size) continue
+        for (root in exactRoots) {
+            val templatePcs = template.intervals.map { (root + it) % 12 }.toSet()
+            if (templatePcs.size == pcSet.size && pcSet.all { it in templatePcs }) {
+                return ToleratedChord(makeChord(root, template.quality), false, null)
+            }
+        }
+    }
+
+    val direct = identifyChord(pitches, keySignature?.useFlats ?: false)
+    if (direct != null) {
+        // identifyChord tolerates extra notes — re-check its template against ALL
+        // pitch classes and count the foreign ones.
+        val template = CHORD_TEMPLATES.firstOrNull { it.quality == direct.quality } ?: return null
+        val allowed = template.intervals.toSet()
+        val root = direct.rootPitchClass
+        val foreignPcs = pitchClasses.filter { pc -> ((pc - root + 12) % 12) !in allowed }
+        if (foreignPcs.size > 1) return null
+        if (pitchClasses.size - foreignPcs.size < 3) return null
+
+        var altered = false
+        var alteredNoteName: String? = null
+        if (foreignPcs.size == 1) {
+            val foreignPc = foreignPcs[0]
+            val foreignInstances = pitches.count { it % 12 == foreignPc }
+            if (foreignInstances > max(1, floor(pitches.size / 4.0).toInt())) return null
+            altered = true
+            alteredNoteName = arpeggioRootName(foreignPc, keySignature)
+        }
+        // Re-resolve display root key-aware (identifyChord used useFlats only).
+        val keyAwareRoot = arpeggioRootName(direct.rootPitchClass, keySignature)
+        val keyAware = direct.copy(
+            rootName = keyAwareRoot,
+            displayName = formatChordDisplayName(keyAwareRoot, direct.quality),
+        )
+        return ToleratedChord(keyAware, altered, alteredNoteName)
+    }
+
+    // INCOMPLETE 4-note chord: exactly 3 of a 4-tone template, no foreign tone.
+    val rootsToTry = listOf(bassPc) + pitchClasses.filter { it != bassPc }
+    for (root in rootsToTry) {
+        for (template in CHORD_TEMPLATES) {
+            if (template.intervals.size != 4) continue
+            val allowed = template.intervals.toSet()
+            val intervals = pitchClasses.map { (it - root + 12) % 12 }
+            if (pitchClasses.size == 3 && intervals.all { it in allowed }) {
+                return ToleratedChord(makeChord(root, template.quality), true, null)
+            }
+        }
+    }
+    return null
+}
+
+/** Combined-harmony badge for a measure (BOTH hands together). */
+data class MeasureHarmony(
+    val chord: ChordDetectionResult,
+    val altered: Boolean,
+    val label: String,
+    val degree: String?,
+    val bassPitchClass: Int,
+)
+
+/**
+ * Combined-harmony badge: identify the chord from ALL pitch classes of BOTH
+ * hands via identifyChordWithTolerance. The bass is the LOWEST sounding pitch
+ * of the whole measure (slash when ≠ chord root). Mirrors web getMeasureHarmony.
+ */
+fun getMeasureHarmony(allPitches: List<Int>, keySignature: KeySignature?): MeasureHarmony? {
+    if (allPitches.isEmpty()) return null
+    val identified = identifyChordWithTolerance(allPitches, keySignature) ?: return null
+    val bassPitchClass = allPitches.min() % 12
+    val label = formatArpeggioBadge(identified.chord, bassPitchClass, keySignature)
+    val degree = chordDegree(identified.chord, keySignature)
+    return MeasureHarmony(identified.chord, identified.altered, label, degree, bassPitchClass)
+}
+
+/** Result of qualifying a hand as an ostinato measure. */
+data class OstinatoQualification(
+    val motifPcs: List<Int>,
+    val motifLabels: List<String>,
+    val repetitions: Int,
+    val rhythmSig: String,
+)
+
+/**
+ * Measure-level OSTINATO qualifier: a single-line, regular-rhythm pattern whose
+ * ORDERED pitch-class sequence is a motif of length 2..4 repeated ≥2 full times
+ * (the LAST repetition may be a strict prefix). Shortest valid motif wins.
+ * Mirrors web qualifyOstinatoMeasure.
+ */
+fun qualifyOstinatoMeasure(
+    handNotes: List<NoteEvent>,
+    keySignature: KeySignature?,
+): OstinatoQualification? {
+    if (handNotes.size < 4) return null
+    val groups = handNotes.groupBy { it.startTime }.toSortedMap()
+    if (groups.values.any { it.size != 1 }) return null
+
+    val ordered = groups.values.map { it.first() }
+    val pitches = ordered.map { it.pitch }
+    val starts = ordered.map { it.startTime }
+    val total = pitches.size
+    if (total < 4) return null
+
+    // Regular rhythm: evenly-spaced onsets.
+    val eps = 0.06
+    val firstGap = starts[1] - starts[0]
+    if (firstGap <= 0) return null
+    for (i in 1 until starts.size) {
+        if (abs((starts[i] - starts[i - 1]) - firstGap) > eps) return null
+    }
+
+    val pcs = pitches.map { it % 12 }
+    // Need ≥2 distinct pitch classes — a single repeated pitch is a pédale.
+    if (pcs.toSet().size < 2) return null
+
+    for (len in 2..4) {
+        if (len >= total) break
+        val fullReps = total / len
+        if (fullReps < 2) continue
+        val motif = pcs.take(len)
+        if (motif.toSet().size < 2) continue
+        var ok = true
+        for (i in len until total) {
+            if (pcs[i] != motif[i % len]) { ok = false; break }
+        }
+        if (!ok) continue
+        return OstinatoQualification(
+            motifPcs = motif,
+            motifLabels = motif.map { noteLabelForPitchClass(it, keySignature) },
+            repetitions = fullReps,
+            rhythmSig = "$total@${"%.2f".format(firstGap)}",
+        )
+    }
+    return null
+}
+
+/** Result of qualifying a hand as a pédale measure. */
+data class PedalQualification(
+    val label: String,
+    val octave: Boolean,
+)
+
+/**
+ * Measure-level PÉDALE qualifier: the hand has ≤2 distinct pitch classes AND its
+ * notes are either HELD (duration ≥ half the measure) or simply repeated. Sets
+ * the octave flag when two simultaneous pitches sit exactly an octave apart.
+ * Mirrors web qualifyPedalMeasure.
+ */
+fun qualifyPedalMeasure(
+    handNotes: List<NoteEvent>,
+    unitsPerMeasure: Int,
+    keySignature: KeySignature?,
+): PedalQualification? {
+    if (handNotes.isEmpty()) return null
+
+    val span = if (unitsPerMeasure > 0) unitsPerMeasure else 4
+    val groups = handNotes.groupBy { it.startTime }.toSortedMap()
+    val allPitches = mutableListOf<Int>()
+    var maxDuration = 0.0
+    var octave = false
+    for ((_, gNotes) in groups) {
+        val groupPitches = gNotes.map { it.pitch }
+        allPitches.addAll(groupPitches)
+        gNotes.forEach { maxDuration = max(maxDuration, it.duration) }
+        if (groupPitches.size >= 2) {
+            for (i in groupPitches.indices) {
+                for (j in i + 1 until groupPitches.size) {
+                    if (abs(groupPitches[i] - groupPitches[j]) == 12) octave = true
+                }
+            }
+        }
+    }
+
+    val pcs = allPitches.map { it % 12 }.toSet()
+    if (pcs.size > 2) return null
+
+    val held = maxDuration >= span / 2.0
+    val repeated = groups.size >= 2
+    if (!held && !repeated) return null
+
+    val bassPc = allPitches.min() % 12
+    return PedalQualification(
+        label = noteLabelForPitchClass(bassPc, keySignature),
+        octave = octave,
+    )
+}
+
+/**
  * Measure-level arpeggio qualifier. A measure qualifies when:
  *   (a) ≥4 notes played one-at-a-time with a REGULAR rhythm
  *       (evenly-spaced onsets + uniform duration), AND
@@ -184,75 +423,23 @@ fun qualifyArpeggioMeasure(
     }
     if (leaps.toDouble() / (pitches.size - 1) < 0.6) return null
 
-    // (b) Pitch classes must form one identifiable chord, with tolerances.
+    // (b) Pitch classes must form one identifiable chord, with the two
+    // tolerances — delegated to identifyChordWithTolerance (EXACT pre-pass →
+    // lax + 1-foreign tone → incomplete-4-note 3-of-4 fallback).
     val pitchClasses = pitches.map { it % 12 }.toSet().toList()
     if (pitchClasses.size < 3 || pitchClasses.size > 5) return null
 
-    var chord: ChordDetectionResult? = identifyChord(pitches, keySignature?.useFlats ?: false)
-    var altered = false
-    var alteredNoteName: String? = null
-
-    if (chord != null) {
-        // Re-check the identified chord's template against ALL pitch classes and
-        // count the foreign ones.
-        val template = CHORD_TEMPLATES.firstOrNull { it.quality == chord!!.quality } ?: return null
-        val allowed = template.intervals.toSet()
-        val root = chord.rootPitchClass
-        val foreignPcs = pitchClasses.filter { pc -> ((pc - root + 12) % 12) !in allowed }
-        if (foreignPcs.size > 1) return null
-        if (pitchClasses.size - foreignPcs.size < 3) return null
-
-        if (foreignPcs.size == 1) {
-            val foreignPc = foreignPcs[0]
-            val foreignInstances = pitches.count { it % 12 == foreignPc }
-            if (foreignInstances > max(1, floor(pitches.size / 4.0).toInt())) return null
-            altered = true
-            alteredNoteName = arpeggioRootName(foreignPc, keySignature)
-        }
-    } else {
-        // No direct match: try an INCOMPLETE 4-note chord — exactly 3 of a
-        // 4-tone template's pitch classes, no foreign tone. Bass-first roots.
-        val rootsToTry = listOf(pitches[0] % 12) +
-            pitchClasses.filter { it != pitches[0] % 12 }
-        outer@ for (rootCandidate in rootsToTry) {
-            for (template in CHORD_TEMPLATES) {
-                if (template.intervals.size != 4) continue
-                val allowed = template.intervals.toSet()
-                val intervals = pitchClasses.map { (it - rootCandidate + 12) % 12 }
-                if (pitchClasses.size == 3 && intervals.all { it in allowed }) {
-                    val rootName = arpeggioRootName(rootCandidate, keySignature)
-                    chord = ChordDetectionResult(
-                        rootName = rootName,
-                        quality = template.quality,
-                        displayName = formatChordDisplayName(rootName, template.quality),
-                        rootPitchClass = rootCandidate,
-                    )
-                    altered = true
-                    break@outer
-                }
-            }
-        }
-        if (chord == null) return null
-    }
-
-    val resolved = chord!!
-    // The web's getRootName applies enharmonic correction; identifyChord here
-    // used useFlats only. Re-resolve the display root key-aware so the badge
-    // reads "MIB" not "RÉ#" in flat keys.
-    val keyAwareRoot = arpeggioRootName(resolved.rootPitchClass, keySignature)
-    val keyAwareChord = resolved.copy(
-        rootName = keyAwareRoot,
-        displayName = formatChordDisplayName(keyAwareRoot, resolved.quality),
-    )
+    val identified = identifyChordWithTolerance(pitches, keySignature) ?: return null
+    val chord = identified.chord
 
     val bassPitchClass = pitches[0] % 12
     return ArpeggioMeasureQualification(
-        chord = keyAwareChord,
+        chord = chord,
         bassPitchClass = bassPitchClass,
         noteCount = pitches.size,
-        altered = altered,
-        alteredNoteName = alteredNoteName,
-        badge = formatArpeggioBadge(keyAwareChord, bassPitchClass, keySignature),
+        altered = identified.altered,
+        alteredNoteName = identified.alteredNoteName,
+        badge = formatArpeggioBadge(chord, bassPitchClass, keySignature),
     )
 }
 
@@ -331,4 +518,133 @@ fun computeArpeggioBadges(
     }
 
     return badges.toList()
+}
+
+// ─── Per-hand role resolution (ported from web LiveLearning.jsx analysis) ─────
+//
+// A measure's two hands each resolve to at most one "role" badge. Priority
+// mirrors the web: arpège (clean) → ostinato → pédale. A CLEAN (non-altered)
+// arpège outranks an ostinato, but an ALTERED/incomplete arpège yields to an
+// ostinato (a tight repeating motif is the better lesson). Pédale has no run
+// requirement; arpège + ostinato need a RUN of ≥2 consecutive qualifying
+// measures (ostinato runs additionally keyed by matching rhythm signature).
+
+/** A resolved per-hand role badge for one measure. */
+sealed class HandRole {
+    data class Arpeggio(val badge: ArpeggioBadge) : HandRole()
+    data class Ostinato(val ostinato: OstinatoQualification) : HandRole()
+    data class Pedal(val pedal: PedalQualification) : HandRole()
+}
+
+/** Everything the card needs to render one measure's analysis. */
+data class MeasureRoles(
+    val harmony: MeasureHarmony?,
+    val leftRole: HandRole?,
+    val rightRole: HandRole?,
+    // Kept for Détail-ON MotifRows grouping (note chips grouped by motif).
+    val leftOstinato: OstinatoQualification?,
+    val rightOstinato: OstinatoQualification?,
+)
+
+/**
+ * Resolve per-hand roles + combined harmony for every measure, applying the
+ * web's consecutive-measures run rules. `leftHandNotes` = chords (left hand),
+ * `rightHandNotes` = melody (right hand); both in global measure order.
+ *
+ * Mirrors LiveLearning.jsx: arpeggio badge run (left), right-arpeggio run,
+ * per-hand ostinato runs keyed by rhythm signature, per-measure pédale, then
+ * the priority resolution (clean arpège > ostinato > altered arpège yields to
+ * ostinato > pédale).
+ */
+fun computeMeasureRoles(
+    leftHandNotes: List<List<NoteEvent>>,
+    rightHandNotes: List<List<NoteEvent>>,
+    unitsPerMeasure: Int,
+    keySignature: KeySignature?,
+): List<MeasureRoles> {
+    val n = leftHandNotes.size
+
+    // Left-hand arpeggio badges (run-gated ×N) — reuse the existing pass.
+    val leftArpBadges = computeArpeggioBadges(leftHandNotes, keySignature)
+
+    // Per-measure qualifiers.
+    val rightArpQuals = rightHandNotes.map { qualifyArpeggioMeasure(it, keySignature) }
+    val leftOstinato = leftHandNotes.map { qualifyOstinatoMeasure(it, keySignature) }
+    val rightOstinato = rightHandNotes.map { qualifyOstinatoMeasure(it, keySignature) }
+    val leftPedal = leftHandNotes.map { qualifyPedalMeasure(it, unitsPerMeasure, keySignature) }
+    val rightPedal = rightHandNotes.map { qualifyPedalMeasure(it, unitsPerMeasure, keySignature) }
+    val harmonies = (0 until n).map { i ->
+        val all = (rightHandNotes[i] + leftHandNotes[i]).map { it.pitch }
+        getMeasureHarmony(all, keySignature)
+    }
+
+    // Generic run-rule: flag every measure in a run of ≥2 where pick is non-null
+    // AND (optionally) the neighbouring sameSig predicate holds.
+    fun applyRunRule(
+        pick: (Int) -> Boolean,
+        sameSig: ((Int, Int) -> Boolean)? = null,
+    ): BooleanArray {
+        val active = BooleanArray(n)
+        var s = 0
+        while (s < n) {
+            if (!pick(s)) { s++; continue }
+            var e = s
+            while (e + 1 < n && pick(e + 1) && (sameSig == null || sameSig(e, e + 1))) e++
+            if (e - s + 1 >= 2) for (i in s..e) active[i] = true
+            s = e + 1
+        }
+        return active
+    }
+
+    val rightArpActive = applyRunRule({ rightArpQuals[it] != null })
+    val leftOstinatoActive = applyRunRule(
+        { leftOstinato[it] != null },
+        { a, b -> leftOstinato[a]!!.rhythmSig == leftOstinato[b]!!.rhythmSig },
+    )
+    val rightOstinatoActive = applyRunRule(
+        { rightOstinato[it] != null },
+        { a, b -> rightOstinato[a]!!.rhythmSig == rightOstinato[b]!!.rhythmSig },
+    )
+
+    return (0 until n).map { i ->
+        // LEFT hand
+        val leftBadge = leftArpBadges[i]
+        val leftArpClean = leftBadge != null && !leftBadge.altered
+        val leftRole: HandRole? = when {
+            leftBadge != null && (leftArpClean || !leftOstinatoActive[i]) ->
+                HandRole.Arpeggio(leftBadge)
+            leftOstinatoActive[i] && leftOstinato[i] != null ->
+                HandRole.Ostinato(leftOstinato[i]!!)
+            leftPedal[i] != null -> HandRole.Pedal(leftPedal[i]!!)
+            else -> null
+        }
+
+        // RIGHT hand
+        val rightArp = if (rightArpActive[i]) rightArpQuals[i] else null
+        val rightArpClean = rightArp != null && !rightArp.altered
+        val rightRole: HandRole? = when {
+            rightArp != null && (rightArpClean || !rightOstinatoActive[i]) ->
+                HandRole.Arpeggio(
+                    ArpeggioBadge(
+                        label = rightArp.badge,
+                        altered = rightArp.altered,
+                        alteredNoteName = rightArp.alteredNoteName,
+                        cycleNotes = emptyList(),
+                        chord = rightArp.chord,
+                    )
+                )
+            rightOstinatoActive[i] && rightOstinato[i] != null ->
+                HandRole.Ostinato(rightOstinato[i]!!)
+            rightPedal[i] != null -> HandRole.Pedal(rightPedal[i]!!)
+            else -> null
+        }
+
+        MeasureRoles(
+            harmony = harmonies[i],
+            leftRole = leftRole,
+            rightRole = rightRole,
+            leftOstinato = if (leftOstinatoActive[i]) leftOstinato[i] else null,
+            rightOstinato = if (rightOstinatoActive[i]) rightOstinato[i] else null,
+        )
+    }
 }
