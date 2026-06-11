@@ -1,5 +1,60 @@
 import { getEnharmonicNote, NOTE_NAMES } from '../models/song';
 
+// English note name → pitch class (used by getChordDegree)
+const EN_NOTE_TO_PC = {
+    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+    'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+    'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11,
+};
+
+const MAJOR_SCALE = { 0: 1, 2: 2, 4: 3, 5: 4, 7: 5, 9: 6, 11: 7 };
+const MINOR_SCALE = { 0: 1, 2: 2, 3: 3, 5: 4, 7: 5, 8: 6, 10: 7 };
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+
+/**
+ * Compute the harmonic degree (Roman numeral) of a chord in a given key.
+ *
+ * @param {{ rootPitchClass: number, quality: string }} chord
+ * @param {{ note: string, mode: 'major'|'minor' }} keySignature
+ * @returns {string|null}  e.g. "i", "iv", "ii7", "VI", "V7", "♭VII"
+ */
+export function getChordDegree(chord, keySignature) {
+    if (!chord || !keySignature) return null;
+    const tonicPc = EN_NOTE_TO_PC[keySignature.note];
+    if (tonicPc === undefined || chord.rootPitchClass === undefined) return null;
+
+    const interval = ((chord.rootPitchClass - tonicPc) + 12) % 12;
+    const scale = keySignature.mode === 'minor' ? MINOR_SCALE : MAJOR_SCALE;
+
+    const quality = chord.quality || '';
+    const isLower = quality.startsWith('min') || quality.startsWith('dim');
+    const dimSuffix = quality.startsWith('dim') ? '°' : '';
+    const augSuffix = quality.startsWith('aug') ? '+' : '';
+    const sevenSuffix = quality.includes('7') ? '7' : '';
+    const suffix = dimSuffix + augSuffix + sevenSuffix;
+
+    const toRoman = (deg) => {
+        const base = ROMAN[deg];
+        return isLower ? base.toLowerCase() : base;
+    };
+
+    if (scale[interval] !== undefined) {
+        return toRoman(scale[interval]) + suffix;
+    }
+
+    // Chromatic: try ♭(interval+1) then ♯(interval-1)
+    const flatTarget = (interval + 1) % 12;
+    if (scale[flatTarget] !== undefined) {
+        return '♭' + toRoman(scale[flatTarget]) + suffix;
+    }
+    const sharpTarget = (interval - 1 + 12) % 12;
+    if (scale[sharpTarget] !== undefined) {
+        return '♯' + toRoman(scale[sharpTarget]) + suffix;
+    }
+
+    return null;
+}
+
 // Chord templates: intervals from root
 // 4-note chords first (more specific = higher priority)
 const CHORD_TEMPLATES = [

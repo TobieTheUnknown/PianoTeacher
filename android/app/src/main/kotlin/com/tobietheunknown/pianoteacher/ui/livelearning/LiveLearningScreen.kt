@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
+import com.tobietheunknown.pianoteacher.utils.KeySignature as MusicKeySignature
+import com.tobietheunknown.pianoteacher.utils.chordDegree
 import com.tobietheunknown.pianoteacher.ui.common.MiniKeyboard
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackDock
 import com.tobietheunknown.pianoteacher.ui.common.HandMode
@@ -93,6 +95,7 @@ fun LiveLearningScreen(
     val loopStart by vm.loopStart.collectAsState()
     val loopEnd by vm.loopEnd.collectAsState()
     val showDetails by vm.showDetails.collectAsState()
+    val keySignature by vm.keySignature.collectAsState()
 
     var loopEditorOpen by remember { mutableStateOf(false) }
 
@@ -226,6 +229,7 @@ fun LiveLearningScreen(
                                                     isPlaying = isPlaying && globalIdx == playingMeasure,
                                                     measureDurationMs = measureDurationMs,
                                                     showDetails = showDetails,
+                                                    keySignature = keySignature,
                                                     onClick = onCellClick,
                                                     modifier = Modifier.weight(1f),
                                                 )
@@ -334,6 +338,7 @@ private fun MeasureCardCompact(
     modifier: Modifier = Modifier,
     measureDurationMs: Long = 2000L,
     showDetails: Boolean = false,
+    keySignature: MusicKeySignature? = null,
 ) {
     val border = if (isCurrent) IndigoAccent else BorderColor
     val bg = if (isCurrent) IndigoAccent.copy(alpha = 0.08f) else SurfaceVariant
@@ -370,7 +375,7 @@ private fun MeasureCardCompact(
             val badge = measure.arpeggioBadge
             if (!showDetails) {
                 when {
-                    badge != null -> ArpeggioBadgeBlock(badge)
+                    badge != null -> ArpeggioBadgeBlock(badge, keySignature)
                     measure.chordNotes.isNotEmpty() -> LeftHandCountChip(measure.chordNotes.size)
                     else -> Box(modifier = Modifier.fillMaxWidth().height(18.dp))
                 }
@@ -417,41 +422,63 @@ private fun DetailToggle(active: Boolean, onClick: () -> Unit) {
  * Accent/Warning). A small arpeggio glyph distinguishes arpeggio badges from
  * plain chord badges. The `altered` flag no longer changes color; it survives
  * only as a contentDescription/tooltip. No per-note chip row in this state.
+ * When a chord and key signature are available, a small harmonic-degree label
+ * (e.g. "i", "V7", "♭VII") is shown next to the badge using TextTertiary.
  */
 @Composable
-private fun ArpeggioBadgeBlock(badge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge) {
+private fun ArpeggioBadgeBlock(
+    badge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge,
+    keySignature: MusicKeySignature? = null,
+) {
     val tone = PinkChords  // HandLeft
     val desc = if (badge.altered) {
         "Arpège ${badge.label}, altéré" + (badge.alteredNoteName?.let { " ($it)" } ?: "")
     } else {
         "Arpège ${badge.label}"
     }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(tone.copy(alpha = 0.14f))
-            .border(2.dp, tone, RoundedCornerShape(8.dp))
-            .semantics { contentDescription = desc }
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+    val degree = remember(badge.chord, keySignature) {
+        if (badge.chord != null) chordDegree(badge.chord, keySignature) else null
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(tone.copy(alpha = 0.14f))
+                .border(2.dp, tone, RoundedCornerShape(8.dp))
+                .semantics { contentDescription = desc }
+                .padding(horizontal = 8.dp, vertical = 3.dp),
         ) {
-            // Arpeggio glyph — a wavy chord symbol (♪~) keeping arpeggio badges
-            // visually distinct from plain chord badges.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Arpeggio glyph — a wavy chord symbol (♪~) keeping arpeggio badges
+                // visually distinct from plain chord badges.
+                Text(
+                    "⤳",  // ⤳ rightwards arrow with wavy tail
+                    color = tone,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    badge.label,
+                    color = tone,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.2.sp,
+                )
+            }
+        }
+        if (degree != null) {
             Text(
-                "⤳",  // ⤳ rightwards arrow with wavy tail
-                color = tone,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                badge.label,
-                color = tone,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.2.sp,
+                degree,
+                color = TextTertiary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }

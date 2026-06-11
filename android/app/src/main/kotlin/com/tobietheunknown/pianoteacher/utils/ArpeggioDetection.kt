@@ -16,6 +16,53 @@ import kotlin.math.max
 // These build on the already-ported identifyChord / CHORD_TEMPLATES /
 // formatChordDisplayName helpers in MusicUtils.kt.
 
+// ─── Harmonic degree computation ─────────────────────────────────────────────
+
+private val MAJOR_SCALE_MAP = mapOf(0 to 1, 2 to 2, 4 to 3, 5 to 4, 7 to 5, 9 to 6, 11 to 7)
+private val MINOR_SCALE_MAP = mapOf(0 to 1, 2 to 2, 3 to 3, 5 to 4, 7 to 5, 8 to 6, 10 to 7)
+private val ROMAN_NUMERALS = arrayOf("", "I", "II", "III", "IV", "V", "VI", "VII")
+
+/**
+ * Compute the harmonic degree (Roman numeral) of a chord in a given key.
+ *
+ * Inputs:
+ *   - chord.rootPitchClass: pitch class of the chord root (0-11)
+ *   - chord.quality: quality string (e.g. "min", "min7", "dim", "aug", "7", "Maj")
+ *   - keySignature.root: tonic pitch class (0-11)
+ *   - keySignature.isMinor: true for natural minor, false for major
+ *
+ * Returns Roman numeral string (e.g. "i", "V7", "♭VII", "ii7") or null
+ * when key or chord is missing / unresolvable.
+ *
+ * Examples in Do mineur: Do m → "i"; Fa m → "iv"; Ré m7 → "ii7";
+ *   Lab → "VI"; Mib → "III"; Sib → "VII"; Sol → "V".
+ */
+fun chordDegree(chord: ChordDetectionResult, keySignature: KeySignature?): String? {
+    if (keySignature == null) return null
+    val interval = ((chord.rootPitchClass - keySignature.root) + 12) % 12
+    val scale = if (keySignature.isMinor) MINOR_SCALE_MAP else MAJOR_SCALE_MAP
+
+    val quality = chord.quality
+    val isLower = quality.startsWith("min") || quality.startsWith("dim")
+    val dimSuffix  = if (quality.startsWith("dim")) "°" else ""
+    val augSuffix  = if (quality.startsWith("aug")) "+" else ""
+    val sevenSuffix = if (quality.contains("7")) "7" else ""
+    val suffix = dimSuffix + augSuffix + sevenSuffix
+
+    fun toRoman(deg: Int): String {
+        val base = ROMAN_NUMERALS[deg]
+        return if (isLower) base.lowercase() else base
+    }
+
+    scale[interval]?.let { return toRoman(it) + suffix }
+
+    // Chromatic: try ♭(interval+1) then ♯(interval-1)
+    scale[(interval + 1) % 12]?.let { return "♭${toRoman(it)}$suffix" }
+    scale[(interval - 1 + 12) % 12]?.let { return "♯${toRoman(it)}$suffix" }
+
+    return null
+}
+
 /** Result of qualifying a single measure as an arpeggio measure. */
 data class ArpeggioMeasureQualification(
     val chord: ChordDetectionResult,
@@ -30,12 +77,14 @@ data class ArpeggioMeasureQualification(
  * The activated arpeggio badge for a measure, decided by the consecutive-run
  * pass. `label` already carries the optional " ×N". `cycleNotes` are the MIDI
  * pitches of ONE cycle when exact ×N, else the full ordered sequence (capped).
+ * `chord` is the underlying identified chord, used to compute the harmonic degree.
  */
 data class ArpeggioBadge(
     val label: String,
     val altered: Boolean,
     val alteredNoteName: String?,
     val cycleNotes: List<Int>,
+    val chord: ChordDetectionResult? = null,
 )
 
 /**
@@ -274,6 +323,7 @@ fun computeArpeggioBadges(
                     altered = aq.altered,
                     alteredNoteName = aq.alteredNoteName,
                     cycleNotes = if (validReps > 1) cycleNotes else ordered.take(12),
+                    chord = aq.chord,
                 )
             }
         }

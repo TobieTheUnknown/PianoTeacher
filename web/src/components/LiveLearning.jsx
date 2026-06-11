@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { getFrenchNoteName, getFrenchKeyName, getNoteNameFromMidi } from '../models/song';
-import { detectArpeggioMotifs, qualifyArpeggioMeasure } from '../utils/chordDetection';
+import { detectArpeggioMotifs, qualifyArpeggioMeasure, getChordDegree } from '../utils/chordDetection';
 import { getMeasuresFromPhrase, groupNotesByTime } from '../utils/measureUtils';
 import { audioEngine } from '../services/AudioEngine';
 import { useDeviceContext } from '../hooks/useDeviceContext';
@@ -110,6 +110,33 @@ const STYLES = {
         border: '1px solid var(--border-color)',
     },
 };
+
+// Inline style for the small harmonic-degree label
+const DEGREE_STYLE = {
+    fontSize: 11,
+    fontFamily: 'var(--font-mono)',
+    color: 'var(--text-tertiary)',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    lineHeight: 1,
+};
+
+/** Small harmonic-degree label, e.g. "i", "V7", "♭VII". */
+function DegreeBadge({ chord, keySignature }) {
+    const degree = getChordDegree(chord, keySignature);
+    if (!degree) return null;
+    const keyName = keySignature
+        ? `${keySignature.note} ${keySignature.mode === 'minor' ? 'mineur' : 'majeur'}`
+        : '';
+    return (
+        <span
+            title={`Degré ${degree}${keyName ? ` de ${keyName}` : ''}`}
+            style={DEGREE_STYLE}
+        >
+            {degree}
+        </span>
+    );
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -623,6 +650,9 @@ const MeasureCard = React.memo(function MeasureCard({
                             whiteSpace: 'nowrap',
                         }}>{chordName}</span>
                     )}
+                    {chordName && measure.detectedChord && (
+                        <DegreeBadge chord={measure.detectedChord} keySignature={keySignature} />
+                    )}
                 </div>
             </div>
 
@@ -654,6 +684,7 @@ const MeasureCard = React.memo(function MeasureCard({
                             altered={arpeggioBadge.altered}
                             alteredNoteName={arpeggioBadge.alteredNoteName}
                         />
+                        <DegreeBadge chord={arpeggioBadge.chord} keySignature={keySignature} />
                     </div>
                 ) : leftLabels.length > 0 ? (
                     <div style={{ minHeight: 18, display: 'flex', alignItems: 'center' }}>
