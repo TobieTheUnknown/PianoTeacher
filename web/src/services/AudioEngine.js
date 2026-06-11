@@ -21,7 +21,14 @@ class AudioEngine {
         this.isPlaying = false;
         this.metronomeEnabled = false;
         this.masterVolume = null;
-        this._volume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0'); // dB
+        // Restore volume (dB). Guard against a persisted '-Infinity' (saved
+        // when the slider was once dragged to 0%): restoring it would leave
+        // the app PERMANENTLY silent across restarts. Non-finite or
+        // out-of-range values fall back to 0 dB (full volume).
+        const storedVolume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0');
+        this._volume = (Number.isFinite(storedVolume) && storedVolume >= -60 && storedVolume <= 0)
+            ? storedVolume
+            : 0;
         this._readyCallbacks = [];
         this._avOffsetSec = null; // cached A/V offset (seconds); null = needs recompute
     }
