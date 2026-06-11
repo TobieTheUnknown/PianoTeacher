@@ -3,6 +3,10 @@ import { getNoteNameFromMidi } from '../models/song';
 // Lazy-loaded Tone.js module — avoids AudioContext creation on import (crashes Android WebView)
 let Tone = null;
 
+// localStorage key holding the calibrated audio/visual offset in milliseconds.
+// Positive = sound is heard later than the visuals are drawn (macOS/WKWebView).
+export const AV_OFFSET_STORAGE_KEY = 'piano-teacher-av-offset-ms';
+
 async function loadTone() {
     if (!Tone) {
         Tone = await import('tone');
@@ -19,6 +23,68 @@ class AudioEngine {
         this.masterVolume = null;
         this._volume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0'); // dB
         this._readyCallbacks = [];
+        this._avOffsetSec = null; // cached A/V offset (seconds); null = needs recompute
+    }
+
+    /**
+     * Auto-estimate of the audio output latency from the AudioContext, in
+     * seconds: how long after its scheduled audio-clock time a sample is
+     * actually heard. Used as the fallback when the user hasn't run the
+     * A/V calibration wizard. Returns 0 when the context isn't available
+     * (e.g. before init or on platforms that don't expose the values).
+     */
+    getAutoAvOffsetSeconds() {
+        try {
+            const ctx = Tone && Tone.context ? Tone.context.rawContext || Tone.context : null;
+            if (!ctx) return 0;
+            const base = typeof ctx.baseLatency === 'number' ? ctx.baseLatency : 0;
+            const output = typeof ctx.outputLatency === 'number' ? ctx.outputLatency : 0;
+            const total = base + output;
+            return Number.isFinite(total) && total > 0 ? total : 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    /**
+     * A/V offset to subtract from the raw audio-clock time to get the time
+     * the user actually HEARS the sound, in seconds. Reads the calibrated
+     * value from localStorage when present, otherwise falls back to the
+     * auto estimate (baseLatency+outputLatency). Clamped to [0, 0.5] for
+     * safety. Cached; call setAvOffsetMs (or clearAvOffsetCache) to refresh.
+     */
+    getAvOffsetSeconds() {
+        if (this._avOffsetSec !== null) return this._avOffsetSec;
+        let sec;
+        const raw = localStorage.getItem(AV_OFFSET_STORAGE_KEY);
+        const parsed = raw === null ? NaN : parseFloat(raw);
+        if (Number.isFinite(parsed)) {
+            sec = parsed / 1000;
+        } else {
+            sec = this.getAutoAvOffsetSeconds();
+        }
+        sec = Math.max(0, Math.min(0.5, sec));
+        this._avOffsetSec = sec;
+        return sec;
+    }
+
+    /**
+     * Persist a calibrated A/V offset (milliseconds) and invalidate the
+     * cache. Passing null/undefined clears the stored value, reverting to
+     * the auto estimate. Called by the calibration wizard.
+     */
+    setAvOffsetMs(ms) {
+        if (ms === null || ms === undefined || !Number.isFinite(ms)) {
+            localStorage.removeItem(AV_OFFSET_STORAGE_KEY);
+        } else {
+            localStorage.setItem(AV_OFFSET_STORAGE_KEY, String(Math.round(ms)));
+        }
+        this._avOffsetSec = null; // force recompute on next read
+    }
+
+    /** Invalidate the cached A/V offset (e.g. after an external write). */
+    clearAvOffsetCache() {
+        this._avOffsetSec = null;
     }
 
     getIsActuallyPlaying() {

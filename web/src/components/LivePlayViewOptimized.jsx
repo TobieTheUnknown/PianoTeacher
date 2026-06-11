@@ -540,6 +540,12 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           : 1; // 'quarter'
     const clickEverySec = clickEveryBeats / bps;
 
+    // A/V offset: scheduled audio is HEARD this long after its audio-clock
+    // time (output latency; calibratable in Réglages). Scheduling keeps the
+    // raw clock; everything the user SEES or is JUDGED on uses the
+    // presented (audible) time = raw − offset, so picture matches sound.
+    const avOffsetSec = audioEngine.getAvOffsetSeconds();
+
     let raf;
 
     const animate = (ts) => {
@@ -562,7 +568,10 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
         }
       }
 
-      songTimeRef.current = elapsed;
+      // Presented (audible) time — drives the canvas, the scoring windows
+      // and the UI clock. `elapsed` stays the SCHEDULING time.
+      const presented = Math.max(0, elapsed - avOffsetSec);
+      songTimeRef.current = presented;
 
       // 1) Auto-played notes: schedule ahead at exact audio-clock times
       if (computerHands.size > 0 && audioInitialized) {
@@ -586,19 +595,19 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
         }
       }
 
-      // 1b) Key-press visuals for auto notes, applied at their musical time
+      // 1b) Key-press visuals for auto notes, applied when the note is HEARD
       const queue = autoVisualQueueRef.current;
       if (queue.length > 0) {
         const adds = [];
         const dels = [];
         for (let i = queue.length - 1; i >= 0; i--) {
           const e = queue[i];
-          if (!e.on && e.onAt <= elapsed) {
+          if (!e.on && e.onAt <= presented) {
             e.on = true;
             adds.push(e.pitch);
             markNotePlayed(e.id, 'auto');
           }
-          if (e.offAt <= elapsed) {
+          if (e.offAt <= presented) {
             if (e.on) dels.push(e.pitch);
             queue.splice(i, 1);
           }
@@ -633,16 +642,18 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       }
 
       if (!freePlayMode) {
-        // 3) Expected-notes window (sliding pointer over the sorted list)
+        // 3) Expected-notes window (sliding pointer over the sorted list).
+        // All judgment windows run on PRESENTED time — the user plays along
+        // with what they hear.
         let w = windowStartIdxRef.current;
-        while (w < allNotes.length && allNotes[w].startTime / bps < elapsed - NOTE_TOLERANCE) w++;
+        while (w < allNotes.length && allNotes[w].startTime / bps < presented - NOTE_TOLERANCE) w++;
         windowStartIdxRef.current = w;
 
         const exp = new Set();
         if (userHands.size > 0) {
           for (let j = w; j < allNotes.length; j++) {
             const n = allNotes[j];
-            if (n.startTime / bps > elapsed + NOTE_TOLERANCE) break;
+            if (n.startTime / bps > presented + NOTE_TOLERANCE) break;
             if (userHands.has(n.hand) && !playedNotesRef.current.has(n.id)) exp.add(n.pitch);
           }
         }
@@ -651,7 +662,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
         // 4) Miss detection
         let m = missIdxRef.current;
         let missed = 0;
-        while (m < allNotes.length && allNotes[m].startTime / bps + NOTE_TOLERANCE < elapsed) {
+        while (m < allNotes.length && allNotes[m].startTime / bps + NOTE_TOLERANCE < presented) {
           const n = allNotes[m];
           if (userHands.has(n.hand) &&
             !playedNotesRef.current.has(n.id) &&
@@ -672,15 +683,15 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           let shouldPause = false;
           for (let j = w; j < allNotes.length; j++) {
             const n = allNotes[j];
-            if (n.startTime / bps > elapsed + WAIT_MODE_THRESHOLD) break;
+            if (n.startTime / bps > presented + WAIT_MODE_THRESHOLD) break;
             if (userHands.has(n.hand) && !playedNotesRef.current.has(n.id)) {
               shouldPause = true;
               break;
             }
           }
           if (shouldPause) {
-            pausedAtTimeRef.current = elapsed;
-            setCurrentTime(elapsed);
+            pausedAtTimeRef.current = presented;
+            setCurrentTime(presented);
             setIsPlaying(false);
             return; // resumeAfterWait re-anchors and restarts the loop
           }
@@ -690,7 +701,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       // 6) Throttled React clock for the timeline / overlay / dock
       if (ts - lastUiUpdateRef.current >= UI_UPDATE_INTERVAL_MS) {
         lastUiUpdateRef.current = ts;
-        setCurrentTime(elapsed);
+        setCurrentTime(presented);
       }
 
       raf = requestAnimationFrame(animate);
