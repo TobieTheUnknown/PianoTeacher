@@ -366,6 +366,55 @@ export function flattenSongMeasures(song, beatsPerMeasure = 4) {
     return out;
 }
 
+// ─── Beam grouping ───────────────────────────────────────────────────────────
+
+/**
+ * Partition a time-ordered list of beamable chord-items (eighth or shorter,
+ * i.e. dur.stem && dur.flags >= 1) into beam groups for a single staff.
+ *
+ * Android mirrors this — signature:
+ *   computeBeamGroups(items, beatsPerMeasure) -> number[][]
+ * where each `item` exposes { startBeat, durationBeats, flags } and the result
+ * is a list of groups, each an array of indices INTO `items` (ascending).
+ *
+ * Cut rules (a group ends — next item starts a new group — when any holds):
+ *   (a) time gap: next.startBeat > cur.startBeat + cur.durationBeats + 0.03
+ *       (a rest or non-adjacent note sits between them).
+ *   (b) beat-pair boundary: floor(startBeat / 2) changes — groups never cross
+ *       the 1-2 → 3-4 half-bar boundary in 4/4. For runs whose items are ALL
+ *       sixteenths-or-shorter (flags >= 2), cut per single beat instead
+ *       (floor(startBeat) changes).
+ * Non-beamable notes (quarter or longer) are simply not present in `items`, so
+ * an intervening quarter manifests as a time gap (rule a) and cuts the group.
+ *
+ * @param {Array<{startBeat:number,durationBeats:number,flags:number}>} items
+ * @returns {number[][]} groups of indices into `items`
+ */
+export function computeBeamGroups(items) {
+    const groups = [];
+    let cur = [];
+    for (let i = 0; i < items.length; i++) {
+        if (cur.length === 0) { cur = [i]; continue; }
+        const prev = items[cur[cur.length - 1]];
+        const it = items[i];
+        // (a) time gap — a rest or a non-beamable note sits between.
+        const gap = it.startBeat > prev.startBeat + prev.durationBeats + 0.03;
+        // (b) beat boundary. Sixteenth-only runs cut per beat, else per beat-pair.
+        const sixteenthRun = cur.every((idx) => items[idx].flags >= 2) && it.flags >= 2;
+        const beatUnit = sixteenthRun ? 1 : 2;
+        const crossedBeat =
+            Math.floor(it.startBeat / beatUnit) !== Math.floor(prev.startBeat / beatUnit);
+        if (gap || crossedBeat) {
+            groups.push(cur);
+            cur = [i];
+        } else {
+            cur.push(i);
+        }
+    }
+    if (cur.length) groups.push(cur);
+    return groups;
+}
+
 // ─── Pure render function (canvas 2D context) ────────────────────────────────
 
 /**
@@ -660,8 +709,16 @@ export function renderMeasure(ctx, opts) {
             ctx.fill();
         };
 
+        // Mobile stem-length scaling: on compact canvases (lineSpacing at/near
+        // the dp(7) floor) a 3.2× stem reads as comically tall. Shorten it.
+        const isCompact = lineSpacing <= dp(8);
+        const STEM_FACTOR = isCompact ? 2.6 : 3.2;   // × lineSpacing
+        const MIN_STEM_FACTOR = isCompact ? 2.1 : 2.5; // minimum interior stem in beams
+
+        // ── Pass 1: build one chord-item per onset (sorted bottom→top notes),
+        // render noteheads / ledgers / dots / accidentals (always — both modes).
+        const chordItems = [];
         for (const [, chord] of groups) {
-            // Resolve geometry per note.
             const items = chord.map(({ note, midi }) => {
                 const d = midiToDiatonic(midi, useFlats) + octShift;
                 return {
@@ -673,12 +730,12 @@ export function renderMeasure(ctx, opts) {
             }).sort((a, b) => a.d - b.d); // bottom → top
 
             const x = items[0].x;
-            // Stem direction: down if the chord's centre is above the middle
-            // line, up otherwise. Whole notes carry no stem.
             const avgY = items.reduce((s, it) => s + it.y, 0) / items.length;
             const stemUp = avgY >= midLineY;
             const anyStem = items.some((it) => it.dur.stem);
             const maxFlags = items.reduce((m, it) => Math.max(m, it.dur.flags), 0);
+            const topY = items[items.length - 1].y; // smallest y (highest note)
+            const botY = items[0].y;                 // largest y (lowest note)
 
             // Ledger lines + noteheads + dots + per-note accidentals.
             for (const it of items) {
@@ -686,53 +743,220 @@ export function renderMeasure(ctx, opts) {
                 drawHead(x, it.y, it.dur.filled);
                 if (showStems && it.dur.dotted) drawDot(x, it.y, it.d);
                 if (isBlackKey(it.midi)) {
-                    // Accidental placed AFTER (right of) the altered note —
-                    // app convention, mirrors the Android renderer.
+                    // Accidental placed AFTER (right of) the altered note,
+                    // as a small SUPERSCRIPT hugging its notehead — clearly
+                    // above the staff line / ledger so it never reads as
+                    // sitting "between" two beamed notes.
                     ctx.fillStyle = color;
-                    ctx.font = `${lineSpacing * 1.55}px "Noto Music", "Bravura", "Times New Roman", serif`;
+                    ctx.font = `${lineSpacing * 1.3}px "Noto Music", "Bravura", "Times New Roman", serif`;
                     ctx.textAlign = 'left';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(useFlats ? '♭' : '♯', x + headRx + dp(3), it.y);
+                    ctx.textBaseline = 'alphabetic';
+                    ctx.fillText(useFlats ? '♭' : '♯', x + headRx + dp(1), it.y - lineSpacing * 0.55);
                 }
             }
 
-            // Shared stem across the chord — only in detailed (showStems) mode.
-            if (showStems && anyStem) {
-                const stemLen = lineSpacing * 3.2;
-                const topY = items[items.length - 1].y;
-                const botY = items[0].y;
-                const stemX = stemUp ? x + headRx - dp(0.5) : x - headRx + dp(0.5);
-                const yA = stemUp ? topY - headRy : botY + headRy;
-                const yB = stemUp ? botY - stemLen : topY + stemLen;
-                ctx.strokeStyle = color;
-                ctx.lineWidth = dp(1.5);
+            chordItems.push({
+                x, stemUp, anyStem, maxFlags, topY, botY, color,
+                startBeat: (items[0].note.startTime ?? 0) - measureStart,
+                durationBeats: items[0].note.duration ?? 1,
+            });
+        }
+
+        // ── Pass 2: stems + flags + beams (detailed mode only).
+        if (!showStems) continue;
+
+        // Beamable items: have a stem AND >= 1 flag (eighth or shorter).
+        const beamable = chordItems
+            .filter((ci) => ci.anyStem && ci.maxFlags >= 1)
+            .sort((a, b) => a.startBeat - b.startBeat);
+        const beamIndexSet = new Set();
+        const groupsOfIdx = computeBeamGroups(
+            beamable.map((ci) => ({
+                startBeat: ci.startBeat,
+                durationBeats: ci.durationBeats,
+                flags: ci.maxFlags,
+            })),
+        );
+
+        // Helper: draw a single (non-beamed) chord's shared stem.
+        const drawStem = (ci) => {
+            const stemX = ci.stemUp ? ci.x + headRx - dp(0.5) : ci.x - headRx + dp(0.5);
+            const yAttach = ci.stemUp ? ci.botY - headRy : ci.topY + headRy;
+            const yTip = ci.stemUp
+                ? ci.topY - lineSpacing * STEM_FACTOR
+                : ci.botY + lineSpacing * STEM_FACTOR;
+            ctx.strokeStyle = ci.color;
+            ctx.lineWidth = dp(1.5);
+            ctx.beginPath();
+            ctx.moveTo(stemX, yAttach);
+            ctx.lineTo(stemX, yTip);
+            ctx.stroke();
+        };
+
+        const drawFlags = (ci) => {
+            const stemX = ci.stemUp ? ci.x + headRx - dp(0.5) : ci.x - headRx + dp(0.5);
+            const yTip = ci.stemUp
+                ? ci.topY - lineSpacing * STEM_FACTOR
+                : ci.botY + lineSpacing * STEM_FACTOR;
+            const dir = ci.stemUp ? 1 : -1;
+            ctx.fillStyle = ci.color;
+            for (let f = 0; f < ci.maxFlags; f++) {
+                const fy = yTip + f * lineSpacing * 0.9 * dir;
                 ctx.beginPath();
-                ctx.moveTo(stemX, yA);
-                ctx.lineTo(stemX, yB);
-                ctx.stroke();
+                ctx.moveTo(stemX, fy);
+                ctx.quadraticCurveTo(
+                    stemX + dp(7), fy + dir * lineSpacing * 0.5,
+                    stemX + dp(5), fy + dir * lineSpacing * 1.3,
+                );
+                ctx.quadraticCurveTo(
+                    stemX + dp(6), fy + dir * lineSpacing * 0.6,
+                    stemX, fy + dir * lineSpacing * 0.35,
+                );
+                ctx.closePath();
+                ctx.fill();
+            }
+        };
 
-                // Flags (eighth and shorter). One per beam level, drawn as a
-                // simple curved hook on the stem end.
-                if (maxFlags > 0) {
-                    const dir = stemUp ? 1 : -1;
-                    ctx.fillStyle = color;
-                    for (let f = 0; f < maxFlags; f++) {
-                        const fy = yB + f * lineSpacing * 0.9 * dir;
-                        ctx.beginPath();
-                        ctx.moveTo(stemX, fy);
-                        ctx.quadraticCurveTo(
-                            stemX + dp(7), fy + dir * lineSpacing * 0.5,
-                            stemX + dp(5), fy + dir * lineSpacing * 1.3,
-                        );
-                        ctx.quadraticCurveTo(
-                            stemX + dp(6), fy + dir * lineSpacing * 0.6,
-                            stemX, fy + dir * lineSpacing * 0.35,
-                        );
-                        ctx.closePath();
-                        ctx.fill();
-                    }
+        // Render beamed groups; remember which chord-items they consume.
+        const dominantHandColor = color; // staff color (treble=melody, bass=chords)
+        for (const grp of groupsOfIdx) {
+            if (grp.length < 2) continue; // singletons fall through to flag path
+            const members = grp.map((idx) => beamable[idx]);
+            members.forEach((m) => beamIndexSet.add(m));
+
+            // Group stem direction: majority vote by (midY − noteY) sum.
+            const vote = members.reduce((s, m) => {
+                const noteY = (m.topY + m.botY) / 2;
+                return s + (midLineY - noteY);
+            }, 0);
+            const grpStemUp = vote >= 0; // ties → up
+
+            const dir = grpStemUp ? -1 : 1; // tip offset sign (up = above = smaller y)
+            // Each member's notehead reference for the stem tip + the beam.
+            const stemXOf = (m) => (grpStemUp ? m.x + headRx - dp(0.5) : m.x - headRx + dp(0.5));
+            // The notehead the stem grows FROM (outermost in stem direction).
+            const headYOf = (m) => (grpStemUp ? m.topY : m.botY);
+
+            const first = members[0];
+            const last = members[members.length - 1];
+            let tipFirstY = headYOf(first) + dir * lineSpacing * STEM_FACTOR;
+            let tipLastY = headYOf(last) + dir * lineSpacing * STEM_FACTOR;
+
+            // Slope clamp: |Δy| ≤ 0.5·lineSpacing, move the lower-magnitude end
+            // (the end whose stem from its own notehead is shorter), so the
+            // taller stem stays put and the flat-ish beam doesn't dip too far.
+            const maxSlope = 0.5 * lineSpacing;
+            const dy = tipLastY - tipFirstY;
+            if (Math.abs(dy) > maxSlope) {
+                const target = Math.sign(dy) * maxSlope; // signed clamped Δ
+                const lenFirst = Math.abs(tipFirstY - headYOf(first));
+                const lenLast = Math.abs(tipLastY - headYOf(last));
+                if (lenFirst <= lenLast) {
+                    // first end is shorter → move it, keep last
+                    tipFirstY = tipLastY - target;
+                } else {
+                    tipLastY = tipFirstY + target;
                 }
             }
+
+            const xFirst = stemXOf(first);
+            const xLast = stemXOf(last);
+            const beamYAt = (x) => {
+                if (xLast === xFirst) return tipFirstY;
+                const t = (x - xFirst) / (xLast - xFirst);
+                return tipFirstY + t * (tipLastY - tipFirstY);
+            };
+
+            // Ensure every interior stem is long enough; else push beam outward.
+            const minStem = lineSpacing * MIN_STEM_FACTOR;
+            let guard = 0;
+            for (;;) {
+                let worst = 0; // most-deficient (positive = too short by this much)
+                for (const m of members) {
+                    const by = beamYAt(stemXOf(m));
+                    const len = Math.abs(by - headYOf(m));
+                    if (len < minStem) worst = Math.max(worst, minStem - len);
+                }
+                if (worst <= 0.01 || guard++ > 8) break;
+                const shove = dir * worst; // translate both anchors outward
+                tipFirstY += shove;
+                tipLastY += shove;
+            }
+
+            // Recompute beam endpoints after any shove.
+            const yBeamFirst = beamYAt(xFirst);
+            const yBeamLast = beamYAt(xLast);
+
+            // Draw interior stems to the beam line.
+            ctx.strokeStyle = dominantHandColor;
+            ctx.lineWidth = dp(1.5);
+            for (const m of members) {
+                const sx = stemXOf(m);
+                const yAttach = grpStemUp ? m.botY - headRy : m.topY + headRy;
+                ctx.beginPath();
+                ctx.moveTo(sx, yAttach);
+                ctx.lineTo(sx, beamYAt(sx));
+                ctx.stroke();
+            }
+
+            // PRIMARY beam — filled parallelogram, thickness 0.5·lineSpacing.
+            const beamTh = lineSpacing * 0.5;
+            // beam thickness grows from the tip toward the noteheads (inward).
+            const inward = grpStemUp ? 1 : -1; // +y is inward for up-stems
+            ctx.fillStyle = dominantHandColor;
+            ctx.beginPath();
+            ctx.moveTo(xFirst, yBeamFirst);
+            ctx.lineTo(xLast, yBeamLast);
+            ctx.lineTo(xLast, yBeamLast + inward * beamTh);
+            ctx.lineTo(xFirst, yBeamFirst + inward * beamTh);
+            ctx.closePath();
+            ctx.fill();
+
+            // SECONDARY beams (sixteenths): parallel beam 0.75·lineSpacing inward,
+            // spanning adjacent runs where BOTH items have flags >= 2; isolated
+            // sixteenths get a short stub toward their nearest neighbour.
+            const secOff = inward * lineSpacing * 0.75;
+            const secY = (x) => beamYAt(x) + secOff;
+            const drawSecSeg = (xa, xb) => {
+                ctx.beginPath();
+                ctx.moveTo(xa, secY(xa));
+                ctx.lineTo(xb, secY(xb));
+                ctx.lineTo(xb, secY(xb) + inward * beamTh);
+                ctx.lineTo(xa, secY(xa) + inward * beamTh);
+                ctx.closePath();
+                ctx.fill();
+            };
+            const stubLen = lineSpacing * 0.6;
+            for (let k = 0; k < members.length; k++) {
+                if (members[k].maxFlags < 2) continue;
+                const prevSx = k > 0 && members[k - 1].maxFlags >= 2 ? stemXOf(members[k - 1]) : null;
+                const nextSx = k < members.length - 1 && members[k + 1].maxFlags >= 2
+                    ? stemXOf(members[k + 1]) : null;
+                const sx = stemXOf(members[k]);
+                if (nextSx != null) {
+                    drawSecSeg(sx, nextSx); // run handled left-to-right
+                } else if (prevSx == null) {
+                    // isolated sixteenth → stub toward nearest neighbour
+                    const leftN = k > 0 ? stemXOf(members[k - 1]) : null;
+                    const rightN = k < members.length - 1 ? stemXOf(members[k + 1]) : null;
+                    let toward = 1;
+                    if (leftN != null && rightN != null) {
+                        toward = (sx - leftN) <= (rightN - sx) ? -1 : 1;
+                    } else if (leftN != null) toward = -1;
+                    const xb = sx + toward * stubLen;
+                    drawSecSeg(Math.min(sx, xb), Math.max(sx, xb));
+                }
+                // if prevSx != null and nextSx == null, the run was closed by the
+                // previous iteration's drawSecSeg(prev, this) — nothing to add.
+            }
+        }
+
+        // Non-beamed chords: single shared stem + (if applicable) flags.
+        for (const ci of chordItems) {
+            if (!ci.anyStem) continue;
+            if (beamIndexSet.has(ci)) continue; // already beamed
+            drawStem(ci);
+            if (ci.maxFlags > 0) drawFlags(ci);
         }
     }
 

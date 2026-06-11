@@ -98,6 +98,10 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [loop, setLoop] = useState(false);
     const [loopRange, setLoopRange] = useState([1, 1]);
     const [loopEditorOpen, setLoopEditorOpen] = useState(false);
+    // Preview playing state — true during single-measure click previews so the
+    // playhead RAF loop also runs for them (no dock Play needed).
+    const [previewPlaying, setPreviewPlaying] = useState(false);
+    const previewTimeoutRef = useRef(null);
 
     // Details toggle — persisted in localStorage, OFF by default (stemless view)
     const LS_KEY = 'piano-teacher-sheet-details';
@@ -122,6 +126,15 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         }
         return () => audioEngine.stopMetronome();
     }, [metronome]);
+
+    // Cancel in-flight preview timeout on unmount.
+    useEffect(() => {
+        return () => {
+            if (previewTimeoutRef.current) {
+                clearTimeout(previewTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // Concat phrases into one playable phrase so the dock's play button
     // drives the whole partition.
@@ -171,18 +184,24 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     // Track Transport position during playback to drive the playhead.
     // Uses getMusicSeconds() which subtracts the metronome preroll so the
     // playhead only starts moving when the music actually plays.
+    // Runs during both full playback (`playing`) AND single-measure previews
+    // (`previewPlaying`) so the playhead moves in both cases.
     const measuresLen = measures.length;
     useEffect(() => {
-        if (!playing) return;
+        if (!playing && !previewPlaying) return;
         const beatsPerMeasureLocal = song?.timeSignature?.numerator || 4;
         const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
         const secondsPerBeat = 60 / tempo;
         const secondsPerMeasure = secondsPerBeat * beatsPerMeasureLocal;
         const startBeats = (Math.max(1, startMeasureRef.current) - 1) * beatsPerMeasureLocal;
         const startOffsetSec = startBeats * secondsPerBeat;
+        // For previews, Transport.seconds starts at 0 (no preroll), so
+        // getMusicSeconds() returns the raw Transport time directly.
         let raf;
         const tick = () => {
-            const musicT = audioEngine.getMusicSeconds(); // negative during preroll
+            const musicT = previewPlaying
+                ? audioEngine.getTransportSeconds()
+                : audioEngine.getMusicSeconds(); // negative during preroll
             if (musicT < 0) {
                 setMeasureProgress(0);
             } else {
@@ -190,14 +209,17 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 const beatIdx = absoluteT / secondsPerBeat;
                 const measureIdx = Math.floor(beatIdx / beatsPerMeasureLocal) + 1;
                 const within = (absoluteT - (measureIdx - 1) * secondsPerMeasure) / secondsPerMeasure;
-                setCurrentMeasure(Math.max(1, Math.min(measuresLen, measureIdx)));
+                if (!previewPlaying) {
+                    // Full playback: advance currentMeasure with playhead.
+                    setCurrentMeasure(Math.max(1, Math.min(measuresLen, measureIdx)));
+                }
                 setMeasureProgress(Math.max(0, Math.min(1, within)));
             }
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
-    }, [playing, song, speed, measuresLen]);
+    }, [playing, previewPlaying, song, speed, measuresLen]);
 
     // Refs let the loop callback see the latest state without re-creating
     // handlePlayPause on every state change.
@@ -212,18 +234,45 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         const idx = measureNumber - 1;
         if (idx < 0 || idx >= measures.length) return;
         await audioEngine.initialize();
+
+        // Stop any active full playback or prior preview.
         if (playing) {
             audioEngine.stop();
             audioEngine.stopMetronome();
             setPlaying(false);
         }
+        if (previewTimeoutRef.current) {
+            clearTimeout(previewTimeoutRef.current);
+            previewTimeoutRef.current = null;
+        }
+        setPreviewPlaying(false);
+
         setCurrentMeasure(measureNumber);
+        // Seed the startMeasureRef immediately so the RAF tick below uses
+        // the correct start offset.
+        startMeasureRef.current = measureNumber;
+
         const m = measures[idx];
         const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
         let notes = [];
         if (handMode !== 'left') notes = notes.concat(m.melodyNotes);
         if (handMode !== 'right') notes = notes.concat(m.chordNotes);
-        if (notes.length > 0) audioEngine.playNotes(notes, tempo);
+        if (notes.length === 0) return;
+
+        audioEngine.playNotes(notes, tempo);
+
+        // Compute measure duration so we can auto-clear the preview state.
+        const beatsPerMeasureLocal = song?.timeSignature?.numerator || 4;
+        const secondsPerBeat = 60 / tempo;
+        const measureDurationSec = secondsPerBeat * beatsPerMeasureLocal;
+
+        // Activate the tracking loop for the duration of the preview.
+        setPreviewPlaying(true);
+        previewTimeoutRef.current = setTimeout(() => {
+            setPreviewPlaying(false);
+            setMeasureProgress(0);
+            previewTimeoutRef.current = null;
+        }, measureDurationSec * 1000 + 100); // small buffer
     }, [measures, playing, song, speed, handMode]);
 
     // Restart: stop any active playback and seek back to measure 1.
@@ -470,7 +519,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                             handMode={handMode}
                             currentMeasure={currentMeasure}
                             measureProgress={measureProgress}
-                            isPlaying={playing}
+                            isPlaying={playing || previewPlaying}
                             isMobile={isMobile}
                             sheetTheme={sheetTheme}
                             showDetails={showDetails}

@@ -98,6 +98,48 @@ private fun classifyDuration(durationBeats: Double): NoteDuration {
     return NoteDuration(best.filled, best.stem, best.flags, dotted)
 }
 
+// ─── Beam grouping (ported from web/src/utils/sheetMusic.js) ──────────────────
+//
+// Partition a time-ordered list of beamable chord-items (eighth or shorter, i.e.
+// dur.stem && dur.flags >= 1) into beam groups for a single staff. Each item
+// exposes startBeat / durationBeats / flags; the result is a list of groups,
+// each an ascending list of indices INTO `items`.
+//
+// A group ends (the next item starts a fresh group) when any cut rule holds:
+//   (a) time gap: next.startBeat > cur.startBeat + cur.durationBeats + 0.03
+//       — a rest or non-adjacent note sits between them. Non-beamable notes
+//       (quarter or longer) are absent from `items`, so an intervening quarter
+//       manifests here as a gap.
+//   (b) beat-pair boundary: floor(startBeat / 2) changes — groups never cross
+//       the 1-2 → 3-4 half-bar boundary in 4/4. Runs whose items are ALL
+//       sixteenths-or-shorter (flags >= 2) cut per single beat instead.
+private data class BeamItem(val startBeat: Double, val durationBeats: Double, val flags: Int)
+
+private fun computeBeamGroups(items: List<BeamItem>): List<List<Int>> {
+    val groups = mutableListOf<List<Int>>()
+    var cur = mutableListOf<Int>()
+    for (i in items.indices) {
+        if (cur.isEmpty()) { cur = mutableListOf(i); continue }
+        val prev = items[cur.last()]
+        val it = items[i]
+        // (a) time gap.
+        val gap = it.startBeat > prev.startBeat + prev.durationBeats + 0.03
+        // (b) beat boundary. Sixteenth-only runs cut per beat, else per beat-pair.
+        val sixteenthRun = cur.all { items[it].flags >= 2 } && it.flags >= 2
+        val beatUnit = if (sixteenthRun) 1.0 else 2.0
+        val crossedBeat =
+            kotlin.math.floor(it.startBeat / beatUnit) != kotlin.math.floor(prev.startBeat / beatUnit)
+        if (gap || crossedBeat) {
+            groups.add(cur)
+            cur = mutableListOf(i)
+        } else {
+            cur.add(i)
+        }
+    }
+    if (cur.isNotEmpty()) groups.add(cur)
+    return groups
+}
+
 // ─── Staff clef configuration ────────────────────────────────────────────────
 
 private data class StaffClefConfig(
@@ -1059,21 +1101,27 @@ private fun GrandStaffCanvas(
             val midLineY = lineTop + 2 * lineSpacing  // middle (3rd) staff line
 
             // Per-note resolved geometry + duration class.
-            data class StaffNote(
-                val d: Int, val x: Float, val y: Float,
-                val dur: NoteDuration, val pitch: Int, val color: Color,
-            )
             val resolved = staffNotesList[si].map { (note, color) ->
                 val d = midiToDiatonic(note.pitch, useFlats) + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
                 val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
-                StaffNote(d, x, y, classifyDuration(note.duration), note.pitch, color)
+                // note.startTime is already measure-relative beats (0 ≤ t < beatsPerMeasure).
+                StaffNote(d, x, y, classifyDuration(note.duration), note.pitch, color,
+                    note.startTime, note.duration)
             }
 
             // Group notes sounding at the same beat into chords (shared stem).
             // Quantise x to a pixel so FP startTime noise still groups cleanly.
             val groups = resolved.groupBy { kotlin.math.round(it.x).toInt() }
+
+            // On small Android cards the staff can compress to <8px line
+            // spacing; scale the stem factor down like the web so stems don't
+            // dwarf the noteheads. (≤8px lineSpacing → 2.6× instead of 3.2×.)
+            val stemFactor = if (lineSpacing <= 8f) 2.6f else 3.2f
+            val stemLenBase = lineSpacing * stemFactor
+
+            val chordRenders = mutableListOf<ChordRender>()
 
             groups.forEach { (_, chord) ->
                 val items = chord.sortedBy { it.d }  // bottom → top
@@ -1111,7 +1159,8 @@ private fun GrandStaffCanvas(
                         }
                     }
 
-                    // Accidental (#/b)
+                    // Accidental (#/b). Refinement 5: nudge LEFT (closer to the
+                    // notehead) and a few px UP from the previous placement.
                     if (isBlackKey(it2.pitch)) {
                         val label = if (useFlats) "b" else "#"
                         val labelLayout = textMeasurer.measure(
@@ -1119,58 +1168,45 @@ private fun GrandStaffCanvas(
                             TextStyle(fontSize = 9.sp, color = it2.color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
                         )
                         drawText(labelLayout, topLeft = Offset(
-                            it2.x + dotR * 1.3f,
-                            it2.y - dotR - labelLayout.size.height
+                            it2.x + dotR * 0.85f,
+                            it2.y - dotR - labelLayout.size.height - 2.dp.toPx()
                         ))
                     }
                 }
 
-                // ── Stems + flags — Détail layer only. ──────────────────
-                // Direction: down if the chord centre is above the middle line,
-                // up otherwise. Whole notes carry no stem. Stems use the chord's
-                // notehead colour (hand color).
+                // Record stem geometry for this chord (decided once, consumed
+                // by the stem/flag pass and the beam pass below).
                 val anyStem = items.any { it.dur.stem }
-                if (showDetails && anyStem) {
-                    val stemColor = items.first().color
-                    val avgY = items.map { it.y }.average().toFloat()
-                    val stemUp = avgY >= midLineY
-                    val maxFlags = items.maxOf { it.dur.flags }
-                    val stemLen = lineSpacing * 3.2f
-                    val topY = items.last().y   // highest note (smallest y)
-                    val botY = items.first().y  // lowest note (largest y)
-                    // Attach to right edge for up-stems, left edge for down-stems.
-                    val stemX = if (stemUp) x + dotR - 0.5.dp.toPx() else x - dotR + 0.5.dp.toPx()
-                    val yA = if (stemUp) topY - dotR else botY + dotR
-                    val yB = if (stemUp) botY - stemLen else topY + stemLen
-                    drawLine(
-                        color = stemColor,
-                        start = Offset(stemX, yA),
-                        end = Offset(stemX, yB),
-                        strokeWidth = 1.5.dp.toPx(),
+                chordRenders.add(
+                    ChordRender(
+                        items = items,
+                        x = x,
+                        startBeat = items.first().startBeat,
+                        durBeats = items.first().durBeats,
+                        flags = items.maxOf { it.dur.flags },
+                        anyStem = anyStem,
+                        stemColor = items.first().color,
+                        centerY = items.map { it.y }.average().toFloat(),
+                        topY = items.last().y,
+                        botY = items.first().y,
                     )
+                )
+            }
 
-                    // Flags (eighth and shorter) — simple curved hook at the
-                    // stem end, one per beam level.
-                    if (maxFlags > 0) {
-                        val dir = if (stemUp) 1f else -1f
-                        for (f in 0 until maxFlags) {
-                            val fy = yB + f * lineSpacing * 0.9f * dir
-                            val flagPath = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(stemX, fy)
-                                quadraticTo(
-                                    stemX + 7.dp.toPx(), fy + dir * lineSpacing * 0.5f,
-                                    stemX + 5.dp.toPx(), fy + dir * lineSpacing * 1.3f,
-                                )
-                                quadraticTo(
-                                    stemX + 6.dp.toPx(), fy + dir * lineSpacing * 0.6f,
-                                    stemX, fy + dir * lineSpacing * 0.35f,
-                                )
-                                close()
-                            }
-                            drawPath(flagPath, color = stemColor)
-                        }
-                    }
-                }
+            // ── Stems, flags & BEAMS — Détail layer only. ─────────────────
+            if (showDetails) {
+                drawStemsAndBeams(
+                    chords = chordRenders,
+                    midLineY = midLineY,
+                    lineSpacing = lineSpacing,
+                    dotR = dotR,
+                    stemLenBase = stemLenBase,
+                    dpHalf = 0.5.dp.toPx(),
+                    stemWidth = 1.5.dp.toPx(),
+                    flag7 = 7.dp.toPx(),
+                    flag5 = 5.dp.toPx(),
+                    flag6 = 6.dp.toPx(),
+                )
             }
         }
 
@@ -1182,6 +1218,229 @@ private fun GrandStaffCanvas(
             end   = Offset(w - 1f, stavesOriginY + totalStavesH - barMargin),
             strokeWidth = 1f
         )
+    }
+}
+
+// ─── Stem / flag / beam render records & engraver ─────────────────────────────
+
+// Per-note resolved geometry + duration class (one staff note on the canvas).
+private data class StaffNote(
+    val d: Int, val x: Float, val y: Float,
+    val dur: NoteDuration, val pitch: Int, val color: Color,
+    val startBeat: Double, val durBeats: Double,
+)
+
+// One shared-stem chord (notes quantised to the same x). Stem geometry is
+// decided by the caller and consumed by the standalone-stem and beam passes.
+private data class ChordRender(
+    val items: List<StaffNote>,
+    val x: Float,
+    val startBeat: Double,
+    val durBeats: Double,
+    val flags: Int,
+    val anyStem: Boolean,
+    val stemColor: Color,
+    val centerY: Float,   // avg notehead y — used for the majority vote
+    val topY: Float,      // highest note (smallest y)
+    val botY: Float,      // lowest note (largest y)
+)
+
+/**
+ * Draw the Détail-layer stems, flags and beams for one staff.
+ *
+ * Mirrors the web beam spec:
+ *  • Non-beamable stemmed chords (quarter/half, flags == 0) → plain shared stem.
+ *  • Beamable chords (anyStem && flags ≥ 1), in time order → partitioned by
+ *    computeBeamGroups. Singletons keep flags; groups ≥ 2 drop flags and get a
+ *    beam: majority-vote direction (ties up), first/last stem tips anchor the
+ *    beam line (slope clamped ≤ 0.5×lineSpacing), intermediate stems extend to
+ *    the interpolated line, the whole beam pushes outward if any stem < 2.5×
+ *    lineSpacing. Primary beam = filled quad ≈0.5×lineSpacing thick; secondary
+ *    beam (flags ≥ 2) 0.75×lineSpacing inward between adjacent 16ths, isolated
+ *    16th gets a 0.6×lineSpacing stub toward its neighbour.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
+    chords: List<ChordRender>,
+    midLineY: Float,
+    lineSpacing: Float,
+    dotR: Float,
+    stemLenBase: Float,
+    dpHalf: Float,
+    stemWidth: Float,
+    flag7: Float,
+    flag5: Float,
+    flag6: Float,
+) {
+    // Helper: where the stem meets the notehead block, given direction.
+    fun attachY(c: ChordRender, up: Boolean) = if (up) c.topY - dotR else c.botY + dotR
+    // Helper: the stem's x (right edge of head for up, left for down).
+    fun stemX(c: ChordRender, up: Boolean) = if (up) c.x + dotR - dpHalf else c.x - dotR + dpHalf
+    // Nominal free-tip y for a standalone stem (clears the whole chord).
+    fun nominalTip(c: ChordRender, up: Boolean) =
+        if (up) c.botY - stemLenBase else c.topY + stemLenBase
+
+    // Draw a plain shared stem (no flag) — quarters/halves and the trunk of any
+    // chord whose flag/beam is handled separately.
+    fun drawPlainStem(c: ChordRender, up: Boolean, tipY: Float) {
+        drawLine(
+            color = c.stemColor,
+            start = Offset(stemX(c, up), attachY(c, up)),
+            end = Offset(stemX(c, up), tipY),
+            strokeWidth = stemWidth,
+        )
+    }
+
+    // Draw the curved flag hook(s) at a standalone stem tip.
+    fun drawFlags(c: ChordRender, up: Boolean, tipY: Float) {
+        val dir = if (up) 1f else -1f
+        val sx = stemX(c, up)
+        for (f in 0 until c.flags) {
+            val fy = tipY + f * lineSpacing * 0.9f * dir
+            val flagPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(sx, fy)
+                quadraticTo(sx + flag7, fy + dir * lineSpacing * 0.5f, sx + flag5, fy + dir * lineSpacing * 1.3f)
+                quadraticTo(sx + flag6, fy + dir * lineSpacing * 0.6f, sx, fy + dir * lineSpacing * 0.35f)
+                close()
+            }
+            drawPath(flagPath, color = c.stemColor)
+        }
+    }
+
+    // ── Non-beamable stemmed chords (flags == 0): plain stems. ──
+    chords.filter { it.anyStem && it.flags == 0 }.forEach { c ->
+        val up = c.centerY >= midLineY
+        drawPlainStem(c, up, nominalTip(c, up))
+    }
+
+    // ── Beamable chords in time order. ──
+    val beamable = chords.filter { it.anyStem && it.flags >= 1 }
+        .sortedBy { it.startBeat }
+    if (beamable.isEmpty()) return
+
+    val beamItems = beamable.map { BeamItem(it.startBeat, it.durBeats, it.flags) }
+    val groups = computeBeamGroups(beamItems)
+
+    val beamThickness = lineSpacing * 0.5f
+
+    for (group in groups) {
+        val gChords = group.map { beamable[it] }
+
+        if (gChords.size == 1) {
+            // Singleton — keep the flag.
+            val c = gChords[0]
+            val up = c.centerY >= midLineY
+            val tip = nominalTip(c, up)
+            drawPlainStem(c, up, tip)
+            drawFlags(c, up, tip)
+            continue
+        }
+
+        // ── Group beam. Majority-vote direction (ties up). ──
+        val upVotes = gChords.count { it.centerY >= midLineY }
+        val up = upVotes * 2 >= gChords.size  // ties → up
+        val dir = if (up) -1f else 1f         // beam offset direction from notehead
+
+        // Anchor the beam line at the first and last nominal tips, then clamp
+        // the slope to ≤ 0.5×lineSpacing total span.
+        val first = gChords.first()
+        val last = gChords.last()
+        val x0 = stemX(first, up)
+        val x1 = stemX(last, up)
+        var y0 = nominalTip(first, up)
+        var y1 = nominalTip(last, up)
+        val maxSlope = lineSpacing * 0.5f
+        if (kotlin.math.abs(y1 - y0) > maxSlope) {
+            val mid = (y0 + y1) / 2f
+            val half = maxSlope / 2f
+            if (y1 >= y0) { y0 = mid - half; y1 = mid + half }
+            else { y0 = mid + half; y1 = mid - half }
+        }
+
+        // Interpolated beam y at an arbitrary x.
+        fun beamYAt(x: Float): Float {
+            if (x1 == x0) return y0
+            val t = (x - x0) / (x1 - x0)
+            return y0 + (y1 - y0) * t
+        }
+
+        // Ensure every stem reaches ≥ 2.5×lineSpacing; otherwise push the whole
+        // beam outward (away from the noteheads) by the largest deficit.
+        val minStem = lineSpacing * 2.5f
+        var push = 0f
+        for (c in gChords) {
+            val by = beamYAt(stemX(c, up))
+            val len = kotlin.math.abs(by - attachY(c, up))
+            if (len < minStem) push = kotlin.math.max(push, minStem - len)
+        }
+        if (push > 0f) {
+            // dir is -1 for up-stems (beam above, smaller y) → push further up.
+            y0 += dir * push
+            y1 += dir * push
+        }
+
+        // ── Per-stem: extend each shared stem to the beam line. ──
+        for (c in gChords) {
+            val sx = stemX(c, up)
+            val by = beamYAt(sx)
+            drawPlainStem(c, up, by)
+        }
+
+        // ── Primary beam: filled quadrilateral between the first & last tips. ──
+        val px0 = stemX(first, up)
+        val px1 = stemX(last, up)
+        val py0 = beamYAt(px0)
+        val py1 = beamYAt(px1)
+        // Dominant-hand colour: most common stem colour in the group.
+        val beamColor = gChords.groupingBy { it.stemColor }.eachCount()
+            .maxByOrNull { it.value }!!.key
+        // Thickness grows toward the noteheads (opposite the outward `dir`).
+        val inward = -dir
+        val thick = beamThickness * inward
+        val primary = androidx.compose.ui.graphics.Path().apply {
+            moveTo(px0, py0)
+            lineTo(px1, py1)
+            lineTo(px1, py1 + thick)
+            lineTo(px0, py0 + thick)
+            close()
+        }
+        drawPath(primary, color = beamColor)
+
+        // ── Secondary beams for 16ths (flags ≥ 2). ──
+        // Inward = toward the noteheads from the primary beam.
+        val secOffset = (beamThickness + lineSpacing * 0.25f) * inward  // 0.75×ls inward edge
+        val sixteenths = gChords.withIndex().filter { it.value.flags >= 2 }.map { it.index }
+        if (sixteenths.isNotEmpty()) {
+            // Draw full secondary segments between adjacent 16th items.
+            val drawn = BooleanArray(gChords.size)
+            for (k in 0 until sixteenths.size - 1) {
+                val a = sixteenths[k]
+                val b = sixteenths[k + 1]
+                if (b == a + 1) {
+                    val ax = stemX(gChords[a], up); val bx = stemX(gChords[b], up)
+                    val ay = beamYAt(ax) + secOffset; val byy = beamYAt(bx) + secOffset
+                    val sec = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(ax, ay); lineTo(bx, byy)
+                        lineTo(bx, byy + thick); lineTo(ax, ay + thick); close()
+                    }
+                    drawPath(sec, color = beamColor)
+                    drawn[a] = true; drawn[b] = true
+                }
+            }
+            // Isolated 16ths get a short stub toward their neighbour.
+            for (idx in sixteenths) {
+                if (drawn[idx]) continue
+                val c = gChords[idx]
+                val sx = stemX(c, up)
+                val sy = beamYAt(sx) + secOffset
+                val toward = if (idx < gChords.size - 1) 1f else -1f
+                val stub = lineSpacing * 0.6f * toward
+                val sec = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(sx, sy); lineTo(sx + stub, sy)
+                    lineTo(sx + stub, sy + thick); lineTo(sx, sy + thick); close()
+                }
+                drawPath(sec, color = beamColor)
+            }
+        }
     }
 }
 

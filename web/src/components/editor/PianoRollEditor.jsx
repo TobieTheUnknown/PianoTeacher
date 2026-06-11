@@ -578,13 +578,25 @@ export function PianoRollEditor({
         setContextMenu(null);
     }, [contextMenu, selectedNotes, allNotesGlobal, copy, cut, paste, duplicate, hasClipboard, positionRef, getPhraseAtBeat, onAddNote, onRemoveNote, saveStateToHistory, clearSelection, selectAll, gridSize]);
 
-    // Play handler using playPhrase API
+    // Play handler using playPhrase API — builds a combined phrase with
+    // correct startTime offsets so phrases play sequentially, not overlapping.
     const handlePlay = useCallback(() => {
-        const combinedPhrase = { tracks: { melody: [], chords: [] } };
+        const melody = [];
+        const chords = [];
+        let beatOffset = 0;
         phrases.forEach(p => {
-            combinedPhrase.tracks.melody.push(...(p.tracks.melody || []));
-            combinedPhrase.tracks.chords.push(...(p.tracks.chords || []));
+            (p.tracks.melody || []).forEach(n => {
+                melody.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            (p.tracks.chords || []).forEach(n => {
+                chords.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            beatOffset += p.length * beatsPerMeasure;
         });
+        const combinedPhrase = {
+            tracks: { melody, chords },
+            length: phrases.reduce((s, p) => s + p.length, 0),
+        };
         audioEngine.playPhrase(combinedPhrase, tempo, positionRef.current, false, null, beatsPerMeasure);
     }, [phrases, tempo, positionRef, beatsPerMeasure]);
 

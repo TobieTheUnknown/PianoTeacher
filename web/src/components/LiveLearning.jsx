@@ -1288,6 +1288,16 @@ export function LiveLearning({ song, onToggleHighlight }) {
         setFocusedMeasure(measure.number);
         await audioEngine.initialize();
 
+        // Stop any full-song playback that may be running
+        if (isPlaying) {
+            audioEngine.stop();
+            audioEngine.stopMetronome();
+            if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+            setIsPlaying(false);
+            setPlayingMeasure(-1);
+            playingMeasureRef.current = -1;
+        }
+
         let notesToPlay = [];
         if (hand === 'both') {
             notesToPlay = [...measure.melody, ...measure.chords];
@@ -1297,10 +1307,27 @@ export function LiveLearning({ song, onToggleHighlight }) {
             notesToPlay = measure.chords;
         }
 
-        if (notesToPlay.length > 0) {
-            audioEngine.playNotes(notesToPlay, currentBPM);
-        }
-    }, [currentBPM]);
+        if (notesToPlay.length === 0) return;
+
+        audioEngine.playNotes(notesToPlay, currentBPM);
+
+        // Drive the same progress indicators as the full-song path.
+        // Show this card as "playing" for the real duration of one measure,
+        // then clear the state once audio finishes.
+        const measureDurationMs =
+            ((measure.unitsPerMeasure || 4) / 4) * (60 / Math.max(currentBPM, 1)) * 4 * 1000;
+
+        setPlayingMeasure(measure.number);
+        playingMeasureRef.current = measure.number;
+        setIsPlaying(true);
+
+        if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+        playbackIntervalRef.current = setTimeout(() => {
+            playingMeasureRef.current = -1;
+            setPlayingMeasure(-1);
+            setIsPlaying(false);
+        }, measureDurationMs);
+    }, [currentBPM, isPlaying]);
 
     const startPlaybackTracking = useCallback((startMeasure, endMeasure) => {
         // Clear any existing interval
@@ -1446,14 +1473,22 @@ export function LiveLearning({ song, onToggleHighlight }) {
         }
     }, [phraseMeasureRanges]);
 
-    // Auto-scroll to focused/playing measure card
+    // Auto-scroll during playback: keep the active measure card in view.
+    // Only fires while `isPlaying` is true to avoid yanking the page on
+    // manual measure focus changes. Skips the scroll when the card is
+    // already well within the viewport (≥ 15 % margin on either side).
     useEffect(() => {
-        const target = playingMeasure > 0 ? playingMeasure : focusedMeasure;
-        const el = measureRefs.current[target];
-        if (el) {
+        if (!isPlaying || playingMeasure <= 0) return;
+        const el = measureRefs.current[playingMeasure];
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const vh = window.innerHeight;
+        const margin = vh * 0.15;
+        const fullyVisible = rect.top >= margin && rect.bottom <= vh - margin;
+        if (!fullyVisible) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-    }, [focusedMeasure, playingMeasure]);
+    }, [isPlaying, playingMeasure]);
 
     const displayNoteName = useCallback((pitch, keySignature) => {
         const fullName = getFrenchNoteName(pitch, keySignature);
