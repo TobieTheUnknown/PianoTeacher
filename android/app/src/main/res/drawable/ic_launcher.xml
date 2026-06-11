@@ -1,28 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Piano Teacher launcher icon — simple piano keys shape -->
+<!-- Piano Teacher launcher icon — hand-converted from web/public/brand/logo.svg.
+     Full-bleed 108x108 vector (scale 1024->108, factor ~0.10547), matching the
+     master logo: dark tile, 7 white keys with the two "hand" keys highlighted
+     (left=pink, right=cyan), 2+3 black keys, and a rising blue beamed-note
+     accent. Solid colours only for broad VectorDrawable compatibility. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Background -->
+    <!-- Full-bleed dark tile background -->
     <path
-        android:fillColor="#131620"
+        android:fillColor="#0a0c10"
         android:pathData="M0,0h108v108H0z" />
 
-    <!-- White keys -->
+    <!-- ===== Keyboard (7 white keys) ===== -->
     <path
-        android:fillColor="#E8ECF0"
-        android:pathData="M14,30h10v48H14zM26,30h10v48H26zM38,30h10v48H38zM50,30h10v48H50zM62,30h10v48H62zM74,30h10v48H74zM86,30h8v48H86z" />
+        android:fillColor="#e8eaf0"
+        android:pathData="M17.7,45.4h9.9v39.2h-9.9zM38.4,45.4h9.9v39.2h-9.9zM48.7,45.4h9.9v39.2h-9.9zM59.1,45.4h9.9v39.2h-9.9zM79.7,45.4h9.9v39.2h-9.9z" />
+    <!-- left-hand key (pink) -->
+    <path
+        android:fillColor="#ec4899"
+        android:pathData="M28.1,45.4h9.9v39.2h-9.9z" />
+    <!-- right-hand key (cyan) -->
+    <path
+        android:fillColor="#22d3ee"
+        android:pathData="M69.4,45.4h9.9v39.2h-9.9z" />
 
-    <!-- Black keys -->
+    <!-- black keys (groups of 2 and 3) -->
     <path
-        android:fillColor="#1A1A1A"
-        android:pathData="M21,30h7v30H21zM33,30h7v30H33zM57,30h7v30H57zM69,30h7v30H69zM81,30h7v30H81z" />
+        android:fillColor="#0a0c10"
+        android:pathData="M25.7,45.4h6.1v23.8h-6.1zM36.1,45.4h6.1v23.8h-6.1zM56.7,45.4h6.1v23.8h-6.1zM67.1,45.4h6.1v23.8h-6.1zM77.4,45.4h6.1v23.8h-6.1z" />
 
-    <!-- Cyan accent line (melody) -->
+    <!-- ===== Rising blue beamed-note accent ===== -->
+    <!-- beam -->
     <path
-        android:fillColor="#22D3EE"
-        android:pathData="M14,78h80v4H14z" />
+        android:fillColor="#3b82f6"
+        android:pathData="M34.8,22.6L73.8,15.8L73.8,22.2L34.8,28.9z" />
+    <!-- left stem -->
+    <path
+        android:fillColor="#3b82f6"
+        android:pathData="M34.8,22.6h3.4v13.9h-3.4z" />
+    <!-- right stem -->
+    <path
+        android:fillColor="#3b82f6"
+        android:pathData="M70.5,15.8h3.4v13.9h-3.4z" />
+    <!-- left note head (pink) -->
+    <path
+        android:fillColor="#ec4899"
+        android:pathData="M34,35.9m-5.7,0a5.7,4.4 0 1,0 11.4,0a5.7,4.4 0 1,0 -11.4,0z" />
+    <!-- right note head (cyan) -->
+    <path
+        android:fillColor="#22d3ee"
+        android:pathData="M72.1,29.1m-5.7,0a5.7,4.4 0 1,0 11.4,0a5.7,4.4 0 1,0 -11.4,0z" />
 </vector>

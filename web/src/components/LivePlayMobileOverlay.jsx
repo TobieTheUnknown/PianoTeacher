@@ -125,6 +125,8 @@ export function LivePlayMobileOverlay({
         <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
       </div>
 
+      {/* No zoom buttons on mobile — pinch-to-zoom covers it (user decision) */}
+
       {/* Shared PlaybackDock at bottom (hidden in landscape per user spec) */}
       {!hideDock && (
       <div className={styles.dockHost}>

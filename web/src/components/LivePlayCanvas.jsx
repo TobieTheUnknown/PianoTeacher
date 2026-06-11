@@ -54,7 +54,8 @@ const LivePlayCanvas = memo(({
   canvasWidth: propWidth,
   canvasHeight: propHeight,
   mobileKeyRange,
-  visualEffects = false
+  visualEffects = false,
+  lookAheadTime = 4,
 }) => {
   // Use prop dimensions or defaults
   const CANVAS_WIDTH = propWidth || DEFAULT_WIDTH;
@@ -297,7 +298,6 @@ const LivePlayCanvas = memo(({
   const drawStaticLayer = useCallback((ctx, currentTime) => {
     const { song: songNow, isLoopEnabled: loopOn, loopConfig: loopCfg } = liveRef.current;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
-    const lookAheadTime = 4;
     const beatsPerMeasure = 4;
     const currentBeat = currentTime * beatsPerSecond;
     const currentMeasure = Math.floor(currentBeat / beatsPerMeasure);
@@ -459,12 +459,11 @@ const LivePlayCanvas = memo(({
         }
       }
     }
-  }, [beatsPerSecond, isBlackKey, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey]);
+  }, [beatsPerSecond, isBlackKey, getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, lookAheadTime]);
 
   // Draw dynamic layer (falling notes, keyboard) - changes every frame
   const drawDynamicLayer = useCallback((ctx, currentTime, visibleStartIdx) => {
     const { activeNotes: pressed, playedNotes: played } = liveRef.current;
-    const lookAheadTime = 4;
     const BLACK_KEY_WIDTH = WHITE_KEY_WIDTH * 0.65;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
@@ -699,7 +698,7 @@ const LivePlayCanvas = memo(({
     ctx.lineTo(CANVAS_WIDTH, keyboardY);
     ctx.stroke();
     ctx.shadowBlur = 0;
-  }, [allNotes, beatsPerSecond, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, dynamicColors, buildHandMap, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel]);
+  }, [allNotes, beatsPerSecond, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, dynamicColors, buildHandMap, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel, lookAheadTime]);
 
   // Draw overlay layer (feedback, combo, particles)
   // dtFrames ≈ 1.0 at 60Hz, 0.5 at 120Hz — keeps animation speed identical

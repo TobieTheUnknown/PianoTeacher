@@ -93,6 +93,27 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
   const canvasContainerRef = useRef(null);
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
 
+  // ── Note-fall zoom (lookAheadTime) ────────────────────────────────────────
+  const LOOKAHEAD_KEY = 'piano-teacher-liveplay-lookahead';
+  const LOOKAHEAD_MIN = 2;
+  const LOOKAHEAD_MAX = 10;
+  const [lookAheadTime, setLookAheadTime] = useState(() => {
+    const stored = localStorage.getItem(LOOKAHEAD_KEY);
+    if (stored !== null) {
+      const parsed = parseFloat(stored);
+      if (!isNaN(parsed)) return Math.min(LOOKAHEAD_MAX, Math.max(LOOKAHEAD_MIN, Math.round(parsed)));
+    }
+    return isMobile ? 5 : 4;
+  });
+
+  const changeLookAhead = useCallback((delta) => {
+    setLookAheadTime(prev => {
+      const next = Math.min(LOOKAHEAD_MAX, Math.max(LOOKAHEAD_MIN, prev + delta));
+      localStorage.setItem(LOOKAHEAD_KEY, String(next));
+      return next;
+    });
+  }, []);
+
   // Notify parent about fullscreen state for hiding tab bar
   useEffect(() => {
     if (isMobile) {
@@ -917,6 +938,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           canvasHeight={canvasDimensions.height || undefined}
           mobileKeyRange={mobileKeyRange}
           visualEffects={visualEffects}
+          lookAheadTime={lookAheadTime}
         />
 
         <LivePlayMobileOverlay
@@ -1002,7 +1024,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       </div>
 
       {/* Canvas — fills remaining space */}
-      <div ref={canvasSizeRef} style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch', justifyContent: 'center', overflow: 'hidden' }}>
+      <div ref={canvasSizeRef} style={{ flex: '1 1 0', minHeight: 0, position: 'relative', display: 'flex', alignItems: 'stretch', justifyContent: 'center', overflow: 'hidden' }}>
         <LivePlayCanvas
           timeRef={songTimeRef}
           activeNotes={activeNotes}
@@ -1017,7 +1039,49 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           visualEffects={visualEffects}
           canvasWidth={canvasSize.width}
           canvasHeight={canvasSize.height}
+          lookAheadTime={lookAheadTime}
         />
+
+        {/* Zoom cluster — bottom-right of canvas, above the dock */}
+        <div style={{
+          position: 'absolute',
+          bottom: 12,
+          right: 16,
+          zIndex: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          background: 'color-mix(in oklab, var(--surface-1), transparent 10%)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-pill)',
+          padding: '2px 4px',
+          userSelect: 'none',
+        }}>
+          <button
+            onClick={() => changeLookAhead(1)}
+            disabled={lookAheadTime >= LOOKAHEAD_MAX}
+            title="Dézoomer (plus de mesures visibles)"
+            style={zoomBtnStyle(lookAheadTime >= LOOKAHEAD_MAX)}
+          >
+            −
+          </button>
+          <span
+            title="Fenêtre de défilement (zoom)"
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', minWidth: 28, textAlign: 'center', padding: '0 2px' }}
+          >
+            {lookAheadTime}s
+          </span>
+          <button
+            onClick={() => changeLookAhead(-1)}
+            disabled={lookAheadTime <= LOOKAHEAD_MIN}
+            title="Zoomer (moins de mesures visibles)"
+            style={zoomBtnStyle(lookAheadTime <= LOOKAHEAD_MIN)}
+          >
+            +
+          </button>
+        </div>
       </div>
 
       {/* Shared PlaybackDock — same look as Apprentissage / Partition / Editor */}
@@ -1054,4 +1118,27 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       </div>
     </div>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function zoomBtnStyle(disabled) {
+  return {
+    width: 22,
+    height: 22,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: 'none',
+    background: 'transparent',
+    color: disabled ? 'var(--text-disabled, #555)' : 'var(--text-secondary)',
+    cursor: disabled ? 'default' : 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+    padding: 0,
+    borderRadius: 4,
+    lineHeight: 1,
+    opacity: disabled ? 0.4 : 1,
+    transition: 'opacity 0.15s',
+  };
 }

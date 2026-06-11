@@ -165,7 +165,7 @@ const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, s
     const { isArpeggio, detectedChord, motifInfo, chordGroups, hasChord } = measure;
 
     return (
-        <div style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
+        <div style={{ marginBottom: '0.75rem', paddingRight: isMobile ? '0.5rem' : '2rem' }}>
             <div style={STYLES.sectionLabel}>
                 {isArpeggio && detectedChord && motifInfo?.exactCycle && motifInfo?.repetitions > 1 ? (
                     <>Accords (arpège de {chordGroups.length} notes, {motifInfo.repetitions}x{motifInfo.notesPerCycle})</>
@@ -565,23 +565,23 @@ const HarmonyBadge = React.memo(function HarmonyBadge({ harmony, keySignature })
 // Détails ON for an ostinato hand: the note pills are grouped by MOTIF
 // occurrence — one row per repetition (the last row may be the truncated
 // prefix). "do ré mi fa do ré mi fa" → two rows of "do ré mi fa".
-function MotifRows({ labels, motifLen, hand }) {
+function MotifRows({ labels, motifLen, hand, isMobile }) {
     const rows = [];
     for (let i = 0; i < labels.length; i += motifLen) {
         rows.push(labels.slice(i, i + motifLen));
     }
     const pillStyle = {
-        fontSize: 9.5, fontWeight: 600,
-        padding: '2px 5px',
+        fontSize: isMobile ? 8.5 : 9.5, fontWeight: 600,
+        padding: isMobile ? '1px 4px' : '2px 5px',
         borderRadius: 4,
         background: `var(--hand-${hand}-dim)`,
         color: `var(--hand-${hand})`,
         border: `1px solid var(--hand-${hand}-border)`,
     };
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minHeight: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 3, minHeight: 18 }}>
             {rows.map((row, ri) => (
-                <div key={ri} style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                <div key={ri} style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 2 : 3 }}>
                     {row.map((n, i) => (
                         <span key={i} style={pillStyle}>{n}</span>
                     ))}
@@ -785,14 +785,15 @@ const MeasureCard = React.memo(function MeasureCard({
                         labels={rightLabels}
                         motifLen={measure.rightOstinato.motifPcs.length}
                         hand="right"
+                        isMobile={isMobile}
                     />
                 </div>
             ) : rightLabels.length > 0 ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 5, minHeight: 18 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 2 : 3, marginBottom: 5, minHeight: 18 }}>
                     {rightLabels.map((n, i) => (
                         <span key={`r${i}`} style={{
-                            fontSize: 9.5, fontWeight: 600,
-                            padding: '2px 5px',
+                            fontSize: isMobile ? 8.5 : 9.5, fontWeight: 600,
+                            padding: isMobile ? '1px 4px' : '2px 5px',
                             borderRadius: 4,
                             background: 'var(--hand-right-dim)',
                             color: 'var(--hand-right)',
@@ -839,13 +840,21 @@ const MeasureCard = React.memo(function MeasureCard({
                     labels={leftLabels}
                     motifLen={measure.leftOstinato.motifPcs.length}
                     hand="left"
+                    isMobile={isMobile}
+                />
+            ) : (measure.arpeggioBadge && measure.motifInfo?.notesPerCycle && leftLabels.length > 0) ? (
+                <MotifRows
+                    labels={leftLabels}
+                    motifLen={measure.motifInfo.notesPerCycle}
+                    hand="left"
+                    isMobile={isMobile}
                 />
             ) : leftLabels.length > 0 ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 18 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 2 : 3, minHeight: 18 }}>
                     {leftLabels.map((n, i) => (
                         <span key={`l${i}`} style={{
-                            fontSize: 9.5, fontWeight: 600,
-                            padding: '2px 5px',
+                            fontSize: isMobile ? 8.5 : 9.5, fontWeight: 600,
+                            padding: isMobile ? '1px 4px' : '2px 5px',
                             borderRadius: 4,
                             background: 'var(--hand-left-dim)',
                             color: 'var(--hand-left)',

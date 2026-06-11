@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ animated splash icon for Piano Teacher.
+     Transparent background (the splash background colour #0a0c10 comes from the
+     theme). Content is the keyboard + rising note accent from the master logo,
+     centred and inset so it stays inside the circular splash mask. The Android
+     splash icon canvas is 108x108 with the inner ~66dp visible inside the mask;
+     here the artwork is drawn directly into that safe central area. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Keyboard (7 white keys), tightened into the central safe circle.
+         Keys span x 33->75, y 52->80. -->
+    <path
+        android:fillColor="#e8eaf0"
+        android:pathData="M33,52h5.6v28h-5.6zM45.2,52h5.6v28h-5.6zM51.3,52h5.6v28h-5.6zM57.4,52h5.6v28h-5.6zM69.4,52h5.6v28h-5.6z" />
+    <!-- left-hand key (pink) -->
+    <path
+        android:fillColor="#ec4899"
+        android:pathData="M39.1,52h5.6v28h-5.6z" />
+    <!-- right-hand key (cyan) -->
+    <path
+        android:fillColor="#22d3ee"
+        android:pathData="M63.3,52h5.6v28h-5.6z" />
+    <!-- black keys -->
+    <path
+        android:fillColor="#0a0c10"
+        android:pathData="M37.8,52h3.6v17h-3.6zM43.9,52h3.6v17h-3.6zM56,52h3.6v17h-3.6zM62.1,52h3.6v17h-3.6zM68.2,52h3.6v17h-3.6z" />
+
+    <!-- Rising blue beamed-note accent above the keyboard -->
+    <path
+        android:fillColor="#3b82f6"
+        android:pathData="M41,34L67,29.8L67,33.8L41,38z" />
+    <path
+        android:fillColor="#3b82f6"
+        android:pathData="M41,34h2.2v9.2h-2.2z" />
+    <path
+        android:fillColor="#3b82f6"
+        android:pathData="M64.8,29.8h2.2v9.2h-2.2z" />
+    <path
+        android:fillColor="#ec4899"
+        android:pathData="M40.4,42.5m-3.8,0a3.8,2.9 0 1,0 7.6,0a3.8,2.9 0 1,0 -7.6,0z" />
+    <path
+        android:fillColor="#22d3ee"
+        android:pathData="M65.6,38.3m-3.8,0a3.8,2.9 0 1,0 7.6,0a3.8,2.9 0 1,0 -7.6,0z" />
+</vector>

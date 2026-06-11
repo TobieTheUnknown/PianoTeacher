@@ -35,6 +35,18 @@ const appImport = isMobilePlatform
   ? import('./AppMobile.jsx')
   : import('./AppDesktop.jsx');
 
+// Fade out and remove the pre-React splash once the app has mounted.
+// Runs after first paint of the React tree so there is no white flash.
+function removeSplash() {
+  const splash = document.getElementById('__splash');
+  if (!splash) return;
+  splash.classList.add('is-hidden');
+  const cleanup = () => splash.remove();
+  splash.addEventListener('transitionend', cleanup, { once: true });
+  // Fallback in case transitionend never fires (e.g. reduced-motion).
+  setTimeout(cleanup, 600);
+}
+
 appImport.then((module) => {
   const App = module.default;
   createRoot(document.getElementById('root')).render(
@@ -44,4 +56,6 @@ appImport.then((module) => {
       </ErrorBoundary>
     </StrictMode>
   );
+  // Defer to the next frame so the first React paint has landed.
+  requestAnimationFrame(() => requestAnimationFrame(removeSplash));
 });
