@@ -67,8 +67,8 @@ private val LL_KEY_WHITE = KeyWhite
 private val LL_KEY_WHITE_SHADOW = KeyWhiteShadow
 private val LL_KEY_BLACK = KeyBlack
 
-private val NOTE_NAMES = arrayOf("Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
-private fun noteName(pitch: Int): String = NOTE_NAMES[((pitch % 12) + 12) % 12]
+private fun noteName(pitch: Int, keySignature: MusicKeySignature? = null): String =
+    com.tobietheunknown.pianoteacher.utils.midiToFrench(pitch, showOctave = false, keySignature = keySignature)
 
 /**
  * Apprentissage mobile — measure-by-measure cards with real data.
@@ -377,17 +377,17 @@ private fun MeasureCardCompact(
                 !showDetails && rightRole != null ->
                     HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
                 !showDetails ->
-                    NotesRow(measure.melodyNotes, color = CyanMelody)
+                    NotesRow(measure.melodyNotes, color = CyanMelody, keySignature = keySignature)
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (rightRole != null) {
                         HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
                     }
                     when {
                         measure.rightOstinato != null && measure.melodyNotes.isNotEmpty() ->
-                            MotifRows(measure.melodyNotes, measure.rightOstinato!!.motifPcs.size, CyanMelody)
+                            MotifRows(measure.melodyNotes, measure.rightOstinato!!.motifPcs.size, CyanMelody, keySignature = keySignature)
                         chordCycleLen(rightRole, measure.melodyNotes) != null ->
-                            MotifRows(measure.melodyNotes, chordCycleLen(rightRole, measure.melodyNotes)!!, CyanMelody)
-                        else -> NotesRow(measure.melodyNotes, color = CyanMelody)
+                            MotifRows(measure.melodyNotes, chordCycleLen(rightRole, measure.melodyNotes)!!, CyanMelody, keySignature = keySignature)
+                        else -> NotesRow(measure.melodyNotes, color = CyanMelody, keySignature = keySignature)
                     }
                 }
             }
@@ -402,7 +402,7 @@ private fun MeasureCardCompact(
                 !showDetails && leftRole != null ->
                     HandRoleBadge(leftRole, hand = HandSide.LEFT, keySignature = keySignature)
                 !showDetails && measure.chordNotes.isNotEmpty() ->
-                    LeftHandChips(measure.chordNotes)
+                    LeftHandChips(measure.chordNotes, keySignature = keySignature)
                 !showDetails ->
                     Box(modifier = Modifier.fillMaxWidth().height(18.dp))
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -411,10 +411,10 @@ private fun MeasureCardCompact(
                     }
                     when {
                         measure.leftOstinato != null && measure.chordNotes.isNotEmpty() ->
-                            MotifRows(measure.chordNotes, measure.leftOstinato!!.motifPcs.size, PinkChords)
+                            MotifRows(measure.chordNotes, measure.leftOstinato!!.motifPcs.size, PinkChords, keySignature = keySignature)
                         chordCycleLen(leftRole, measure.chordNotes) != null ->
-                            MotifRows(measure.chordNotes, chordCycleLen(leftRole, measure.chordNotes)!!, PinkChords)
-                        else -> NotesRow(measure.chordNotes, color = PinkChords)
+                            MotifRows(measure.chordNotes, chordCycleLen(leftRole, measure.chordNotes)!!, PinkChords, keySignature = keySignature)
+                        else -> NotesRow(measure.chordNotes, color = PinkChords, keySignature = keySignature)
                     }
                 }
             }
@@ -666,9 +666,9 @@ private fun PedalGlyph(tone: Color) {
  * note chips + a trailing "…" when truncated. Mirrors the web LH fallback.
  */
 @Composable
-private fun LeftHandChips(notes: List<NoteEvent>) {
-    val labels = remember(notes) {
-        notes.sortedBy { it.startTime }.map { noteName(it.pitch) }
+private fun LeftHandChips(notes: List<NoteEvent>, keySignature: MusicKeySignature? = null) {
+    val labels = remember(notes, keySignature) {
+        notes.sortedBy { it.startTime }.map { noteName(it.pitch, keySignature) }
     }
     val tone = PinkChords  // HandLeft
     Row(
@@ -707,9 +707,9 @@ private fun LeftHandChips(notes: List<NoteEvent>) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MotifRows(notes: List<NoteEvent>, motifLen: Int, tone: Color) {
-    val labels = remember(notes) {
-        notes.sortedBy { it.startTime }.map { noteName(it.pitch) }
+private fun MotifRows(notes: List<NoteEvent>, motifLen: Int, tone: Color, keySignature: MusicKeySignature? = null) {
+    val labels = remember(notes, keySignature) {
+        notes.sortedBy { it.startTime }.map { noteName(it.pitch, keySignature) }
     }
     val rows = remember(labels, motifLen) {
         if (motifLen <= 0) listOf(labels) else labels.chunked(motifLen)
@@ -749,11 +749,11 @@ private fun NoteChip(label: String, tone: Color) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NotesRow(notes: List<NoteEvent>, color: Color) {
-    val labels = remember(notes) {
+private fun NotesRow(notes: List<NoteEvent>, color: Color, keySignature: MusicKeySignature? = null) {
+    val labels = remember(notes, keySignature) {
         notes
             .sortedBy { it.startTime }
-            .map { noteName(it.pitch) }
+            .map { noteName(it.pitch, keySignature) }
             .take(16)
     }
     if (labels.isEmpty()) {

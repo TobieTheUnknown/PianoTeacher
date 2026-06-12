@@ -146,6 +146,27 @@ const LivePlayCanvas = memo(({
     return { repeatCount: rc, skipLabel: sl };
   }, [allNotes]);
 
+  // Flat keys (major + their relative minors) — mirrors song.js getEnharmonicNote logic
+  const noteLabelMap = useMemo(() => {
+    const FLAT_MAJORS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb']);
+    // Minor keys whose relative major is flat
+    const FLAT_MINORS = new Set(['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab']);
+    const key = song?.key;
+    let useFlats = false;
+    if (key && key.note && key.mode) {
+      if (key.mode === 'major') useFlats = FLAT_MAJORS.has(key.note);
+      else if (key.mode === 'minor') useFlats = FLAT_MINORS.has(key.note);
+    }
+    const SHARP_FR = ['Do', 'Do#', 'Ré', 'Ré#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
+    const FLAT_FR  = ['Do', 'Réb', 'Ré', 'Mib', 'Mi', 'Fa', 'Solb', 'Sol', 'Lab', 'La', 'Sib', 'Si'];
+    const names = useFlats ? FLAT_FR : SHARP_FR;
+    const map = new Map();
+    for (let midi = 21; midi <= 108; midi++) {
+      map.set(midi, names[midi % 12]);
+    }
+    return map;
+  }, [song?.key]);
+
   // Pre-compute getNoteX lookup table
   const noteXCache = useMemo(() => {
     const cache = new Map();
@@ -577,7 +598,7 @@ const LivePlayCanvas = memo(({
       // Note labels — skip entirely on mobile for performance
       if (height > (isMobile ? 20 : 15) * fontScale && !skipLabel.has(note.id)) {
         ctx.fillStyle = '#ffffff';
-        const baseName = getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
+        const baseName = noteLabelMap.get(note.pitch) ?? getFrenchNoteName(note.pitch).replace(/[0-9-]/g, '');
         const rpt = repeatCount.get(note.id);
         const label = rpt ? `${baseName} x${rpt}` : baseName;
         ctx.font = `bold ${rpt ? noteSmallFontSize : noteFontSize}px Arial`;
@@ -618,7 +639,7 @@ const LivePlayCanvas = memo(({
           ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, keyboardY + 0.5, WHITE_KEY_WIDTH - 2, KEYBOARD_HEIGHT - 1);
           ctx.fillStyle = isPressed ? '#ffffff' : '#555';
-          const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
+          const label = noteLabelMap.get(i) ?? getFrenchNoteName(i).replace(/[0-9-]/g, '');
           ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
         } else {
           if (isPressed && visualEffects) {
@@ -635,7 +656,7 @@ const LivePlayCanvas = memo(({
           ctx.stroke();
 
           ctx.fillStyle = isPressed ? '#ffffff' : '#555';
-          const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
+          const label = noteLabelMap.get(i) ?? getFrenchNoteName(i).replace(/[0-9-]/g, '');
           ctx.fillText(label, x + WHITE_KEY_WIDTH / 2, keyboardY + KEYBOARD_HEIGHT - 10 * fontScale);
         }
       }
@@ -672,7 +693,7 @@ const LivePlayCanvas = memo(({
 
           ctx.fillStyle = isPressed ? '#ffffff' : '#ccc';
           ctx.font = `${Math.round(10 * fontScale)}px Arial`;
-          const label = getFrenchNoteName(i).replace(/[0-9-]/g, '');
+          const label = noteLabelMap.get(i) ?? getFrenchNoteName(i).replace(/[0-9-]/g, '');
           ctx.fillText(label, x + BLACK_KEY_WIDTH / 2, keyboardY + blackKeyHeight - 8 * fontScale);
         }
       }
@@ -698,7 +719,7 @@ const LivePlayCanvas = memo(({
     ctx.lineTo(CANVAS_WIDTH, keyboardY);
     ctx.stroke();
     ctx.shadowBlur = 0;
-  }, [allNotes, beatsPerSecond, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, dynamicColors, buildHandMap, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel, lookAheadTime]);
+  }, [allNotes, beatsPerSecond, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, dynamicColors, buildHandMap, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel, lookAheadTime, noteLabelMap]);
 
   // Draw overlay layer (feedback, combo, particles)
   // dtFrames ≈ 1.0 at 60Hz, 0.5 at 120Hz — keeps animation speed identical
