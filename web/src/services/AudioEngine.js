@@ -203,7 +203,7 @@ class AudioEngine {
                     "C8": "C8.mp3"
                 },
                 release: 1,
-                baseUrl: "/audio/salamander/",
+                baseUrl: import.meta.env.BASE_URL + "audio/salamander/",
                 onload: () => {
                     console.log("[AudioEngine] Sampler loaded");
                     this.samplerLoaded = true;
