@@ -379,8 +379,8 @@ private fun MeasureCardCompact(
                     HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
                 showDetails && measure.rightOstinato != null && measure.melodyNotes.isNotEmpty() ->
                     MotifRows(measure.melodyNotes, measure.rightOstinato!!.motifPcs.size, CyanMelody)
-                showDetails && chordCycleLen(measure.rightRole, measure.melodyNotes.size) != null ->
-                    MotifRows(measure.melodyNotes, chordCycleLen(measure.rightRole, measure.melodyNotes.size)!!, CyanMelody)
+                showDetails && chordCycleLen(measure.rightRole, measure.melodyNotes) != null ->
+                    MotifRows(measure.melodyNotes, chordCycleLen(measure.rightRole, measure.melodyNotes)!!, CyanMelody)
                 else -> NotesRow(measure.melodyNotes, color = CyanMelody)
             }
 
@@ -400,8 +400,8 @@ private fun MeasureCardCompact(
                     Box(modifier = Modifier.fillMaxWidth().height(18.dp))
                 showDetails && measure.leftOstinato != null && measure.chordNotes.isNotEmpty() ->
                     MotifRows(measure.chordNotes, measure.leftOstinato!!.motifPcs.size, PinkChords)
-                showDetails && chordCycleLen(measure.leftRole, measure.chordNotes.size) != null ->
-                    MotifRows(measure.chordNotes, chordCycleLen(measure.leftRole, measure.chordNotes.size)!!, PinkChords)
+                showDetails && chordCycleLen(measure.leftRole, measure.chordNotes) != null ->
+                    MotifRows(measure.chordNotes, chordCycleLen(measure.leftRole, measure.chordNotes)!!, PinkChords)
                 else -> NotesRow(measure.chordNotes, color = PinkChords)
             }
 
@@ -454,15 +454,22 @@ private enum class HandSide { RIGHT, LEFT }
  */
 private fun chordCycleLen(
     role: com.tobietheunknown.pianoteacher.utils.HandRole?,
-    noteCount: Int,
+    notes: List<NoteEvent>,
 ): Int? {
     val ost = role as? com.tobietheunknown.pianoteacher.utils.HandRole.Ostinato ?: return null
     // Literal-motif ostinatos are handled by the dedicated leftOstinato /
     // rightOstinato MotifRows branch; this path is the chord-reducible one.
     if (ost.ostinato != null) return null
-    if (ost.chordReps <= 1 || noteCount <= 0) return null
-    if (noteCount % ost.chordReps != 0) return null
-    return noteCount / ost.chordReps
+    val noteCount = notes.size
+    if (noteCount <= 0) return null
+    if (ost.chordReps > 1 && noteCount % ost.chordReps == 0) {
+        return noteCount / ost.chordReps
+    }
+    // No literal ×N: fall back to the display-cycle search (distinct-bass
+    // sub-figures — Departure's do-mib-sol-mib / sol-mib-sol-mib halves).
+    return com.tobietheunknown.pianoteacher.utils.displayCycleLen(
+        notes.sortedBy { it.startTime }.map { it.pitch }
+    )
 }
 
 @Composable

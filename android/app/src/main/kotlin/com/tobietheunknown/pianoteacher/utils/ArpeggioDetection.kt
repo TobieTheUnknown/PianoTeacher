@@ -471,6 +471,31 @@ private fun exactCycleReps(pitches: List<Int>): Pair<Int, List<Int>> {
 }
 
 /**
+ * Display-cycle length for grouping note chips one row per occurrence
+ * (mirrors the web's detectArpeggioMotifs "distinct chords per cycle"
+ * branch, which yields rows of 4 on Departure's do-mib-sol-mib /
+ * sol-mib-sol-mib halves):
+ *   1. exact literal cycle (the ×N case) → that cycle length;
+ *   2. else a cycle length 3..6 dividing the count where the BASS pitch
+ *      class changes between cycles (distinct sub-figures);
+ *   3. else null — caller falls back to a freely wrapped flow.
+ */
+fun displayCycleLen(orderedPitches: List<Int>): Int? {
+    val n = orderedPitches.size
+    if (n < 4) return null
+    val (reps, cycle) = exactCycleReps(orderedPitches)
+    if (reps > 1) return cycle.size
+    for (cycleLen in 3..minOf(6, n / 2)) {
+        if (n % cycleLen != 0) continue
+        val basePc = orderedPitches[0] % 12
+        for (i in 1 until n / cycleLen) {
+            if (orderedPitches[i * cycleLen] % 12 != basePc) return cycleLen
+        }
+    }
+    return null
+}
+
+/**
  * Consecutive-measures arpeggio trigger.
  *
  * Given the per-measure left-hand notes (flat lists, in global measure order),

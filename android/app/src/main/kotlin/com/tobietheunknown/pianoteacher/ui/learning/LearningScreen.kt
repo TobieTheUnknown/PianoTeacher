@@ -45,6 +45,9 @@ import com.tobietheunknown.pianoteacher.utils.ArpeggioMotifResult
 import com.tobietheunknown.pianoteacher.utils.KeySignature as MusicKeySignature
 import com.tobietheunknown.pianoteacher.utils.ChordWithReps
 import com.tobietheunknown.pianoteacher.utils.firstArpeggioCycle
+import com.tobietheunknown.pianoteacher.utils.displayCycleLen
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
 import kotlin.math.abs
 
@@ -1450,6 +1453,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
 
 // ─── Note labels strip ────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NoteLabelsStrip(
     measure: MeasureData?,
@@ -1474,9 +1478,11 @@ private fun NoteLabelsStrip(
             ) {
                 if (expanded && measure != null) {
                     if (measure.melodyNotes.isNotEmpty()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        // FlowRow: chips WRAP onto multiple lines (a plain Row
+                        // never wraps — this was the unreadable single line).
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
                             Text("MD", fontSize = 11.sp, color = CyanMelody.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
                             measure.melodyNotes.map { it.pitch }.distinct()
@@ -1484,9 +1490,9 @@ private fun NoteLabelsStrip(
                         }
                     }
                     if (measure.chordInfo != null || measure.chordNotes.isNotEmpty()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
                             Text("MG", fontSize = 11.sp, color = PinkChords.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
                             if (measure.chordInfo != null) {
@@ -1624,9 +1630,11 @@ private fun ChordChip(
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         ArpeggioChordBadge(cwr)
                         if (showDetails) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(start = 8.dp)) {
-                                cwr.cycleNotes.forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), PinkChords) }
-                            }
+                            // One WRAPPED row per cycle occurrence (web parity):
+                            // FlowRow wraps; long cycles are chunked by the
+                            // detected display cycle so the pattern reads as
+                            // "Do Mib Sol Mib" / "Sol Mib Sol Mib" lines.
+                            CycleNoteRows(cwr.cycleNotes, showOctaves, useFlats)
                         }
                     }
                 }
@@ -1644,9 +1652,38 @@ private fun ChordChip(
             }
             if (showDetails && chordNotes.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    firstArpeggioCycle(chordNotes).map { midiToFrench(it.pitch, showOctaves, useFlats) }.forEach { NoteChip(it, PinkChords) }
-                }
+                // Full ordered sequence, one wrapped row per cycle occurrence
+                // (was: first cycle only, on a single non-wrapping Row).
+                CycleNoteRows(
+                    chordNotes.sortedBy { it.startTime }.map { it.pitch },
+                    showOctaves, useFlats,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Note chips grouped one row per cycle occurrence (web MotifRows parity).
+ * When a display cycle is detected the pitches are chunked by it — e.g.
+ * Departure's 8 eighths → "Do Mib Sol Mib" / "Sol Mib Sol Mib". Each row is
+ * a FlowRow so even a long cycle wraps instead of overflowing on one line.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CycleNoteRows(pitches: List<Int>, showOctaves: Boolean, useFlats: Boolean) {
+    val cycleLen = displayCycleLen(pitches)
+    val rows = if (cycleLen != null) pitches.chunked(cycleLen) else listOf(pitches)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.padding(start = 8.dp),
+    ) {
+        rows.forEach { row ->
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                row.forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), PinkChords) }
             }
         }
     }
