@@ -334,6 +334,8 @@ strong { color: var(--text-primary); font-weight: 600; }
   color: var(--text-secondary);
   margin: 0;
 }
+.section__lead a { color: var(--accent-hover); font-weight: 500; }
+.section__lead a:hover { text-decoration: underline; }
 
 /* ===================== MODES ===================== */
 .modes {
