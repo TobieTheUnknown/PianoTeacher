@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
 import kotlin.math.abs
+import androidx.compose.ui.graphics.drawscope.withTransform
 
 // ─── Diatonic pitch helpers ───────────────────────────────────────────────────
 
@@ -704,14 +705,46 @@ fun LearningScreen(
                                     val haloColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.10f) }
                                     val lineColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.95f) }
                                     androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                                        // skip the clef area when showing clefs (~22dp)
-                                        val clefSkip = if (showClefs) size.width * 0.18f else 0f
-                                        val noteArea = size.width - clefSkip
-                                        val x = clefSkip + frac * noteArea
+                                        // Replicate the EXACT same time→x mapping as GrandStaffCanvas
+                                        // so the playhead tracks noteheads precisely even on clef cards.
+                                        //
+                                        // Formula mirrors GrandStaffCanvas (keep in sync if that changes):
+                                        //   lineSpacing = (h / 17).clamp(7dp, staffHMax/4)
+                                        //   staffH      = lineSpacing * 4
+                                        //   pureClefW   = max(staffH * 0.26, 22dp)
+                                        //   pageKsW     = pageAccidentalCount * 9dp + 5dp  (or 0)
+                                        //   tsW         = lineSpacing * 2.4 + 6dp          (or 0, AUTO)
+                                        //   trailingPad = 8dp
+                                        //   headerWidth = pureClefW + pageKsW + tsW + trailingPad (clef cards)
+                                        //                 0                                         (non-clef)
+                                        //   barPad      = 10dp
+                                        //   dotR        = lineSpacing * (landscape ? 0.45 : 0.42)
+                                        //   leftPad     = barPad + dotR * 2
+                                        //   noteAreaStart = headerWidth + leftPad
+                                        //   noteAreaEnd   = w - barPad - dotR
+                                        val w = size.width
+                                        val h = size.height
+                                        val numAreaH = STAFF_NUM_AREA_DP.dp.toPx()
+                                        val topPad   = numAreaH + 8.dp.toPx()
+                                        val botPad   = STAFF_BOTTOM_PAD_DP.dp.toPx()
+                                        val avail    = h - topPad - botPad
+                                        val staffHMax = if (isLandscape) 70.dp.toPx() else STAFF_H_MAX_DP.dp.toPx()
+                                        val ls = (avail / 17f).coerceAtMost(staffHMax / 4f).coerceAtLeast(7.dp.toPx())
+                                        val sH = ls * 4f
+                                        val pClefW = (sH * 0.26f).coerceAtLeast(22.dp.toPx())
+                                        val pKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
+                                        val tW = if (clefMode != ClefMode.AUTO) ls * 2.4f + 6.dp.toPx() else 0f
+                                        val hdrW = if (showClefs) pClefW + pKsW + tW + 8.dp.toPx() else 0f
+                                        val bPad = 10.dp.toPx()
+                                        val dR = ls * (if (isLandscape) 0.45f else 0.42f)
+                                        val noteAreaStart = hdrW + bPad + dR * 2f
+                                        val noteAreaEnd   = w - bPad - dR
+                                        val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
+                                        val haloW = 8.dp.toPx() * 2f
                                         drawRect(
                                             color = haloColor,
-                                            topLeft = androidx.compose.ui.geometry.Offset(x - size.width * 0.04f, 0f),
-                                            size = androidx.compose.ui.geometry.Size(size.width * 0.08f, size.height),
+                                            topLeft = androidx.compose.ui.geometry.Offset(x - haloW / 2f, 0f),
+                                            size = androidx.compose.ui.geometry.Size(haloW, size.height),
                                         )
                                         drawRect(
                                             color = lineColor,
@@ -962,11 +995,13 @@ private fun GrandStaffCanvas(
         val topPad    = numAreaH + 8.dp.toPx()
         val bottomPad = STAFF_BOTTOM_PAD_DP.dp.toPx()
 
-        // 2 staves of 4 lineSpacings + gap of 2 lineSpacings = 10 lineSpacings total
+        // 2 staves of 4 lineSpacings + gap of 2 lineSpacings + 7 headroom steps = 17 lineSpacings total.
+        // Web formula: lineSpacing = max(dp(7), min(totalAvail / (10 + 2 * 3.5), staffHMax / 4))
+        //   i.e. totalAvail / 17, clamped to staffHMax/4 and floored at 7dp.
         val totalAvail   = h - topPad - bottomPad
         val staffHMax    = if (isLandscape) 70.dp.toPx() else STAFF_H_MAX_DP.dp.toPx()
-        val staffH       = (totalAvail / 2.5f).coerceAtMost(staffHMax)
-        val lineSpacing  = staffH / 4f
+        val lineSpacing  = (totalAvail / 17f).coerceAtMost(staffHMax / 4f).coerceAtLeast(7.dp.toPx())
+        val staffH       = lineSpacing * 4f
         val gap          = lineSpacing * 2f  // exactly 2 line spacings → middle C falls between staves
         val totalStavesH = staffH * 2 + gap
         val stavesOriginY = topPad + (totalAvail - totalStavesH) / 2f
@@ -979,22 +1014,28 @@ private fun GrandStaffCanvas(
         // EVERY card. Cards that draw clefs fill it with clef/armure/time-sig;
         // the others simply leave it empty.
         //
-        //   pureClefW = clef glyph zone        = max(staffH·0.26, 22dp)
-        //   ksW       = key-sig accidental zone = count·7dp + 4dp pad
-        //   tsW       = time-signature zone     = ~14dp (two stacked digits)
-        //   headerWidth = pureClefW + ksW + tsW   (reserved on every system)
+        //   pureClefW   = clef glyph zone        = max(staffH·0.26, 22dp)
+        //   ksW         = key-sig accidental zone = count·9dp + 5dp  (web parity)
+        //   tsW         = time-signature zone     = lineSpacing·2.4 + 6dp (web parity)
+        //   trailingPad = breathing room after TS = 8dp (web parity)
+        //   headerWidth = pureClefW + ksW + tsW + trailingPad (reserved on every system)
         val pureClefW = (staffH * 0.26f).coerceAtLeast(22.dp.toPx())
         // numAccidentals = what THIS card actually draws (clef cards only).
         val showKeySig = showClefs && clefMode != ClefMode.AUTO
         val numAccidentals = if (showKeySig) keySignatureAccidentalCount(keySig) else 0
         // Page-constant key-sig zone (reserved everywhere, even where not drawn).
-        val pageKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 7.dp.toPx() + 4.dp.toPx() else 0f
+        // Web: count * dp(9) + dp(5) — aligned to sheetMusic.js keySigBlockWidth().
+        val pageKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
         // Time-signature zone — reserved on every system (drawn on the first).
-        val tsW = if (clefMode != ClefMode.AUTO) (lineSpacing * 1.7f).coerceAtLeast(14.dp.toPx()) else 0f
+        // Web: lineSpacing * 2.4 + dp(6) — aligned to sheetMusic.js timeSigZoneWidth().
+        val tsW = if (clefMode != ClefMode.AUTO) lineSpacing * 2.4f + 6.dp.toPx() else 0f
+        // Trailing pad before the first note (web: dp(8)).
+        val trailingPad = 8.dp.toPx()
         // Header reserved on every card so the 4-column barline grid lines up.
-        val headerWidth = pureClefW + pageKsW + tsW
+        val headerWidth = pureClefW + pageKsW + tsW + trailingPad
         val barPad   = 10.dp.toPx()
-        val dotR     = lineSpacing * (if (isLandscape) 0.38f else 0.32f)
+        // dotR: web uses lineSpacing * (landscape ? 0.45 : 0.42) — aligned.
+        val dotR     = lineSpacing * (if (isLandscape) 0.45f else 0.42f)
 
         // ── Resolve clefs + note assignment per mode ──────────────────────
         val upperClef: StaffClefConfig
@@ -1052,16 +1093,18 @@ private fun GrandStaffCanvas(
             val bottomDiatonic = clef.lines.first()
 
             // ── Staff lines ─────────────────────────────────────────────
+            // Web: all lines neutral (rgba 255,255,255,0.14); key-anchor line
+            // is rgba(255,255,255,0.22) at 1.1dp. Hand identity comes from
+            // notehead colour, not from line colour.
             for (li in 0..4) {
                 val y = lineTop + li * lineSpacing
                 val lineDiatonic = clef.lines[4 - li]
                 val isKey = (lineDiatonic == clef.keyDiatonic)
-                val keyColor = if (si == 0) CyanMelody.copy(alpha = 0.72f) else PinkChords.copy(alpha = 0.72f)
                 drawLine(
-                    color = if (isKey) keyColor else Color.White.copy(alpha = 0.62f),
+                    color = if (isKey) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.14f),
                     start = Offset(bracketX + 2.dp.toPx(), y),
                     end   = Offset(w, y),
-                    strokeWidth = if (isKey) 1.6f else 1.2f
+                    strokeWidth = if (isKey) 1.1.dp.toPx() else 0.9.dp.toPx()
                 )
             }
 
@@ -1094,27 +1137,27 @@ private fun GrandStaffCanvas(
                         if (isTreble) TREBLE_SHARP_POS else BASS_SHARP_POS
                     }
                     val accLabel = if (keySig.useFlats) "♭" else "♯"
+                    // Web: lineSpacing * 1.9 px — aligned.
                     val accStyle = TextStyle(
-                        fontSize = (lineSpacing * 0.9f / density).sp,
+                        fontSize = (lineSpacing * 1.9f / density).sp,
                         color = Color.White.copy(alpha = 0.6f),
-                        fontWeight = FontWeight.Bold
                     )
+                    // Web: ax = pureClefW + dp(3) + i * dp(9), ay uses textBaseline='middle'.
                     val topD = clef.lines.last()
                     for (i in 0 until numAccidentals) {
                         val d = positions[i]
                         val accLayout = textMeasurer.measure(accLabel, accStyle)
-                        val ax = pureClefW + 2.dp.toPx() + i * 7.dp.toPx()
+                        val ax = pureClefW + 3.dp.toPx() + i * 9.dp.toPx()
                         val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height * 0.45f
                         drawText(accLayout, topLeft = Offset(ax, ay))
                     }
                 }
 
                 // ── Time signature (FIRST system only) ────────────────────
-                // Standard stacked bold numbers (numerator above denominator),
-                // each digit ≈ 2×lineSpacing tall so the pair spans the staff
-                // height. Drawn on BOTH staves, after the key signature, using
-                // the clef/armure colour. Reserved as tsW on every system; the
-                // glyphs themselves only render on the very first measure.
+                // Web: bold serif, lineSpacing*2 font; numerator centred at
+                // staffMidY - lineSpacing, denominator at staffMidY + lineSpacing
+                // (staffMidY = lineTop + 2*lineSpacing = the middle/3rd line).
+                // tsW zone starts after the (page-constant) key signature + dp(2) gap.
                 if (isFirstSystem && tsW > 0f) {
                     val tsStyle = TextStyle(
                         fontSize = (lineSpacing * 2f / density).sp,
@@ -1123,25 +1166,23 @@ private fun GrandStaffCanvas(
                     )
                     val numLayout = textMeasurer.measure(timeSigNumerator.toString(), tsStyle)
                     val denLayout = textMeasurer.measure(timeSigDenominator.toString(), tsStyle)
-                    // tsW zone starts after the (page-constant) key signature.
-                    val tsZoneStart = pureClefW + pageKsW
-                    val tsCenterX = tsZoneStart + tsW / 2f
-                    // Numerator centred on the upper half, denominator on the
-                    // lower half of the staff (each row ≈ 2×lineSpacing).
-                    val numCenterY = lineTop + lineSpacing
-                    val denCenterY = lineTop + 3f * lineSpacing
+                    val tsZoneStart = pureClefW + pageKsW + 2.dp.toPx()
+                    // Center the digit column inside tsW, matching web's digitCenterX.
+                    val tsCenterX = tsZoneStart + (tsW - 3.dp.toPx()) / 2f
+                    // Web: numerator at staffMidY - lineSpacing, denominator at +lineSpacing
+                    val staffMidY = lineTop + 2f * lineSpacing  // middle (3rd) line
                     drawText(
                         numLayout,
                         topLeft = Offset(
                             tsCenterX - numLayout.size.width / 2f,
-                            numCenterY - numLayout.size.height / 2f,
+                            staffMidY - lineSpacing - numLayout.size.height / 2f,
                         )
                     )
                     drawText(
                         denLayout,
                         topLeft = Offset(
                             tsCenterX - denLayout.size.width / 2f,
-                            denCenterY - denLayout.size.height / 2f,
+                            staffMidY + lineSpacing - denLayout.size.height / 2f,
                         )
                     )
                 }
@@ -1196,9 +1237,37 @@ private fun GrandStaffCanvas(
 
             // On small Android cards the staff can compress to <8px line
             // spacing; scale the stem factor down like the web so stems don't
-            // dwarf the noteheads. (≤8px lineSpacing → 2.6× instead of 3.2×.)
-            val stemFactor = if (lineSpacing <= 8f) 2.6f else 3.2f
+            // dwarf the noteheads. (≤8dp lineSpacing → 2.6× instead of 3.2×.)
+            val isCompact = lineSpacing <= 8.dp.toPx()
+            val stemFactor = if (isCompact) 2.6f else 3.2f
             val stemLenBase = lineSpacing * stemFactor
+
+            // Notehead radii — web: headRx = dotR * 1.08, headRy = dotR * 0.84.
+            // The notehead is an ellipse rotated -0.32 rad (≈18°) for the engraved look.
+            val headRx = dotR * 1.08f
+            val headRy = dotR * 0.84f
+
+            // Helper: draw a rotated-ellipse notehead (web parity).
+            // Compose Canvas doesn't support ellipse natively, so we use scale+circle.
+            // Captures DrawScope explicitly so it can be called from nested lambdas.
+            val hollowStrokeW = 1.7.dp.toPx()
+            val scope: androidx.compose.ui.graphics.drawscope.DrawScope = this
+            fun drawHead(cx: Float, cy: Float, filled: Boolean, headColor: Color) {
+                scope.withTransform({
+                    translate(cx, cy)
+                    rotate(degrees = -18.35f, pivot = Offset.Zero)  // -0.32 rad ≈ -18.35°
+                    scale(scaleX = headRx / headRy, scaleY = 1f, pivot = Offset.Zero)
+                }) {
+                    if (filled) {
+                        drawCircle(color = headColor, radius = headRy, center = Offset.Zero)
+                    } else {
+                        drawCircle(
+                            color = headColor, radius = headRy, center = Offset.Zero,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = hollowStrokeW),
+                        )
+                    }
+                }
+            }
 
             val chordRenders = mutableListOf<ChordRender>()
 
@@ -1220,16 +1289,17 @@ private fun GrandStaffCanvas(
                 // Walk bottom→top; when the previous head wasn't itself offset
                 // and this note is one step above it, offset whichever of the
                 // pair the rule selects. headDx[i] = horizontal shift for head i.
+                // Web: offset = headRx * 1.7 (full notehead width to the other side).
                 val headDx = FloatArray(items.size)
-                val headSpan = dotR * 2f * 0.92f  // adjacent-head centre spacing
+                val headSecondOffset = headRx * 1.7f
                 run {
                     var i = 1
                     while (i < items.size) {
                         val collides = (items[i].d - items[i - 1].d) == 1 &&
                             headDx[i - 1] == 0f
                         if (collides) {
-                            if (up) headDx[i] = headSpan        // upper → right
-                            else    headDx[i - 1] = -headSpan   // lower → left
+                            if (up) headDx[i] = headSecondOffset      // upper → right
+                            else    headDx[i - 1] = -headSecondOffset // lower → left
                             i += 2  // pair consumed
                         } else {
                             i += 1
@@ -1237,31 +1307,24 @@ private fun GrandStaffCanvas(
                     }
                 }
 
-                // Noteheads + ledger lines + accidentals per note.
+                // Noteheads + ledger lines + dots + accidentals per note.
                 items.forEachIndexed { idx2, it2 ->
                     val hx = it2.x + headDx[idx2]   // head x after second-offset
                     // Notehead: filled (solid) for ≤ quarter, hollow (ring) for ≥ half.
                     // Each note of a chord uses its OWN duration's head style.
-                    if (it2.dur.filled) {
-                        drawCircle(color = it2.color, radius = dotR, center = Offset(hx, it2.y))
-                    } else {
-                        drawCircle(
-                            color = it2.color, radius = dotR, center = Offset(hx, it2.y),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.7.dp.toPx()),
-                        )
-                    }
+                    drawHead(hx, it2.y, it2.dur.filled, it2.color)  // rotated ellipse, web parity
 
                     // Ledger lines (only when note is ≥2 diatonic steps outside
-                    // staff). Extend the line to cover an offset head so a
-                    // displaced chord-second still sits on its ledger.
-                    val ledgerCx = if (headDx[idx2] != 0f) (it2.x + hx) / 2f else it2.x
-                    val ledgerHalf = dotR * 1.5f + kotlin.math.abs(headDx[idx2]) / 2f
+                    // staff). Web: lx0 = min(x, x+headDx) - headRx - dp(2),
+                    //              lx1 = max(x, x+headDx) + headRx + dp(2)
+                    val lx0 = kotlin.math.min(it2.x, hx) - headRx - 2.dp.toPx()
+                    val lx1 = kotlin.math.max(it2.x, hx) + headRx + 2.dp.toPx()
                     if (it2.d > topDiatonic + 1) {
                         var ld = topDiatonic + 2
                         while (ld <= it2.d) {
                             val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                            drawLine(Color.White.copy(alpha = 0.5f),
-                                Offset(ledgerCx - ledgerHalf, ly), Offset(ledgerCx + ledgerHalf, ly), 0.9f)
+                            drawLine(Color.White.copy(alpha = 0.45f),
+                                Offset(lx0, ly), Offset(lx1, ly), 1.dp.toPx())
                             ld += 2
                         }
                     }
@@ -1269,27 +1332,42 @@ private fun GrandStaffCanvas(
                         var ld = bottomDiatonic - 2
                         while (ld >= it2.d) {
                             val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                            drawLine(Color.White.copy(alpha = 0.5f),
-                                Offset(ledgerCx - ledgerHalf, ly), Offset(ledgerCx + ledgerHalf, ly), 0.9f)
+                            drawLine(Color.White.copy(alpha = 0.45f),
+                                Offset(lx0, ly), Offset(lx1, ly), 1.dp.toPx())
                             ld -= 2
                         }
                     }
 
-                    // Accidental (#/b). Small superscript hugging the notehead's
-                    // top-right — glyph baseline sits ~0.55×lineSpacing above
-                    // the note centre (matching the web canvas fillText baseline).
-                    if (isBlackKey(it2.pitch)) {
-                        val label = if (useFlats) "b" else "#"
-                        val labelLayout = textMeasurer.measure(
-                            label,
-                            TextStyle(fontSize = 9.sp, color = it2.color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
+                    // Augmentation dot (showDetails gate matches web's showStems check).
+                    // Web: arc at x+headDx+headRx+dp(4), y + (onLine ? -lineSpacing/2 : 0),
+                    //      radius dp(1.6). Line notes nudge dot up into nearest space.
+                    if (showDetails && it2.dur.dotted) {
+                        val onLine = ((topDiatonic - it2.d) % 2) == 0
+                        val dotDy = if (onLine) -lineSpacing / 2f else 0f
+                        drawCircle(
+                            color = it2.color,
+                            radius = 1.6f.dp.toPx(),
+                            center = Offset(hx + headRx + 4.dp.toPx(), it2.y + dotDy),
                         )
-                        // topLeft.y = noteY − 0.55×lineSpacing − ascent
-                        // Ascent ≈ 80% of the measured text height for sp fonts.
-                        val accTopY = it2.y - lineSpacing * 0.55f - labelLayout.size.height * 0.8f
-                        // Hug the right edge of the (possibly offset) head.
-                        val accX = kotlin.math.max(hx, it2.x) + dotR * 0.85f
-                        drawText(labelLayout, topLeft = Offset(accX, accTopY))
+                    }
+
+                    // Accidental (♯/♭). Web: proper Unicode glyphs at
+                    //   x = x + max(0,dx) + headRx + dp(1)
+                    //   y = noteY − lineSpacing * 0.55  (alphabetic baseline)
+                    //   font: lineSpacing * 1.3 px
+                    if (isBlackKey(it2.pitch)) {
+                        val accLabel = if (useFlats) "♭" else "♯"
+                        val accStyle = TextStyle(
+                            fontSize = (lineSpacing * 1.3f / density).sp,
+                            color = it2.color,
+                        )
+                        val accLayout = textMeasurer.measure(accLabel, accStyle)
+                        // Web positions with textBaseline='alphabetic'; approximate:
+                        // alphabetic baseline ≈ topLeft.y + height * 0.8 (ascent fraction).
+                        val baselineY = it2.y - lineSpacing * 0.55f
+                        val accTopY = baselineY - accLayout.size.height * 0.8f
+                        val accX = kotlin.math.max(hx, it2.x) + headRx + 1.dp.toPx()
+                        drawText(accLayout, topLeft = Offset(accX, accTopY))
                     }
                 }
 
@@ -1321,13 +1399,15 @@ private fun GrandStaffCanvas(
                     chords = chordRenders,
                     midLineY = midLineY,
                     lineSpacing = lineSpacing,
-                    dotR = dotR,
+                    headRx = headRx,
+                    headRy = headRy,
                     stemLenBase = stemLenBase,
                     dpHalf = 0.5.dp.toPx(),
-                    stemWidth = 0.9.dp.toPx(),
-                    flag7 = 5.dp.toPx(),
-                    flag5 = 3.5.dp.toPx(),
-                    flag6 = 4.dp.toPx(),
+                    stemWidth = 0.9.dp.toPx(),  // deliberate: user requested 0.9dp thin stems
+                    // Flag curve control points (web: dp(7), dp(5), dp(6)).
+                    flag7 = 7.dp.toPx(),
+                    flag5 = 5.dp.toPx(),
+                    flag6 = 6.dp.toPx(),
                 )
             }
         }
@@ -1385,7 +1465,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     chords: List<ChordRender>,
     midLineY: Float,
     lineSpacing: Float,
-    dotR: Float,
+    headRx: Float,     // notehead half-width (web: dotR * 1.08)
+    headRy: Float,     // notehead half-height (web: dotR * 0.84)
     stemLenBase: Float,
     dpHalf: Float,
     stemWidth: Float,
@@ -1394,9 +1475,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     flag6: Float,
 ) {
     // Helper: where the stem meets the notehead block, given direction.
-    fun attachY(c: ChordRender, up: Boolean) = if (up) c.topY - dotR else c.botY + dotR
+    // Web: yAttach = stemUp ? botY - headRy : topY + headRy
+    fun attachY(c: ChordRender, up: Boolean) = if (up) c.topY - headRy else c.botY + headRy
     // Helper: the stem's x (right edge of head for up, left for down).
-    fun stemX(c: ChordRender, up: Boolean) = if (up) c.x + dotR - dpHalf else c.x - dotR + dpHalf
+    // Web: stemX = stemUp ? x + headRx - dp(0.5) : x - headRx + dp(0.5)
+    fun stemX(c: ChordRender, up: Boolean) = if (up) c.x + headRx - dpHalf else c.x - headRx + dpHalf
     // Nominal free-tip y for a standalone stem (clears the whole chord).
     fun nominalTip(c: ChordRender, up: Boolean) =
         if (up) c.botY - stemLenBase else c.topY + stemLenBase
@@ -1442,7 +1525,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     val beamItems = beamable.map { BeamItem(it.startBeat, it.durBeats, it.flags) }
     val groups = computeBeamGroups(beamItems)
 
-    val beamThickness = lineSpacing * 0.42f
+    // Web: beamTh = lineSpacing * 0.5 — aligned.
+    val beamThickness = lineSpacing * 0.5f
 
     for (group in groups) {
         val gChords = group.map { beamable[it] }
@@ -1464,6 +1548,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
 
         // Anchor the beam line at the first and last nominal tips, then clamp
         // the slope to ≤ 0.5×lineSpacing total span.
+        // Web: preserve the longer stem, adjust the shorter one.
         val first = gChords.first()
         val last = gChords.last()
         val x0 = stemX(first, up)
@@ -1471,11 +1556,16 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
         var y0 = nominalTip(first, up)
         var y1 = nominalTip(last, up)
         val maxSlope = lineSpacing * 0.5f
-        if (kotlin.math.abs(y1 - y0) > maxSlope) {
-            val mid = (y0 + y1) / 2f
-            val half = maxSlope / 2f
-            if (y1 >= y0) { y0 = mid - half; y1 = mid + half }
-            else { y0 = mid + half; y1 = mid - half }
+        val dy = y1 - y0
+        if (kotlin.math.abs(dy) > maxSlope) {
+            val target = kotlin.math.sign(dy) * maxSlope
+            val lenFirst = kotlin.math.abs(y0 - attachY(first, up))
+            val lenLast  = kotlin.math.abs(y1 - attachY(last, up))
+            if (lenFirst <= lenLast) {
+                y0 = y1 - target   // first end shorter → move it
+            } else {
+                y1 = y0 + target   // last end shorter → move it
+            }
         }
 
         // Interpolated beam y at an arbitrary x.
@@ -1485,9 +1575,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
             return y0 + (y1 - y0) * t
         }
 
-        // Ensure every stem reaches ≥ 2.5×lineSpacing; otherwise push the whole
-        // beam outward (away from the noteheads) by the largest deficit.
-        val minStem = lineSpacing * 2.5f
+        // Ensure every stem reaches ≥ MIN_STEM_FACTOR×lineSpacing; push the
+        // whole beam outward if any stem is too short.
+        // Web: compact (lineSpacing≤dp(8)) → 2.1×, normal → 2.5×.
+        val minStemFactor = if (lineSpacing <= 8.dp.toPx()) 2.1f else 2.5f
+        val minStem = lineSpacing * minStemFactor
         var push = 0f
         for (c in gChords) {
             val by = beamYAt(stemX(c, up))
