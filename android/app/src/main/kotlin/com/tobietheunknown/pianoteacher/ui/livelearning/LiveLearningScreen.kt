@@ -561,7 +561,7 @@ private fun OstinatoRoleBadge(
     val desc: String
     val reps: Int
     if (isChord) {
-        label = "Ostinato ${role.chordLabel}"
+        label = role.chordLabel ?: ""
         val altMention = if (role.chordAltered)
             " — altération" + (role.chordAlteredNote?.let { " ($it)" } ?: "")
         else ""
@@ -569,7 +569,7 @@ private fun OstinatoRoleBadge(
         reps = role.chordReps
     } else {
         val notes = role.ostinato!!.motifLabels.joinToString("·")
-        label = "Ostinato $notes"
+        label = notes
         desc = "Ostinato — motif répété ${role.ostinato.repetitions}× ($notes)"
         reps = role.ostinato.repetitions
     }
@@ -614,7 +614,7 @@ private fun PedalRoleBadge(
         ) {
             PedalGlyph(tone)
             Text(
-                "Pédale ${pedal.label}" + if (pedal.octave) " · 8va" else "",
+                pedal.label + if (pedal.octave) " · 8va" else "",
                 color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                 letterSpacing = 0.2.sp,
             )

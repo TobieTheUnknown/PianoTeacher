@@ -275,7 +275,7 @@ export function toKotlinKeySig(keySig) {
     return { root, isMinor, useFlats, keyName: `${note}-${mode}` };
 }
 
-// ─── Octave shift heuristics (8va/8vb/15ma/15mb) ─────────────────────────────
+// ─── Octave shift heuristics (Oct ±N labels) ─────────────────────────────────
 
 /**
  * Suggest an octave shift (in diatonic steps, multiples of 7) for the upper
@@ -466,9 +466,10 @@ export function computeHeaderWidth({ lineSpacing, keySig, showTimeSig = false, c
     const numAccidentals = clefMode !== 'AUTO' ? keySignatureAccidentalCount(keySig) : 0;
     const ksW = keySigBlockWidth(numAccidentals, dp);
     const tsW = showTimeSig ? timeSigZoneWidth(lineSpacing, dp) : 0;
-    // trailing pad before the first note (breathing room after the armure/TS).
-    const trailingPad = dp(8);
-    return clefGlyphZoneWidth(staffH, dp) + ksW + tsW + trailingPad;
+    // No trailing pad here — the standard leftPad (barPad + dotR×2) added by
+    // renderMeasure applies uniformly to BOTH clef and non-clef measures, giving
+    // a single source-of-truth inset and a tighter gap after the armure/TS.
+    return clefGlyphZoneWidth(staffH, dp) + ksW + tsW;
 }
 
 /**
@@ -750,7 +751,6 @@ export function renderMeasure(ctx, opts) {
 
         // Notes — duration-aware engraving.
         const color = si === 0 ? T.melody : T.chords;
-        const midLineY = lineTop + 2 * lineSpacing;           // middle (3rd) line
         const headRx = dotR * 1.08;                            // notehead radii
         const headRy = dotR * 0.84;
         // Musical content begins after the header zone (clef + armure + time
@@ -850,12 +850,29 @@ export function renderMeasure(ctx, opts) {
             }).sort((a, b) => a.d - b.d); // bottom → top
 
             const x = items[0].x;
-            const avgY = items.reduce((s, it) => s + it.y, 0) / items.length;
-            const stemUp = avgY >= midLineY;
+            // DEFAULT stem direction: upper staff (si===0, melody/MD) → stems UP;
+            // lower staff (si===1, chords/MG) → stems DOWN.
+            let stemUp = si === 0;
             const anyStem = items.some((it) => it.dur.stem);
             const maxFlags = items.reduce((m, it) => Math.max(m, it.dur.flags), 0);
             const topY = items[items.length - 1].y; // smallest y (highest note)
             const botY = items[0].y;                 // largest y (lowest note)
+
+            // ANTI-OVERLAP: compute where the stem tip would land with the default
+            // direction and flip if it would exit the drawable zone.
+            //   - Top guard: stavesOriginY − dp(4)  (just above the top staff line,
+            //     stays clear of the measure-number label area at y ≈ dp(5..17)).
+            //   - Bottom guard: h − dp(4)  (near the canvas bottom edge).
+            // The guard is a small fixed margin; dp(4) keeps it off the pixel edge
+            // without eating into the legit headroom that already sits above/below.
+            if (anyStem) {
+                const stemGuardTop    = stavesOriginY - dp(4);
+                const stemGuardBottom = h - dp(4);
+                const tipUp   = topY - lineSpacing * STEM_FACTOR;
+                const tipDown = botY + lineSpacing * STEM_FACTOR;
+                if (stemUp && tipUp < stemGuardTop)    stemUp = false; // flip to down
+                if (!stemUp && tipDown > stemGuardBottom) stemUp = true; // flip to up
+            }
 
             // Chord seconds: any two ADJACENT diatonic steps (|Δd| == 1) would
             // print their oval heads on top of each other. Standard engraving
@@ -965,66 +982,69 @@ export function renderMeasure(ctx, opts) {
             const members = grp.map((idx) => beamable[idx]);
             members.forEach((m) => beamIndexSet.add(m));
 
-            // Group stem direction: majority vote by (midY − noteY) sum.
-            const vote = members.reduce((s, m) => {
-                const noteY = (m.topY + m.botY) / 2;
-                return s + (midLineY - noteY);
-            }, 0);
-            const grpStemUp = vote >= 0; // ties → up
+            // DEFAULT beam stem direction: upper staff (si===0) → up, lower → down.
+            // ANTI-OVERLAP: after computing the beam extent (post slope-clamp + shove),
+            // flip the whole group if the beam tips would exit the drawable zone.
+            //   - Top guard: stavesOriginY − dp(4)
+            //   - Bottom guard: h − dp(4)
+            let grpStemUp = si === 0;
 
-            const dir = grpStemUp ? -1 : 1; // tip offset sign (up = above = smaller y)
-            // Each member's notehead reference for the stem tip + the beam.
-            const stemXOf = (m) => (grpStemUp ? m.x + headRx - dp(0.5) : m.x - headRx + dp(0.5));
-            // The notehead the stem grows FROM (outermost in stem direction).
-            const headYOf = (m) => (grpStemUp ? m.topY : m.botY);
-
-            const first = members[0];
-            const last = members[members.length - 1];
-            let tipFirstY = headYOf(first) + dir * lineSpacing * STEM_FACTOR;
-            let tipLastY = headYOf(last) + dir * lineSpacing * STEM_FACTOR;
-
-            // Slope clamp: |Δy| ≤ 0.5·lineSpacing, move the lower-magnitude end
-            // (the end whose stem from its own notehead is shorter), so the
-            // taller stem stays put and the flat-ish beam doesn't dip too far.
-            const maxSlope = 0.5 * lineSpacing;
-            const dy = tipLastY - tipFirstY;
-            if (Math.abs(dy) > maxSlope) {
-                const target = Math.sign(dy) * maxSlope; // signed clamped Δ
-                const lenFirst = Math.abs(tipFirstY - headYOf(first));
-                const lenLast = Math.abs(tipLastY - headYOf(last));
-                if (lenFirst <= lenLast) {
-                    // first end is shorter → move it, keep last
-                    tipFirstY = tipLastY - target;
-                } else {
-                    tipLastY = tipFirstY + target;
+            // Helper: compute beam geometry (slope-clamped + shoved) for a given direction.
+            const computeBeam = (stemUpDir) => {
+                const dirSign = stemUpDir ? -1 : 1;
+                const stemXOfDir = (m) => (stemUpDir ? m.x + headRx - dp(0.5) : m.x - headRx + dp(0.5));
+                const headYOfDir = (m) => (stemUpDir ? m.topY : m.botY);
+                const xF = stemXOfDir(members[0]);
+                const xL = stemXOfDir(members[members.length - 1]);
+                let tF = headYOfDir(members[0]) + dirSign * lineSpacing * STEM_FACTOR;
+                let tL = headYOfDir(members[members.length - 1]) + dirSign * lineSpacing * STEM_FACTOR;
+                // Slope clamp
+                const maxSlopeB = 0.5 * lineSpacing;
+                const dyB = tL - tF;
+                if (Math.abs(dyB) > maxSlopeB) {
+                    const target = Math.sign(dyB) * maxSlopeB;
+                    const lenF = Math.abs(tF - headYOfDir(members[0]));
+                    const lenL = Math.abs(tL - headYOfDir(members[members.length - 1]));
+                    if (lenF <= lenL) { tF = tL - target; } else { tL = tF + target; }
                 }
-            }
-
-            const xFirst = stemXOf(first);
-            const xLast = stemXOf(last);
-            const beamYAt = (x) => {
-                if (xLast === xFirst) return tipFirstY;
-                const t = (x - xFirst) / (xLast - xFirst);
-                return tipFirstY + t * (tipLastY - tipFirstY);
+                const beamAt = (bx) => {
+                    if (xL === xF) return tF;
+                    return tF + (bx - xF) / (xL - xF) * (tL - tF);
+                };
+                // Min-stem shove
+                const minStemB = lineSpacing * MIN_STEM_FACTOR;
+                let guardB = 0;
+                for (;;) {
+                    let worst = 0;
+                    for (const m of members) {
+                        const len = Math.abs(beamAt(stemXOfDir(m)) - headYOfDir(m));
+                        if (len < minStemB) worst = Math.max(worst, minStemB - len);
+                    }
+                    if (worst <= 0.01 || guardB++ > 8) break;
+                    tF += dirSign * worst; tL += dirSign * worst;
+                }
+                return { xF, xL, tF, tL, beamAt, stemXOf: stemXOfDir, headYOf: headYOfDir };
             };
 
-            // Ensure every interior stem is long enough; else push beam outward.
-            const minStem = lineSpacing * MIN_STEM_FACTOR;
-            let guard = 0;
-            for (;;) {
-                let worst = 0; // most-deficient (positive = too short by this much)
-                for (const m of members) {
-                    const by = beamYAt(stemXOf(m));
-                    const len = Math.abs(by - headYOf(m));
-                    if (len < minStem) worst = Math.max(worst, minStem - len);
+            // Compute with default direction, then check anti-overlap bounds.
+            let beam = computeBeam(grpStemUp);
+            {
+                const stemGuardTop    = stavesOriginY - dp(4);
+                const stemGuardBottom = h - dp(4);
+                const beamTop    = Math.min(beam.tF, beam.tL);
+                const beamBottom = Math.max(beam.tF, beam.tL);
+                if (grpStemUp && beamTop < stemGuardTop) {
+                    grpStemUp = false;
+                    beam = computeBeam(false);
+                } else if (!grpStemUp && beamBottom > stemGuardBottom) {
+                    grpStemUp = true;
+                    beam = computeBeam(true);
                 }
-                if (worst <= 0.01 || guard++ > 8) break;
-                const shove = dir * worst; // translate both anchors outward
-                tipFirstY += shove;
-                tipLastY += shove;
             }
 
-            // Recompute beam endpoints after any shove.
+            const { xF: xFirst, xL: xLast, beamAt: beamYAt, stemXOf } = beam;
+
+            // Beam endpoints.
             const yBeamFirst = beamYAt(xFirst);
             const yBeamLast = beamYAt(xLast);
 

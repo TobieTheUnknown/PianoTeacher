@@ -118,7 +118,7 @@ const OstinatoBadge = React.memo(function OstinatoBadge({ ostInfo, hand = 'left'
     let displayLabel, titleText, repsEl;
 
     if (ostInfo.kind === 'chord') {
-        displayLabel = `Ostinato ${ostInfo.label}`;
+        displayLabel = ostInfo.label; // icon conveys "ostinato"; tooltip carries the word
         const altMention = ostInfo.altered
             ? `${ostInfo.alteredNoteName ? ` — altération : ${ostInfo.alteredNoteName}` : ' — accord altéré/incomplet'}`
             : '';
@@ -130,7 +130,7 @@ const OstinatoBadge = React.memo(function OstinatoBadge({ ostInfo, hand = 'left'
     } else {
         // kind === 'motif'
         const notes = ostInfo.motifLabels.join('·');
-        displayLabel = `Ostinato ${notes}`;
+        displayLabel = notes; // icon conveys "ostinato"; tooltip carries the word
         titleText = `Ostinato — motif répété ${ostInfo.repetitions}× (${notes})`;
         repsEl = ostInfo.repetitions > 1
             ? <span style={{ fontSize: '0.78em', opacity: 0.8, flexShrink: 0 }}>×{ostInfo.repetitions}</span>
@@ -170,7 +170,7 @@ function PedalGlyph() {
 }
 
 const PedalBadge = React.memo(function PedalBadge({ pedal, hand = 'left' }) {
-    // "Pédale Ré · 8va" — sustained / repeated pedal tone.
+    // Icon conveys "pédale"; tooltip carries the word. Badge text: note label only.
     const t = handTokens(hand);
     return (
         <span
@@ -178,7 +178,7 @@ const PedalBadge = React.memo(function PedalBadge({ pedal, hand = 'left' }) {
             style={{ ...ROLE_BADGE_STYLE, background: t.bg, border: `2px solid ${t.border}`, color: t.fg }}
         >
             <PedalGlyph />
-            Pédale {pedal.label}{pedal.octave ? ' · 8va' : ''}
+            {pedal.label}{pedal.octave ? ' · 8va' : ''}
         </span>
     );
 });

@@ -705,9 +705,8 @@ fun LearningScreen(
                                     //   pureClefW   = max(staffH * 0.26, 22dp)
                                     //   pageKsW     = pageAccidentalCount * 9dp + 5dp (or 0)
                                     //   tsW         = lineSpacing * 1.8 + 4dp        (or 0, AUTO)
-                                    //   trailingPad = 8dp
-                                    //   hdrW        = pureClefW + pageKsW + tsW + trailingPad (clef card)
-                                    //                 0                                         (non-clef)
+                                    //   hdrW        = pureClefW + pageKsW + tsW      (clef card, no trailing pad)
+                                    //                 0                               (non-clef)
                                     //   noteAreaStart = hdrW + barPad + dotR * 2
                                     //   noteAreaEnd   = w - barPad - dotR
                                     val pw = size.width
@@ -724,7 +723,7 @@ fun LearningScreen(
                                     val tW = if (clefMode != ClefMode.AUTO) ls * 1.8f + 4.dp.toPx() else 0f
                                     // Non-clef cards have hdrW = 0 (they are physically
                                     // narrower; no header is reserved in their canvas).
-                                    val hdrW = if (showClefs) pClefW + pKsW + tW + 8.dp.toPx() else 0f
+                                    val hdrW = if (showClefs) pClefW + pKsW + tW else 0f
                                     val bPad = 10.dp.toPx()
                                     val dR = ls * (if (isLandscape) 0.45f else 0.42f)
                                     val noteAreaStart = hdrW + bPad + dR * 2f
@@ -800,7 +799,7 @@ fun LearningScreen(
                             val pClefWDp = (staffHDp * 0.26f).coerceAtLeast(22f)
                             val pKsWDp = if (pageAccidentalCount > 0) pageAccidentalCount * 9f + 5f else 0f
                             val tsWDp = if (clefMode != ClefMode.AUTO) lsDp * 1.8f + 4f else 0f
-                            val headerWidthDp = pClefWDp + pKsWDp + tsWDp + 8f  // trailingPad=8dp
+                            val headerWidthDp = pClefWDp + pKsWDp + tsWDp  // trailingPad removed
                             val musicalWidthDp = (rowWidthDp.value - headerWidthDp - totalGapDp.value) / cols
                             val firstCardWidthDp = headerWidthDp + musicalWidthDp
 
@@ -1092,9 +1091,9 @@ private fun GrandStaffCanvas(
         //   pureClefW   = clef glyph zone        = max(staffH·0.26, 22dp)
         //   ksW         = key-sig accidental zone = count·9dp + 5dp  (web parity)
         //   tsW         = time-signature zone     = lineSpacing·1.8 + 4dp (compact)
-        //   trailingPad = breathing room after TS = 8dp (web parity)
-        //   headerWidth = pureClefW + ksW + tsW + trailingPad  (clef cards only)
-        //                 0                                      (non-clef cards)
+        //   headerWidth = pureClefW + ksW + tsW  (clef cards only; no trailing pad —
+        //                 the barPad + dotR*2 leftPad already provides the first-note gap)
+        //                 0                        (non-clef cards)
         val pureClefW = (staffH * 0.26f).coerceAtLeast(22.dp.toPx())
         // numAccidentals = what THIS card actually draws (clef cards only).
         val showKeySig = showClefs && clefMode != ClefMode.AUTO
@@ -1103,10 +1102,8 @@ private fun GrandStaffCanvas(
         val pageKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
         // Time-signature zone — compact: lineSpacing * 1.8 + dp(4).
         val tsW = if (clefMode != ClefMode.AUTO) lineSpacing * 1.8f + 4.dp.toPx() else 0f
-        // Trailing pad before the first note (web: dp(8)).
-        val trailingPad = 8.dp.toPx()
         // Header only applied on clef cards; non-clef cards have canvas width = musicalWidth.
-        val headerWidth = if (showClefs) pureClefW + pageKsW + tsW + trailingPad else 0f
+        val headerWidth = if (showClefs) pureClefW + pageKsW + tsW else 0f
         val barPad   = 10.dp.toPx()
         // dotR: web uses lineSpacing * (landscape ? 0.45 : 0.42) — aligned.
         val dotR     = lineSpacing * (if (isLandscape) 0.45f else 0.42f)
@@ -1267,9 +1264,9 @@ private fun GrandStaffCanvas(
             if (showClefs && octShift != 0) {
                 val octLabel = when {
                     octShift >= 14 -> "15mb"
-                    octShift >= 7 -> "8vb"
+                    octShift >= 7  -> "8vb"
                     octShift <= -14 -> "15ma"
-                    octShift <= -7 -> "8va"
+                    octShift <= -7  -> "8va"
                     else -> ""
                 }
                 if (octLabel.isNotEmpty()) {
@@ -1350,10 +1347,15 @@ private fun GrandStaffCanvas(
                 val x = items.first().x
 
                 // ── Stem direction (decided up-front so chord-second offsets
-                // can push heads to the correct side of the stem). ──────────
+                // can push heads to the correct side of the stem).
+                // Default: upper staff (si==0, MD) → UP; lower staff (si==1, MG) → DOWN.
+                // Anti-overlap: if the nominal tip would exit the drawable zone, flip.
+                // (Drawable zone is approximated here without the anti-overlap pass;
+                //  for second-offset purposes we just need a stable direction before
+                //  drawStemsAndBeams does the full check.)
                 val anyStem = items.any { it.dur.stem }
                 val centerY = items.map { it.y }.average().toFloat()
-                val up = centerY >= midLineY
+                val up = si == 0  // MD default UP; MG default DOWN
 
                 // ── Chord-second resolution. Two noteheads on ADJACENT
                 // diatonic steps (|Δd| == 1) collide if drawn at the same x.
@@ -1469,8 +1471,14 @@ private fun GrandStaffCanvas(
 
             // ── Stems, flags & BEAMS — Détail layer only. ─────────────────
             if (showDetails) {
+                // Drawable zone for anti-overlap bounds:
+                //   topBound  = stavesOriginY (first staff top; below the measure-number area)
+                //   botBound  = stavesOriginY + totalStavesH + lineSpacing (small margin)
+                val drawTopBound = stavesOriginY
+                val drawBotBound = stavesOriginY + totalStavesH + lineSpacing
                 drawStemsAndBeams(
                     chords = chordRenders,
+                    staffIndex = si,
                     midLineY = midLineY,
                     lineSpacing = lineSpacing,
                     headRx = headRx,
@@ -1482,6 +1490,8 @@ private fun GrandStaffCanvas(
                     flag7 = 7.dp.toPx(),
                     flag5 = 5.dp.toPx(),
                     flag6 = 6.dp.toPx(),
+                    drawTopBound = drawTopBound,
+                    drawBotBound = drawBotBound,
                 )
             }
         }
@@ -1537,6 +1547,7 @@ private data class ChordRender(
  */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     chords: List<ChordRender>,
+    staffIndex: Int,   // 0 = upper staff (MD / melody, default UP); 1 = lower (MG / chords, default DOWN)
     midLineY: Float,
     lineSpacing: Float,
     headRx: Float,     // notehead half-width (web: dotR * 1.08)
@@ -1547,16 +1558,37 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     flag7: Float,
     flag5: Float,
     flag6: Float,
+    drawTopBound: Float,  // anti-overlap: top of drawable zone (below measure-number label)
+    drawBotBound: Float,  // anti-overlap: bottom of drawable zone (canvas bottom minus margin)
 ) {
+    // Default stem direction per staff:
+    //   upper staff (si=0, MD/melody) → UP
+    //   lower staff (si=1, MG/chords) → DOWN
+    val defaultUp = staffIndex == 0
+
     // Helper: where the stem meets the notehead block, given direction.
-    // Web: yAttach = stemUp ? botY - headRy : topY + headRy
-    fun attachY(c: ChordRender, up: Boolean) = if (up) c.topY - headRy else c.botY + headRy
+    // Stem-up   → attach at bottom of lowest note (botY − headRy), tip goes above
+    // Stem-down → attach at top of highest note   (topY + headRy), tip goes below
+    // (topY = smallest screen-y = highest pitch; botY = largest screen-y = lowest pitch)
+    fun attachY(c: ChordRender, up: Boolean) = if (up) c.botY - headRy else c.topY + headRy
     // Helper: the stem's x (right edge of head for up, left for down).
     // Web: stemX = stemUp ? x + headRx - dp(0.5) : x - headRx + dp(0.5)
     fun stemX(c: ChordRender, up: Boolean) = if (up) c.x + headRx - dpHalf else c.x - headRx + dpHalf
-    // Nominal free-tip y for a standalone stem (clears the whole chord).
+    // Nominal free-tip y for a standalone stem (starts at the far notehead, extends out).
+    // Stem-up: tip is above the top note → topY − stemLenBase
+    // Stem-down: tip is below the bottom note → botY + stemLenBase
     fun nominalTip(c: ChordRender, up: Boolean) =
-        if (up) c.botY - stemLenBase else c.topY + stemLenBase
+        if (up) c.topY - stemLenBase else c.botY + stemLenBase
+
+    // Anti-overlap direction check for a single chord.
+    // Returns true = up, false = down, after applying the default then flipping if
+    // the stem tip would exit the drawable zone.
+    fun resolveDirection(c: ChordRender, preferUp: Boolean): Boolean {
+        val tip = nominalTip(c, preferUp)
+        val wouldExitTop = preferUp && tip < drawTopBound
+        val wouldExitBot = !preferUp && tip > drawBotBound
+        return if (wouldExitTop || wouldExitBot) !preferUp else preferUp
+    }
 
     // Draw a plain shared stem (no flag) — quarters/halves and the trunk of any
     // chord whose flag/beam is handled separately.
@@ -1587,7 +1619,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
 
     // ── Non-beamable stemmed chords (flags == 0): plain stems. ──
     chords.filter { it.anyStem && it.flags == 0 }.forEach { c ->
-        val up = c.centerY >= midLineY
+        val up = resolveDirection(c, defaultUp)
         drawPlainStem(c, up, nominalTip(c, up))
     }
 
@@ -1608,22 +1640,25 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
         if (gChords.size == 1) {
             // Singleton — keep the flag.
             val c = gChords[0]
-            val up = c.centerY >= midLineY
+            val up = resolveDirection(c, defaultUp)
             val tip = nominalTip(c, up)
             drawPlainStem(c, up, tip)
             drawFlags(c, up, tip)
             continue
         }
 
-        // ── Group beam. Signed-vote direction (web parity — ties up). ──
-        // Web: vote = Σ(midLineY − noteCenterY); grpStemUp = vote >= 0
-        // Note: noteCenterY = (topY + botY) / 2 per chord. Notes ABOVE midLine
-        // produce a positive contribution → up-stem (beams in the inter-staff gap).
-        val vote = gChords.sumOf { c ->
-            val noteCenterY = (c.topY + c.botY) / 2.0
-            (midLineY - noteCenterY).toDouble()
+        // ── Group beam. Default per-staff direction + anti-overlap. ──
+        // Compute the would-be beam tip extent using the first/last nominal tips
+        // (after slope clamping) and flip the whole group if the beam exits bounds.
+        val up: Boolean
+        run {
+            val c0 = gChords.first(); val cN = gChords.last()
+            val tip0 = nominalTip(c0, defaultUp); val tipN = nominalTip(cN, defaultUp)
+            val beamMin = minOf(tip0, tipN); val beamMax = maxOf(tip0, tipN)
+            val wouldExitTop = defaultUp && beamMin < drawTopBound
+            val wouldExitBot = !defaultUp && beamMax > drawBotBound
+            up = if (wouldExitTop || wouldExitBot) !defaultUp else defaultUp
         }
-        val up = vote >= 0.0
         val dir = if (up) -1f else 1f         // beam offset direction from notehead
 
         // Anchor the beam line at the first and last nominal tips, then clamp

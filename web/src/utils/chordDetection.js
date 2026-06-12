@@ -606,8 +606,8 @@ export function qualifyOstinatoMeasure(chordGroups, keySignature) {
  *
  * The hand has ≤2 distinct pitch classes AND its notes are either HELD
  * (duration ≥ half the measure) or simply repeated on the same pitch(es).
- * Returns the held/repeated note label, plus an "8va" flag when two
- * simultaneous pitches sit exactly an octave apart.
+ * Returns the held/repeated note label, plus an "octave" flag (8va)
+ * when two simultaneous pitches sit exactly an octave apart.
  *
  * @param {Array<{startTime:number, notes:Array}>} chordGroups
  * @param {number} unitsPerMeasure  duration units that span one full measure (default 4)
