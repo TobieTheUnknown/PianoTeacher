@@ -172,7 +172,7 @@ export const BASS_CLEF = {
     keyDiatonic: 31,
     keyLineFromTop: 1,
     lines: [25, 27, 29, 31, 33],
-    anchorFrac: 0.20,
+    anchorFrac: 0.44,
     fontScale: 0.95,
     extraYOffset: -2,
 };

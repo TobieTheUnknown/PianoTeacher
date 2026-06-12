@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -168,7 +169,7 @@ private val BASS_CLEF = StaffClefConfig(
     name = "Fa", glyph = "\uD834\uDD22",
     keyDiatonic = 31, keyLineFromTop = 1,
     lines = intArrayOf(25, 27, 29, 31, 33),  // G2, B2, D3, F3, A3
-    anchorFrac = 0.20f, fontScale = 0.64f, extraYOffset = 11f
+    anchorFrac = 0.44f, fontScale = 0.64f, extraYOffset = 11f
 )
 
 private val ALTO_CLEF = StaffClefConfig(
@@ -341,21 +342,20 @@ fun LearningScreen(
     var showRenamePhraseDialog by remember { mutableStateOf<Int?>(null) }
     var showSplitDialog by remember { mutableStateOf<Int?>(null) }
 
-    // Grid state hoisted so the auto-scroll effect can reach it.
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    // Row-list state (replaces LazyGridState after the weighted-column refactor).
+    val gridState = rememberLazyListState()
 
     // Auto-scroll when playing measure changes — keeps the active row in view.
     LaunchedEffect(playingMeasure) {
         if (playingMeasure >= 0) {
             val cols = if (isLandscape) 4 else 2
-            // Scroll the row containing the playing measure into view a bit
-            // above centre so we always see the next measure incoming.
-            val rowStart = (playingMeasure / cols) * cols
+            // Row index = measure index / cols.
+            val rowIdx = playingMeasure / cols
             val currentFirst = gridState.firstVisibleItemIndex
-            if (rowStart < currentFirst) {
-                gridState.scrollToItem(rowStart)
+            if (rowIdx < currentFirst) {
+                gridState.scrollToItem(rowIdx)
             } else {
-                gridState.animateScrollToItem(rowStart)
+                gridState.animateScrollToItem(rowIdx)
             }
         }
     }
@@ -599,159 +599,235 @@ fun LearningScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // Vertical 2-col grid in portrait (4-col in landscape) so
-                // the user sees several measures at once and doesn't need
-                // to follow a fast horizontal scroll.
+                // Weighted-column layout: LazyColumn of rows. Each row has `cols`
+                // measure cards. The first card of each row carries clef + armure +
+                // time-sig (headerWidth px) so it is physically wider; the remaining
+                // cards of the row carry only musical content and are equal in width.
+                // This mirrors the web layout: musicalWidth = (rowWidth − headerWidth
+                // − gaps) / cols, firstCardWidth = headerWidth + musicalWidth.
+                //
+                // Portrait: 2 columns.  Landscape: 4 columns.
                 val cols = if (isLandscape) 4 else 2
-                // Page-constant key-signature accidental count. Key signatures
-                // only render in fixed-clef modes (not AUTO). Reserved as header
-                // space on every card so all systems share one barline grid.
+                // Key-sig accidental count — only in fixed-clef modes.
                 val pageAccidentalCount =
                     if (clefMode != ClefMode.AUTO) keySignatureAccidentalCount(keySignature) else 0
-                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(cols),
+                // Compute the number of rows (ceiling division).
+                val totalRows = (allMeasures.size + cols - 1) / cols
+
+                // Card height.
+                val cardH = if (isLandscape) 180.dp else 280.dp
+                // Horizontal gap between cards in a row.
+                val colGap = 6.dp
+
+                // Helper composable that builds one measure card and the playhead overlay.
+                @Composable
+                fun MeasureCard(idx: Int, showClefs: Boolean, cardModifier: Modifier) {
+                    val measure = allMeasures[idx]
+                    val mIsPlaying = measure.globalIndex == playingMeasure
+                    val mIsFocused = measure.globalIndex == focusedMeasure
+                    Column(
+                        modifier = cardModifier
+                            .height(cardH)
+                            .clickable { vm.playMeasureSingle(measure.globalIndex) }
+                    ) {
+                        // Compact measure-number header.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                String.format("%02d", measure.globalIndex + 1),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (mIsPlaying) IndigoAccent else TextMuted,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            )
+                            if (mIsFocused || mIsPlaying) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(if (mIsPlaying) IndigoAccent else Color.White.copy(alpha = 0.3f))
+                                )
+                            }
+                        }
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            GrandStaffCanvas(
+                                melodyNotes = measure.melodyNotes,
+                                chordNotes = measure.chordNotes,
+                                beatsPerMeasure = song!!.beatsPerMeasure,
+                                useFlats = useFlats,
+                                showClefs = showClefs,
+                                isPlaying = mIsPlaying,
+                                isFocused = mIsFocused,
+                                measureNumber = measure.globalIndex + 1,
+                                clefMode = clefMode,
+                                lowerOctaveShift = lowerStaffOctaveShift,
+                                upperOctaveShift = upperStaffOctaveShift,
+                                isLandscape = isLandscape,
+                                keySig = keySignature,
+                                showDetails = showDetails,
+                                pageAccidentalCount = pageAccidentalCount,
+                                timeSigNumerator = song!!.timeSignature.numerator,
+                                timeSigDenominator = song!!.timeSignature.denominator,
+                                isFirstSystem = idx == 0,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            // Animated playhead — mirrors GrandStaffCanvas geometry
+                            // exactly so the line tracks noteheads on both clef and
+                            // non-clef cards.
+                            //
+                            // Key invariant: GrandStaffCanvas now sets headerWidth = 0
+                            // when showClefs == false (the canvas is already narrower),
+                            // so the playhead here also uses hdrW = 0 for non-clef
+                            // cards — the same condition as the canvas itself.
+                            if (mIsPlaying && song != null) {
+                                val beatMs = (60_000.0 / (song!!.tempo * tempoPercent)).toLong()
+                                val measureDurMs = beatMs * song!!.beatsPerMeasure
+                                val frac by produceState(initialValue = 0f, mIsPlaying, measureDurMs) {
+                                    val start = android.os.SystemClock.elapsedRealtime()
+                                    while (true) {
+                                        val elapsed = android.os.SystemClock.elapsedRealtime() - start
+                                        value = ((elapsed.toFloat() / measureDurMs) % 1f).coerceIn(0f, 1f)
+                                        kotlinx.coroutines.delay(16)
+                                    }
+                                }
+                                val haloColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.10f) }
+                                val lineColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.95f) }
+                                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                                    // Replicate GrandStaffCanvas time→x mapping.
+                                    // Formula (keep in sync with GrandStaffCanvas):
+                                    //   lineSpacing = (avail / 17).clamp(7dp, staffHMax/4)
+                                    //   staffH      = lineSpacing * 4
+                                    //   pureClefW   = max(staffH * 0.26, 22dp)
+                                    //   pageKsW     = pageAccidentalCount * 9dp + 5dp (or 0)
+                                    //   tsW         = lineSpacing * 1.8 + 4dp        (or 0, AUTO)
+                                    //   trailingPad = 8dp
+                                    //   hdrW        = pureClefW + pageKsW + tsW + trailingPad (clef card)
+                                    //                 0                                         (non-clef)
+                                    //   noteAreaStart = hdrW + barPad + dotR * 2
+                                    //   noteAreaEnd   = w - barPad - dotR
+                                    val pw = size.width
+                                    val ph = size.height
+                                    val numAreaH = STAFF_NUM_AREA_DP.dp.toPx()
+                                    val topPad   = numAreaH + 8.dp.toPx()
+                                    val botPad   = STAFF_BOTTOM_PAD_DP.dp.toPx()
+                                    val avail    = ph - topPad - botPad
+                                    val staffHMax = if (isLandscape) 70.dp.toPx() else STAFF_H_MAX_DP.dp.toPx()
+                                    val ls = (avail / 17f).coerceAtMost(staffHMax / 4f).coerceAtLeast(7.dp.toPx())
+                                    val sH = ls * 4f
+                                    val pClefW = (sH * 0.26f).coerceAtLeast(22.dp.toPx())
+                                    val pKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
+                                    val tW = if (clefMode != ClefMode.AUTO) ls * 1.8f + 4.dp.toPx() else 0f
+                                    // Non-clef cards have hdrW = 0 (they are physically
+                                    // narrower; no header is reserved in their canvas).
+                                    val hdrW = if (showClefs) pClefW + pKsW + tW + 8.dp.toPx() else 0f
+                                    val bPad = 10.dp.toPx()
+                                    val dR = ls * (if (isLandscape) 0.45f else 0.42f)
+                                    val noteAreaStart = hdrW + bPad + dR * 2f
+                                    val noteAreaEnd   = pw - bPad - dR
+                                    val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
+                                    val haloW = 8.dp.toPx() * 2f
+                                    drawRect(
+                                        color = haloColor,
+                                        topLeft = androidx.compose.ui.geometry.Offset(x - haloW / 2f, 0f),
+                                        size = androidx.compose.ui.geometry.Size(haloW, size.height),
+                                    )
+                                    drawRect(
+                                        color = lineColor,
+                                        topLeft = androidx.compose.ui.geometry.Offset(x - 1f, 0f),
+                                        size = androidx.compose.ui.geometry.Size(2f, size.height),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Weighted-split row list. Each LazyColumn item is one full row of
+                // `cols` measures: the first Box gets weight=(cols-1+1)/(cols) share
+                // plus the headerWidth, the rest are equal musicalWidth boxes.
+                //
+                // Concretely: use BoxWithConstraints inside each row so we can
+                // compute the musicalWidth from the available row width, then give
+                // the first card a fixed extra width = headerWidth (computed from ls).
+                // Since ls depends on card height (which is fixed), we compute a
+                // representative ls here for the weight calculation.
+                //
+                // Simpler approach: use Modifier.weight(). The first card gets
+                // weight (cols) / cols and the others get weight (cols-1) / cols —
+                // but that doesn't give us exact pixel-equal musical spans.
+                //
+                // We use a 2-pass approach: first card gets `wFirst` via fillMaxWidth
+                // fraction; subsequent cards split the remainder equally.
+                // For simplicity and exactness we use BoxWithConstraints in the row.
+                LazyColumn(
                     state = gridState,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(
-                        count = allMeasures.size,
-                        key = { allMeasures[it].globalIndex }
-                    ) { idx ->
-                        val measure = allMeasures[idx]
-                        val isPlaying = measure.globalIndex == playingMeasure
-                        val isFocused = measure.globalIndex == focusedMeasure
-                        // Show clefs on the first card of each row so every
-                        // line of the grid reads as a system.
-                        val showClefs = (idx % cols == 0) || idx == 0 || (clefMode == ClefMode.AUTO && idx > 0 && run {
-                            val prev = allMeasures[idx - 1]
-                            selectClef(prev.melodyNotes, useFlats).name != selectClef(measure.melodyNotes, useFlats).name ||
-                            selectClef(prev.chordNotes, useFlats).name != selectClef(measure.chordNotes, useFlats).name
-                        })
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(if (isLandscape) 180.dp else 280.dp)
-                                .clickable {
-                                    vm.playMeasureSingle(measure.globalIndex)
-                                }
+                        count = totalRows,
+                        key = { rowIdx -> allMeasures.getOrNull(rowIdx * cols)?.globalIndex ?: rowIdx }
+                    ) { rowIdx ->
+                        val baseIdx = rowIdx * cols
+                        BoxWithConstraints(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            // Compact measure-number header (replaces the
-                            // duplicated mini timeline that was eating
-                            // ~80dp of card height).
+                            // Available row width in dp (excludes content padding, includes
+                            // the gaps between cards).
+                            val rowWidthDp = maxWidth
+                            // Total horizontal gap consumed by (cols-1) inter-card gaps.
+                            val totalGapDp = colGap * (cols - 1)
+                            // Musical width per card (equal for all cards in the row).
+                            // First card = headerWidth + musicalWidth; others = musicalWidth.
+                            // We approximate headerWidth in dp using a fixed fraction of
+                            // card height; the Canvas itself recomputes in exact px so
+                            // the playhead always matches.  For the layout split we need
+                            // only a reasonable dp estimate.
+                            // headerWidthDp ≈ (staffH * 0.26 max 22dp) + ksW + tsW + 8dp
+                            // staffH ≈ lineSpacing * 4; ls ≈ cardH_px/17 — but we want dp.
+                            // With cardH = 280dp: avail_dp = 280 - 22 - 8 = 250; ls_dp ≈ 14.7.
+                            // With cardH = 180dp: avail_dp = 180 - 22 - 8 = 150; ls_dp ≈ 8.8.
+                            val lsDp = ((cardH.value - STAFF_NUM_AREA_DP - 8f - STAFF_BOTTOM_PAD_DP) / 17f)
+                                .coerceAtMost((if (isLandscape) 70f else STAFF_H_MAX_DP) / 4f)
+                                .coerceAtLeast(7f)
+                            val staffHDp = lsDp * 4f
+                            val pClefWDp = (staffHDp * 0.26f).coerceAtLeast(22f)
+                            val pKsWDp = if (pageAccidentalCount > 0) pageAccidentalCount * 9f + 5f else 0f
+                            val tsWDp = if (clefMode != ClefMode.AUTO) lsDp * 1.8f + 4f else 0f
+                            val headerWidthDp = pClefWDp + pKsWDp + tsWDp + 8f  // trailingPad=8dp
+                            val musicalWidthDp = (rowWidthDp.value - headerWidthDp - totalGapDp.value) / cols
+                            val firstCardWidthDp = headerWidthDp + musicalWidthDp
+
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(colGap),
                             ) {
-                                Text(
-                                    String.format("%02d", measure.globalIndex + 1),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isPlaying) IndigoAccent else TextMuted,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                )
-                                if (isFocused || isPlaying) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(RoundedCornerShape(50))
-                                            .background(if (isPlaying) IndigoAccent else Color.White.copy(alpha = 0.3f))
+                                for (col in 0 until cols) {
+                                    val idx = baseIdx + col
+                                    if (idx >= allMeasures.size) {
+                                        // Filler box so the row is full-width.
+                                        val fillerWidthDp = if (col == 0) firstCardWidthDp else musicalWidthDp
+                                        Box(modifier = Modifier.width(fillerWidthDp.dp).height(cardH))
+                                        continue
+                                    }
+                                    val isFirstInRow = col == 0
+                                    val showClefs = isFirstInRow || (clefMode == ClefMode.AUTO && idx > 0 && run {
+                                        val prev = allMeasures[idx - 1]
+                                        selectClef(prev.melodyNotes, useFlats).name != selectClef(allMeasures[idx].melodyNotes, useFlats).name ||
+                                        selectClef(prev.chordNotes, useFlats).name != selectClef(allMeasures[idx].chordNotes, useFlats).name
+                                    })
+                                    val cardWidthDp = if (isFirstInRow) firstCardWidthDp else musicalWidthDp
+                                    MeasureCard(
+                                        idx = idx,
+                                        showClefs = showClefs,
+                                        cardModifier = Modifier.width(cardWidthDp.dp)
                                     )
-                                }
-                            }
-                            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                                GrandStaffCanvas(
-                                    melodyNotes = measure.melodyNotes,
-                                    chordNotes = measure.chordNotes,
-                                    beatsPerMeasure = song!!.beatsPerMeasure,
-                                    useFlats = useFlats,
-                                    showClefs = showClefs,
-                                    isPlaying = isPlaying,
-                                    isFocused = isFocused,
-                                    measureNumber = measure.globalIndex + 1,
-                                    clefMode = clefMode,
-                                    lowerOctaveShift = lowerStaffOctaveShift,
-                                    upperOctaveShift = upperStaffOctaveShift,
-                                    isLandscape = isLandscape,
-                                    keySig = keySignature,
-                                    showDetails = showDetails,
-                                    pageAccidentalCount = pageAccidentalCount,
-                                    timeSigNumerator = song!!.timeSignature.numerator,
-                                    timeSigDenominator = song!!.timeSignature.denominator,
-                                    isFirstSystem = idx == 0,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                // Animated playhead — vertical accent line
-                                // that traverses the measure left→right in
-                                // sync with the current beat.
-                                if (isPlaying && song != null) {
-                                    val beatMs = (60_000.0 / (song!!.tempo * tempoPercent)).toLong()
-                                    val measureDurMs = beatMs * song!!.beatsPerMeasure
-                                    val frac by produceState(initialValue = 0f, isPlaying, measureDurMs) {
-                                        val start = android.os.SystemClock.elapsedRealtime()
-                                        while (true) {
-                                            val elapsed = android.os.SystemClock.elapsedRealtime() - start
-                                            value = ((elapsed.toFloat() / measureDurMs) % 1f).coerceIn(0f, 1f)
-                                            kotlinx.coroutines.delay(16)
-                                        }
-                                    }
-                                    // Hoist the .copy() outside DrawScope so 60Hz frame loop
-                                    // doesn't allocate two Color objects per frame.
-                                    val haloColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.10f) }
-                                    val lineColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.95f) }
-                                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                                        // Replicate the EXACT same time→x mapping as GrandStaffCanvas
-                                        // so the playhead tracks noteheads precisely even on clef cards.
-                                        //
-                                        // Formula mirrors GrandStaffCanvas (keep in sync if that changes):
-                                        //   lineSpacing = (h / 17).clamp(7dp, staffHMax/4)
-                                        //   staffH      = lineSpacing * 4
-                                        //   pureClefW   = max(staffH * 0.26, 22dp)
-                                        //   pageKsW     = pageAccidentalCount * 9dp + 5dp  (or 0)
-                                        //   tsW         = lineSpacing * 2.4 + 6dp          (or 0, AUTO)
-                                        //   trailingPad = 8dp
-                                        //   headerWidth = pureClefW + pageKsW + tsW + trailingPad (clef cards)
-                                        //                 0                                         (non-clef)
-                                        //   barPad      = 10dp
-                                        //   dotR        = lineSpacing * (landscape ? 0.45 : 0.42)
-                                        //   leftPad     = barPad + dotR * 2
-                                        //   noteAreaStart = headerWidth + leftPad
-                                        //   noteAreaEnd   = w - barPad - dotR
-                                        val w = size.width
-                                        val h = size.height
-                                        val numAreaH = STAFF_NUM_AREA_DP.dp.toPx()
-                                        val topPad   = numAreaH + 8.dp.toPx()
-                                        val botPad   = STAFF_BOTTOM_PAD_DP.dp.toPx()
-                                        val avail    = h - topPad - botPad
-                                        val staffHMax = if (isLandscape) 70.dp.toPx() else STAFF_H_MAX_DP.dp.toPx()
-                                        val ls = (avail / 17f).coerceAtMost(staffHMax / 4f).coerceAtLeast(7.dp.toPx())
-                                        val sH = ls * 4f
-                                        val pClefW = (sH * 0.26f).coerceAtLeast(22.dp.toPx())
-                                        val pKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
-                                        val tW = if (clefMode != ClefMode.AUTO) ls * 2.4f + 6.dp.toPx() else 0f
-                                        val hdrW = if (showClefs) pClefW + pKsW + tW + 8.dp.toPx() else 0f
-                                        val bPad = 10.dp.toPx()
-                                        val dR = ls * (if (isLandscape) 0.45f else 0.42f)
-                                        val noteAreaStart = hdrW + bPad + dR * 2f
-                                        val noteAreaEnd   = w - bPad - dR
-                                        val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
-                                        val haloW = 8.dp.toPx() * 2f
-                                        drawRect(
-                                            color = haloColor,
-                                            topLeft = androidx.compose.ui.geometry.Offset(x - haloW / 2f, 0f),
-                                            size = androidx.compose.ui.geometry.Size(haloW, size.height),
-                                        )
-                                        drawRect(
-                                            color = lineColor,
-                                            topLeft = androidx.compose.ui.geometry.Offset(x - 1f, 0f),
-                                            size = androidx.compose.ui.geometry.Size(2f, size.height),
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -1007,32 +1083,30 @@ private fun GrandStaffCanvas(
         val stavesOriginY = topPad + (totalAvail - totalStavesH) / 2f
 
         // ── Header width (clef + armure + time signature) ──────────────────
-        // The musical time→x mapping must start AFTER the clef + key signature
-        // (+ time signature on system 1). To keep all 4 measures of a row the
-        // SAME pixel width — so barlines form a clean 4-column grid aligned
-        // across every system — we reserve ONE page-constant headerWidth on
-        // EVERY card. Cards that draw clefs fill it with clef/armure/time-sig;
-        // the others simply leave it empty.
+        // The musical time→x mapping starts AFTER the clef + key signature
+        // (+ time signature on system 1). After the weighted-column layout refactor,
+        // the FIRST card of each row is physically wider by headerWidth, so
+        // non-clef cards no longer need to reserve it — their canvas width is
+        // already equal to musicalWidth only.
         //
         //   pureClefW   = clef glyph zone        = max(staffH·0.26, 22dp)
         //   ksW         = key-sig accidental zone = count·9dp + 5dp  (web parity)
-        //   tsW         = time-signature zone     = lineSpacing·2.4 + 6dp (web parity)
+        //   tsW         = time-signature zone     = lineSpacing·1.8 + 4dp (compact)
         //   trailingPad = breathing room after TS = 8dp (web parity)
-        //   headerWidth = pureClefW + ksW + tsW + trailingPad (reserved on every system)
+        //   headerWidth = pureClefW + ksW + tsW + trailingPad  (clef cards only)
+        //                 0                                      (non-clef cards)
         val pureClefW = (staffH * 0.26f).coerceAtLeast(22.dp.toPx())
         // numAccidentals = what THIS card actually draws (clef cards only).
         val showKeySig = showClefs && clefMode != ClefMode.AUTO
         val numAccidentals = if (showKeySig) keySignatureAccidentalCount(keySig) else 0
-        // Page-constant key-sig zone (reserved everywhere, even where not drawn).
-        // Web: count * dp(9) + dp(5) — aligned to sheetMusic.js keySigBlockWidth().
+        // Page-constant key-sig zone (only needed on clef cards now).
         val pageKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
-        // Time-signature zone — reserved on every system (drawn on the first).
-        // Web: lineSpacing * 2.4 + dp(6) — aligned to sheetMusic.js timeSigZoneWidth().
-        val tsW = if (clefMode != ClefMode.AUTO) lineSpacing * 2.4f + 6.dp.toPx() else 0f
+        // Time-signature zone — compact: lineSpacing * 1.8 + dp(4).
+        val tsW = if (clefMode != ClefMode.AUTO) lineSpacing * 1.8f + 4.dp.toPx() else 0f
         // Trailing pad before the first note (web: dp(8)).
         val trailingPad = 8.dp.toPx()
-        // Header reserved on every card so the 4-column barline grid lines up.
-        val headerWidth = pureClefW + pageKsW + tsW + trailingPad
+        // Header only applied on clef cards; non-clef cards have canvas width = musicalWidth.
+        val headerWidth = if (showClefs) pureClefW + pageKsW + tsW + trailingPad else 0f
         val barPad   = 10.dp.toPx()
         // dotR: web uses lineSpacing * (landscape ? 0.45 : 0.42) — aligned.
         val dotR     = lineSpacing * (if (isLandscape) 0.45f else 0.42f)
@@ -1160,7 +1234,7 @@ private fun GrandStaffCanvas(
                 // tsW zone starts after the (page-constant) key signature + dp(2) gap.
                 if (isFirstSystem && tsW > 0f) {
                     val tsStyle = TextStyle(
-                        fontSize = (lineSpacing * 2f / density).sp,
+                        fontSize = (lineSpacing * 1.6f / density).sp,
                         color = Color.White.copy(alpha = 0.6f),
                         fontWeight = FontWeight.Bold,
                     )
@@ -1541,9 +1615,15 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
             continue
         }
 
-        // ── Group beam. Majority-vote direction (ties up). ──
-        val upVotes = gChords.count { it.centerY >= midLineY }
-        val up = upVotes * 2 >= gChords.size  // ties → up
+        // ── Group beam. Signed-vote direction (web parity — ties up). ──
+        // Web: vote = Σ(midLineY − noteCenterY); grpStemUp = vote >= 0
+        // Note: noteCenterY = (topY + botY) / 2 per chord. Notes ABOVE midLine
+        // produce a positive contribution → up-stem (beams in the inter-staff gap).
+        val vote = gChords.sumOf { c ->
+            val noteCenterY = (c.topY + c.botY) / 2.0
+            (midLineY - noteCenterY).toDouble()
+        }
+        val up = vote >= 0.0
         val dir = if (up) -1f else 1f         // beam offset direction from notehead
 
         // Anchor the beam line at the first and last nominal tips, then clamp
