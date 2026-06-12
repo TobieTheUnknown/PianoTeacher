@@ -415,6 +415,81 @@ export function computeBeamGroups(items) {
     return groups;
 }
 
+// ─── Header (clef + armure + time signature) geometry ───────────────────────
+//
+// The "header" is the fixed zone drawn at the LEFT of a system's first measure
+// when showClefs is true: the clef glyph, the key-signature accidentals
+// (armure) and — on the very first system — the time signature. Both
+// renderMeasure() and the React layer need its exact pixel width so the four
+// measures of a system can share equal MUSICAL widths and their barlines line
+// up in a clean grid. To guarantee they never drift, renderMeasure() and
+// computeHeaderWidth() derive every horizontal constant from the helpers below.
+
+/**
+ * Per-accidental horizontal advance in the key signature. Shared by the
+ * renderer and the header-width calculator so they can't disagree.
+ */
+function accStepPx(dp) {
+    return dp(9);
+}
+
+/** Width of the key-signature accidental block (0 when there are none). */
+function keySigBlockWidth(numAccidentals, dp) {
+    return numAccidentals > 0 ? numAccidentals * accStepPx(dp) + dp(5) : 0;
+}
+
+/** Width of the bare clef glyph zone (no key signature). */
+function clefGlyphZoneWidth(staffH, dp) {
+    return Math.max(staffH * 0.26, dp(22));
+}
+
+/** Width reserved for the stacked time-signature digits. */
+function timeSigZoneWidth(lineSpacing, dp) {
+    return lineSpacing * 2.4 + dp(6);
+}
+
+/**
+ * Compute the px width of the header (clef + armure [+ time signature]) drawn
+ * by renderMeasure when showClefs is true. This MUST exactly match what
+ * renderMeasure lays out — both call the same private helpers above.
+ *
+ * @param {object} p
+ *   - lineSpacing: resolved staff line spacing in px (see renderMeasure)
+ *   - keySig: key signature (web or Kotlin shape) — for the accidental count
+ *   - showTimeSig: include the time-signature zone in the width
+ *   - clefMode: 'STANDARD' | 'TREBLE_X2' | 'AUTO' (AUTO hides the armure)
+ *   - dp: dp→px scaler
+ * @returns {number} header width in px
+ */
+export function computeHeaderWidth({ lineSpacing, keySig, showTimeSig = false, clefMode = 'STANDARD', dp = (n) => n }) {
+    const staffH = lineSpacing * 4;
+    const numAccidentals = clefMode !== 'AUTO' ? keySignatureAccidentalCount(keySig) : 0;
+    const ksW = keySigBlockWidth(numAccidentals, dp);
+    const tsW = showTimeSig ? timeSigZoneWidth(lineSpacing, dp) : 0;
+    // trailing pad before the first note (breathing room after the armure/TS).
+    const trailingPad = dp(8);
+    return clefGlyphZoneWidth(staffH, dp) + ksW + tsW + trailingPad;
+}
+
+/**
+ * Resolve the staff line spacing exactly as renderMeasure does, given the
+ * canvas height. Exported so the React layer can compute a page-wide
+ * headerWidth that matches the renderer without guessing.
+ */
+export function computeLineSpacing({ height: h, isLandscape = false, dp = (n) => n }) {
+    const numAreaH  = dp(STAFF_NUM_AREA_DP);
+    const topPad    = numAreaH + dp(8);
+    const bottomPad = dp(STAFF_BOTTOM_PAD_DP);
+    const totalAvail = h - topPad - bottomPad;
+    const staffHMax = isLandscape ? dp(STAFF_H_MAX_LANDSCAPE_DP) : dp(STAFF_H_MAX_DP);
+    const HEADROOM_STEPS = 7;
+    const headroomUnitsPerStaff = HEADROOM_STEPS / 2;
+    return Math.max(
+        dp(7),
+        Math.min(totalAvail / (10 + 2 * headroomUnitsPerStaff), staffHMax / 4),
+    );
+}
+
 // ─── Pure render function (canvas 2D context) ────────────────────────────────
 
 /**
@@ -440,6 +515,14 @@ export function computeBeamGroups(items) {
  *   - isLandscape: bool
  *   - dp: function (n) => px — scales dp to canvas px (handles DPR + density)
  *   - showStems: bool — when false, skip stems/flags/augmentation dots (default true)
+ *   - showTimeSig: bool — draw the time signature after the armure (first system only)
+ *   - timeSignature: { numerator, denominator } — defaults to 4/4
+ *   - headerWidth: number — explicit px offset at which the musical content
+ *       begins on showClefs measures. When provided it OVERRIDES the locally
+ *       computed header so the React layer can share ONE page-wide header
+ *       (including the first-system time signature) across every system, giving
+ *       a pixel-equal 4-column grid. When omitted, the header is computed
+ *       locally (back-compat: standalone renders still look right).
  */
 export function renderMeasure(ctx, opts) {
     const {
@@ -462,6 +545,9 @@ export function renderMeasure(ctx, opts) {
         dp = (n) => n, // 1 dp = 1 px by default
         theme = DEFAULT_SHEET_THEME,
         showStems = true,
+        showTimeSig = false,
+        timeSignature = null,
+        headerWidth = null,
     } = opts;
     const T = theme || DEFAULT_SHEET_THEME;
 
@@ -509,10 +595,20 @@ export function renderMeasure(ctx, opts) {
 
     const showKeySig = showClefs && clefMode !== 'AUTO';
     const numAccidentals = showKeySig ? keySignatureAccidentalCount(keySig) : 0;
-    const accStep = dp(9);          // horizontal step between key-sig accidentals
-    const ksW = numAccidentals > 0 ? numAccidentals * accStep + dp(5) : 0;
-    const clefW = showClefs ? Math.max(staffH * 0.26, dp(22)) + ksW : 0;
-    const pureClefW = clefW - ksW;
+    const accStep = accStepPx(dp);  // horizontal step between key-sig accidentals
+    const ksW = keySigBlockWidth(numAccidentals, dp);
+    const pureClefW = showClefs ? clefGlyphZoneWidth(staffH, dp) : 0;
+    const showTS = showClefs && showTimeSig;
+    // X (relative to staff left) where the time signature is drawn, after the
+    // clef glyph + armure.
+    const tsX = pureClefW + ksW + dp(2);
+    // The header zone reserved before the musical content on showClefs measures.
+    // Prefer the caller-supplied page-wide headerWidth (keeps the 4-column grid
+    // identical across every system) and fall back to a locally computed one.
+    const localHeader = showClefs
+        ? computeHeaderWidth({ lineSpacing, keySig, showTimeSig: showTS, clefMode, dp })
+        : 0;
+    const headerW = showClefs ? (headerWidth != null ? headerWidth : localHeader) : 0;
     const barPad = dp(10);
     const dotR = lineSpacing * (isLandscape ? 0.45 : 0.42);
 
@@ -617,6 +713,23 @@ export function renderMeasure(ctx, opts) {
                     ctx.fillText(accLabel, ax, ay);
                 }
             }
+
+            // Time signature — stacked numerator/denominator, centered on this
+            // staff, after the armure. First system only (showTS).
+            if (showTS) {
+                const num = timeSignature?.numerator ?? beatsPerMeasure ?? 4;
+                const den = timeSignature?.denominator ?? 4;
+                const staffMidY = lineTop + 2 * lineSpacing; // middle (3rd) line
+                ctx.fillStyle = T.keySig;
+                ctx.font = `bold ${lineSpacing * 2}px "Times New Roman", Georgia, serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const digitCenterX = tsX + timeSigZoneWidth(lineSpacing, dp) / 2 - dp(3);
+                // numerator above the middle line, denominator below — each pair
+                // half spans roughly one line-spacing from the centre.
+                ctx.fillText(String(num), digitCenterX, staffMidY - lineSpacing);
+                ctx.fillText(String(den), digitCenterX, staffMidY + lineSpacing);
+            }
         }
 
         // Octave shift label
@@ -640,8 +753,13 @@ export function renderMeasure(ctx, opts) {
         const midLineY = lineTop + 2 * lineSpacing;           // middle (3rd) line
         const headRx = dotR * 1.08;                            // notehead radii
         const headRy = dotR * 0.84;
+        // Musical content begins after the header zone (clef + armure + time
+        // signature) on showClefs measures, and after a small inset on the
+        // rest. A consistent left inset (room for the first notehead) is added
+        // beyond the header so noteheads never sit on the start barline, while
+        // every measure's musical SPAN stays equal for a clean column grid.
         const leftPad = barPad + dotR * 2;
-        const noteAreaStart = clefW + leftPad;
+        const noteAreaStart = headerW + leftPad;
         const noteAreaEnd = w - barPad - dotR;
 
         const xForTime = (startTime) => {
@@ -660,11 +778,13 @@ export function renderMeasure(ctx, opts) {
             groups.get(key).push({ note, midi });
         }
 
-        const drawLedgers = (x, d) => {
+        const drawLedgers = (x, d, headDx = 0) => {
             ctx.strokeStyle = T.ledger;
             ctx.lineWidth = dp(1);
-            const lx0 = x - headRx - dp(2);
-            const lx1 = x + headRx + dp(2);
+            // Cover the notehead even when it's been offset to the other side of
+            // the stem (chord seconds): widen toward the offset direction.
+            const lx0 = Math.min(x, x + headDx) - headRx - dp(2);
+            const lx1 = Math.max(x, x + headDx) + headRx + dp(2);
             if (d > topDiatonic + 1) {
                 for (let ld = topDiatonic + 2; ld <= d; ld += 2) {
                     const ly = yForDiatonic(ld);
@@ -681,9 +801,9 @@ export function renderMeasure(ctx, opts) {
 
         // Draw an oval notehead, filled or hollow. Slightly italicised look via
         // rotation gives the engraved feel without a music font.
-        const drawHead = (x, y, filled) => {
+        const drawHead = (x, y, filled, dx = 0) => {
             ctx.save();
-            ctx.translate(x, y);
+            ctx.translate(x + dx, y);
             ctx.rotate(-0.32);
             ctx.beginPath();
             ctx.ellipse(0, 0, headRx, headRy, 0, 0, Math.PI * 2);
@@ -737,11 +857,32 @@ export function renderMeasure(ctx, opts) {
             const topY = items[items.length - 1].y; // smallest y (highest note)
             const botY = items[0].y;                 // largest y (lowest note)
 
-            // Ledger lines + noteheads + dots + per-note accidentals.
-            for (const it of items) {
-                drawLedgers(x, it.d);
-                drawHead(x, it.y, it.dur.filled);
-                if (showStems && it.dur.dotted) drawDot(x, it.y, it.d);
+            // Chord seconds: any two ADJACENT diatonic steps (|Δd| == 1) would
+            // print their oval heads on top of each other. Standard engraving
+            // displaces one head to the OTHER side of the stem. With stem up the
+            // UPPER note of each colliding pair moves to the RIGHT of the stem;
+            // with stem down the LOWER note moves to the LEFT. We walk
+            // bottom→top and, whenever the current note sits on the step right
+            // next to the previous (un-displaced) one, displace it — so runs of
+            // clustered seconds alternate sides cleanly.
+            const headDx = new Array(items.length).fill(0);
+            const offset = headRx * 1.7; // full notehead width to the other side
+            for (let k = 1; k < items.length; k++) {
+                if (headDx[k - 1] === 0 && Math.abs(items[k].d - items[k - 1].d) === 1) {
+                    // Displace the member that belongs on the far side of the stem.
+                    if (stemUp) headDx[k] = offset;       // upper note → right
+                    else headDx[k - 1] = -offset;         // lower note → left
+                }
+            }
+
+            // Ledger lines + noteheads + dots + per-note accidentals. Each note
+            // uses its OWN duration's head style (hollow half, filled quarter+).
+            for (let k = 0; k < items.length; k++) {
+                const it = items[k];
+                const dx = headDx[k];
+                drawLedgers(x, it.d, dx);
+                drawHead(x, it.y, it.dur.filled, dx);
+                if (showStems && it.dur.dotted) drawDot(x + dx, it.y, it.d);
                 if (isBlackKey(it.midi)) {
                     // Accidental placed AFTER (right of) the altered note,
                     // as a small SUPERSCRIPT hugging its notehead — clearly
@@ -751,7 +892,7 @@ export function renderMeasure(ctx, opts) {
                     ctx.font = `${lineSpacing * 1.3}px "Noto Music", "Bravura", "Times New Roman", serif`;
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'alphabetic';
-                    ctx.fillText(useFlats ? '♭' : '♯', x + headRx + dp(1), it.y - lineSpacing * 0.55);
+                    ctx.fillText(useFlats ? '♭' : '♯', x + Math.max(0, dx) + headRx + dp(1), it.y - lineSpacing * 0.55);
                 }
             }
 
@@ -975,7 +1116,7 @@ export function renderMeasure(ctx, opts) {
     if (opts.playheadFrac != null) {
         const playheadFrac = Math.max(0, Math.min(1, opts.playheadFrac));
         const leftPad = barPad + dotR * 2;
-        const noteAreaStart = clefW + leftPad;
+        const noteAreaStart = headerW + leftPad;
         const noteAreaEnd = w - barPad - dotR;
         const playX = noteAreaStart + playheadFrac * (noteAreaEnd - noteAreaStart);
         const top = stavesOriginY + barMargin;

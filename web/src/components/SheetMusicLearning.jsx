@@ -5,6 +5,8 @@ import {
     resolveSheetTheme,
     suggestUpperOctaveShift,
     suggestLowerOctaveShift,
+    computeHeaderWidth,
+    computeLineSpacing,
     TREBLE_CLEF,
     BASS_CLEF,
     toKotlinKeySig,
@@ -516,6 +518,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                             upperShift={upperShift}
                             lowerShift={lowerShift}
                             keySig={song.key}
+                            timeSignature={song.timeSignature || { numerator: 4, denominator: 4 }}
                             handMode={handMode}
                             currentMeasure={currentMeasure}
                             measureProgress={measureProgress}
@@ -585,37 +588,85 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 
 function SheetSystem({
     systemIndex, systemSize, measures, beatsPerMeasure,
-    useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure,
+    useFlats, upperShift, lowerShift, keySig, timeSignature, handMode, currentMeasure,
     measureProgress = 0, isPlaying = false, isMobile, sheetTheme, showDetails, onMeasureClick,
 }) {
+    const ROW_GAP = 2; // px between the (up to) 4 measure canvases
+    const height = isMobile ? 132 : 224;
+
+    // Measure the row's available width so we can hand each measure an EXPLICIT
+    // pixel width: a fixed header column on the left, then four pixel-equal
+    // musical columns. This makes the barlines line up in a clean grid across
+    // every system. (We can't use plain flex because the first measure must be
+    // exactly headerWidth wider than the others, not a fudged flex ratio.)
+    const rowRef = useRef(null);
+    const [rowWidth, setRowWidth] = useState(0);
+
+    useEffect(() => {
+        const el = rowRef.current;
+        if (!el) return;
+        const update = () => setRowWidth(el.getBoundingClientRect().width);
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    // The header zone (clef + armure + time signature). Computed ONCE per page
+    // geometry and INCLUDING the time-signature width on EVERY system, so the
+    // four musical columns stay pixel-identical from system to system. Only the
+    // very first system actually draws the time signature; the others just leave
+    // that reserved space empty (a slightly wider post-armure gap — standard).
+    const { headerWidth, musicalWidth } = useMemo(() => {
+        const lineSpacing = computeLineSpacing({ height, isLandscape: false, dp: (n) => n });
+        const header = computeHeaderWidth({
+            lineSpacing,
+            keySig,
+            showTimeSig: true, // always reserve TS space → identical grid everywhere
+            clefMode: 'STANDARD',
+            dp: (n) => n,
+        });
+        // Content width after subtracting the inter-canvas gaps.
+        const content = Math.max(0, rowWidth - ROW_GAP * (systemSize - 1));
+        const music = content > 0 ? Math.max(0, (content - header) / systemSize) : 0;
+        return { headerWidth: header, musicalWidth: music };
+    }, [height, keySig, rowWidth, systemSize]);
+
     return (
-        <div style={{
+        <div ref={rowRef} style={{
             display: 'flex',
             flexDirection: 'row',
-            gap: 2,
+            gap: ROW_GAP,
             marginBottom: 10,
             alignItems: 'stretch',
         }}>
             {measures.map((m, i) => {
                 const globalIdx = systemIndex * systemSize + i + 1;
                 const isCurrent = globalIdx === currentMeasure;
+                // First measure of each system carries the header column; all
+                // measures share the same musical width.
+                const isFirst = i === 0;
+                const canvasWidth = isFirst ? headerWidth + musicalWidth : musicalWidth;
                 return (
                     <SystemMeasure
                         key={`${m.phraseIndex}-${m.measureIndex}`}
                         measureData={m}
                         measureNumber={globalIdx}
-                        showClefs={i === 0}
+                        showClefs={isFirst}
+                        showTimeSig={systemIndex === 0 && isFirst}
+                        headerWidth={isFirst ? headerWidth : 0}
                         beatsPerMeasure={beatsPerMeasure}
                         useFlats={useFlats}
                         upperShift={upperShift}
                         lowerShift={lowerShift}
                         keySig={keySig}
+                        timeSignature={timeSignature}
                         handMode={handMode}
                         isCurrent={isCurrent}
                         playheadFrac={isCurrent && isPlaying ? measureProgress : null}
                         isLast={i === measures.length - 1}
-                        flex={i === 0 ? '1.4 1 0' : '1 1 0'}
-                        height={isMobile ? 132 : 224}
+                        canvasWidth={canvasWidth}
+                        height={height}
                         sheetTheme={sheetTheme}
                         showDetails={showDetails}
                         onClick={onMeasureClick ? () => onMeasureClick(globalIdx) : undefined}
@@ -627,13 +678,11 @@ function SheetSystem({
 }
 
 function SystemMeasure({
-    measureData, measureNumber, showClefs, beatsPerMeasure, useFlats,
-    upperShift, lowerShift, keySig, handMode, isCurrent, playheadFrac,
-    isLast, flex, height, sheetTheme, showDetails, onClick,
+    measureData, measureNumber, showClefs, showTimeSig, headerWidth, beatsPerMeasure, useFlats,
+    upperShift, lowerShift, keySig, timeSignature, handMode, isCurrent, playheadFrac,
+    isLast, canvasWidth, height, sheetTheme, showDetails, onClick,
 }) {
     const canvasRef = useRef(null);
-    const containerRef = useRef(null);
-    const [dims, setDims] = useState({ w: 0, h: 0 });
 
     // Filter notes based on hand mode (visual filter only — left filters
     // out chordNotes, right filters out melodyNotes).
@@ -641,36 +690,23 @@ function SystemMeasure({
     const visibleChords = handMode === 'right' ? [] : measureData.chordNotes;
 
     useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        const update = () => {
-            const rect = el.getBoundingClientRect();
-            setDims({ w: rect.width, h: rect.height });
-        };
-        update();
-        const ro = new ResizeObserver(update);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, []);
-
-    useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || dims.w === 0 || dims.h === 0) return;
+        if (!canvas || canvasWidth <= 0 || height <= 0) return;
 
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(dims.w * dpr);
-        canvas.height = Math.floor(dims.h * dpr);
-        canvas.style.width = `${dims.w}px`;
-        canvas.style.height = `${dims.h}px`;
+        canvas.width = Math.floor(canvasWidth * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = `${canvasWidth}px`;
+        canvas.style.height = `${height}px`;
 
         const ctx = canvas.getContext('2d');
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, dims.w, dims.h);
+        ctx.clearRect(0, 0, canvasWidth, height);
 
         renderMeasure(ctx, {
-            width: dims.w,
-            height: dims.h,
+            width: canvasWidth,
+            height,
             measureNumber,
             melodyNotes: visibleMelody,
             chordNotes: visibleChords,
@@ -678,6 +714,9 @@ function SystemMeasure({
             measureStart: measureData.measureStart,
             useFlats,
             showClefs,
+            showTimeSig,
+            timeSignature,
+            headerWidth: showClefs ? headerWidth : null,
             isPlaying: false,
             isFocused: false,
             clefMode: 'STANDARD',
@@ -693,21 +732,24 @@ function SystemMeasure({
             playheadFrac: playheadFrac != null ? playheadFrac : null,
         });
     }, [
-        dims, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
-        useFlats, showClefs, upperShift, lowerShift, keySig, isCurrent,
-        playheadFrac, measureData.measureStart, sheetTheme, showDetails,
+        canvasWidth, height, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
+        useFlats, showClefs, showTimeSig, headerWidth, upperShift, lowerShift, keySig,
+        timeSignature, isCurrent, playheadFrac, measureData.measureStart, sheetTheme, showDetails,
     ]);
 
     return (
         <div
-            ref={containerRef}
             onClick={onClick}
             style={{
-                flex,
+                width: canvasWidth,
+                flex: '0 0 auto',
                 minWidth: 0,
                 height,
                 background: 'transparent',
-                borderRight: isLast ? 'none' : '1px solid var(--border)',
+                // Barlines are drawn on the canvas itself (renderMeasure draws a
+                // right bar line), so no CSS divider is needed — this also keeps
+                // the explicit canvas width from being eaten by a border under
+                // box-sizing: border-box.
                 position: 'relative',
                 cursor: onClick ? 'pointer' : 'default',
             }}

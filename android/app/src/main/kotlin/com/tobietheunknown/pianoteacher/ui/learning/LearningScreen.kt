@@ -602,6 +602,11 @@ fun LearningScreen(
                 // the user sees several measures at once and doesn't need
                 // to follow a fast horizontal scroll.
                 val cols = if (isLandscape) 4 else 2
+                // Page-constant key-signature accidental count. Key signatures
+                // only render in fixed-clef modes (not AUTO). Reserved as header
+                // space on every card so all systems share one barline grid.
+                val pageAccidentalCount =
+                    if (clefMode != ClefMode.AUTO) keySignatureAccidentalCount(keySignature) else 0
                 androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                     columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(cols),
                     state = gridState,
@@ -674,6 +679,10 @@ fun LearningScreen(
                                     isLandscape = isLandscape,
                                     keySig = keySignature,
                                     showDetails = showDetails,
+                                    pageAccidentalCount = pageAccidentalCount,
+                                    timeSigNumerator = song!!.timeSignature.numerator,
+                                    timeSigDenominator = song!!.timeSignature.denominator,
+                                    isFirstSystem = idx == 0,
                                     modifier = Modifier.fillMaxSize()
                                 )
                                 // Animated playhead — vertical accent line
@@ -924,6 +933,15 @@ private fun GrandStaffCanvas(
     isLandscape: Boolean = false,
     keySig: MusicKeySignature? = null,
     showDetails: Boolean = false,
+    // Page-constant key-signature accidental count: reserved as header space on
+    // EVERY card (even non-clef ones) so all 4 measures of a row share one grid.
+    pageAccidentalCount: Int = 0,
+    // Song time signature — drawn on the first system only, reserved everywhere.
+    timeSigNumerator: Int = 4,
+    timeSigDenominator: Int = 4,
+    // True only for the very first measure of the page → actually draws the
+    // time signature glyphs after the key signature.
+    isFirstSystem: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -953,11 +971,28 @@ private fun GrandStaffCanvas(
         val totalStavesH = staffH * 2 + gap
         val stavesOriginY = topPad + (totalAvail - totalStavesH) / 2f
 
-        // Key signature width: only for fixed clef modes (STANDARD, TREBLE_X2)
+        // ── Header width (clef + armure + time signature) ──────────────────
+        // The musical time→x mapping must start AFTER the clef + key signature
+        // (+ time signature on system 1). To keep all 4 measures of a row the
+        // SAME pixel width — so barlines form a clean 4-column grid aligned
+        // across every system — we reserve ONE page-constant headerWidth on
+        // EVERY card. Cards that draw clefs fill it with clef/armure/time-sig;
+        // the others simply leave it empty.
+        //
+        //   pureClefW = clef glyph zone        = max(staffH·0.26, 22dp)
+        //   ksW       = key-sig accidental zone = count·7dp + 4dp pad
+        //   tsW       = time-signature zone     = ~14dp (two stacked digits)
+        //   headerWidth = pureClefW + ksW + tsW   (reserved on every system)
+        val pureClefW = (staffH * 0.26f).coerceAtLeast(22.dp.toPx())
+        // numAccidentals = what THIS card actually draws (clef cards only).
         val showKeySig = showClefs && clefMode != ClefMode.AUTO
         val numAccidentals = if (showKeySig) keySignatureAccidentalCount(keySig) else 0
-        val ksW = if (numAccidentals > 0) numAccidentals * 7.dp.toPx() + 4.dp.toPx() else 0f
-        val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) + ksW else 0f
+        // Page-constant key-sig zone (reserved everywhere, even where not drawn).
+        val pageKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 7.dp.toPx() + 4.dp.toPx() else 0f
+        // Time-signature zone — reserved on every system (drawn on the first).
+        val tsW = if (clefMode != ClefMode.AUTO) (lineSpacing * 1.7f).coerceAtLeast(14.dp.toPx()) else 0f
+        // Header reserved on every card so the 4-column barline grid lines up.
+        val headerWidth = pureClefW + pageKsW + tsW
         val barPad   = 10.dp.toPx()
         val dotR     = lineSpacing * (if (isLandscape) 0.38f else 0.32f)
 
@@ -1031,7 +1066,8 @@ private fun GrandStaffCanvas(
             }
 
             // ── Clef glyph ──────────────────────────────────────────────
-            val pureClefW = clefW - ksW  // clef zone without key signature
+            // pureClefW (clef zone, no key signature) is defined once at the
+            // canvas top so the header grid stays page-constant.
             if (showClefs) {
                 val clefFontPx = staffH * clef.fontScale
                 val clefStyle = TextStyle(
@@ -1072,6 +1108,43 @@ private fun GrandStaffCanvas(
                         drawText(accLayout, topLeft = Offset(ax, ay))
                     }
                 }
+
+                // ── Time signature (FIRST system only) ────────────────────
+                // Standard stacked bold numbers (numerator above denominator),
+                // each digit ≈ 2×lineSpacing tall so the pair spans the staff
+                // height. Drawn on BOTH staves, after the key signature, using
+                // the clef/armure colour. Reserved as tsW on every system; the
+                // glyphs themselves only render on the very first measure.
+                if (isFirstSystem && tsW > 0f) {
+                    val tsStyle = TextStyle(
+                        fontSize = (lineSpacing * 2f / density).sp,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Bold,
+                    )
+                    val numLayout = textMeasurer.measure(timeSigNumerator.toString(), tsStyle)
+                    val denLayout = textMeasurer.measure(timeSigDenominator.toString(), tsStyle)
+                    // tsW zone starts after the (page-constant) key signature.
+                    val tsZoneStart = pureClefW + pageKsW
+                    val tsCenterX = tsZoneStart + tsW / 2f
+                    // Numerator centred on the upper half, denominator on the
+                    // lower half of the staff (each row ≈ 2×lineSpacing).
+                    val numCenterY = lineTop + lineSpacing
+                    val denCenterY = lineTop + 3f * lineSpacing
+                    drawText(
+                        numLayout,
+                        topLeft = Offset(
+                            tsCenterX - numLayout.size.width / 2f,
+                            numCenterY - numLayout.size.height / 2f,
+                        )
+                    )
+                    drawText(
+                        denLayout,
+                        topLeft = Offset(
+                            tsCenterX - denLayout.size.width / 2f,
+                            denCenterY - denLayout.size.height / 2f,
+                        )
+                    )
+                }
             }
 
             // ── Octave shift label (8va/8vb/15ma/15mb) ─────────────
@@ -1098,8 +1171,11 @@ private fun GrandStaffCanvas(
 
             // ── Notes ───────────────────────────────────────────────────
             // Geometry helpers shared by every notehead on this staff.
+            // Music starts after the page-constant headerWidth (clef + armure +
+            // time-sig zone), NOT after this card's own clef — so all 4 measures
+            // of a row are pixel-equal and barlines align across every system.
             val leftPad = barPad + dotR * 2f  // extra space from left bar line
-            val noteAreaStart = clefW + leftPad
+            val noteAreaStart = headerWidth + leftPad
             val noteAreaEnd = w - barPad - dotR
             val midLineY = lineTop + 2 * lineSpacing  // middle (3rd) staff line
 
@@ -1130,25 +1206,62 @@ private fun GrandStaffCanvas(
                 val items = chord.sortedBy { it.d }  // bottom → top
                 val x = items.first().x
 
+                // ── Stem direction (decided up-front so chord-second offsets
+                // can push heads to the correct side of the stem). ──────────
+                val anyStem = items.any { it.dur.stem }
+                val centerY = items.map { it.y }.average().toFloat()
+                val up = centerY >= midLineY
+
+                // ── Chord-second resolution. Two noteheads on ADJACENT
+                // diatonic steps (|Δd| == 1) collide if drawn at the same x.
+                // Offset ONE of the pair to the OPPOSITE side of the stem:
+                //   stem-up   → the UPPER note of the pair moves RIGHT of the stem
+                //   stem-down → the LOWER note of the pair moves LEFT of the stem
+                // Walk bottom→top; when the previous head wasn't itself offset
+                // and this note is one step above it, offset whichever of the
+                // pair the rule selects. headDx[i] = horizontal shift for head i.
+                val headDx = FloatArray(items.size)
+                val headSpan = dotR * 2f * 0.92f  // adjacent-head centre spacing
+                run {
+                    var i = 1
+                    while (i < items.size) {
+                        val collides = (items[i].d - items[i - 1].d) == 1 &&
+                            headDx[i - 1] == 0f
+                        if (collides) {
+                            if (up) headDx[i] = headSpan        // upper → right
+                            else    headDx[i - 1] = -headSpan   // lower → left
+                            i += 2  // pair consumed
+                        } else {
+                            i += 1
+                        }
+                    }
+                }
+
                 // Noteheads + ledger lines + accidentals per note.
-                items.forEach { it2 ->
+                items.forEachIndexed { idx2, it2 ->
+                    val hx = it2.x + headDx[idx2]   // head x after second-offset
                     // Notehead: filled (solid) for ≤ quarter, hollow (ring) for ≥ half.
+                    // Each note of a chord uses its OWN duration's head style.
                     if (it2.dur.filled) {
-                        drawCircle(color = it2.color, radius = dotR, center = Offset(it2.x, it2.y))
+                        drawCircle(color = it2.color, radius = dotR, center = Offset(hx, it2.y))
                     } else {
                         drawCircle(
-                            color = it2.color, radius = dotR, center = Offset(it2.x, it2.y),
+                            color = it2.color, radius = dotR, center = Offset(hx, it2.y),
                             style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.7.dp.toPx()),
                         )
                     }
 
-                    // Ledger lines (only when note is ≥2 diatonic steps outside staff)
+                    // Ledger lines (only when note is ≥2 diatonic steps outside
+                    // staff). Extend the line to cover an offset head so a
+                    // displaced chord-second still sits on its ledger.
+                    val ledgerCx = if (headDx[idx2] != 0f) (it2.x + hx) / 2f else it2.x
+                    val ledgerHalf = dotR * 1.5f + kotlin.math.abs(headDx[idx2]) / 2f
                     if (it2.d > topDiatonic + 1) {
                         var ld = topDiatonic + 2
                         while (ld <= it2.d) {
                             val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
                             drawLine(Color.White.copy(alpha = 0.5f),
-                                Offset(it2.x - dotR * 1.5f, ly), Offset(it2.x + dotR * 1.5f, ly), 0.9f)
+                                Offset(ledgerCx - ledgerHalf, ly), Offset(ledgerCx + ledgerHalf, ly), 0.9f)
                             ld += 2
                         }
                     }
@@ -1157,7 +1270,7 @@ private fun GrandStaffCanvas(
                         while (ld >= it2.d) {
                             val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
                             drawLine(Color.White.copy(alpha = 0.5f),
-                                Offset(it2.x - dotR * 1.5f, ly), Offset(it2.x + dotR * 1.5f, ly), 0.9f)
+                                Offset(ledgerCx - ledgerHalf, ly), Offset(ledgerCx + ledgerHalf, ly), 0.9f)
                             ld -= 2
                         }
                     }
@@ -1174,16 +1287,18 @@ private fun GrandStaffCanvas(
                         // topLeft.y = noteY − 0.55×lineSpacing − ascent
                         // Ascent ≈ 80% of the measured text height for sp fonts.
                         val accTopY = it2.y - lineSpacing * 0.55f - labelLayout.size.height * 0.8f
-                        drawText(labelLayout, topLeft = Offset(
-                            it2.x + dotR * 0.85f,
-                            accTopY
-                        ))
+                        // Hug the right edge of the (possibly offset) head.
+                        val accX = kotlin.math.max(hx, it2.x) + dotR * 0.85f
+                        drawText(labelLayout, topLeft = Offset(accX, accTopY))
                     }
                 }
 
                 // Record stem geometry for this chord (decided once, consumed
-                // by the stem/flag pass and the beam pass below).
-                val anyStem = items.any { it.dur.stem }
+                // by the stem/flag pass and the beam pass below). topY/botY are
+                // the extremes of the STEMMED notes so the shared stem spans
+                // lowest→highest notehead that actually carries a stem.
+                val stemmed = items.filter { it.dur.stem }
+                val refItems = if (stemmed.isNotEmpty()) stemmed else items
                 chordRenders.add(
                     ChordRender(
                         items = items,
@@ -1193,9 +1308,9 @@ private fun GrandStaffCanvas(
                         flags = items.maxOf { it.dur.flags },
                         anyStem = anyStem,
                         stemColor = items.first().color,
-                        centerY = items.map { it.y }.average().toFloat(),
-                        topY = items.last().y,
-                        botY = items.first().y,
+                        centerY = centerY,
+                        topY = refItems.maxByOrNull { it.d }!!.y,  // highest stemmed (smallest y)
+                        botY = refItems.minByOrNull { it.d }!!.y,  // lowest stemmed (largest y)
                     )
                 )
             }
