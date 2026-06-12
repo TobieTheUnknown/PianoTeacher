@@ -369,27 +369,34 @@ private fun MeasureCardCompact(
             }
 
             // ── RIGHT hand (melody) ──────────────────────────────────────────
-            //   Détail OFF + a role → role badge (HandRight).
-            //   Détail ON + ostinato → note chips grouped by motif occurrence.
-            //   Détail ON + chord-reducible arpeggio (reps > 1) → grouped by cycle.
-            //   otherwise → wrapped melody note chips (a real melody IS the lesson).
+            //   Détail OFF + a role → role badge only.
+            //   Détail OFF + no role → wrapped melody note chips.
+            //   Détail ON → badge (if any) at top, then MotifRows / NotesRow below.
             val rightRole = measure.rightRole
             when {
                 !showDetails && rightRole != null ->
                     HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
-                showDetails && measure.rightOstinato != null && measure.melodyNotes.isNotEmpty() ->
-                    MotifRows(measure.melodyNotes, measure.rightOstinato!!.motifPcs.size, CyanMelody)
-                showDetails && chordCycleLen(measure.rightRole, measure.melodyNotes) != null ->
-                    MotifRows(measure.melodyNotes, chordCycleLen(measure.rightRole, measure.melodyNotes)!!, CyanMelody)
-                else -> NotesRow(measure.melodyNotes, color = CyanMelody)
+                !showDetails ->
+                    NotesRow(measure.melodyNotes, color = CyanMelody)
+                else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (rightRole != null) {
+                        HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
+                    }
+                    when {
+                        measure.rightOstinato != null && measure.melodyNotes.isNotEmpty() ->
+                            MotifRows(measure.melodyNotes, measure.rightOstinato!!.motifPcs.size, CyanMelody)
+                        chordCycleLen(rightRole, measure.melodyNotes) != null ->
+                            MotifRows(measure.melodyNotes, chordCycleLen(rightRole, measure.melodyNotes)!!, CyanMelody)
+                        else -> NotesRow(measure.melodyNotes, color = CyanMelody)
+                    }
+                }
             }
 
             // ── LEFT hand (chords) ───────────────────────────────────────────
-            //   Détail OFF + a role → role badge (HandLeft).
+            //   Détail OFF + a role → role badge only.
             //   Détail OFF + no role + notes → ≤4 note chips + "…".
-            //   Détail ON + ostinato → note chips grouped by motif occurrence.
-            //   Détail ON + chord-reducible arpeggio (reps > 1) → grouped by cycle.
-            //   Détail ON → full left-hand note sequence chips (wrapped flow).
+            //   Détail OFF + no role + no notes → empty spacer.
+            //   Détail ON → badge (if any) at top, then MotifRows / NotesRow below.
             val leftRole = measure.leftRole
             when {
                 !showDetails && leftRole != null ->
@@ -398,11 +405,18 @@ private fun MeasureCardCompact(
                     LeftHandChips(measure.chordNotes)
                 !showDetails ->
                     Box(modifier = Modifier.fillMaxWidth().height(18.dp))
-                showDetails && measure.leftOstinato != null && measure.chordNotes.isNotEmpty() ->
-                    MotifRows(measure.chordNotes, measure.leftOstinato!!.motifPcs.size, PinkChords)
-                showDetails && chordCycleLen(measure.leftRole, measure.chordNotes) != null ->
-                    MotifRows(measure.chordNotes, chordCycleLen(measure.leftRole, measure.chordNotes)!!, PinkChords)
-                else -> NotesRow(measure.chordNotes, color = PinkChords)
+                else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (leftRole != null) {
+                        HandRoleBadge(leftRole, hand = HandSide.LEFT, keySignature = keySignature)
+                    }
+                    when {
+                        measure.leftOstinato != null && measure.chordNotes.isNotEmpty() ->
+                            MotifRows(measure.chordNotes, measure.leftOstinato!!.motifPcs.size, PinkChords)
+                        chordCycleLen(leftRole, measure.chordNotes) != null ->
+                            MotifRows(measure.chordNotes, chordCycleLen(leftRole, measure.chordNotes)!!, PinkChords)
+                        else -> NotesRow(measure.chordNotes, color = PinkChords)
+                    }
+                }
             }
 
             // Beat strip with cyan/pink dots aligned to note startTime

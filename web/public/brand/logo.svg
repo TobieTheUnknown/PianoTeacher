@@ -1,67 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
-  <!-- ============================================================
-       PIANO TEACHER — app logo (master)
-       Dark rounded tile, piano keys, two highlighted hands
-       (left=pink, right=cyan), rising blue beamed-note accent.
-       Palette: bg #0a0c10, blue #3b82f6, cyan #22d3ee, pink #ec4899
-       ============================================================ -->
+  <!-- VARIANT A — "Keys minimal": oversized keys edge-to-edge, one cyan + one pink, big negative space -->
   <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#141821"/>
+    <linearGradient id="a-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b26"/>
       <stop offset="1" stop-color="#0a0c10"/>
     </linearGradient>
-    <linearGradient id="cyanKey" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#67e8f9"/>
+    <linearGradient id="a-white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#cfd3df"/>
+    </linearGradient>
+    <linearGradient id="a-cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7df0ff"/>
       <stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
-    <linearGradient id="pinkKey" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f472b6"/>
+    <linearGradient id="a-pink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f873b8"/>
       <stop offset="1" stop-color="#ec4899"/>
-    </linearGradient>
-    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#60a5fa"/>
-      <stop offset="1" stop-color="#3b82f6"/>
     </linearGradient>
   </defs>
 
-  <!-- Rounded tile (radius ~20%) -->
-  <rect x="0" y="0" width="1024" height="1024" rx="205" ry="205" fill="url(#tile)"/>
-  <rect x="6" y="6" width="1012" height="1012" rx="200" ry="200" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="3"/>
+  <rect width="1024" height="1024" rx="225" fill="url(#a-tile)"/>
 
-  <!-- ===== Keyboard group (lower portion) ===== -->
-  <!-- 7 white keys: x from 168 to 856 (width 688), each 96 wide w/ 2px gaps -->
+  <!-- 4 oversized keys filling the tile; keys run from y=150 to y=874, rounded bottoms -->
   <g>
-    <!-- White keys row, rounded bottoms -->
-    <!-- key bg: #e8eaf0 ; highlighted keys use gradients -->
-    <rect x="168" y="430" width="94" height="372" rx="28" fill="#e8eaf0"/>
-    <rect x="266" y="430" width="94" height="372" rx="28" fill="url(#pinkKey)"/>   <!-- left hand -->
-    <rect x="364" y="430" width="94" height="372" rx="28" fill="#e8eaf0"/>
-    <rect x="462" y="430" width="94" height="372" rx="28" fill="#e8eaf0"/>
-    <rect x="560" y="430" width="94" height="372" rx="28" fill="#e8eaf0"/>
-    <rect x="658" y="430" width="94" height="372" rx="28" fill="url(#cyanKey)"/>   <!-- right hand -->
-    <rect x="756" y="430" width="94" height="372" rx="28" fill="#e8eaf0"/>
+    <rect x="150"  y="150" width="172" height="724" rx="40" fill="url(#a-white)"/>
+    <rect x="334"  y="150" width="172" height="724" rx="40" fill="url(#a-pink)"/>
+    <rect x="518"  y="150" width="172" height="724" rx="40" fill="url(#a-cyan)"/>
+    <rect x="702"  y="150" width="172" height="724" rx="40" fill="url(#a-white)"/>
   </g>
 
-  <!-- Black keys: groups of 2 and 3. Centered over white-key seams. -->
+  <!-- three black keys nestled in the seams (top portion only) -->
   <g fill="#0a0c10">
-    <rect x="244" y="430" width="58" height="226" rx="20"/>
-    <rect x="342" y="430" width="58" height="226" rx="20"/>
-    <rect x="538" y="430" width="58" height="226" rx="20"/>
-    <rect x="636" y="430" width="58" height="226" rx="20"/>
-    <rect x="734" y="430" width="58" height="226" rx="20"/>
-  </g>
-
-  <!-- ===== Rising blue beamed-note accent (top) ===== -->
-  <!-- Two note stems joined by a beam, rising left->right, signalling melody/progress.
-       Note heads sit clearly above the keyboard (keys start y=430). -->
-  <g>
-    <!-- beam -->
-    <path d="M330 214 L700 150 L700 210 L330 274 Z" fill="url(#beam)"/>
-    <!-- stems -->
-    <rect x="330" y="214" width="32" height="132" rx="14" fill="url(#beam)"/>
-    <rect x="668" y="150" width="32" height="132" rx="14" fill="url(#beam)"/>
-    <!-- note heads (left pink, right cyan to echo the hands) -->
-    <ellipse cx="322" cy="340" rx="54" ry="42" transform="rotate(-14 322 340)" fill="#ec4899"/>
-    <ellipse cx="684" cy="276" rx="54" ry="42" transform="rotate(-14 684 276)" fill="#22d3ee"/>
+    <rect x="288" y="150" width="92" height="430" rx="26"/>
+    <rect x="466" y="150" width="92" height="430" rx="26"/>
+    <rect x="644" y="150" width="92" height="430" rx="26"/>
   </g>
 </svg>

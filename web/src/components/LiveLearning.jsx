@@ -7,7 +7,6 @@ import {
 import { getMeasuresFromPhrase, groupNotesByTime } from '../utils/measureUtils';
 import { audioEngine } from '../services/AudioEngine';
 import { useDeviceContext } from '../hooks/useDeviceContext';
-import themeService from '../services/ThemeService';
 import { CoordinationTimeline } from './learn/CoordinationTimeline';
 import { PlaybackDock } from './PlaybackDock';
 import { MobileHeader } from './MobileHeader';
@@ -16,94 +15,6 @@ import { LearnSidebar } from './learn/LearnSidebar';
 // ── Constant styles extracted outside render ──────────────────────────────────
 
 const STYLES = {
-    noteBadge: {
-        fontSize: '0.75rem',
-        background: 'var(--bg-primary)',
-        padding: '0.2rem 0.4rem',
-        borderRadius: '4px',
-        color: 'var(--text-primary)',
-    },
-    noteBadgeSmall: {
-        fontSize: '0.65rem',
-        background: 'var(--bg-primary)',
-        padding: '0.1rem 0.3rem',
-        borderRadius: '3px',
-        color: 'var(--text-primary)',
-    },
-    melodyBadgePrimary: {
-        fontSize: '0.75rem',
-        background: 'var(--bg-primary)',
-        padding: '0.2rem 0.4rem',
-        borderRadius: '4px',
-        border: '2px solid var(--hand-right)',
-        color: 'var(--hand-right)',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        userSelect: 'none',
-    },
-    melodyBadgeSecondary: {
-        fontSize: '0.7rem',
-        background: 'var(--bg-primary)',
-        padding: '0.1rem 0.3rem',
-        borderRadius: '3px',
-        border: '1px solid var(--hand-right)',
-        color: 'var(--hand-right)',
-    },
-    chordBadge: {
-        fontSize: '0.75rem',
-        fontWeight: 'bold',
-        color: 'var(--hand-left)',
-        cursor: 'pointer',
-        padding: '0.2rem 0.4rem',
-        borderRadius: '4px',
-        background: 'var(--bg-primary)',
-        border: '2px solid var(--hand-left)',
-        transition: 'all var(--transition-fast)',
-        userSelect: 'none',
-        display: 'inline-block',
-    },
-    sectionLabel: {
-        fontSize: '0.75rem',
-        color: 'var(--text-secondary)',
-        marginBottom: '0.25rem',
-    },
-    measureCardBase: {
-        padding: '1rem',
-        background: 'var(--bg-tertiary)',
-        borderRadius: 'var(--radius-md)',
-        transition: 'all var(--transition-fast)',
-        cursor: 'pointer',
-        position: 'relative',
-        overflow: 'hidden',
-        height: '100%',
-        boxSizing: 'border-box',
-    },
-    playButton: {
-        flex: 1,
-        padding: '0.3rem',
-        fontSize: '0.7rem',
-        backgroundColor: 'transparent',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        transition: 'all var(--transition-fast)',
-    },
-    numberBadgeBase: {
-        position: 'absolute',
-        top: '0.5rem',
-        right: '0.5rem',
-        color: 'var(--text-primary)',
-        borderRadius: '50%',
-        width: '32px',
-        height: '32px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '0.75rem',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        transition: 'all var(--transition-fast)',
-        zIndex: 2,
-    },
     tipCard: {
         display: 'flex',
         gap: '0.75rem',
@@ -161,265 +72,6 @@ const TimelineBar = React.memo(function TimelineBar({ measure, displayNoteName, 
     );
 });
 
-const ChordDisplay = React.memo(function ChordDisplay({ measure, keySignature, showDetails, displayNoteName, expandedChordReps, onToggleChordRep, isMobile, handColors }) {
-    const { isArpeggio, detectedChord, motifInfo, chordGroups, hasChord } = measure;
-
-    return (
-        <div style={{ marginBottom: '0.75rem', paddingRight: isMobile ? '0.5rem' : '2rem' }}>
-            <div style={STYLES.sectionLabel}>
-                {isArpeggio && detectedChord && motifInfo?.exactCycle && motifInfo?.repetitions > 1 ? (
-                    <>Accords (arpège de {chordGroups.length} notes, {motifInfo.repetitions}x{motifInfo.notesPerCycle})</>
-                ) : isArpeggio && detectedChord ? (
-                    <>Accord (arpège de {chordGroups.length} notes)</>
-                ) : isArpeggio ? (
-                    <>Arpège ({chordGroups.length} notes)</>
-                ) : (
-                    <>Accords {chordGroups.length > 1 && `(${chordGroups.length})`}</>
-                )}
-            </div>
-
-            {hasChord ? (
-                isArpeggio && detectedChord ? (
-                    <ArpeggioChordView
-                        measure={measure}
-                        motifInfo={motifInfo}
-                        detectedChord={detectedChord}
-                        expandedChordReps={expandedChordReps}
-                        onToggleChordRep={onToggleChordRep}
-                        showDetails={showDetails}
-                        displayNoteName={displayNoteName}
-                        keySignature={keySignature}
-                        isMobile={isMobile}
-                        handColors={handColors}
-                    />
-                ) : isArpeggio ? (
-                    <ArpeggioSequenceView
-                        chordGroups={chordGroups}
-                        displayNoteName={displayNoteName}
-                        keySignature={keySignature}
-                        handColors={handColors}
-                    />
-                ) : (
-                    <SimultaneousChordsView
-                        chordGroups={chordGroups}
-                        showDetails={showDetails}
-                        displayNoteName={displayNoteName}
-                        keySignature={keySignature}
-                        handColors={handColors}
-                    />
-                )
-            ) : (
-                <div style={{
-                    fontSize: '1.1rem',
-                    fontWeight: 'bold',
-                    color: 'var(--text-tertiary)'
-                }}>
-                    -
-                </div>
-            )}
-        </div>
-    );
-});
-
-function ArpeggioChordView({ measure, motifInfo, detectedChord, expandedChordReps, onToggleChordRep, showDetails, displayNoteName, keySignature, isMobile }) {
-    // Always hand-left — altered info lives only in the tooltip on the badge.
-    const leftColor = 'var(--hand-left)';
-    const reps = motifInfo?.repetitions || 1;
-    const chords = motifInfo?.chords || [detectedChord];
-    const totalNotes = measure.chordGroups.length;
-    const notesPerCycle = Math.ceil(totalNotes / reps);
-
-    if (isMobile) {
-        // Group consecutive identical chords
-        const groups = [];
-        let i = 0;
-        while (i < reps) {
-            const chord = chords[i] || detectedChord;
-            let count = 1;
-            while (i + count < reps && (chords[i + count] || detectedChord).displayName === chord.displayName) {
-                count++;
-            }
-            groups.push({ chord, count, startIdx: i });
-            i += count;
-        }
-
-        return (
-            <div>
-                {groups.map((group, gIdx) => {
-                    const { chord, count, startIdx } = group;
-                    const isExpanded = expandedChordReps.has(startIdx) || showDetails;
-                    // Collect unique notes across all reps in this group
-                    const seenPitches = new Set();
-                    const uniqueGroups = [];
-                    for (let r = 0; r < count; r++) {
-                        const repIdx = startIdx + r;
-                        const cycleStart = repIdx * notesPerCycle;
-                        const cycleEnd = Math.min(cycleStart + notesPerCycle, totalNotes);
-                        measure.chordGroups.slice(cycleStart, cycleEnd).forEach(cg => {
-                            const pitch = cg.notes[0].pitch;
-                            if (!seenPitches.has(pitch)) {
-                                seenPitches.add(pitch);
-                                uniqueGroups.push(cg);
-                            }
-                        });
-                    }
-
-                    return (
-                        <div key={gIdx} style={{ marginBottom: '0.2rem' }}>
-                            <span
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onToggleChordRep(measure.number, startIdx);
-                                }}
-                                style={{ ...STYLES.chordBadge, borderColor: leftColor, color: leftColor }}
-                                title="Cliquer pour voir les notes"
-                            >
-                                {chord.displayName}
-                                {count > 1 && (
-                                    <span style={{ fontSize: '0.7em', marginLeft: '0.3rem', opacity: 0.75 }}>x{count}</span>
-                                )}
-                            </span>
-                            {isExpanded && (
-                                <div style={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: '0.2rem',
-                                    alignItems: 'center',
-                                    marginTop: '0.15rem',
-                                    marginLeft: '0.25rem'
-                                }}>
-                                    {uniqueGroups.map((chordGroup, idx) => (
-                                        <span key={idx} style={{
-                                            ...STYLES.noteBadgeSmall,
-                                            border: '1px solid var(--accent-secondary)',
-                                        }}>
-                                            {displayNoteName(chordGroup.notes[0].pitch, keySignature)}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    }
-
-    return (
-        <div>
-            {Array.from({ length: reps }).map((_, repIdx) => {
-                const isExpanded = expandedChordReps.has(repIdx) || showDetails;
-                const cycleStart = repIdx * notesPerCycle;
-                const cycleEnd = Math.min(cycleStart + notesPerCycle, totalNotes);
-                const cycleGroups = measure.chordGroups.slice(cycleStart, cycleEnd);
-                const cycleChord = chords[repIdx] || detectedChord;
-
-                return (
-                    <div key={repIdx} style={{ marginBottom: '0.2rem' }}>
-                        <span
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleChordRep(measure.number, repIdx);
-                            }}
-                            style={{ ...STYLES.chordBadge, borderColor: leftColor, color: leftColor }}
-                            title="Cliquer pour voir les notes"
-                        >
-                            {cycleChord.displayName}
-                        </span>
-                        {isExpanded && (
-                            <div style={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: '0.2rem',
-                                alignItems: 'center',
-                                marginTop: '0.15rem',
-                                marginLeft: '0.25rem'
-                            }}>
-                                {cycleGroups.map((chordGroup, idx) => (
-                                    <span key={idx} style={{
-                                        ...STYLES.noteBadgeSmall,
-                                        border: '1px solid var(--accent-secondary)',
-                                    }}>
-                                        {displayNoteName(chordGroup.notes[0].pitch, keySignature)}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-function ArpeggioSequenceView({ chordGroups, displayNoteName, keySignature, handColors }) {
-    const leftColor = handColors?.left || '#3b82f6';
-    return (
-        <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.25rem',
-            alignItems: 'center'
-        }}>
-            {chordGroups.map((chordGroup, idx) => {
-                const noteName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
-                const isFirst = idx === 0;
-                return (
-                    <span key={idx} style={{
-                        ...STYLES.noteBadge,
-                        border: isFirst ? `2px solid ${leftColor}` : `1px solid ${leftColor}`,
-                        fontWeight: isFirst ? 'bold' : 'normal',
-                    }}>
-                        {noteName}
-                    </span>
-                );
-            })}
-        </div>
-    );
-}
-
-function SimultaneousChordsView({ chordGroups, showDetails, displayNoteName, keySignature, handColors }) {
-    const leftColor = handColors?.left || '#3b82f6';
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            {chordGroups.map((chordGroup, idx) => {
-                const chordName = displayNoteName(chordGroup.notes[0].pitch, keySignature);
-                return (
-                    <div key={idx}>
-                        <span style={{
-                            ...STYLES.noteBadge,
-                            border: `2px solid ${leftColor}`,
-                            color: leftColor,
-                            fontWeight: 'bold',
-                            display: 'inline-block',
-                        }}>
-                            {chordName}
-                        </span>
-                        {showDetails && (
-                            <div style={{
-                                fontSize: '0.65rem',
-                                color: 'var(--text-secondary)',
-                                marginTop: '0.15rem',
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: '0.2rem'
-                            }}>
-                                {chordGroup.notes.map((n, i) => (
-                                    <span key={i} style={{
-                                        ...STYLES.noteBadgeSmall,
-                                        border: '1px solid var(--border-color)',
-                                    }}>
-                                        {displayNoteName(n.pitch, keySignature)}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
 
 // Hand → theme-token trio (fill / border / text).
 function handTokens(hand) {
@@ -683,8 +335,8 @@ function ArpeggioNotePills({ measure, displayNoteName, keySignature }) {
 
 const MeasureCard = React.memo(function MeasureCard({
     measure, keySignature, isHighlighted, onToggleHighlight, onPlay,
-    showDetails, displayNoteName, expandedChordReps, onToggleChordRep,
-    isMobile, handColors,
+    showDetails, displayNoteName,
+    isMobile,
     isCurrent = false, isPlaying = false,
     // Real measure duration in seconds. Drives the beat-fill animation so
     // the progress bar lines up with audio (start of fill = start of
@@ -773,11 +425,24 @@ const MeasureCard = React.memo(function MeasureCard({
             </div>
 
             {/* Right hand.
-                Détails OFF + a role (arpège/ostinato/pédale) → role badge.
+                Détails OFF + a role (arpège/ostinato/pédale) → role badge only.
+                Détails ON  + a role → badge on top, then grouped note rows.
                 Otherwise → melody pills (a real melody IS the lesson). */}
             {(!showDetails && measure.rightRole) ? (
                 <div style={{ marginBottom: 5, minHeight: 18, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                     <HandRoleBadge role={measure.rightRole} hand="right" />
+                </div>
+            ) : (showDetails && measure.rightRole && measure.rightOstinato && rightLabels.length > 0) ? (
+                <div style={{ marginBottom: 5 }}>
+                    <div style={{ marginBottom: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <HandRoleBadge role={measure.rightRole} hand="right" />
+                    </div>
+                    <MotifRows
+                        labels={rightLabels}
+                        motifLen={measure.rightOstinato.motifPcs.length}
+                        hand="right"
+                        isMobile={isMobile}
+                    />
                 </div>
             ) : (showDetails && measure.rightOstinato && rightLabels.length > 0) ? (
                 <div style={{ marginBottom: 5 }}>
@@ -804,9 +469,10 @@ const MeasureCard = React.memo(function MeasureCard({
             ) : <div style={{ marginBottom: 5, minHeight: 18 }} />}
 
             {/* Left hand.
-                Détails OFF + a role (arpège/ostinato/pédale) → role badge.
+                Détails OFF + a role (arpège/ostinato/pédale) → role badge only.
                 Détails OFF + no role + notes → up to 4 note pills + "…".
-                Détails ON                    → full raw note pills. */}
+                Détails ON  + a role → badge on top, then grouped note rows.
+                Détails ON  + no role → full raw note pills. */}
             {!showDetails ? (
                 measure.leftRole ? (
                     <div style={{ minHeight: 18, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
@@ -835,6 +501,30 @@ const MeasureCard = React.memo(function MeasureCard({
                         )}
                     </div>
                 ) : <div style={{ minHeight: 18 }} />
+            ) : (measure.leftRole && measure.leftOstinato && leftLabels.length > 0) ? (
+                <div>
+                    <div style={{ marginBottom: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <HandRoleBadge role={measure.leftRole} hand="left" />
+                    </div>
+                    <MotifRows
+                        labels={leftLabels}
+                        motifLen={measure.leftOstinato.motifPcs.length}
+                        hand="left"
+                        isMobile={isMobile}
+                    />
+                </div>
+            ) : (measure.leftRole && measure.arpeggioBadge && measure.motifInfo?.notesPerCycle && leftLabels.length > 0) ? (
+                <div>
+                    <div style={{ marginBottom: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <HandRoleBadge role={measure.leftRole} hand="left" />
+                    </div>
+                    <MotifRows
+                        labels={leftLabels}
+                        motifLen={measure.motifInfo.notesPerCycle}
+                        hand="left"
+                        isMobile={isMobile}
+                    />
+                </div>
             ) : (measure.leftOstinato && leftLabels.length > 0) ? (
                 <MotifRows
                     labels={leftLabels}
@@ -910,22 +600,6 @@ const MeasureCard = React.memo(function MeasureCard({
                 ))}
             </div>
 
-            {/* Detail expansion — show full ChordDisplay only when "showDetails" is on */}
-            {showDetails && (
-                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--hairline)' }}>
-                    <ChordDisplay
-                        measure={measure}
-                        handColors={handColors}
-                        keySignature={keySignature}
-                        showDetails={showDetails}
-                        displayNoteName={displayNoteName}
-                        expandedChordReps={expandedChordReps}
-                        onToggleChordRep={onToggleChordRep}
-                        isMobile={isMobile}
-                    />
-                </div>
-            )}
-
         </div>
     );
 });
@@ -970,8 +644,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const { isMobile } = useDeviceContext();
     const [showDetails, setShowDetails] = useState(false);
     const [showOctaves, setShowOctaves] = useState(false);
-    const [expandedChords, setExpandedChords] = useState(new Map());
-    const [expandedMelodies, setExpandedMelodies] = useState(new Set());
     const [focusedMeasure, setFocusedMeasure] = useState(1);
     const [isPlaying, setIsPlaying] = useState(false);
     const [playbackHand, setPlaybackHand] = useState('both');
@@ -987,19 +659,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
     const playbackIntervalRef = useRef(null);
     const playingMeasureRef = useRef(-1);
 
-    // Hand colors from settings
-    const [handColors, setHandColors] = useState(() => ({
-        left: themeService.getHandColors('left').primary,
-        right: themeService.getHandColors('right').primary,
-    }));
-
-    useEffect(() => {
-        const update = () => setHandColors({
-            left: themeService.getHandColors('left').primary,
-            right: themeService.getHandColors('right').primary,
-        });
-        return themeService.addListener(update);
-    }, []);
 
     // Reset BPM when song changes — intentional sync from prop, not a cascade
     useEffect(() => {
@@ -1506,26 +1165,6 @@ export function LiveLearning({ song, onToggleHighlight }) {
         return fullName.slice(0, -1);
     }, [showOctaves]);
 
-    const onToggleChordRep = useCallback((measureNum, repIndex) => {
-        setExpandedChords(prev => {
-            const next = new Map(prev);
-            const reps = new Set(next.get(measureNum) || []);
-            if (reps.has(repIndex)) reps.delete(repIndex);
-            else reps.add(repIndex);
-            if (reps.size === 0) next.delete(measureNum);
-            else next.set(measureNum, reps);
-            return next;
-        });
-    }, []);
-
-    const onToggleMelodyExpand = useCallback((measureNum) => {
-        setExpandedMelodies(prev => {
-            const next = new Set(prev);
-            if (next.has(measureNum)) next.delete(measureNum);
-            else next.add(measureNum);
-            return next;
-        });
-    }, []);
 
     if (!analysis) {
         return (
@@ -1720,12 +1359,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                                     onPlay={handlePlayMeasure}
                                                     showDetails={showDetails}
                                                     displayNoteName={displayNoteName}
-                                                    expandedChordReps={expandedChords.get(measure.number) || new Set()}
-                                                    onToggleChordRep={onToggleChordRep}
-                                                    isMelodyExpanded={expandedMelodies.has(measure.number)}
-                                                    onToggleMelodyExpand={onToggleMelodyExpand}
                                                     isMobile={isMobile}
-                                                    handColors={handColors}
                                                 />
                                             </div>
                                             );
