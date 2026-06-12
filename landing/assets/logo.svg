@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- VARIANT A — "Keys minimal": oversized keys edge-to-edge, one cyan + one pink, big negative space -->
+  <defs>
+    <linearGradient id="a-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b26"/>
+      <stop offset="1" stop-color="#0a0c10"/>
+    </linearGradient>
+    <linearGradient id="a-white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#cfd3df"/>
+    </linearGradient>
+    <linearGradient id="a-cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7df0ff"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="a-pink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f873b8"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="225" fill="url(#a-tile)"/>
+
+  <!-- 4 oversized keys filling the tile; keys run from y=150 to y=874, rounded bottoms -->
+  <g>
+    <rect x="150"  y="150" width="172" height="724" rx="40" fill="url(#a-white)"/>
+    <rect x="334"  y="150" width="172" height="724" rx="40" fill="url(#a-pink)"/>
+    <rect x="518"  y="150" width="172" height="724" rx="40" fill="url(#a-cyan)"/>
+    <rect x="702"  y="150" width="172" height="724" rx="40" fill="url(#a-white)"/>
+  </g>
+
+  <!-- three black keys nestled in the seams (top portion only) -->
+  <g fill="#0a0c10">
+    <rect x="288" y="150" width="92" height="430" rx="26"/>
+    <rect x="466" y="150" width="92" height="430" rx="26"/>
+    <rect x="644" y="150" width="92" height="430" rx="26"/>
+  </g>
+</svg>
