@@ -35,6 +35,13 @@ const appImport = isMobilePlatform
   ? import('./AppMobile.jsx')
   : import('./AppDesktop.jsx');
 
+// First visit with an empty library → preload the bundled demo songs so the
+// hosted web version isn't a blank page. One-shot (flag), resolves before the
+// app renders; the pre-React splash covers the wait.
+const demosReady = import('./services/DemoSongs')
+  .then((m) => m.preloadDemoSongsIfEmpty())
+  .catch(() => false);
+
 // Fade out and remove the pre-React splash once the app has mounted.
 // Runs after first paint of the React tree so there is no white flash.
 function removeSplash() {
@@ -47,7 +54,7 @@ function removeSplash() {
   setTimeout(cleanup, 600);
 }
 
-appImport.then((module) => {
+Promise.all([appImport, demosReady]).then(([module]) => {
   const App = module.default;
   createRoot(document.getElementById('root')).render(
     <StrictMode>

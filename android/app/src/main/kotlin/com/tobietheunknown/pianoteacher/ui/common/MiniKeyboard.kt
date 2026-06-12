@@ -52,21 +52,25 @@ private fun noteNameFr(pitch: Int): String =
  * display so every measure in the song fits without changing zoom level.
  * Pass the per-measure (melody + chord) pitch pairs as a flat list of
  * (min, max). Returns at minimum 12 semitones (one octave).
+ *
+ * The result is rounded UP to the next multiple of 12 (whole octaves) so the
+ * window always starts on a natural C. We do NOT cap at songSpan — doing so
+ * can yield a window exactly equal to the widest single-measure span, which
+ * makes the octave-aligned window unable to contain notes that straddle an
+ * octave boundary (e.g. Si2+Sol3 at the edge of a 12-semitone window).
+ * Instead we pad by at least 4 semitones beyond the widest span so the
+ * C-aligned window always has room to accommodate boundary-straddling measures.
  */
 fun fixedKeyboardRange(perMeasureRanges: List<Pair<Int, Int>>): Int {
     if (perMeasureRanges.isEmpty()) return 24 // 2 octaves default
     var widest = 12
-    var minP = Int.MAX_VALUE
-    var maxP = Int.MIN_VALUE
     for ((a, b) in perMeasureRanges) {
         widest = maxOf(widest, b - a + 1)
-        minP = minOf(minP, a)
-        maxP = maxOf(maxP, b)
     }
-    // Pad a bit and round up to the next octave boundary so keys land on
-    // natural C-to-C windows. Capped to the actual song span so we don't
-    // show empty octaves on either side.
-    return (widest + 8).coerceAtMost(maxP - minP + 1).coerceAtLeast(12)
+    // Add at least 4 semitones of padding so C-aligned windows never exclude
+    // notes sitting just past an octave boundary. Round up to whole octave.
+    val padded = widest + 4
+    return ((padded + 11) / 12) * 12
 }
 
 /**
@@ -164,18 +168,32 @@ fun MiniKeyboard(
             // spills outside the current viewport. Same-octave content across
             // measures keeps the keyboard fixed — no octave jumps for a hand
             // whose notes were already visible.
+            //
+            // Initial position: centre the window around C4 (midi 60), aligned
+            // to the nearest C below (i.e. a multiple-of-12 MIDI value).
             var startMidi by remember(fixedRange) {
-                mutableStateOf(48 - windowSemis / 2 - ((48 - windowSemis / 2) % 12).let {
-                    if (it < 0) it + 12 else it
+                mutableStateOf(run {
+                    val raw = 60 - windowSemis / 2
+                    // Round DOWN to the nearest C (multiple of 12).
+                    raw - ((raw % 12 + 12) % 12)
                 })
             }
             LaunchedEffect(activeRight, activeLeft, fixedRange) {
                 val active = activeRight + activeLeft
                 if (active.isEmpty()) return@LaunchedEffect
-                var s = startMidi
-                // Only adjust by octaves to bring spilled notes back into view.
-                while (active.max() > s + windowSemis - 1) s += 12
-                while (active.min() < s) s -= 12
+                val lo = active.min()
+                val hi = active.max()
+                // If both lo and hi are already within the current window, no shift needed.
+                if (lo >= startMidi && hi <= startMidi + windowSemis - 1) return@LaunchedEffect
+                // Compute a single stable target: the lowest C-aligned position that
+                // covers both lo and hi. We start from the C just below `lo` and
+                // move up by whole octaves until hi fits. This avoids the two-step
+                // up-then-down oscillation where each while undoes the other.
+                val cBase = lo - ((lo % 12 + 12) % 12)   // C just at or below lo
+                var s = cBase
+                while (s + windowSemis - 1 < hi) s += 12   // shift up until hi fits
+                // If lo is still below s (shouldn't happen for sane widths, but guard):
+                while (lo < s) s -= 12
                 val clamped = s.coerceIn(12, 108 - windowSemis)
                 if (clamped != startMidi) startMidi = clamped
             }
@@ -236,6 +254,43 @@ fun MiniKeyboard(
                         size = Size(blackWidth, blackHeight),
                         style = Stroke(width = 1f),
                     )
+                }
+
+                // ── Edge overflow indicators ──────────────────────────────────
+                // If any active note is still outside the visible window (can happen
+                // when the song span exceeds the window, e.g. very wide-range songs),
+                // draw a small filled triangle at the keyboard edge in the hand color.
+                // Right hand (cyan) takes priority if both hands overflow the same edge.
+                val edgeW = 10.dp.toPx()
+                val edgeH = 10.dp.toPx()
+                val edgeMidY = h * 0.40f  // within white-key area
+
+                val leftOverflowRight  = activeRight.any { it < startMidi }
+                val leftOverflowLeft   = activeLeft.any  { it < startMidi }
+                val rightOverflowRight = activeRight.any { it > endMidi }
+                val rightOverflowLeft  = activeLeft.any  { it > endMidi }
+
+                if (leftOverflowRight || leftOverflowLeft) {
+                    val arrowColor = if (leftOverflowRight) cyan else pink
+                    // Left-pointing triangle at the left edge.
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(0f, edgeMidY)
+                        lineTo(edgeW, edgeMidY - edgeH / 2f)
+                        lineTo(edgeW, edgeMidY + edgeH / 2f)
+                        close()
+                    }
+                    drawPath(path, arrowColor)
+                }
+                if (rightOverflowRight || rightOverflowLeft) {
+                    val arrowColor = if (rightOverflowRight) cyan else pink
+                    // Right-pointing triangle at the right edge.
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(w, edgeMidY)
+                        lineTo(w - edgeW, edgeMidY - edgeH / 2f)
+                        lineTo(w - edgeW, edgeMidY + edgeH / 2f)
+                        close()
+                    }
+                    drawPath(path, arrowColor)
                 }
             }
         }

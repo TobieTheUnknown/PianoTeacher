@@ -103,7 +103,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       const parsed = parseFloat(stored);
       if (!isNaN(parsed)) return Math.min(LOOKAHEAD_MAX, Math.max(LOOKAHEAD_MIN, Math.round(parsed)));
     }
-    return isMobile ? 5 : 4;
+    return isMobile ? 5 : 2;
   });
 
   const changeLookAhead = useCallback((delta) => {

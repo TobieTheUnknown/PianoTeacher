@@ -135,8 +135,16 @@ export function PlaybackDock({
         </div>
       </div>
 
-      {/* Transport row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      {/* Transport row — Métronome far-left · Boucle far-right · Play exactly centred.
+          Layout: 3-column grid (Métronome | transport cluster | Boucle) with equal
+          left/right column widths so the centre column's own flex centering puts
+          the play button at the true midpoint of the bar.
+          Inside the centre cluster the play button has [Restart][Prev] on its left
+          and [Next][ghost-spacer] on its right — the ghost mirrors Restart's 40px
+          width so the play button stays on the exact centreline whether or not
+          onRestart is supplied. */}
+      <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 40px', alignItems: 'center', gap: 8 }}>
+        {/* Far-left: Métronome */}
         <MetronomeButton
           active={metronome}
           subdivision={metronomeSubdivision}
@@ -144,15 +152,22 @@ export function PlaybackDock({
           onSubdivisionChange={onMetronomeSubdivisionChange}
         />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {onRestart && (
-            <TransportBtn onClick={onRestart} title="Recommencer" aria-label="Recommencer">
-              <RestartIcon />
-            </TransportBtn>
-          )}
-          <TransportBtn onClick={onPrev} aria-label="Précédent">
+        {/* Centre: [Retour au début] [Mesure précédente] [Lecture] [Mesure suivante] [ghost] */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+          {/* Retour au début — always rendered; invisible when no handler so Play stays centred */}
+          <TransportBtn
+            onClick={onRestart || undefined}
+            title="Retour au début"
+            aria-label="Retour au début"
+            style={{ visibility: onRestart ? 'visible' : 'hidden' }}
+          >
+            <RestartIcon />
+          </TransportBtn>
+
+          <TransportBtn onClick={onPrev} aria-label="Mesure précédente">
             <RewindIcon />
           </TransportBtn>
+
           <button
             onClick={onPlayPause}
             style={{
@@ -174,11 +189,16 @@ export function PlaybackDock({
           >
             {playing ? <PauseIcon /> : <PlayIcon />}
           </button>
-          <TransportBtn onClick={onNext} aria-label="Suivant">
+
+          <TransportBtn onClick={onNext} aria-label="Mesure suivante">
             <ForwardIcon />
           </TransportBtn>
+
+          {/* Ghost spacer — mirrors "Retour au début" width to keep Play on centreline */}
+          <div style={{ width: 40, height: 40, flexShrink: 0, visibility: 'hidden' }} aria-hidden />
         </div>
 
+        {/* Far-right: Boucle */}
         <ToggleIconBtn active={loop} onClick={onLoop} aria-label="Boucle">
           <RepeatIcon />
         </ToggleIconBtn>
@@ -263,7 +283,7 @@ function pillStyle(active, activeColor) {
   };
 }
 
-function TransportBtn({ children, onClick, ...rest }) {
+function TransportBtn({ children, onClick, style: extraStyle, ...rest }) {
   return (
     <button
       onClick={onClick}
@@ -281,6 +301,7 @@ function TransportBtn({ children, onClick, ...rest }) {
         cursor: 'pointer',
         padding: 0,
         minHeight: 0,
+        ...extraStyle,
       }}
     >
       {children}

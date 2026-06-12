@@ -48,24 +48,29 @@ import com.tobietheunknown.pianoteacher.ui.theme.*
 // File-level color palette: hoisted out of Canvas DrawScope to avoid per-frame
 // allocations. Without this, each Color() literal inside the per-note forEach
 // allocates ~60×/sec per dot × ~30 dots × 4 cards ≈ 7k Color objects/sec.
-private val IndigoAccentRaw = Color(0xFF6366F1)
-private val LL_LABEL_GRAY = TextTertiary
-private val LL_MUTED_LABEL = TextSecondary
-private val LL_BEAT_DIV_DIM = Color(0x33FFFFFF)
-private val LL_BEAT_DIV_BRIGHT = Color(0x40FFFFFF)
-// Hand colors routed through design tokens (default classic preset).
-private val LL_MELODY_BRIGHT = Tokens.HandRight
-private val LL_MELODY_GLOW = Tokens.HandRight.copy(alpha = 0.25f)
-private val LL_CHORD_BRIGHT = Tokens.HandLeft
-private val LL_CHORD_GLOW = Tokens.HandLeft.copy(alpha = 0.25f)
-private val LL_PLAYHEAD_CORE = IndigoAccentRaw
-private val LL_PLAYHEAD_GLOW = IndigoAccentRaw.copy(alpha = 0.20f)
+//
+// NOTE: hand colors (melody/chords) and accent are DYNAMIC — they read through
+// ActiveTheme so theme changes apply immediately without recomposition.
+// Beat-strip dividers use Tokens.BorderColor / Tokens.Hairline (theme-neutral).
+private val LL_LABEL_GRAY get() = TextTertiary
+private val LL_MUTED_LABEL get() = TextSecondary
+// Beat-strip division lines: use Tokens hairline/border instead of raw white alphas.
+private val LL_BEAT_DIV_DIM   get() = Tokens.Hairline        // 5% white — subtle mid hairline
+private val LL_BEAT_DIV_BRIGHT get() = Tokens.BorderColor    // 8% white — beat division lines
+// Hand colors routed through ActiveTheme so color-preset changes take effect.
+private val LL_MELODY_BRIGHT get() = ActiveTheme.colors.melodyColor
+private val LL_MELODY_GLOW   get() = ActiveTheme.colors.melodyColor.copy(alpha = 0.25f)
+private val LL_CHORD_BRIGHT  get() = ActiveTheme.colors.chordsColor
+private val LL_CHORD_GLOW    get() = ActiveTheme.colors.chordsColor.copy(alpha = 0.25f)
+// Accent (playhead) routed through ActiveTheme.
+private val LL_PLAYHEAD_CORE get() = ActiveTheme.colors.accent
+private val LL_PLAYHEAD_GLOW get() = ActiveTheme.colors.accent.copy(alpha = 0.20f)
 private val LL_BG_DARK = Color(0xFF0F1218)
-private val LL_DIVIDER_GRAY = TextMuted
-private val LL_ICON_GRAY = TextSecondary
-private val LL_KEY_WHITE = KeyWhite
-private val LL_KEY_WHITE_SHADOW = KeyWhiteShadow
-private val LL_KEY_BLACK = KeyBlack
+private val LL_DIVIDER_GRAY get() = TextMuted
+private val LL_ICON_GRAY get() = TextSecondary
+private val LL_KEY_WHITE get() = KeyWhite
+private val LL_KEY_WHITE_SHADOW get() = KeyWhiteShadow
+private val LL_KEY_BLACK get() = KeyBlack
 
 private fun noteName(pitch: Int, keySignature: MusicKeySignature? = null): String =
     com.tobietheunknown.pianoteacher.utils.midiToFrench(pitch, showOctave = false, keySignature = keySignature)

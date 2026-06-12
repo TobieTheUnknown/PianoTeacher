@@ -13,24 +13,22 @@ import { getFrenchNoteName } from '../../models/song';
  * 340px wide, full-height column, color-mix surface-1 background.
  */
 export function LearnSidebar({ measure, allMeasures, keySignature, displayNoteName }) {
-    // Fixed-zoom window for the whole song: keyboard doesn't rescale on
-    // each measure; it only shifts by octaves when notes spill out. Same
-    // logic as the Android app's MiniKeyboard.
-    const keyboardSpan = React.useMemo(
-        () => fixedKeyboardRange(
-            (allMeasures || []).map((m) => {
-                const all = [...(m.melody || []), ...(m.chords || [])];
-                if (all.length === 0) return null;
-                let min = Infinity, max = -Infinity;
-                for (const n of all) {
-                    if (n.pitch < min) min = n.pitch;
-                    if (n.pitch > max) max = n.pitch;
-                }
-                return [min, max];
-            }).filter(Boolean),
-        ),
-        [allMeasures],
-    );
+    // Stable keyboard window: computed once from the whole song so the
+    // keyboard never re-scales between measures; it only shifts in whole-
+    // octave steps when a measure's notes fall outside the current window.
+    const keyboardInfo = React.useMemo(() => {
+        const ranges = (allMeasures || []).map((m) => {
+            const all = [...(m.melody || []), ...(m.chords || [])];
+            if (all.length === 0) return null;
+            let min = Infinity, max = -Infinity;
+            for (const n of all) {
+                if (n.pitch < min) min = n.pitch;
+                if (n.pitch > max) max = n.pitch;
+            }
+            return [min, max];
+        }).filter(Boolean);
+        return fixedKeyboardRange(ranges);
+    }, [allMeasures]);
 
     if (!measure) {
         return (
@@ -70,26 +68,40 @@ export function LearnSidebar({ measure, allMeasures, keySignature, displayNoteNa
                 borderRadius: 'var(--r-md)',
             }}>
                 <div style={eyebrow}>Clavier</div>
-                <MiniKeyboard fixedRange={keyboardSpan} activeRight={activeRight} activeLeft={activeLeft} />
+                <MiniKeyboard fixedRange={keyboardInfo.windowSemis} globalMin={keyboardInfo.globalMin} activeRight={activeRight} activeLeft={activeLeft} />
             </div>
         </aside>
     );
 }
 
 /**
- * Compute fixed window size (semitones) so every measure fits without
- * re-zooming. Mirrors `fixedKeyboardRange` in the Android codebase.
+ * Compute a stable keyboard window for the whole song.
+ *
+ * Strategy:
+ *  1. Measure the global pitch range (min/max across all measures).
+ *  2. Round UP to whole octaves — this is the window width.
+ *  3. Add a minimum of one extra octave of padding (so the song does not
+ *     sit wall-to-wall) but cap at 3 octaves total so the keys stay visible.
+ *  4. Return { windowSemis, globalMin } so MiniKeyboard can anchor the
+ *     initial window to the song's actual pitch centre rather than C3.
+ *
+ * Returns an object so callers receive both pieces of info.
  */
 function fixedKeyboardRange(perMeasureRanges) {
-    if (perMeasureRanges.length === 0) return 24; // 2 octaves default
-    let widest = 12;
+    if (perMeasureRanges.length === 0) {
+        return { windowSemis: 24, globalMin: 48 };
+    }
     let minP = Infinity, maxP = -Infinity;
     for (const [a, b] of perMeasureRanges) {
-        if (b - a + 1 > widest) widest = b - a + 1;
         if (a < minP) minP = a;
         if (b > maxP) maxP = b;
     }
-    return Math.max(12, Math.min(widest + 8, maxP - minP + 1));
+    // Round the full span up to the nearest octave boundary, then add one
+    // octave of breathing room (capped at 36 = 3 octaves so keys stay legible).
+    const span = maxP - minP + 1;
+    const rounded = Math.ceil(span / 12) * 12;
+    const windowSemis = Math.min(36, rounded + 12);
+    return { windowSemis, globalMin: minP };
 }
 
 const sidebarStyle = {
@@ -97,8 +109,18 @@ const sidebarStyle = {
     flexShrink: 0,
     borderLeft: '1px solid var(--border)',
     background: 'color-mix(in oklab, var(--surface-1), transparent 30%)',
-    overflowY: 'auto',
+    // No overflowY here — let the page scroll so `position: sticky` works.
     padding: '20px 18px',
+    // Sticky: mirrors how CoordinationTimeline pins to the top.
+    position: 'sticky',
+    top: 0,
+    // align-self: flex-start is required so the sidebar's natural height is
+    // used (not stretched to the parent's height), which allows sticky to
+    // travel with the viewport scroll.
+    alignSelf: 'flex-start',
+    zIndex: 10,
+    maxHeight: '100vh',
+    overflowY: 'auto',
 };
 
 const eyebrow = {
@@ -128,9 +150,16 @@ function uniquePitchLabels(notes, displayNoteName, keySignature) {
 
 function HandGuide({ hand, notes, count, chord }) {
     const isRight = hand === 'right';
+    // Use the base CSS var directly so ThemeService overrides propagate.
+    // dim / border are derived via color-mix so they always track the base
+    // hand color even when ThemeService JS sets --hand-right/left at runtime.
     const color = isRight ? 'var(--hand-right)' : 'var(--hand-left)';
-    const dim = isRight ? 'var(--hand-right-dim)' : 'var(--hand-left-dim)';
-    const border = isRight ? 'var(--hand-right-border)' : 'var(--hand-left-border)';
+    const dim = isRight
+        ? 'color-mix(in oklab, var(--hand-right), transparent 82%)'
+        : 'color-mix(in oklab, var(--hand-left), transparent 82%)';
+    const border = isRight
+        ? 'color-mix(in oklab, var(--hand-right), transparent 65%)'
+        : 'color-mix(in oklab, var(--hand-left), transparent 65%)';
     return (
         <div style={{
             background: 'var(--surface-1)',
@@ -212,20 +241,30 @@ function HandIcon({ hand }) {
     );
 }
 
-function MiniKeyboard({ fixedRange, activeRight, activeLeft }) {
+function MiniKeyboard({ fixedRange, globalMin, activeRight, activeLeft }) {
     // Fixed pitch window for the whole song. The keyboard never re-scales
     // when the focused measure changes; the window only shifts in octave
     // increments to keep active notes visible. Same approach as the
     // Android MiniKeyboard so the UX stays consistent across platforms.
-    const rangeSemis = Math.max(12, fixedRange ?? 24);
-    const windowSemis = Math.ceil(rangeSemis / 12) * 12;
+    //
+    // windowSemis is already rounded to whole octaves by fixedKeyboardRange.
+    const windowSemis = Math.max(12, fixedRange ?? 24);
 
-    // Persistent window start (centred around C3, snapped to a C boundary).
+    // Persistent window start — anchored to the song's actual global minimum
+    // pitch so the keyboard is pre-positioned over the real content rather
+    // than always starting at C3. Snapped down to the nearest C boundary.
     const initialStart = React.useMemo(() => {
+        if (globalMin != null && isFinite(globalMin)) {
+            // Place the song content near the left edge with a small margin.
+            const raw = globalMin - 6; // half-octave margin below the lowest note
+            const mod = ((raw % 12) + 12) % 12;
+            return Math.max(12, raw - mod);
+        }
+        // Fallback: centre around C3 (MIDI 48).
         const raw = 48 - windowSemis / 2;
         const mod = ((raw % 12) + 12) % 12;
-        return raw - mod;
-    }, [windowSemis]);
+        return Math.max(12, raw - mod);
+    }, [windowSemis, globalMin]);
     const [startMidi, setStartMidi] = React.useState(initialStart);
 
     React.useEffect(() => {
@@ -240,8 +279,16 @@ function MiniKeyboard({ fixedRange, activeRight, activeLeft }) {
         if (active.length === 0) return;
         const hi = Math.max(...active);
         const lo = Math.min(...active);
+
+        // Shift the window the MINIMUM number of octaves that makes BOTH lo
+        // and hi visible at the same time. Since windowSemis >= (hi - lo + 1)
+        // is guaranteed by fixedKeyboardRange (the window always fits the full
+        // song span), a single direction is always sufficient — no oscillation.
         let s = startMidi;
+        // 1. Shift up if hi is above the window's top.
         while (hi > s + windowSemis - 1) s += 12;
+        // 2. Shift down if lo is below the window (won't fight step 1 because
+        //    the window is guaranteed wide enough for the entire song range).
         while (lo < s) s -= 12;
         const clamped = Math.min(108 - windowSemis, Math.max(12, s));
         if (clamped !== startMidi) setStartMidi(clamped);

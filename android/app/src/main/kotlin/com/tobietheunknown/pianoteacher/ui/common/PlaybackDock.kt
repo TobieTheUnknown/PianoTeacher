@@ -82,26 +82,51 @@ fun PlaybackDock(
                 SpeedCluster(speed = speed, onSpeed = onSpeed)
             }
 
-            Row(
+            // Transport row: métronome far-left | [retour·prev · PLAY · next] centred | boucle far-right.
+            // Exact centering: a Box fills the full width with the Play button anchored to the
+            // absolute center; an invisible mirror spacer on the right balances the left-side
+            // buttons so the Play button stays pixel-perfect regardless of icon count.
+            Box(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                contentAlignment = Alignment.Center,
             ) {
-                ToggleIconBtn(active = metronome, onClick = onMetronome, icon = Icons.Default.Timer)
+                // Play button at the exact horizontal center of the bar.
+                PlayPauseButton(playing = playing, onClick = onPlayPause)
 
+                // Left-side controls: retour au début + mesure précédente (anchored to the left edge).
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    ToggleIconBtn(active = metronome, onClick = onMetronome, icon = Icons.Default.Timer)
                     if (onRestart != null) {
-                        TransportBtn(onClick = onRestart, icon = Icons.Default.SkipPrevious, contentDescription = "Recommencer")
+                        TransportBtn(
+                            onClick = onRestart,
+                            icon = Icons.Default.SkipPrevious,
+                            contentDescription = "Retour au début",
+                        )
                     }
-                    TransportBtn(onClick = onPrev, icon = Icons.AutoMirrored.Filled.NavigateBefore)
-                    PlayPauseButton(playing = playing, onClick = onPlayPause)
-                    TransportBtn(onClick = onNext, icon = Icons.AutoMirrored.Filled.NavigateNext)
+                    TransportBtn(
+                        onClick = onPrev,
+                        icon = Icons.AutoMirrored.Filled.NavigateBefore,
+                        contentDescription = "Mesure précédente",
+                    )
                 }
 
-                ToggleIconBtn(active = loop, onClick = onLoop, icon = Icons.Default.Refresh)
+                // Right-side controls: mesure suivante + boucle (anchored to the right edge).
+                Row(
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TransportBtn(
+                        onClick = onNext,
+                        icon = Icons.AutoMirrored.Filled.NavigateNext,
+                        contentDescription = "Mesure suivante",
+                    )
+                    ToggleIconBtn(active = loop, onClick = onLoop, icon = Icons.Default.Refresh)
+                }
             }
 
             if (loop) {
