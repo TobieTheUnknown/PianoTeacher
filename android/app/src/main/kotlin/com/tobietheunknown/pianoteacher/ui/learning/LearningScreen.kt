@@ -169,7 +169,7 @@ private val BASS_CLEF = StaffClefConfig(
     name = "Fa", glyph = "\uD834\uDD22",
     keyDiatonic = 31, keyLineFromTop = 1,
     lines = intArrayOf(25, 27, 29, 31, 33),  // G2, B2, D3, F3, A3
-    anchorFrac = 0.44f, fontScale = 0.64f, extraYOffset = 11f
+    anchorFrac = 0.20f, fontScale = 0.64f, extraYOffset = 7f
 )
 
 private val ALTO_CLEF = StaffClefConfig(
@@ -1222,7 +1222,7 @@ private fun GrandStaffCanvas(
                         val d = positions[i]
                         val accLayout = textMeasurer.measure(accLabel, accStyle)
                         val ax = pureClefW + 3.dp.toPx() + i * 9.dp.toPx()
-                        val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height * 0.45f
+                        val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height * 0.60f
                         drawText(accLayout, topLeft = Offset(ax, ay))
                     }
                 }
