@@ -78,6 +78,7 @@ cd android && JAVA_HOME=/path/to/jdk-17 ./gradlew :app:assembleDebug
 ```
 
 Un corpus MIDI de test vit dans `web/docs/` (Departure, Other Promise, Halleluah, Laputa…) le tout arrangé par [@Jotabe](https://www.twitch.tv/jotabemusique).
+
 J'ai commencé a build l'app (et je continuerai) en suivant ses cours sur [twitch](https://www.twitch.tv/jotabemusique), l'app n'est donc pas parfaite et correspond surtout a mes usages (je ne l'ai pas testée sur des miliers de fichiers midi).
 
 ---
