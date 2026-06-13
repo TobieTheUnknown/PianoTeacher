@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tobietheunknown.pianoteacher.ui.theme.*
 
 enum class AppTab { LIBRARY, EDITOR, LEARN, SHEET, LIVEPLAY, SETTINGS }
 
@@ -78,13 +79,13 @@ fun BottomTabBar(
                     Icon(
                         item.icon,
                         contentDescription = item.label,
-                        tint = if (isActive) com.tobietheunknown.pianoteacher.ui.theme.IndigoAccent else Color(0xFF6B7280),
+                        tint = if (isActive) com.tobietheunknown.pianoteacher.ui.theme.IndigoAccent else TextTertiary,
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         item.label,
-                        color = if (isActive) com.tobietheunknown.pianoteacher.ui.theme.IndigoAccent else Color(0xFF6B7280),
+                        color = if (isActive) com.tobietheunknown.pianoteacher.ui.theme.IndigoAccent else TextTertiary,
                         fontSize = 10.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1,

@@ -17,12 +17,9 @@ export function TimelineNavigator({
     currentTime,
     loopConfig,
     isLoopEnabled,
-    phrases = [],
     beatsPerSecond,
     onSeek,
     onLoopChange,
-    onLoopToggle,
-    onPhraseLoopSelect,
     isPlaying,
     // eslint-disable-next-line no-unused-vars
     tempo
@@ -86,28 +83,6 @@ export function TimelineNavigator({
     const totalMeasures = useMemo(() => {
         return Math.ceil(totalDuration * beatsPerSecond / 4);
     }, [totalDuration, beatsPerSecond]);
-
-    // Calculer les plages de mesures pour chaque phrase
-    const phraseMeasureRanges = useMemo(() => {
-        return phrases.reduce((acc, phrase, index) => {
-            const startMeasure = index === 0 ? 1 : acc[index - 1].endMeasure + 1;
-            acc.push({
-                phraseIndex: index,
-                name: phrase.name,
-                startMeasure: startMeasure,
-                endMeasure: startMeasure + phrase.length - 1,
-                length: phrase.length
-            });
-            return acc;
-        }, []);
-    }, [phrases]);
-
-    // Gérer le click sur un raccourci phrase
-    const handlePhraseClick = useCallback((phraseRange) => {
-        if (onPhraseLoopSelect) {
-            onPhraseLoopSelect(phraseRange.startMeasure, phraseRange.endMeasure, phraseRange.name);
-        }
-    }, [onPhraseLoopSelect]);
 
     // Calculer les positions pour le rendu
     const timelineWidth = 1100; // Largeur de la timeline

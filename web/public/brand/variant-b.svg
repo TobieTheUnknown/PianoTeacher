@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- VARIANT B — "Rising note": single big eighth-note, stem doubles as a key separator -->
+  <defs>
+    <linearGradient id="b-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b26"/>
+      <stop offset="1" stop-color="#0a0c10"/>
+    </linearGradient>
+    <linearGradient id="b-head" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="b-flag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="225" fill="url(#b-tile)"/>
+
+  <!-- piano keys along the bottom edge; the stem (x≈494..534) sits in a seam -->
+  <g>
+    <rect x="170" y="700" width="124" height="200" rx="26" fill="#e8eaf0"/>
+    <rect x="306" y="700" width="124" height="200" rx="26" fill="#e8eaf0"/>
+    <rect x="442" y="700" width="124" height="200" rx="26" fill="#cfd3df"/>
+    <rect x="578" y="700" width="124" height="200" rx="26" fill="#e8eaf0"/>
+    <rect x="714" y="700" width="124" height="200" rx="26" fill="#e8eaf0"/>
+  </g>
+  <!-- seam emphasis where the stem lands -->
+  <rect x="566" y="700" width="12" height="200" fill="#0a0c10"/>
+
+  <!-- eighth note: stem from keys upward, flag curving off the top -->
+  <rect x="494" y="250" width="40" height="468" rx="18" fill="#3b82f6"/>
+  <!-- flag -->
+  <path d="M534 258
+           C 660 280 712 360 690 470
+           C 700 392 656 332 534 326 Z" fill="url(#b-flag)"/>
+  <!-- glowing notehead, cyan->pink gradient -->
+  <ellipse cx="430" cy="660" rx="118" ry="92" transform="rotate(-20 430 660)" fill="url(#b-head)"/>
+</svg>

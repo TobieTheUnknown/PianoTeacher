@@ -3,6 +3,10 @@ import { getNoteNameFromMidi } from '../models/song';
 // Lazy-loaded Tone.js module — avoids AudioContext creation on import (crashes Android WebView)
 let Tone = null;
 
+// localStorage key holding the calibrated audio/visual offset in milliseconds.
+// Positive = sound is heard later than the visuals are drawn (macOS/WKWebView).
+export const AV_OFFSET_STORAGE_KEY = 'piano-teacher-av-offset-ms';
+
 async function loadTone() {
     if (!Tone) {
         Tone = await import('tone');
@@ -17,8 +21,77 @@ class AudioEngine {
         this.isPlaying = false;
         this.metronomeEnabled = false;
         this.masterVolume = null;
-        this._volume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0'); // dB
+        // Restore volume (dB). Guard against a persisted '-Infinity' (saved
+        // when the slider was once dragged to 0%): restoring it would leave
+        // the app PERMANENTLY silent across restarts. Non-finite or
+        // out-of-range values fall back to 0 dB (full volume).
+        const storedVolume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0');
+        this._volume = (Number.isFinite(storedVolume) && storedVolume >= -60 && storedVolume <= 0)
+            ? storedVolume
+            : 0;
         this._readyCallbacks = [];
+        this._avOffsetSec = null; // cached A/V offset (seconds); null = needs recompute
+    }
+
+    /**
+     * Auto-estimate of the audio output latency from the AudioContext, in
+     * seconds: how long after its scheduled audio-clock time a sample is
+     * actually heard. Used as the fallback when the user hasn't run the
+     * A/V calibration wizard. Returns 0 when the context isn't available
+     * (e.g. before init or on platforms that don't expose the values).
+     */
+    getAutoAvOffsetSeconds() {
+        try {
+            const ctx = Tone && Tone.context ? Tone.context.rawContext || Tone.context : null;
+            if (!ctx) return 0;
+            const base = typeof ctx.baseLatency === 'number' ? ctx.baseLatency : 0;
+            const output = typeof ctx.outputLatency === 'number' ? ctx.outputLatency : 0;
+            const total = base + output;
+            return Number.isFinite(total) && total > 0 ? total : 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    /**
+     * A/V offset to subtract from the raw audio-clock time to get the time
+     * the user actually HEARS the sound, in seconds. Reads the calibrated
+     * value from localStorage when present, otherwise falls back to the
+     * auto estimate (baseLatency+outputLatency). Clamped to [0, 0.5] for
+     * safety. Cached; call setAvOffsetMs (or clearAvOffsetCache) to refresh.
+     */
+    getAvOffsetSeconds() {
+        if (this._avOffsetSec !== null) return this._avOffsetSec;
+        let sec;
+        const raw = localStorage.getItem(AV_OFFSET_STORAGE_KEY);
+        const parsed = raw === null ? NaN : parseFloat(raw);
+        if (Number.isFinite(parsed)) {
+            sec = parsed / 1000;
+        } else {
+            sec = this.getAutoAvOffsetSeconds();
+        }
+        sec = Math.max(0, Math.min(0.5, sec));
+        this._avOffsetSec = sec;
+        return sec;
+    }
+
+    /**
+     * Persist a calibrated A/V offset (milliseconds) and invalidate the
+     * cache. Passing null/undefined clears the stored value, reverting to
+     * the auto estimate. Called by the calibration wizard.
+     */
+    setAvOffsetMs(ms) {
+        if (ms === null || ms === undefined || !Number.isFinite(ms)) {
+            localStorage.removeItem(AV_OFFSET_STORAGE_KEY);
+        } else {
+            localStorage.setItem(AV_OFFSET_STORAGE_KEY, String(Math.round(ms)));
+        }
+        this._avOffsetSec = null; // force recompute on next read
+    }
+
+    /** Invalidate the cached A/V offset (e.g. after an external write). */
+    clearAvOffsetCache() {
+        this._avOffsetSec = null;
     }
 
     getIsActuallyPlaying() {
@@ -31,12 +104,26 @@ class AudioEngine {
     }
 
     /**
+     * Stable clock function for a play session. Returns the audio-context
+     * clock (Tone.now()) when available so visuals and scheduled audio share
+     * the same time base; falls back to performance.now() before init.
+     * Callers must capture ONE clock per play session — never mix sources.
+     */
+    getClock() {
+        if (Tone) {
+            const T = Tone;
+            return () => T.now();
+        }
+        return () => performance.now() / 1000;
+    }
+
+    /**
      * Subscribe to "samples loaded" — fires once. Used by the loading indicator
      * and by useMidiAudio to flush queued MIDI events.
      */
     onReady(callback) {
         if (this.samplerLoaded) {
-            try { callback(); } catch (_) {}
+            try { callback(); } catch { /* listener errors must not break audio */ }
         } else {
             this._readyCallbacks.push(callback);
         }
@@ -116,14 +203,14 @@ class AudioEngine {
                     "C8": "C8.mp3"
                 },
                 release: 1,
-                baseUrl: "/audio/salamander/",
+                baseUrl: import.meta.env.BASE_URL + "audio/salamander/",
                 onload: () => {
                     console.log("[AudioEngine] Sampler loaded");
                     this.samplerLoaded = true;
                     const cbs = this._readyCallbacks.slice();
                     this._readyCallbacks = [];
                     for (const cb of cbs) {
-                        try { cb(); } catch (_) {}
+                        try { cb(); } catch { /* listener errors must not break audio */ }
                     }
                     resolve();
                 }

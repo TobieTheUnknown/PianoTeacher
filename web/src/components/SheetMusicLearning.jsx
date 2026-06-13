@@ -2,8 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     flattenSongMeasures,
     renderMeasure,
+    resolveSheetTheme,
     suggestUpperOctaveShift,
     suggestLowerOctaveShift,
+    computeHeaderWidth,
+    computeLineSpacing,
     TREBLE_CLEF,
     BASS_CLEF,
     toKotlinKeySig,
@@ -22,7 +25,47 @@ import { audioEngine } from '../services/AudioEngine';
  * Each SheetSystem stacks 4 measure canvases side-by-side, sharing one
  * row. The first measure of each row shows clefs + key signature.
  */
+// Compact toolbar pill — shared by key / time-signature / tempo chips.
+const TOOLBAR_PILL = {
+    padding: '5px 10px',
+    background: 'var(--surface-1)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--r-sm)',
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    height: 30,
+    boxSizing: 'border-box',
+};
+
+/**
+ * Resolve the canvas colour palette from the live CSS theme tokens so the
+ * engraving follows the theme editor (accent + hand-colour presets). Re-resolves
+ * when the theme/accent/hands data-attributes change on <html>.
+ */
+function useSheetTheme() {
+    const [theme, setTheme] = useState(() =>
+        resolveSheetTheme(typeof document !== 'undefined' ? document.documentElement : null)
+    );
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const root = document.documentElement;
+        const update = () => setTheme(resolveSheetTheme(root));
+        update();
+        const mo = new MutationObserver(update);
+        mo.observe(root, {
+            attributes: true,
+            attributeFilter: ['data-theme', 'data-accent', 'data-hands'],
+        });
+        return () => mo.disconnect();
+    }, []);
+    return theme;
+}
+
 export function SheetMusicLearning({ song, isMobile = false }) {
+    const sheetTheme = useSheetTheme();
     const beatsPerMeasure = song?.timeSignature?.numerator || 4;
     const measures = useMemo(
         () => flattenSongMeasures(song, beatsPerMeasure),
@@ -57,6 +100,23 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const [loop, setLoop] = useState(false);
     const [loopRange, setLoopRange] = useState([1, 1]);
     const [loopEditorOpen, setLoopEditorOpen] = useState(false);
+    // Preview playing state — true during single-measure click previews so the
+    // playhead RAF loop also runs for them (no dock Play needed).
+    const [previewPlaying, setPreviewPlaying] = useState(false);
+    const previewTimeoutRef = useRef(null);
+
+    // Details toggle — persisted in localStorage, OFF by default (stemless view)
+    const LS_KEY = 'piano-teacher-sheet-details';
+    const [showDetails, setShowDetails] = useState(() => {
+        try { return localStorage.getItem(LS_KEY) === 'true'; } catch { return false; }
+    });
+    const handleToggleDetails = () => {
+        setShowDetails((prev) => {
+            const next = !prev;
+            try { localStorage.setItem(LS_KEY, String(next)); } catch { /* ignore */ }
+            return next;
+        });
+    };
 
     // Stop the metronome when the user toggles it off mid-playback or
     // unmounts the page. We DON'T start it on toggle — the metronome
@@ -68,6 +128,15 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         }
         return () => audioEngine.stopMetronome();
     }, [metronome]);
+
+    // Cancel in-flight preview timeout on unmount.
+    useEffect(() => {
+        return () => {
+            if (previewTimeoutRef.current) {
+                clearTimeout(previewTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // Concat phrases into one playable phrase so the dock's play button
     // drives the whole partition.
@@ -117,18 +186,24 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     // Track Transport position during playback to drive the playhead.
     // Uses getMusicSeconds() which subtracts the metronome preroll so the
     // playhead only starts moving when the music actually plays.
+    // Runs during both full playback (`playing`) AND single-measure previews
+    // (`previewPlaying`) so the playhead moves in both cases.
     const measuresLen = measures.length;
     useEffect(() => {
-        if (!playing) return;
+        if (!playing && !previewPlaying) return;
         const beatsPerMeasureLocal = song?.timeSignature?.numerator || 4;
         const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
         const secondsPerBeat = 60 / tempo;
         const secondsPerMeasure = secondsPerBeat * beatsPerMeasureLocal;
         const startBeats = (Math.max(1, startMeasureRef.current) - 1) * beatsPerMeasureLocal;
         const startOffsetSec = startBeats * secondsPerBeat;
+        // For previews, Transport.seconds starts at 0 (no preroll), so
+        // getMusicSeconds() returns the raw Transport time directly.
         let raf;
         const tick = () => {
-            const musicT = audioEngine.getMusicSeconds(); // negative during preroll
+            const musicT = previewPlaying
+                ? audioEngine.getTransportSeconds()
+                : audioEngine.getMusicSeconds(); // negative during preroll
             if (musicT < 0) {
                 setMeasureProgress(0);
             } else {
@@ -136,14 +211,17 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 const beatIdx = absoluteT / secondsPerBeat;
                 const measureIdx = Math.floor(beatIdx / beatsPerMeasureLocal) + 1;
                 const within = (absoluteT - (measureIdx - 1) * secondsPerMeasure) / secondsPerMeasure;
-                setCurrentMeasure(Math.max(1, Math.min(measuresLen, measureIdx)));
+                if (!previewPlaying) {
+                    // Full playback: advance currentMeasure with playhead.
+                    setCurrentMeasure(Math.max(1, Math.min(measuresLen, measureIdx)));
+                }
                 setMeasureProgress(Math.max(0, Math.min(1, within)));
             }
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
-    }, [playing, song, speed, measuresLen]);
+    }, [playing, previewPlaying, song, speed, measuresLen]);
 
     // Refs let the loop callback see the latest state without re-creating
     // handlePlayPause on every state change.
@@ -158,19 +236,57 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         const idx = measureNumber - 1;
         if (idx < 0 || idx >= measures.length) return;
         await audioEngine.initialize();
+
+        // Stop any active full playback or prior preview.
         if (playing) {
             audioEngine.stop();
             audioEngine.stopMetronome();
             setPlaying(false);
         }
+        if (previewTimeoutRef.current) {
+            clearTimeout(previewTimeoutRef.current);
+            previewTimeoutRef.current = null;
+        }
+        setPreviewPlaying(false);
+
         setCurrentMeasure(measureNumber);
+        // Seed the startMeasureRef immediately so the RAF tick below uses
+        // the correct start offset.
+        startMeasureRef.current = measureNumber;
+
         const m = measures[idx];
         const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
         let notes = [];
         if (handMode !== 'left') notes = notes.concat(m.melodyNotes);
         if (handMode !== 'right') notes = notes.concat(m.chordNotes);
-        if (notes.length > 0) audioEngine.playNotes(notes, tempo);
+        if (notes.length === 0) return;
+
+        audioEngine.playNotes(notes, tempo);
+
+        // Compute measure duration so we can auto-clear the preview state.
+        const beatsPerMeasureLocal = song?.timeSignature?.numerator || 4;
+        const secondsPerBeat = 60 / tempo;
+        const measureDurationSec = secondsPerBeat * beatsPerMeasureLocal;
+
+        // Activate the tracking loop for the duration of the preview.
+        setPreviewPlaying(true);
+        previewTimeoutRef.current = setTimeout(() => {
+            setPreviewPlaying(false);
+            setMeasureProgress(0);
+            previewTimeoutRef.current = null;
+        }, measureDurationSec * 1000 + 100); // small buffer
     }, [measures, playing, song, speed, handMode]);
+
+    // Restart: stop any active playback and seek back to measure 1.
+    const handleRestart = useCallback(() => {
+        if (playing) {
+            audioEngine.stop();
+            audioEngine.stopMetronome();
+            setPlaying(false);
+        }
+        setCurrentMeasure(1);
+        setMeasureProgress(0);
+    }, [playing]);
 
     const handlePlayPause = useCallback(async () => {
         await audioEngine.initialize();
@@ -288,7 +404,11 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     }
 
     return (
-        <div style={{ paddingBottom: 130 + (isMobile ? 64 : 0) }}>
+        <div style={{
+            // Clear the fixed PlaybackDock (~130px) plus the mobile tab bar
+            // (64px) and the device safe-area inset so nothing hides behind it.
+            paddingBottom: `calc(${130 + (isMobile ? 64 : 0)}px + env(safe-area-inset-bottom, 0px))`,
+        }}>
             <MobileHeader
                 title={song.title || 'Sans titre'}
                 subtitle={`Mesure ${currentMeasure}/${totalMeasures}${tsText ? ` · ${tsText}` : ''}`}
@@ -298,57 +418,73 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             <div style={{
                 padding: '4px 16px 12px',
             }}>
-                {/* Key + tempo bar */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    <span style={{
-                        padding: '6px 10px',
-                        background: 'var(--surface-1)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--r-sm)',
-                        fontSize: 12,
-                        color: 'var(--text-secondary)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        flex: 1,
-                    }}>
-                        <span style={{ fontFamily: 'serif', fontSize: 16, color: 'var(--text-primary)' }}>
+                {/* Compact toolbar — key · time signature · tempo. Sizes to
+                    content (no full-width stretch) and wraps on narrow mobile. */}
+                <div style={{
+                    display: 'flex',
+                    gap: 6,
+                    marginBottom: 10,
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                }}>
+                    {/* Key signature */}
+                    <span style={TOOLBAR_PILL}>
+                        <span style={{
+                            fontFamily: '"Noto Music", "Bravura", serif',
+                            fontSize: 15,
+                            lineHeight: 1,
+                            color: 'var(--text-secondary)',
+                        }}>
                             {useFlats ? '♭' : '♯'}
                         </span>
-                        <span>{keyText}</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{keyText}</span>
                     </span>
-                    <span style={{
-                        padding: '6px 10px',
-                        background: 'var(--surface-1)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--r-sm)',
-                        fontSize: 12,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                    }}>
-                        {tsText && (
+
+                    {/* Time signature */}
+                    {tsText && (
+                        <span style={TOOLBAR_PILL}>
                             <span style={{
-                                fontFamily: 'serif',
-                                fontSize: 11,
-                                lineHeight: 1,
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 10,
+                                lineHeight: 0.95,
                                 display: 'inline-flex',
                                 flexDirection: 'column',
+                                alignItems: 'center',
                                 color: 'var(--text-primary)',
+                                fontWeight: 700,
                             }}>
-                                <b>{tsText.split('/')[0]}</b>
-                                <b>{tsText.split('/')[1]}</b>
+                                <span>{tsText.split('/')[0]}</span>
+                                <span>{tsText.split('/')[1]}</span>
                             </span>
-                        )}
-                        <span style={{ color: 'var(--text-tertiary)' }}>·</span>
-                        <span style={{
-                            fontFamily: 'var(--font-mono)',
-                            color: 'var(--text-primary)',
-                            fontWeight: 700,
-                        }}>
-                            ♩={bpm}
                         </span>
+                    )}
+
+                    {/* Tempo */}
+                    <span style={{ ...TOOLBAR_PILL, fontFamily: 'var(--font-mono)' }}>
+                        <span style={{ color: 'var(--text-tertiary)' }}>♩</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>= {bpm}</span>
                     </span>
+
+                    {/* Détails toggle — shows/hides stems, flags, augmentation dots */}
+                    <button
+                        onClick={handleToggleDetails}
+                        style={{
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            borderRadius: 'var(--r-pill)',
+                            border: `1px solid ${showDetails ? 'var(--accent)' : 'var(--border)'}`,
+                            background: showDetails ? 'var(--accent-dim)' : 'transparent',
+                            color: showDetails ? 'var(--accent)' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            minHeight: 0,
+                            height: 30,
+                            boxSizing: 'border-box',
+                            transition: 'all var(--t-fast)',
+                        }}
+                    >
+                        Détails
+                    </button>
                 </div>
 
                 {/* Sheet music staves */}
@@ -382,11 +518,14 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                             upperShift={upperShift}
                             lowerShift={lowerShift}
                             keySig={song.key}
+                            timeSignature={song.timeSignature || { numerator: 4, denominator: 4 }}
                             handMode={handMode}
                             currentMeasure={currentMeasure}
                             measureProgress={measureProgress}
-                            isPlaying={playing}
+                            isPlaying={playing || previewPlaying}
                             isMobile={isMobile}
+                            sheetTheme={sheetTheme}
+                            showDetails={showDetails}
                             onMeasureClick={handleMeasureClick}
                         />
                     ))}
@@ -420,6 +559,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             <PlaybackDock
                 playing={playing}
                 onPlayPause={handlePlayPause}
+                onRestart={handleRestart}
                 speed={speed}
                 onSpeed={setSpeed}
                 handMode={handMode}
@@ -448,37 +588,87 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 
 function SheetSystem({
     systemIndex, systemSize, measures, beatsPerMeasure,
-    useFlats, upperShift, lowerShift, keySig, handMode, currentMeasure,
-    measureProgress = 0, isPlaying = false, isMobile, onMeasureClick,
+    useFlats, upperShift, lowerShift, keySig, timeSignature, handMode, currentMeasure,
+    measureProgress = 0, isPlaying = false, isMobile, sheetTheme, showDetails, onMeasureClick,
 }) {
+    const ROW_GAP = 2; // px between the (up to) 4 measure canvases
+    const height = isMobile ? 132 : 224;
+
+    // Measure the row's available width so we can hand each measure an EXPLICIT
+    // pixel width: a fixed header column on the left, then four pixel-equal
+    // musical columns. This makes the barlines line up in a clean grid across
+    // every system. (We can't use plain flex because the first measure must be
+    // exactly headerWidth wider than the others, not a fudged flex ratio.)
+    const rowRef = useRef(null);
+    const [rowWidth, setRowWidth] = useState(0);
+
+    useEffect(() => {
+        const el = rowRef.current;
+        if (!el) return;
+        const update = () => setRowWidth(el.getBoundingClientRect().width);
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    // The header zone (clef + armure + time signature). Computed ONCE per page
+    // geometry and INCLUDING the time-signature width on EVERY system, so the
+    // four musical columns stay pixel-identical from system to system. Only the
+    // very first system actually draws the time signature; the others just leave
+    // that reserved space empty (a slightly wider post-armure gap — standard).
+    const { headerWidth, musicalWidth } = useMemo(() => {
+        const lineSpacing = computeLineSpacing({ height, isLandscape: false, dp: (n) => n });
+        const header = computeHeaderWidth({
+            lineSpacing,
+            keySig,
+            showTimeSig: true, // always reserve TS space → identical grid everywhere
+            clefMode: 'STANDARD',
+            dp: (n) => n,
+        });
+        // Content width after subtracting the inter-canvas gaps.
+        const content = Math.max(0, rowWidth - ROW_GAP * (systemSize - 1));
+        const music = content > 0 ? Math.max(0, (content - header) / systemSize) : 0;
+        return { headerWidth: header, musicalWidth: music };
+    }, [height, keySig, rowWidth, systemSize]);
+
     return (
-        <div style={{
+        <div ref={rowRef} style={{
             display: 'flex',
             flexDirection: 'row',
-            gap: 2,
+            gap: ROW_GAP,
             marginBottom: 10,
             alignItems: 'stretch',
         }}>
             {measures.map((m, i) => {
                 const globalIdx = systemIndex * systemSize + i + 1;
                 const isCurrent = globalIdx === currentMeasure;
+                // First measure of each system carries the header column; all
+                // measures share the same musical width.
+                const isFirst = i === 0;
+                const canvasWidth = isFirst ? headerWidth + musicalWidth : musicalWidth;
                 return (
                     <SystemMeasure
                         key={`${m.phraseIndex}-${m.measureIndex}`}
                         measureData={m}
                         measureNumber={globalIdx}
-                        showClefs={i === 0}
+                        showClefs={isFirst}
+                        showTimeSig={systemIndex === 0 && isFirst}
+                        headerWidth={isFirst ? headerWidth : 0}
                         beatsPerMeasure={beatsPerMeasure}
                         useFlats={useFlats}
                         upperShift={upperShift}
                         lowerShift={lowerShift}
                         keySig={keySig}
+                        timeSignature={timeSignature}
                         handMode={handMode}
                         isCurrent={isCurrent}
                         playheadFrac={isCurrent && isPlaying ? measureProgress : null}
                         isLast={i === measures.length - 1}
-                        flex={i === 0 ? '1.4 1 0' : '1 1 0'}
-                        height={isMobile ? 130 : 220}
+                        canvasWidth={canvasWidth}
+                        height={height}
+                        sheetTheme={sheetTheme}
+                        showDetails={showDetails}
                         onClick={onMeasureClick ? () => onMeasureClick(globalIdx) : undefined}
                     />
                 );
@@ -488,13 +678,11 @@ function SheetSystem({
 }
 
 function SystemMeasure({
-    measureData, measureNumber, showClefs, beatsPerMeasure, useFlats,
-    upperShift, lowerShift, keySig, handMode, isCurrent, playheadFrac,
-    isLast, flex, height, onClick,
+    measureData, measureNumber, showClefs, showTimeSig, headerWidth, beatsPerMeasure, useFlats,
+    upperShift, lowerShift, keySig, timeSignature, handMode, isCurrent, playheadFrac,
+    isLast, canvasWidth, height, sheetTheme, showDetails, onClick,
 }) {
     const canvasRef = useRef(null);
-    const containerRef = useRef(null);
-    const [dims, setDims] = useState({ w: 0, h: 0 });
 
     // Filter notes based on hand mode (visual filter only — left filters
     // out chordNotes, right filters out melodyNotes).
@@ -502,36 +690,23 @@ function SystemMeasure({
     const visibleChords = handMode === 'right' ? [] : measureData.chordNotes;
 
     useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        const update = () => {
-            const rect = el.getBoundingClientRect();
-            setDims({ w: rect.width, h: rect.height });
-        };
-        update();
-        const ro = new ResizeObserver(update);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, []);
-
-    useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || dims.w === 0 || dims.h === 0) return;
+        if (!canvas || canvasWidth <= 0 || height <= 0) return;
 
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(dims.w * dpr);
-        canvas.height = Math.floor(dims.h * dpr);
-        canvas.style.width = `${dims.w}px`;
-        canvas.style.height = `${dims.h}px`;
+        canvas.width = Math.floor(canvasWidth * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = `${canvasWidth}px`;
+        canvas.style.height = `${height}px`;
 
         const ctx = canvas.getContext('2d');
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, dims.w, dims.h);
+        ctx.clearRect(0, 0, canvasWidth, height);
 
         renderMeasure(ctx, {
-            width: dims.w,
-            height: dims.h,
+            width: canvasWidth,
+            height,
             measureNumber,
             melodyNotes: visibleMelody,
             chordNotes: visibleChords,
@@ -539,34 +714,42 @@ function SystemMeasure({
             measureStart: measureData.measureStart,
             useFlats,
             showClefs,
+            showTimeSig,
+            timeSignature,
+            headerWidth: showClefs ? headerWidth : null,
             isPlaying: false,
-            isFocused: isCurrent,
+            isFocused: false,
             clefMode: 'STANDARD',
             upperOctaveShift: upperShift,
             lowerOctaveShift: lowerShift,
             keySig,
             isLandscape: false,
             dp: (n) => n,
+            theme: sheetTheme,
+            showStems: showDetails,
             // Playhead drawn inside the note area (skips clefs) so it
             // aligns exactly with note X positions.
             playheadFrac: playheadFrac != null ? playheadFrac : null,
         });
     }, [
-        dims, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
-        useFlats, showClefs, upperShift, lowerShift, keySig, isCurrent,
-        playheadFrac, measureData.measureStart,
+        canvasWidth, height, measureNumber, visibleMelody, visibleChords, beatsPerMeasure,
+        useFlats, showClefs, showTimeSig, headerWidth, upperShift, lowerShift, keySig,
+        timeSignature, isCurrent, playheadFrac, measureData.measureStart, sheetTheme, showDetails,
     ]);
 
     return (
         <div
-            ref={containerRef}
             onClick={onClick}
             style={{
-                flex,
+                width: canvasWidth,
+                flex: '0 0 auto',
                 minWidth: 0,
                 height,
                 background: 'transparent',
-                borderRight: isLast ? 'none' : '1px solid var(--border)',
+                // Barlines are drawn on the canvas itself (renderMeasure draws a
+                // right bar line), so no CSS divider is needed — this also keeps
+                // the explicit canvas width from being eaten by a border under
+                // box-sizing: border-box.
                 position: 'relative',
                 cursor: onClick ? 'pointer' : 'default',
             }}
@@ -575,13 +758,10 @@ function SystemMeasure({
             {isCurrent && (
                 <div style={{
                     position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    background: 'color-mix(in oklab, var(--accent), transparent 92%)',
+                    inset: 0,
+                    background: 'var(--accent-dim)',
+                    boxShadow: 'inset 2px 0 0 0 var(--accent)',
                     pointerEvents: 'none',
-                    borderLeft: '2px solid var(--accent)',
                 }} />
             )}
             {/* Playhead is now drawn directly on the canvas inside

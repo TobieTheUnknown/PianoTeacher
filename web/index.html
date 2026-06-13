@@ -2,15 +2,62 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a0a0a" />
-    <title>piano-teacher</title>
+    <meta name="theme-color" content="#0a0c10" />
+    <title>Piano Teacher</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <!-- Pre-React splash: paints instantly with the brand background so there is
+         never a white flash before the bundle mounts. Removed by main.jsx. -->
+    <style>
+      html, body { background: #0a0c10; }
+      #__splash {
+        position: fixed; inset: 0; z-index: 9000;
+        display: flex; align-items: center; justify-content: center;
+        background: #0a0c10;
+        opacity: 1; transition: opacity 320ms cubic-bezier(0.16,1,0.3,1);
+        pointer-events: none;
+      }
+      #__splash.is-hidden { opacity: 0; }
+      #__splash svg {
+        width: 132px; height: 132px;
+        animation: __splash-pop 520ms cubic-bezier(0.16,1,0.3,1) both;
+      }
+      @keyframes __splash-pop {
+        from { transform: scale(0.92); opacity: 0; }
+        to   { transform: scale(1);    opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #__splash svg { animation: none; }
+        #__splash { transition: none; }
+      }
+    </style>
+    <div id="__splash" aria-hidden="true">
+      <svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="s_tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#161b26"/><stop offset="1" stop-color="#0a0c10"/></linearGradient>
+          <linearGradient id="s_white" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfd3df"/></linearGradient>
+          <linearGradient id="s_cyan" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7df0ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+          <linearGradient id="s_pink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f873b8"/><stop offset="1" stop-color="#ec4899"/></linearGradient>
+        </defs>
+        <rect width="1024" height="1024" rx="225" fill="url(#s_tile)"/>
+        <rect x="150"  y="150" width="172" height="724" rx="40" fill="url(#s_white)"/>
+        <rect x="334"  y="150" width="172" height="724" rx="40" fill="url(#s_pink)"/>
+        <rect x="518"  y="150" width="172" height="724" rx="40" fill="url(#s_cyan)"/>
+        <rect x="702"  y="150" width="172" height="724" rx="40" fill="url(#s_white)"/>
+        <g fill="#0a0c10">
+          <rect x="288" y="150" width="92" height="430" rx="26"/>
+          <rect x="466" y="150" width="92" height="430" rx="26"/>
+          <rect x="644" y="150" width="92" height="430" rx="26"/>
+        </g>
+      </svg>
+    </div>
     <div id="root"></div>
     <script>
       // Error trap — catches crashes BEFORE React/modules load

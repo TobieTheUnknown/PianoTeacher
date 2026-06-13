@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Piano Teacher — Maîtrisez vos morceaux, phrase par phrase</title>
+  <meta name="description" content="Apprenez le piano avec de vrais concepts musicaux — pas de la devinette. Cartes mesure par mesure, partition gravée, et notes qui tombent en temps réel. Mac · Android · Web." />
+  <meta name="theme-color" content="#0a0c10" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Piano Teacher — Maîtrisez vos morceaux, phrase par phrase" />
+  <meta property="og:description" content="Apprenez le piano avec de vrais concepts musicaux : solfège nommé, partition gravée, et notes qui tombent en temps réel." />
+  <meta property="og:image" content="assets/logo.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Piano Teacher" />
+  <meta name="twitter:description" content="Maîtrisez vos morceaux, phrase par phrase." />
+  <meta name="twitter:image" content="assets/logo.svg" />
+
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+  <link rel="apple-touch-icon" href="assets/logo.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ===================== HEADER ===================== -->
+  <header class="site-header" id="top">
+    <a class="brand" href="#top" aria-label="Piano Teacher — accueil">
+      <img class="brand__logo" src="assets/logo.svg" alt="" width="36" height="36" />
+      <span class="brand__name">Piano&nbsp;Teacher</span>
+    </a>
+    <nav class="site-nav" aria-label="Navigation principale">
+      <a href="#modes">Les modes</a>
+      <a href="#apprendre">Apprendre</a>
+      <a href="#telecharger" class="nav-cta">Télécharger</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ===================== HERO ===================== -->
+    <section class="hero">
+      <div class="hero__glow" aria-hidden="true"></div>
+      <div class="hero__inner">
+        <div class="hero__copy reveal">
+          <img class="hero__logo" src="assets/logo.svg" alt="Logo Piano Teacher" width="76" height="76" />
+          <h1 class="hero__title">Piano Teacher</h1>
+          <p class="hero__tagline">Maîtrisez vos morceaux, <span class="grad-text">phrase par phrase</span>.</p>
+          <p class="hero__pitch">
+            Apprenez le piano avec de <strong>vrais concepts musicaux</strong> — pas de la devinette.
+            Harmonie, degrés, motifs : le sens derrière chaque note.
+          </p>
+          <div class="hero__cta">
+            <a class="btn btn--primary" href="#telecharger">
+              <span class="btn__icon" aria-hidden="true"></span>
+              Télécharger pour Mac
+            </a>
+            <a class="btn btn--ghost" href="#telecharger">
+              Télécharger l'APK Android
+            </a>
+          </div>
+          <p class="hero__meta"><span class="dot dot--right"></span> Main droite&nbsp;&nbsp;<span class="dot dot--left"></span> Main gauche&nbsp;&nbsp;·&nbsp;&nbsp;Mac · Android · Web</p>
+        </div>
+        <div class="hero__shot reveal">
+          <div class="shot-frame shot-frame--hero">
+            <img src="assets/shot-hero.png" alt="Vue Apprentissage de Piano Teacher : cartes mesure par mesure avec badges et harmonie" loading="eager" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== LES 3 MODES ===================== -->
+    <section class="section" id="modes">
+      <div class="section__head reveal">
+        <span class="eyebrow">Trois façons de travailler</span>
+        <h2 class="section__title">Un morceau, <span class="grad-text">trois angles</span></h2>
+        <p class="section__lead">De la compréhension musicale à l'exécution temps réel — sans jamais quitter le contexte.</p>
+      </div>
+
+      <div class="modes">
+        <!-- Apprentissage -->
+        <article class="mode reveal">
+          <div class="mode__media">
+            <div class="shot-frame">
+              <img src="assets/shot-apprentissage.png" alt="Mode Apprentissage : cartes mesure par mesure avec badges Ostinato et degrés d'harmonie" loading="lazy" />
+            </div>
+          </div>
+          <div class="mode__body">
+            <span class="mode__index">01</span>
+            <h3 class="mode__title">Apprentissage</h3>
+            <p class="mode__desc">
+              Des cartes <strong>mesure par mesure</strong> qui nomment le solfège. Badges
+              <span class="chip chip--accent">Ostinato</span> et <span class="chip chip--accent">Pédale</span>,
+              harmonie et degré affichés noir sur blanc, notes regroupées par motif.
+            </p>
+            <p class="mode__example">
+              <code>SIB&nbsp;Maj7/Ré&nbsp;·&nbsp;VI</code>
+              <span class="mode__example-label">— l'accord, son renversement, son degré.</span>
+            </p>
+          </div>
+        </article>
+
+        <!-- Partition -->
+        <article class="mode mode--reverse reveal">
+          <div class="mode__media">
+            <div class="shot-frame">
+              <img src="assets/shot-partition.png" alt="Mode Partition : gravure réelle avec ligatures, altérations et armure" loading="lazy" />
+            </div>
+          </div>
+          <div class="mode__body">
+            <span class="mode__index">02</span>
+            <h3 class="mode__title">Partition</h3>
+            <p class="mode__desc">
+              Une <strong>gravure réelle</strong>, pas une approximation : ligatures, altérations,
+              armure. Le <strong>niveau de détail est réglable</strong> selon que vous déchiffrez
+              ou que vous révisez.
+            </p>
+            <ul class="mode__list">
+              <li>Ligatures &amp; groupes rythmiques</li>
+              <li>Altérations &amp; armure respectées</li>
+              <li>Clés sol &amp; fa, deux mains</li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- LivePlay -->
+        <article class="mode reveal">
+          <div class="mode__media">
+            <div class="shot-frame">
+              <img src="assets/shot-liveplay.png" alt="Mode LivePlay : notes qui tombent façon Synthesia, clavier MIDI temps réel" loading="lazy" />
+            </div>
+          </div>
+          <div class="mode__body">
+            <span class="mode__index">03</span>
+            <h3 class="mode__title">LivePlay</h3>
+            <p class="mode__desc">
+              Les notes <strong>tombent façon Synthesia</strong>, branchez votre
+              <strong>clavier MIDI</strong> et jouez en temps réel. Scoring
+              <span class="chip chip--ok">Parfait</span> /
+              <span class="chip chip--ok">Bien</span>, mode attente, et boucles
+              pour marteler les passages difficiles.
+            </p>
+            <ul class="mode__list">
+              <li>Clavier MIDI temps réel</li>
+              <li>Mode attente : il patiente jusqu'à la bonne note</li>
+              <li>Boucles sur les passages tendus</li>
+            </ul>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===================== PENSÉ POUR APPRENDRE ===================== -->
+    <section class="section section--alt" id="apprendre">
+      <div class="pkstripe-band" aria-hidden="true"></div>
+      <div class="section__head reveal">
+        <span class="eyebrow">Les détails qui comptent</span>
+        <h2 class="section__title">Pensé pour <span class="grad-text">apprendre</span></h2>
+        <p class="section__lead">Chaque réglage existe pour une seule raison : que vous progressiez plus vite.</p>
+      </div>
+
+      <div class="features">
+        <div class="feature reveal">
+          <div class="feature__icon feature__icon--sync" aria-hidden="true"></div>
+          <h3>Calibration de latence</h3>
+          <p>Synchronisez son et image par simples taps. Ce que vous entendez et ce que vous voyez tombent enfin pile au même instant.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__icon feature__icon--palette" aria-hidden="true"></div>
+          <h3>Thèmes personnalisables</h3>
+          <p>Choisissez les couleurs de vos mains et l'accent de l'interface. Le code couleur reste cohérent dans tous les modes.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__icon feature__icon--metro" aria-hidden="true"></div>
+          <h3>Métronome &amp; tempo</h3>
+          <p>Ralentissez sans perdre le fil : changer le tempo préserve votre position musicale exacte dans le morceau.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__icon feature__icon--devices" aria-hidden="true"></div>
+          <h3>Multi-plateforme</h3>
+          <p>La même bibliothèque, le même morceau, partout : <strong>Mac · Android · Web</strong>. Travaillez où vous êtes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== TÉLÉCHARGER ===================== -->
+    <section class="section section--download" id="telecharger">
+      <div class="download__glow" aria-hidden="true"></div>
+      <div class="section__head reveal">
+        <span class="eyebrow">Version 1.0</span>
+        <h2 class="section__title">Télécharger Piano&nbsp;Teacher</h2>
+        <p class="section__lead">Disponible sur Mac, Android et le Web. <a href="app/">La version Web tourne déjà dans votre navigateur</a>.</p>
+      </div>
+
+      <div class="download__cards">
+        <a class="dl-card reveal" href="https://github.com/TobieTheUnknown/PianoTeacher/releases/latest/download/PianoTeacher-macOS.zip">
+          <div class="dl-card__top">
+            <span class="dl-card__platform dl-card__platform--mac" aria-hidden="true"></span>
+            <span class="dl-card__tag">.zip</span>
+          </div>
+          <h3>Pour Mac</h3>
+          <p>Application native Apple Silicon. Au premier lancement&nbsp;: clic droit → Ouvrir.</p>
+          <span class="dl-card__action">Télécharger pour Mac →</span>
+        </a>
+
+        <a class="dl-card reveal" href="https://github.com/TobieTheUnknown/PianoTeacher/releases/latest/download/PianoTeacher-Android.apk">
+          <div class="dl-card__top">
+            <span class="dl-card__platform dl-card__platform--android" aria-hidden="true"></span>
+            <span class="dl-card__tag">.apk</span>
+          </div>
+          <h3>Pour Android</h3>
+          <p>Installez l'APK directement, tablette ou téléphone.</p>
+          <span class="dl-card__action">Télécharger l'APK →</span>
+        </a>
+
+        <a class="dl-card dl-card--web reveal" href="app/">
+          <div class="dl-card__top">
+            <span class="dl-card__platform dl-card__platform--web" aria-hidden="true"></span>
+            <span class="dl-card__tag">web</span>
+          </div>
+          <h3>Version Web</h3>
+          <p>Rien à installer — l'app complète, directement dans votre navigateur.</p>
+          <span class="dl-card__action">Ouvrir l'app →</span>
+        </a>
+      </div>
+
+      <p class="download__note reveal">
+        <span class="badge-beta">v1.0</span>
+        Un souci, une idée ?
+        <a href="https://github.com/TobieTheUnknown/PianoTeacher/issues">Contactez-nous</a> ou suivez le projet sur
+        <a href="https://github.com/TobieTheUnknown/PianoTeacher">GitHub</a>.
+      </p>
+    </section>
+  </main>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <a class="brand brand--footer" href="#top">
+        <img class="brand__logo" src="assets/logo.svg" alt="" width="28" height="28" />
+        <span class="brand__name">Piano Teacher</span>
+      </a>
+      <p class="site-footer__tag">Maîtrisez vos morceaux, phrase par phrase.</p>
+      <p class="site-footer__copy">© 2026 Piano Teacher</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

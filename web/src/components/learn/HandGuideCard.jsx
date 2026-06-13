@@ -17,7 +17,6 @@ export const HandGuideCard = React.memo(function HandGuideCard({
 }) {
     const isRight = hand === 'right';
     const color = isRight ? 'var(--hand-right)' : 'var(--hand-left)';
-    const colorDim = isRight ? 'var(--hand-right-dim)' : 'var(--hand-left-dim)';
     const colorBorder = isRight ? 'var(--hand-right-border)' : 'var(--hand-left-border)';
     const label = isRight ? 'Main Droite' : 'Main Gauche';
     const sublabel = isRight ? 'Mélodie' : 'Accords';

@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,8 +46,12 @@ import com.tobietheunknown.pianoteacher.utils.ArpeggioMotifResult
 import com.tobietheunknown.pianoteacher.utils.KeySignature as MusicKeySignature
 import com.tobietheunknown.pianoteacher.utils.ChordWithReps
 import com.tobietheunknown.pianoteacher.utils.firstArpeggioCycle
+import com.tobietheunknown.pianoteacher.utils.displayCycleLen
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
 import kotlin.math.abs
+import androidx.compose.ui.graphics.drawscope.withTransform
 
 // ─── Diatonic pitch helpers ───────────────────────────────────────────────────
 
@@ -62,6 +67,83 @@ private fun midiToDiatonic(pitch: Int, useFlats: Boolean = false): Int {
 
 private fun isBlackKey(midi: Int): Boolean =
     when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
+
+// ─── Duration engraving (ported from web/src/utils/sheetMusic.js) ─────────────
+//   filled — solid notehead (quarter and shorter) vs hollow (half / whole)
+//   stem   — whether the note carries a stem (whole notes don't)
+//   flags  — number of flags (0 = quarter+, 1 = eighth, 2 = sixteenth…)
+private data class NoteDuration(
+    val filled: Boolean,
+    val stem: Boolean,
+    val flags: Int,
+    val dotted: Boolean,
+)
+
+private fun classifyDuration(durationBeats: Double): NoteDuration {
+    val d = if (durationBeats > 0.0) durationBeats else 1.0
+    // Base values in quarter-note beats: whole=4, half=2, quarter=1, eighth=0.5…
+    data class Base(val beats: Double, val filled: Boolean, val stem: Boolean, val flags: Int)
+    val bases = listOf(
+        Base(4.0, false, false, 0),   // whole
+        Base(2.0, false, true, 0),    // half
+        Base(1.0, true, true, 0),     // quarter
+        Base(0.5, true, true, 1),     // eighth
+        Base(0.25, true, true, 2),    // sixteenth
+        Base(0.125, true, true, 3),
+    )
+    var best = bases[2]
+    var bestErr = Double.POSITIVE_INFINITY
+    var dotted = false
+    for (base in bases) {
+        var err = abs(d - base.beats) / base.beats
+        if (err < bestErr) { bestErr = err; best = base; dotted = false }
+        err = abs(d - base.beats * 1.5) / (base.beats * 1.5)
+        if (err < bestErr) { bestErr = err; best = base; dotted = true }
+    }
+    return NoteDuration(best.filled, best.stem, best.flags, dotted)
+}
+
+// ─── Beam grouping (ported from web/src/utils/sheetMusic.js) ──────────────────
+//
+// Partition a time-ordered list of beamable chord-items (eighth or shorter, i.e.
+// dur.stem && dur.flags >= 1) into beam groups for a single staff. Each item
+// exposes startBeat / durationBeats / flags; the result is a list of groups,
+// each an ascending list of indices INTO `items`.
+//
+// A group ends (the next item starts a fresh group) when any cut rule holds:
+//   (a) time gap: next.startBeat > cur.startBeat + cur.durationBeats + 0.03
+//       — a rest or non-adjacent note sits between them. Non-beamable notes
+//       (quarter or longer) are absent from `items`, so an intervening quarter
+//       manifests here as a gap.
+//   (b) beat-pair boundary: floor(startBeat / 2) changes — groups never cross
+//       the 1-2 → 3-4 half-bar boundary in 4/4. Runs whose items are ALL
+//       sixteenths-or-shorter (flags >= 2) cut per single beat instead.
+private data class BeamItem(val startBeat: Double, val durationBeats: Double, val flags: Int)
+
+private fun computeBeamGroups(items: List<BeamItem>): List<List<Int>> {
+    val groups = mutableListOf<List<Int>>()
+    var cur = mutableListOf<Int>()
+    for (i in items.indices) {
+        if (cur.isEmpty()) { cur = mutableListOf(i); continue }
+        val prev = items[cur.last()]
+        val it = items[i]
+        // (a) time gap.
+        val gap = it.startBeat > prev.startBeat + prev.durationBeats + 0.03
+        // (b) beat boundary. Sixteenth-only runs cut per beat, else per beat-pair.
+        val sixteenthRun = cur.all { items[it].flags >= 2 } && it.flags >= 2
+        val beatUnit = if (sixteenthRun) 1.0 else 2.0
+        val crossedBeat =
+            kotlin.math.floor(it.startBeat / beatUnit) != kotlin.math.floor(prev.startBeat / beatUnit)
+        if (gap || crossedBeat) {
+            groups.add(cur)
+            cur = mutableListOf(i)
+        } else {
+            cur.add(i)
+        }
+    }
+    if (cur.isNotEmpty()) groups.add(cur)
+    return groups
+}
 
 // ─── Staff clef configuration ────────────────────────────────────────────────
 
@@ -87,7 +169,7 @@ private val BASS_CLEF = StaffClefConfig(
     name = "Fa", glyph = "\uD834\uDD22",
     keyDiatonic = 31, keyLineFromTop = 1,
     lines = intArrayOf(25, 27, 29, 31, 33),  // G2, B2, D3, F3, A3
-    anchorFrac = 0.20f, fontScale = 0.64f, extraYOffset = 11f
+    anchorFrac = 0.20f, fontScale = 0.64f, extraYOffset = 7f
 )
 
 private val ALTO_CLEF = StaffClefConfig(
@@ -260,21 +342,20 @@ fun LearningScreen(
     var showRenamePhraseDialog by remember { mutableStateOf<Int?>(null) }
     var showSplitDialog by remember { mutableStateOf<Int?>(null) }
 
-    // Grid state hoisted so the auto-scroll effect can reach it.
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    // Row-list state (replaces LazyGridState after the weighted-column refactor).
+    val gridState = rememberLazyListState()
 
     // Auto-scroll when playing measure changes — keeps the active row in view.
     LaunchedEffect(playingMeasure) {
         if (playingMeasure >= 0) {
             val cols = if (isLandscape) 4 else 2
-            // Scroll the row containing the playing measure into view a bit
-            // above centre so we always see the next measure incoming.
-            val rowStart = (playingMeasure / cols) * cols
+            // Row index = measure index / cols.
+            val rowIdx = playingMeasure / cols
             val currentFirst = gridState.firstVisibleItemIndex
-            if (rowStart < currentFirst) {
-                gridState.scrollToItem(rowStart)
+            if (rowIdx < currentFirst) {
+                gridState.scrollToItem(rowIdx)
             } else {
-                gridState.animateScrollToItem(rowStart)
+                gridState.animateScrollToItem(rowIdx)
             }
         }
     }
@@ -295,14 +376,17 @@ fun LearningScreen(
     // Fixed-zoom window size across the whole song so the bottom keyboard
     // doesn't re-scale every time the focused measure changes — same logic
     // as the Apprentissage screen.
-    val keyboardSpan = remember(allMeasures) {
-        com.tobietheunknown.pianoteacher.ui.common.fixedKeyboardRange(
-            allMeasures.mapNotNull { m ->
-                val all = m.melodyNotes + m.chordNotes
-                if (all.isEmpty()) null
-                else all.minOf { it.pitch } to all.maxOf { it.pitch }
-            }
-        )
+    val keyboardRange = remember(allMeasures) {
+        val allPitches = mutableListOf<Int>()
+        val perMeasureRanges = allMeasures.mapNotNull { m ->
+            // Include BOTH melody (right) and chord (left) notes so the
+            // density vote and window size account for the full song range.
+            val all = m.melodyNotes + m.chordNotes
+            if (all.isEmpty()) return@mapNotNull null
+            all.forEach { allPitches.add(it.pitch) }
+            all.minOf { it.pitch } to all.maxOf { it.pitch }
+        }
+        com.tobietheunknown.pianoteacher.ui.common.fixedKeyboardRange(perMeasureRanges, allPitches)
     }
     val activeRightPitches = remember(focusedMeasureData) {
         focusedMeasureData?.melodyNotes?.map { it.pitch }?.toSet() ?: emptySet()
@@ -322,7 +406,7 @@ fun LearningScreen(
                                 Text(
                                     song?.title ?: "",
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = TextPrimary,
                                     fontSize = 18.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -339,7 +423,7 @@ fun LearningScreen(
                                 Text(
                                     parts.joinToString("  ·  "),
                                     fontSize = 11.sp,
-                                    color = Color(0xFF94A3B8),
+                                    color = TextSecondary,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -348,7 +432,7 @@ fun LearningScreen(
                         },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = TextPrimary)
                             }
                         },
                         actions = {
@@ -367,7 +451,7 @@ fun LearningScreen(
                             TextButton(onClick = vm::toggleOctaves) {
                                 Text(
                                     "Oct",
-                                    color = if (showOctaves) IndigoAccent else Color(0xFF64748B),
+                                    color = if (showOctaves) IndigoAccent else TextTertiary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -375,7 +459,7 @@ fun LearningScreen(
                             TextButton(onClick = vm::toggleDetails) {
                                 Text(
                                     "Détails",
-                                    color = if (showDetails) IndigoAccent else Color(0xFF64748B),
+                                    color = if (showDetails) IndigoAccent else TextTertiary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -392,7 +476,8 @@ fun LearningScreen(
                     com.tobietheunknown.pianoteacher.ui.common.MiniKeyboard(
                         activeRight = activeRightPitches,
                         activeLeft = activeLeftPitches,
-                        fixedRange = keyboardSpan,
+                        fixedRange = keyboardRange.windowSemis,
+                        globalAnchor = keyboardRange.densityAnchor,
                     )
 
                     // Shared PlaybackDock (same look as the web app)
@@ -455,6 +540,11 @@ fun LearningScreen(
                         },
                         onPrev = { /* TODO: prev measure/phrase */ },
                         onNext = { /* TODO: next measure/phrase */ },
+                        // Recommencer: stop playback and return to the first measure.
+                        onRestart = {
+                            vm.stop()
+                            vm.focusMeasure(0)
+                        },
                     )
 
                     /* OLD TransportBar — kept as fallback during dev */
@@ -500,11 +590,11 @@ fun LearningScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.MusicOff, null, modifier = Modifier.size(48.dp), tint = Color(0xFF334155))
+                    Icon(Icons.Default.MusicOff, null, modifier = Modifier.size(48.dp), tint = TextMuted)
                     Spacer(Modifier.height(12.dp))
-                    Text("Aucune phrase trouvée", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                    Text("Aucune phrase trouvée", color = TextTertiary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
-                    Text("Supprime ce morceau et réimporte-le", fontSize = 12.sp, color = Color(0xFF475569))
+                    Text("Supprime ce morceau et réimporte-le", fontSize = 12.sp, color = TextMuted)
                 }
             }
 
@@ -513,117 +603,234 @@ fun LearningScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // Vertical 2-col grid in portrait (4-col in landscape) so
-                // the user sees several measures at once and doesn't need
-                // to follow a fast horizontal scroll.
+                // Weighted-column layout: LazyColumn of rows. Each row has `cols`
+                // measure cards. The first card of each row carries clef + armure +
+                // time-sig (headerWidth px) so it is physically wider; the remaining
+                // cards of the row carry only musical content and are equal in width.
+                // This mirrors the web layout: musicalWidth = (rowWidth − headerWidth
+                // − gaps) / cols, firstCardWidth = headerWidth + musicalWidth.
+                //
+                // Portrait: 2 columns.  Landscape: 4 columns.
                 val cols = if (isLandscape) 4 else 2
-                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(cols),
+                // Key-sig accidental count — only in fixed-clef modes.
+                val pageAccidentalCount =
+                    if (clefMode != ClefMode.AUTO) keySignatureAccidentalCount(keySignature) else 0
+                // Compute the number of rows (ceiling division).
+                val totalRows = (allMeasures.size + cols - 1) / cols
+
+                // Card height.
+                val cardH = if (isLandscape) 180.dp else 280.dp
+                // Horizontal gap between cards in a row.
+                val colGap = 6.dp
+
+                // Helper composable that builds one measure card and the playhead overlay.
+                @Composable
+                fun MeasureCard(idx: Int, showClefs: Boolean, cardModifier: Modifier) {
+                    val measure = allMeasures[idx]
+                    val mIsPlaying = measure.globalIndex == playingMeasure
+                    val mIsFocused = measure.globalIndex == focusedMeasure
+                    Column(
+                        modifier = cardModifier
+                            .height(cardH)
+                            .clickable { vm.playMeasureSingle(measure.globalIndex) }
+                    ) {
+                        // Compact measure-number header.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                String.format("%02d", measure.globalIndex + 1),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (mIsPlaying) IndigoAccent else TextMuted,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            )
+                            if (mIsFocused || mIsPlaying) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(if (mIsPlaying) IndigoAccent else Color.White.copy(alpha = 0.3f))
+                                )
+                            }
+                        }
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            GrandStaffCanvas(
+                                melodyNotes = measure.melodyNotes,
+                                chordNotes = measure.chordNotes,
+                                beatsPerMeasure = song!!.beatsPerMeasure,
+                                useFlats = useFlats,
+                                showClefs = showClefs,
+                                isPlaying = mIsPlaying,
+                                isFocused = mIsFocused,
+                                measureNumber = measure.globalIndex + 1,
+                                clefMode = clefMode,
+                                lowerOctaveShift = lowerStaffOctaveShift,
+                                upperOctaveShift = upperStaffOctaveShift,
+                                isLandscape = isLandscape,
+                                keySig = keySignature,
+                                showDetails = showDetails,
+                                pageAccidentalCount = pageAccidentalCount,
+                                timeSigNumerator = song!!.timeSignature.numerator,
+                                timeSigDenominator = song!!.timeSignature.denominator,
+                                isFirstSystem = idx == 0,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            // Animated playhead — mirrors GrandStaffCanvas geometry
+                            // exactly so the line tracks noteheads on both clef and
+                            // non-clef cards.
+                            //
+                            // Key invariant: GrandStaffCanvas now sets headerWidth = 0
+                            // when showClefs == false (the canvas is already narrower),
+                            // so the playhead here also uses hdrW = 0 for non-clef
+                            // cards — the same condition as the canvas itself.
+                            if (mIsPlaying && song != null) {
+                                val beatMs = (60_000.0 / (song!!.tempo * tempoPercent)).toLong()
+                                val measureDurMs = beatMs * song!!.beatsPerMeasure
+                                val frac by produceState(initialValue = 0f, mIsPlaying, measureDurMs) {
+                                    val start = android.os.SystemClock.elapsedRealtime()
+                                    while (true) {
+                                        val elapsed = android.os.SystemClock.elapsedRealtime() - start
+                                        value = ((elapsed.toFloat() / measureDurMs) % 1f).coerceIn(0f, 1f)
+                                        kotlinx.coroutines.delay(16)
+                                    }
+                                }
+                                val haloColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.10f) }
+                                val lineColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.95f) }
+                                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                                    // Replicate GrandStaffCanvas time→x mapping.
+                                    // Formula (keep in sync with GrandStaffCanvas):
+                                    //   lineSpacing = (avail / 17).clamp(7dp, staffHMax/4)
+                                    //   staffH      = lineSpacing * 4
+                                    //   pureClefW   = max(staffH * 0.26, 22dp)
+                                    //   pageKsW     = pageAccidentalCount * 9dp + 5dp (or 0)
+                                    //   tsW         = lineSpacing * 1.8 + 4dp        (or 0, AUTO)
+                                    //   hdrW        = pureClefW + pageKsW + tsW      (clef card, no trailing pad)
+                                    //                 0                               (non-clef)
+                                    //   noteAreaStart = hdrW + barPad + dotR * 2
+                                    //   noteAreaEnd   = w - barPad - dotR
+                                    val pw = size.width
+                                    val ph = size.height
+                                    val numAreaH = STAFF_NUM_AREA_DP.dp.toPx()
+                                    val topPad   = numAreaH + 8.dp.toPx()
+                                    val botPad   = STAFF_BOTTOM_PAD_DP.dp.toPx()
+                                    val avail    = ph - topPad - botPad
+                                    val staffHMax = if (isLandscape) 70.dp.toPx() else STAFF_H_MAX_DP.dp.toPx()
+                                    val ls = (avail / 17f).coerceAtMost(staffHMax / 4f).coerceAtLeast(7.dp.toPx())
+                                    val sH = ls * 4f
+                                    val pClefW = (sH * 0.26f).coerceAtLeast(22.dp.toPx())
+                                    val pKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
+                                    val tW = if (clefMode != ClefMode.AUTO) ls * 1.8f + 4.dp.toPx() else 0f
+                                    // Non-clef cards have hdrW = 0 (they are physically
+                                    // narrower; no header is reserved in their canvas).
+                                    val hdrW = if (showClefs) pClefW + pKsW + tW else 0f
+                                    val bPad = 10.dp.toPx()
+                                    val dR = ls * (if (isLandscape) 0.45f else 0.42f)
+                                    val noteAreaStart = hdrW + bPad + dR * 2f
+                                    val noteAreaEnd   = pw - bPad - dR
+                                    val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
+                                    val haloW = 8.dp.toPx() * 2f
+                                    drawRect(
+                                        color = haloColor,
+                                        topLeft = androidx.compose.ui.geometry.Offset(x - haloW / 2f, 0f),
+                                        size = androidx.compose.ui.geometry.Size(haloW, size.height),
+                                    )
+                                    drawRect(
+                                        color = lineColor,
+                                        topLeft = androidx.compose.ui.geometry.Offset(x - 1f, 0f),
+                                        size = androidx.compose.ui.geometry.Size(2f, size.height),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Weighted-split row list. Each LazyColumn item is one full row of
+                // `cols` measures: the first Box gets weight=(cols-1+1)/(cols) share
+                // plus the headerWidth, the rest are equal musicalWidth boxes.
+                //
+                // Concretely: use BoxWithConstraints inside each row so we can
+                // compute the musicalWidth from the available row width, then give
+                // the first card a fixed extra width = headerWidth (computed from ls).
+                // Since ls depends on card height (which is fixed), we compute a
+                // representative ls here for the weight calculation.
+                //
+                // Simpler approach: use Modifier.weight(). The first card gets
+                // weight (cols) / cols and the others get weight (cols-1) / cols —
+                // but that doesn't give us exact pixel-equal musical spans.
+                //
+                // We use a 2-pass approach: first card gets `wFirst` via fillMaxWidth
+                // fraction; subsequent cards split the remainder equally.
+                // For simplicity and exactness we use BoxWithConstraints in the row.
+                LazyColumn(
                     state = gridState,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(
-                        count = allMeasures.size,
-                        key = { allMeasures[it].globalIndex }
-                    ) { idx ->
-                        val measure = allMeasures[idx]
-                        val isPlaying = measure.globalIndex == playingMeasure
-                        val isFocused = measure.globalIndex == focusedMeasure
-                        // Show clefs on the first card of each row so every
-                        // line of the grid reads as a system.
-                        val showClefs = (idx % cols == 0) || idx == 0 || (clefMode == ClefMode.AUTO && idx > 0 && run {
-                            val prev = allMeasures[idx - 1]
-                            selectClef(prev.melodyNotes, useFlats).name != selectClef(measure.melodyNotes, useFlats).name ||
-                            selectClef(prev.chordNotes, useFlats).name != selectClef(measure.chordNotes, useFlats).name
-                        })
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(if (isLandscape) 180.dp else 280.dp)
-                                .clickable {
-                                    vm.playMeasureSingle(measure.globalIndex)
-                                }
+                        count = totalRows,
+                        key = { rowIdx -> allMeasures.getOrNull(rowIdx * cols)?.globalIndex ?: rowIdx }
+                    ) { rowIdx ->
+                        val baseIdx = rowIdx * cols
+                        BoxWithConstraints(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            // Compact measure-number header (replaces the
-                            // duplicated mini timeline that was eating
-                            // ~80dp of card height).
+                            // Available row width in dp (excludes content padding, includes
+                            // the gaps between cards).
+                            val rowWidthDp = maxWidth
+                            // Total horizontal gap consumed by (cols-1) inter-card gaps.
+                            val totalGapDp = colGap * (cols - 1)
+                            // Musical width per card (equal for all cards in the row).
+                            // First card = headerWidth + musicalWidth; others = musicalWidth.
+                            // We approximate headerWidth in dp using a fixed fraction of
+                            // card height; the Canvas itself recomputes in exact px so
+                            // the playhead always matches.  For the layout split we need
+                            // only a reasonable dp estimate.
+                            // headerWidthDp ≈ (staffH * 0.26 max 22dp) + ksW + tsW + 8dp
+                            // staffH ≈ lineSpacing * 4; ls ≈ cardH_px/17 — but we want dp.
+                            // With cardH = 280dp: avail_dp = 280 - 22 - 8 = 250; ls_dp ≈ 14.7.
+                            // With cardH = 180dp: avail_dp = 180 - 22 - 8 = 150; ls_dp ≈ 8.8.
+                            val lsDp = ((cardH.value - STAFF_NUM_AREA_DP - 8f - STAFF_BOTTOM_PAD_DP) / 17f)
+                                .coerceAtMost((if (isLandscape) 70f else STAFF_H_MAX_DP) / 4f)
+                                .coerceAtLeast(7f)
+                            val staffHDp = lsDp * 4f
+                            val pClefWDp = (staffHDp * 0.26f).coerceAtLeast(22f)
+                            val pKsWDp = if (pageAccidentalCount > 0) pageAccidentalCount * 9f + 5f else 0f
+                            val tsWDp = if (clefMode != ClefMode.AUTO) lsDp * 1.8f + 4f else 0f
+                            val headerWidthDp = pClefWDp + pKsWDp + tsWDp  // trailingPad removed
+                            val musicalWidthDp = (rowWidthDp.value - headerWidthDp - totalGapDp.value) / cols
+                            val firstCardWidthDp = headerWidthDp + musicalWidthDp
+
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(colGap),
                             ) {
-                                Text(
-                                    String.format("%02d", measure.globalIndex + 1),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isPlaying) IndigoAccent else Color(0xFF475569),
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                )
-                                if (isFocused || isPlaying) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(RoundedCornerShape(50))
-                                            .background(if (isPlaying) IndigoAccent else Color.White.copy(alpha = 0.3f))
+                                for (col in 0 until cols) {
+                                    val idx = baseIdx + col
+                                    if (idx >= allMeasures.size) {
+                                        // Filler box so the row is full-width.
+                                        val fillerWidthDp = if (col == 0) firstCardWidthDp else musicalWidthDp
+                                        Box(modifier = Modifier.width(fillerWidthDp.dp).height(cardH))
+                                        continue
+                                    }
+                                    val isFirstInRow = col == 0
+                                    val showClefs = isFirstInRow || (clefMode == ClefMode.AUTO && idx > 0 && run {
+                                        val prev = allMeasures[idx - 1]
+                                        selectClef(prev.melodyNotes, useFlats).name != selectClef(allMeasures[idx].melodyNotes, useFlats).name ||
+                                        selectClef(prev.chordNotes, useFlats).name != selectClef(allMeasures[idx].chordNotes, useFlats).name
+                                    })
+                                    val cardWidthDp = if (isFirstInRow) firstCardWidthDp else musicalWidthDp
+                                    MeasureCard(
+                                        idx = idx,
+                                        showClefs = showClefs,
+                                        cardModifier = Modifier.width(cardWidthDp.dp)
                                     )
-                                }
-                            }
-                            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                                GrandStaffCanvas(
-                                    melodyNotes = measure.melodyNotes,
-                                    chordNotes = measure.chordNotes,
-                                    beatsPerMeasure = song!!.beatsPerMeasure,
-                                    useFlats = useFlats,
-                                    showClefs = showClefs,
-                                    isPlaying = isPlaying,
-                                    isFocused = isFocused,
-                                    measureNumber = measure.globalIndex + 1,
-                                    clefMode = clefMode,
-                                    lowerOctaveShift = lowerStaffOctaveShift,
-                                    upperOctaveShift = upperStaffOctaveShift,
-                                    isLandscape = isLandscape,
-                                    keySig = keySignature,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                // Animated playhead — vertical accent line
-                                // that traverses the measure left→right in
-                                // sync with the current beat.
-                                if (isPlaying && song != null) {
-                                    val beatMs = (60_000.0 / (song!!.tempo * tempoPercent)).toLong()
-                                    val measureDurMs = beatMs * song!!.beatsPerMeasure
-                                    val frac by produceState(initialValue = 0f, isPlaying, measureDurMs) {
-                                        val start = android.os.SystemClock.elapsedRealtime()
-                                        while (true) {
-                                            val elapsed = android.os.SystemClock.elapsedRealtime() - start
-                                            value = ((elapsed.toFloat() / measureDurMs) % 1f).coerceIn(0f, 1f)
-                                            kotlinx.coroutines.delay(16)
-                                        }
-                                    }
-                                    // Hoist the .copy() outside DrawScope so 60Hz frame loop
-                                    // doesn't allocate two Color objects per frame.
-                                    val haloColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.10f) }
-                                    val lineColor = remember(IndigoAccent) { IndigoAccent.copy(alpha = 0.95f) }
-                                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                                        // skip the clef area when showing clefs (~22dp)
-                                        val clefSkip = if (showClefs) size.width * 0.18f else 0f
-                                        val noteArea = size.width - clefSkip
-                                        val x = clefSkip + frac * noteArea
-                                        drawRect(
-                                            color = haloColor,
-                                            topLeft = androidx.compose.ui.geometry.Offset(x - size.width * 0.04f, 0f),
-                                            size = androidx.compose.ui.geometry.Size(size.width * 0.08f, size.height),
-                                        )
-                                        drawRect(
-                                            color = lineColor,
-                                            topLeft = androidx.compose.ui.geometry.Offset(x - 1f, 0f),
-                                            size = androidx.compose.ui.geometry.Size(2f, size.height),
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -683,7 +890,7 @@ fun LearningScreen(
                 confirmButton = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { vm.deletePhrase(phraseIdx); showRenamePhraseDialog = null }, enabled = canDelete) {
-                            Text("Supprimer", color = if (canDelete) Color(0xFFEF4444) else Color(0xFF64748B))
+                            Text("Supprimer", color = if (canDelete) Error else TextTertiary)
                         }
                         TextButton(onClick = { vm.renamePhrase(phraseIdx, text); showRenamePhraseDialog = null }) { Text("OK") }
                     }
@@ -794,7 +1001,7 @@ private fun MiniMeasureCard(
         Text(
             "${measure.globalIndex + 1}",
             fontSize = 9.sp,
-            color = if (isPlaying) IndigoAccent else Color(0xFF475569),
+            color = if (isPlaying) IndigoAccent else TextMuted,
             fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
         )
         Spacer(Modifier.height(2.dp))
@@ -837,6 +1044,16 @@ private fun GrandStaffCanvas(
     upperOctaveShift: Int = 0,
     isLandscape: Boolean = false,
     keySig: MusicKeySignature? = null,
+    showDetails: Boolean = false,
+    // Page-constant key-signature accidental count: reserved as header space on
+    // EVERY card (even non-clef ones) so all 4 measures of a row share one grid.
+    pageAccidentalCount: Int = 0,
+    // Song time signature — drawn on the first system only, reserved everywhere.
+    timeSigNumerator: Int = 4,
+    timeSigDenominator: Int = 4,
+    // True only for the very first measure of the page → actually draws the
+    // time signature glyphs after the key signature.
+    isFirstSystem: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -857,22 +1074,43 @@ private fun GrandStaffCanvas(
         val topPad    = numAreaH + 8.dp.toPx()
         val bottomPad = STAFF_BOTTOM_PAD_DP.dp.toPx()
 
-        // 2 staves of 4 lineSpacings + gap of 2 lineSpacings = 10 lineSpacings total
+        // 2 staves of 4 lineSpacings + gap of 2 lineSpacings + 7 headroom steps = 17 lineSpacings total.
+        // Web formula: lineSpacing = max(dp(7), min(totalAvail / (10 + 2 * 3.5), staffHMax / 4))
+        //   i.e. totalAvail / 17, clamped to staffHMax/4 and floored at 7dp.
         val totalAvail   = h - topPad - bottomPad
         val staffHMax    = if (isLandscape) 70.dp.toPx() else STAFF_H_MAX_DP.dp.toPx()
-        val staffH       = (totalAvail / 2.5f).coerceAtMost(staffHMax)
-        val lineSpacing  = staffH / 4f
+        val lineSpacing  = (totalAvail / 17f).coerceAtMost(staffHMax / 4f).coerceAtLeast(7.dp.toPx())
+        val staffH       = lineSpacing * 4f
         val gap          = lineSpacing * 2f  // exactly 2 line spacings → middle C falls between staves
         val totalStavesH = staffH * 2 + gap
         val stavesOriginY = topPad + (totalAvail - totalStavesH) / 2f
 
-        // Key signature width: only for fixed clef modes (STANDARD, TREBLE_X2)
+        // ── Header width (clef + armure + time signature) ──────────────────
+        // The musical time→x mapping starts AFTER the clef + key signature
+        // (+ time signature on system 1). After the weighted-column layout refactor,
+        // the FIRST card of each row is physically wider by headerWidth, so
+        // non-clef cards no longer need to reserve it — their canvas width is
+        // already equal to musicalWidth only.
+        //
+        //   pureClefW   = clef glyph zone        = max(staffH·0.26, 22dp)
+        //   ksW         = key-sig accidental zone = count·9dp + 5dp  (web parity)
+        //   tsW         = time-signature zone     = lineSpacing·1.8 + 4dp (compact)
+        //   headerWidth = pureClefW + ksW + tsW  (clef cards only; no trailing pad —
+        //                 the barPad + dotR*2 leftPad already provides the first-note gap)
+        //                 0                        (non-clef cards)
+        val pureClefW = (staffH * 0.26f).coerceAtLeast(22.dp.toPx())
+        // numAccidentals = what THIS card actually draws (clef cards only).
         val showKeySig = showClefs && clefMode != ClefMode.AUTO
         val numAccidentals = if (showKeySig) keySignatureAccidentalCount(keySig) else 0
-        val ksW = if (numAccidentals > 0) numAccidentals * 7.dp.toPx() + 4.dp.toPx() else 0f
-        val clefW    = if (showClefs) (staffH * 0.26f).coerceAtLeast(22.dp.toPx()) + ksW else 0f
+        // Page-constant key-sig zone (only needed on clef cards now).
+        val pageKsW = if (pageAccidentalCount > 0) pageAccidentalCount * 9.dp.toPx() + 5.dp.toPx() else 0f
+        // Time-signature zone — compact: lineSpacing * 1.8 + dp(4).
+        val tsW = if (clefMode != ClefMode.AUTO) lineSpacing * 1.8f + 4.dp.toPx() else 0f
+        // Header only applied on clef cards; non-clef cards have canvas width = musicalWidth.
+        val headerWidth = if (showClefs) pureClefW + pageKsW + tsW else 0f
         val barPad   = 10.dp.toPx()
-        val dotR     = lineSpacing * (if (isLandscape) 0.38f else 0.32f)
+        // dotR: web uses lineSpacing * (landscape ? 0.45 : 0.42) — aligned.
+        val dotR     = lineSpacing * (if (isLandscape) 0.45f else 0.42f)
 
         // ── Resolve clefs + note assignment per mode ──────────────────────
         val upperClef: StaffClefConfig
@@ -905,7 +1143,7 @@ private fun GrandStaffCanvas(
         // ── Measure number ─────────────────────────────────────────────────
         val numStyle = TextStyle(
             fontSize = 13.sp,
-            color = if (isPlaying) IndigoAccent else Color(0xFF64748B),
+            color = if (isPlaying) IndigoAccent else TextTertiary,
             fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
         )
         val numLayout = textMeasurer.measure("$measureNumber", numStyle)
@@ -930,21 +1168,24 @@ private fun GrandStaffCanvas(
             val bottomDiatonic = clef.lines.first()
 
             // ── Staff lines ─────────────────────────────────────────────
+            // Web: all lines neutral (rgba 255,255,255,0.14); key-anchor line
+            // is rgba(255,255,255,0.22) at 1.1dp. Hand identity comes from
+            // notehead colour, not from line colour.
             for (li in 0..4) {
                 val y = lineTop + li * lineSpacing
                 val lineDiatonic = clef.lines[4 - li]
                 val isKey = (lineDiatonic == clef.keyDiatonic)
-                val keyColor = if (si == 0) CyanMelody.copy(alpha = 0.72f) else PinkChords.copy(alpha = 0.72f)
                 drawLine(
-                    color = if (isKey) keyColor else Color.White.copy(alpha = 0.62f),
+                    color = if (isKey) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.14f),
                     start = Offset(bracketX + 2.dp.toPx(), y),
                     end   = Offset(w, y),
-                    strokeWidth = if (isKey) 1.6f else 1.2f
+                    strokeWidth = if (isKey) 1.1.dp.toPx() else 0.9.dp.toPx()
                 )
             }
 
             // ── Clef glyph ──────────────────────────────────────────────
-            val pureClefW = clefW - ksW  // clef zone without key signature
+            // pureClefW (clef zone, no key signature) is defined once at the
+            // canvas top so the header grid stays page-constant.
             if (showClefs) {
                 val clefFontPx = staffH * clef.fontScale
                 val clefStyle = TextStyle(
@@ -971,19 +1212,54 @@ private fun GrandStaffCanvas(
                         if (isTreble) TREBLE_SHARP_POS else BASS_SHARP_POS
                     }
                     val accLabel = if (keySig.useFlats) "♭" else "♯"
+                    // Web: lineSpacing * 1.9 px — aligned.
                     val accStyle = TextStyle(
-                        fontSize = (lineSpacing * 0.9f / density).sp,
+                        fontSize = (lineSpacing * 1.9f / density).sp,
                         color = Color.White.copy(alpha = 0.6f),
-                        fontWeight = FontWeight.Bold
                     )
+                    // Web: ax = pureClefW + dp(3) + i * dp(9), ay uses textBaseline='middle'.
                     val topD = clef.lines.last()
                     for (i in 0 until numAccidentals) {
                         val d = positions[i]
                         val accLayout = textMeasurer.measure(accLabel, accStyle)
-                        val ax = pureClefW + 2.dp.toPx() + i * 7.dp.toPx()
-                        val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height * 0.45f
+                        val ax = pureClefW + 3.dp.toPx() + i * 9.dp.toPx()
+                        val ay = lineTop + (topD - d) * (lineSpacing / 2f) - accLayout.size.height * 0.60f
                         drawText(accLayout, topLeft = Offset(ax, ay))
                     }
+                }
+
+                // ── Time signature (FIRST system only) ────────────────────
+                // Web: bold serif, lineSpacing*2 font; numerator centred at
+                // staffMidY - lineSpacing, denominator at staffMidY + lineSpacing
+                // (staffMidY = lineTop + 2*lineSpacing = the middle/3rd line).
+                // tsW zone starts after the (page-constant) key signature + dp(2) gap.
+                if (isFirstSystem && tsW > 0f) {
+                    val tsStyle = TextStyle(
+                        fontSize = (lineSpacing * 1.6f / density).sp,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Bold,
+                    )
+                    val numLayout = textMeasurer.measure(timeSigNumerator.toString(), tsStyle)
+                    val denLayout = textMeasurer.measure(timeSigDenominator.toString(), tsStyle)
+                    val tsZoneStart = pureClefW + pageKsW + 2.dp.toPx()
+                    // Center the digit column inside tsW, matching web's digitCenterX.
+                    val tsCenterX = tsZoneStart + (tsW - 3.dp.toPx()) / 2f
+                    // Web: numerator at staffMidY - lineSpacing, denominator at +lineSpacing
+                    val staffMidY = lineTop + 2f * lineSpacing  // middle (3rd) line
+                    drawText(
+                        numLayout,
+                        topLeft = Offset(
+                            tsCenterX - numLayout.size.width / 2f,
+                            staffMidY - lineSpacing - numLayout.size.height / 2f,
+                        )
+                    )
+                    drawText(
+                        denLayout,
+                        topLeft = Offset(
+                            tsCenterX - denLayout.size.width / 2f,
+                            staffMidY + lineSpacing - denLayout.size.height / 2f,
+                        )
+                    )
                 }
             }
 
@@ -992,9 +1268,9 @@ private fun GrandStaffCanvas(
             if (showClefs && octShift != 0) {
                 val octLabel = when {
                     octShift >= 14 -> "15mb"
-                    octShift >= 7 -> "8vb"
+                    octShift >= 7  -> "8vb"
                     octShift <= -14 -> "15ma"
-                    octShift <= -7 -> "8va"
+                    octShift <= -7  -> "8va"
                     else -> ""
                 }
                 if (octLabel.isNotEmpty()) {
@@ -1010,49 +1286,217 @@ private fun GrandStaffCanvas(
             }
 
             // ── Notes ───────────────────────────────────────────────────
-            staffNotesList[si].forEach { (note, color) ->
+            // Geometry helpers shared by every notehead on this staff.
+            // Music starts after the page-constant headerWidth (clef + armure +
+            // time-sig zone), NOT after this card's own clef — so all 4 measures
+            // of a row are pixel-equal and barlines align across every system.
+            val leftPad = barPad + dotR * 2f  // extra space from left bar line
+            val noteAreaStart = headerWidth + leftPad
+            val noteAreaEnd = w - barPad - dotR
+            val midLineY = lineTop + 2 * lineSpacing  // middle (3rd) staff line
+
+            // Per-note resolved geometry + duration class.
+            val resolved = staffNotesList[si].map { (note, color) ->
                 val d = midiToDiatonic(note.pitch, useFlats) + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
-                val leftPad = barPad + dotR * 2f  // extra space from left bar line
-                val noteAreaStart = clefW + leftPad
-                val noteAreaEnd = w - barPad - dotR
                 val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
+                // note.startTime is already measure-relative beats (0 ≤ t < beatsPerMeasure).
+                StaffNote(d, x, y, classifyDuration(note.duration), note.pitch, color,
+                    note.startTime, note.duration)
+            }
 
-                drawCircle(color = color, radius = dotR, center = Offset(x, y))
+            // Group notes sounding at the same beat into chords (shared stem).
+            // Quantise x to a pixel so FP startTime noise still groups cleanly.
+            val groups = resolved.groupBy { kotlin.math.round(it.x).toInt() }
 
-                // Ledger lines (only when note is ≥2 diatonic steps outside staff)
-                if (d > topDiatonic + 1) {
-                    var ld = topDiatonic + 2
-                    while (ld <= d) {
-                        val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                        drawLine(Color.White.copy(alpha = 0.5f),
-                            Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
-                        ld += 2
+            // On small Android cards the staff can compress to <8px line
+            // spacing; scale the stem factor down like the web so stems don't
+            // dwarf the noteheads. (≤8dp lineSpacing → 2.6× instead of 3.2×.)
+            val isCompact = lineSpacing <= 8.dp.toPx()
+            val stemFactor = if (isCompact) 2.6f else 3.2f
+            val stemLenBase = lineSpacing * stemFactor
+
+            // Notehead radii — web: headRx = dotR * 1.08, headRy = dotR * 0.84.
+            // The notehead is an ellipse rotated -0.32 rad (≈18°) for the engraved look.
+            val headRx = dotR * 1.08f
+            val headRy = dotR * 0.84f
+
+            // Helper: draw a rotated-ellipse notehead (web parity).
+            // Compose Canvas doesn't support ellipse natively, so we use scale+circle.
+            // Captures DrawScope explicitly so it can be called from nested lambdas.
+            val hollowStrokeW = 1.7.dp.toPx()
+            val scope: androidx.compose.ui.graphics.drawscope.DrawScope = this
+            fun drawHead(cx: Float, cy: Float, filled: Boolean, headColor: Color) {
+                scope.withTransform({
+                    translate(cx, cy)
+                    rotate(degrees = -18.35f, pivot = Offset.Zero)  // -0.32 rad ≈ -18.35°
+                    scale(scaleX = headRx / headRy, scaleY = 1f, pivot = Offset.Zero)
+                }) {
+                    if (filled) {
+                        drawCircle(color = headColor, radius = headRy, center = Offset.Zero)
+                    } else {
+                        drawCircle(
+                            color = headColor, radius = headRy, center = Offset.Zero,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = hollowStrokeW),
+                        )
                     }
                 }
-                if (d < bottomDiatonic - 1) {
-                    var ld = bottomDiatonic - 2
-                    while (ld >= d) {
-                        val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
-                        drawLine(Color.White.copy(alpha = 0.5f),
-                            Offset(x - dotR * 1.5f, ly), Offset(x + dotR * 1.5f, ly), 0.9f)
-                        ld -= 2
+            }
+
+            val chordRenders = mutableListOf<ChordRender>()
+
+            groups.forEach { (_, chord) ->
+                val items = chord.sortedBy { it.d }  // bottom → top
+                val x = items.first().x
+
+                // ── Stem direction (decided up-front so chord-second offsets
+                // can push heads to the correct side of the stem).
+                // Default: upper staff (si==0, MD) → UP; lower staff (si==1, MG) → DOWN.
+                // Anti-overlap: if the nominal tip would exit the drawable zone, flip.
+                // (Drawable zone is approximated here without the anti-overlap pass;
+                //  for second-offset purposes we just need a stable direction before
+                //  drawStemsAndBeams does the full check.)
+                val anyStem = items.any { it.dur.stem }
+                val centerY = items.map { it.y }.average().toFloat()
+                val up = si == 0  // MD default UP; MG default DOWN
+
+                // ── Chord-second resolution. Two noteheads on ADJACENT
+                // diatonic steps (|Δd| == 1) collide if drawn at the same x.
+                // Offset ONE of the pair to the OPPOSITE side of the stem:
+                //   stem-up   → the UPPER note of the pair moves RIGHT of the stem
+                //   stem-down → the LOWER note of the pair moves LEFT of the stem
+                // Walk bottom→top; when the previous head wasn't itself offset
+                // and this note is one step above it, offset whichever of the
+                // pair the rule selects. headDx[i] = horizontal shift for head i.
+                // Web: offset = headRx * 1.7 (full notehead width to the other side).
+                val headDx = FloatArray(items.size)
+                val headSecondOffset = headRx * 1.7f
+                run {
+                    var i = 1
+                    while (i < items.size) {
+                        val collides = (items[i].d - items[i - 1].d) == 1 &&
+                            headDx[i - 1] == 0f
+                        if (collides) {
+                            if (up) headDx[i] = headSecondOffset      // upper → right
+                            else    headDx[i - 1] = -headSecondOffset // lower → left
+                            i += 2  // pair consumed
+                        } else {
+                            i += 1
+                        }
                     }
                 }
 
-                // Accidental (#/b)
-                if (isBlackKey(note.pitch)) {
-                    val label = if (useFlats) "b" else "#"
-                    val labelLayout = textMeasurer.measure(
-                        label,
-                        TextStyle(fontSize = 9.sp, color = color.copy(alpha = 0.95f), fontWeight = FontWeight.Bold)
+                // Noteheads + ledger lines + dots + accidentals per note.
+                items.forEachIndexed { idx2, it2 ->
+                    val hx = it2.x + headDx[idx2]   // head x after second-offset
+                    // Notehead: filled (solid) for ≤ quarter, hollow (ring) for ≥ half.
+                    // Each note of a chord uses its OWN duration's head style.
+                    drawHead(hx, it2.y, it2.dur.filled, it2.color)  // rotated ellipse, web parity
+
+                    // Ledger lines (only when note is ≥2 diatonic steps outside
+                    // staff). Web: lx0 = min(x, x+headDx) - headRx - dp(2),
+                    //              lx1 = max(x, x+headDx) + headRx + dp(2)
+                    val lx0 = kotlin.math.min(it2.x, hx) - headRx - 2.dp.toPx()
+                    val lx1 = kotlin.math.max(it2.x, hx) + headRx + 2.dp.toPx()
+                    if (it2.d > topDiatonic + 1) {
+                        var ld = topDiatonic + 2
+                        while (ld <= it2.d) {
+                            val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
+                            drawLine(Color.White.copy(alpha = 0.45f),
+                                Offset(lx0, ly), Offset(lx1, ly), 1.dp.toPx())
+                            ld += 2
+                        }
+                    }
+                    if (it2.d < bottomDiatonic - 1) {
+                        var ld = bottomDiatonic - 2
+                        while (ld >= it2.d) {
+                            val ly = lineTop + (topDiatonic - ld) * (lineSpacing / 2f)
+                            drawLine(Color.White.copy(alpha = 0.45f),
+                                Offset(lx0, ly), Offset(lx1, ly), 1.dp.toPx())
+                            ld -= 2
+                        }
+                    }
+
+                    // Augmentation dot (showDetails gate matches web's showStems check).
+                    // Web: arc at x+headDx+headRx+dp(4), y + (onLine ? -lineSpacing/2 : 0),
+                    //      radius dp(1.6). Line notes nudge dot up into nearest space.
+                    if (showDetails && it2.dur.dotted) {
+                        val onLine = ((topDiatonic - it2.d) % 2) == 0
+                        val dotDy = if (onLine) -lineSpacing / 2f else 0f
+                        drawCircle(
+                            color = it2.color,
+                            radius = 1.6f.dp.toPx(),
+                            center = Offset(hx + headRx + 4.dp.toPx(), it2.y + dotDy),
+                        )
+                    }
+
+                    // Accidental (♯/♭). Web: proper Unicode glyphs at
+                    //   x = x + max(0,dx) + headRx + dp(1)
+                    //   y = noteY − lineSpacing * 0.55  (alphabetic baseline)
+                    //   font: lineSpacing * 1.3 px
+                    if (isBlackKey(it2.pitch)) {
+                        val accLabel = if (useFlats) "♭" else "♯"
+                        val accStyle = TextStyle(
+                            fontSize = (lineSpacing * 1.3f / density).sp,
+                            color = it2.color,
+                        )
+                        val accLayout = textMeasurer.measure(accLabel, accStyle)
+                        // Web positions with textBaseline='alphabetic'; approximate:
+                        // alphabetic baseline ≈ topLeft.y + height * 0.8 (ascent fraction).
+                        val baselineY = it2.y - lineSpacing * 0.55f
+                        val accTopY = baselineY - accLayout.size.height * 0.8f
+                        val accX = kotlin.math.max(hx, it2.x) + headRx + 1.dp.toPx()
+                        drawText(accLayout, topLeft = Offset(accX, accTopY))
+                    }
+                }
+
+                // Record stem geometry for this chord (decided once, consumed
+                // by the stem/flag pass and the beam pass below). topY/botY are
+                // the extremes of the STEMMED notes so the shared stem spans
+                // lowest→highest notehead that actually carries a stem.
+                val stemmed = items.filter { it.dur.stem }
+                val refItems = if (stemmed.isNotEmpty()) stemmed else items
+                chordRenders.add(
+                    ChordRender(
+                        items = items,
+                        x = x,
+                        startBeat = items.first().startBeat,
+                        durBeats = items.first().durBeats,
+                        flags = items.maxOf { it.dur.flags },
+                        anyStem = anyStem,
+                        stemColor = items.first().color,
+                        centerY = centerY,
+                        topY = refItems.maxByOrNull { it.d }!!.y,  // highest stemmed (smallest y)
+                        botY = refItems.minByOrNull { it.d }!!.y,  // lowest stemmed (largest y)
                     )
-                    drawText(labelLayout, topLeft = Offset(
-                        x + dotR * 1.3f,
-                        y - dotR - labelLayout.size.height
-                    ))
-                }
+                )
+            }
+
+            // ── Stems, flags & BEAMS — Détail layer only. ─────────────────
+            if (showDetails) {
+                // Drawable zone for anti-overlap bounds:
+                //   topBound  = stavesOriginY (first staff top; below the measure-number area)
+                //   botBound  = stavesOriginY + totalStavesH + lineSpacing (small margin)
+                val drawTopBound = stavesOriginY
+                val drawBotBound = stavesOriginY + totalStavesH + lineSpacing
+                drawStemsAndBeams(
+                    chords = chordRenders,
+                    staffIndex = si,
+                    midLineY = midLineY,
+                    lineSpacing = lineSpacing,
+                    headRx = headRx,
+                    headRy = headRy,
+                    stemLenBase = stemLenBase,
+                    dpHalf = 0.5.dp.toPx(),
+                    stemWidth = 0.9.dp.toPx(),  // deliberate: user requested 0.9dp thin stems
+                    // Flag curve control points (web: dp(7), dp(5), dp(6)).
+                    flag7 = 7.dp.toPx(),
+                    flag5 = 5.dp.toPx(),
+                    flag6 = 6.dp.toPx(),
+                    drawTopBound = drawTopBound,
+                    drawBotBound = drawBotBound,
+                )
             }
         }
 
@@ -1067,8 +1511,275 @@ private fun GrandStaffCanvas(
     }
 }
 
+// ─── Stem / flag / beam render records & engraver ─────────────────────────────
+
+// Per-note resolved geometry + duration class (one staff note on the canvas).
+private data class StaffNote(
+    val d: Int, val x: Float, val y: Float,
+    val dur: NoteDuration, val pitch: Int, val color: Color,
+    val startBeat: Double, val durBeats: Double,
+)
+
+// One shared-stem chord (notes quantised to the same x). Stem geometry is
+// decided by the caller and consumed by the standalone-stem and beam passes.
+private data class ChordRender(
+    val items: List<StaffNote>,
+    val x: Float,
+    val startBeat: Double,
+    val durBeats: Double,
+    val flags: Int,
+    val anyStem: Boolean,
+    val stemColor: Color,
+    val centerY: Float,   // avg notehead y — used for the majority vote
+    val topY: Float,      // highest note (smallest y)
+    val botY: Float,      // lowest note (largest y)
+)
+
+/**
+ * Draw the Détail-layer stems, flags and beams for one staff.
+ *
+ * Mirrors the web beam spec:
+ *  • Non-beamable stemmed chords (quarter/half, flags == 0) → plain shared stem.
+ *  • Beamable chords (anyStem && flags ≥ 1), in time order → partitioned by
+ *    computeBeamGroups. Singletons keep flags; groups ≥ 2 drop flags and get a
+ *    beam: majority-vote direction (ties up), first/last stem tips anchor the
+ *    beam line (slope clamped ≤ 0.5×lineSpacing), intermediate stems extend to
+ *    the interpolated line, the whole beam pushes outward if any stem < 2.5×
+ *    lineSpacing. Primary beam = filled quad ≈0.5×lineSpacing thick; secondary
+ *    beam (flags ≥ 2) 0.75×lineSpacing inward between adjacent 16ths, isolated
+ *    16th gets a 0.6×lineSpacing stub toward its neighbour.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
+    chords: List<ChordRender>,
+    staffIndex: Int,   // 0 = upper staff (MD / melody, default UP); 1 = lower (MG / chords, default DOWN)
+    midLineY: Float,
+    lineSpacing: Float,
+    headRx: Float,     // notehead half-width (web: dotR * 1.08)
+    headRy: Float,     // notehead half-height (web: dotR * 0.84)
+    stemLenBase: Float,
+    dpHalf: Float,
+    stemWidth: Float,
+    flag7: Float,
+    flag5: Float,
+    flag6: Float,
+    drawTopBound: Float,  // anti-overlap: top of drawable zone (below measure-number label)
+    drawBotBound: Float,  // anti-overlap: bottom of drawable zone (canvas bottom minus margin)
+) {
+    // Default stem direction per staff:
+    //   upper staff (si=0, MD/melody) → UP
+    //   lower staff (si=1, MG/chords) → DOWN
+    val defaultUp = staffIndex == 0
+
+    // Helper: where the stem meets the notehead block, given direction.
+    // Stem-up   → attach at bottom of lowest note (botY − headRy), tip goes above
+    // Stem-down → attach at top of highest note   (topY + headRy), tip goes below
+    // (topY = smallest screen-y = highest pitch; botY = largest screen-y = lowest pitch)
+    fun attachY(c: ChordRender, up: Boolean) = if (up) c.botY - headRy else c.topY + headRy
+    // Helper: the stem's x (right edge of head for up, left for down).
+    // Web: stemX = stemUp ? x + headRx - dp(0.5) : x - headRx + dp(0.5)
+    fun stemX(c: ChordRender, up: Boolean) = if (up) c.x + headRx - dpHalf else c.x - headRx + dpHalf
+    // Nominal free-tip y for a standalone stem (starts at the far notehead, extends out).
+    // Stem-up: tip is above the top note → topY − stemLenBase
+    // Stem-down: tip is below the bottom note → botY + stemLenBase
+    fun nominalTip(c: ChordRender, up: Boolean) =
+        if (up) c.topY - stemLenBase else c.botY + stemLenBase
+
+    // Anti-overlap direction check for a single chord.
+    // Returns true = up, false = down, after applying the default then flipping if
+    // the stem tip would exit the drawable zone.
+    fun resolveDirection(c: ChordRender, preferUp: Boolean): Boolean {
+        val tip = nominalTip(c, preferUp)
+        val wouldExitTop = preferUp && tip < drawTopBound
+        val wouldExitBot = !preferUp && tip > drawBotBound
+        return if (wouldExitTop || wouldExitBot) !preferUp else preferUp
+    }
+
+    // Draw a plain shared stem (no flag) — quarters/halves and the trunk of any
+    // chord whose flag/beam is handled separately.
+    fun drawPlainStem(c: ChordRender, up: Boolean, tipY: Float) {
+        drawLine(
+            color = c.stemColor,
+            start = Offset(stemX(c, up), attachY(c, up)),
+            end = Offset(stemX(c, up), tipY),
+            strokeWidth = stemWidth,
+        )
+    }
+
+    // Draw the curved flag hook(s) at a standalone stem tip.
+    fun drawFlags(c: ChordRender, up: Boolean, tipY: Float) {
+        val dir = if (up) 1f else -1f
+        val sx = stemX(c, up)
+        for (f in 0 until c.flags) {
+            val fy = tipY + f * lineSpacing * 0.9f * dir
+            val flagPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(sx, fy)
+                quadraticTo(sx + flag7, fy + dir * lineSpacing * 0.5f, sx + flag5, fy + dir * lineSpacing * 1.3f)
+                quadraticTo(sx + flag6, fy + dir * lineSpacing * 0.6f, sx, fy + dir * lineSpacing * 0.35f)
+                close()
+            }
+            drawPath(flagPath, color = c.stemColor)
+        }
+    }
+
+    // ── Non-beamable stemmed chords (flags == 0): plain stems. ──
+    chords.filter { it.anyStem && it.flags == 0 }.forEach { c ->
+        val up = resolveDirection(c, defaultUp)
+        drawPlainStem(c, up, nominalTip(c, up))
+    }
+
+    // ── Beamable chords in time order. ──
+    val beamable = chords.filter { it.anyStem && it.flags >= 1 }
+        .sortedBy { it.startBeat }
+    if (beamable.isEmpty()) return
+
+    val beamItems = beamable.map { BeamItem(it.startBeat, it.durBeats, it.flags) }
+    val groups = computeBeamGroups(beamItems)
+
+    // Web: beamTh = lineSpacing * 0.5 — aligned.
+    val beamThickness = lineSpacing * 0.5f
+
+    for (group in groups) {
+        val gChords = group.map { beamable[it] }
+
+        if (gChords.size == 1) {
+            // Singleton — keep the flag.
+            val c = gChords[0]
+            val up = resolveDirection(c, defaultUp)
+            val tip = nominalTip(c, up)
+            drawPlainStem(c, up, tip)
+            drawFlags(c, up, tip)
+            continue
+        }
+
+        // ── Group beam. Default per-staff direction + anti-overlap. ──
+        // Compute the would-be beam tip extent using the first/last nominal tips
+        // (after slope clamping) and flip the whole group if the beam exits bounds.
+        val up: Boolean
+        run {
+            val c0 = gChords.first(); val cN = gChords.last()
+            val tip0 = nominalTip(c0, defaultUp); val tipN = nominalTip(cN, defaultUp)
+            val beamMin = minOf(tip0, tipN); val beamMax = maxOf(tip0, tipN)
+            val wouldExitTop = defaultUp && beamMin < drawTopBound
+            val wouldExitBot = !defaultUp && beamMax > drawBotBound
+            up = if (wouldExitTop || wouldExitBot) !defaultUp else defaultUp
+        }
+        val dir = if (up) -1f else 1f         // beam offset direction from notehead
+
+        // Anchor the beam line at the first and last nominal tips, then clamp
+        // the slope to ≤ 0.5×lineSpacing total span.
+        // Web: preserve the longer stem, adjust the shorter one.
+        val first = gChords.first()
+        val last = gChords.last()
+        val x0 = stemX(first, up)
+        val x1 = stemX(last, up)
+        var y0 = nominalTip(first, up)
+        var y1 = nominalTip(last, up)
+        val maxSlope = lineSpacing * 0.5f
+        val dy = y1 - y0
+        if (kotlin.math.abs(dy) > maxSlope) {
+            val target = kotlin.math.sign(dy) * maxSlope
+            val lenFirst = kotlin.math.abs(y0 - attachY(first, up))
+            val lenLast  = kotlin.math.abs(y1 - attachY(last, up))
+            if (lenFirst <= lenLast) {
+                y0 = y1 - target   // first end shorter → move it
+            } else {
+                y1 = y0 + target   // last end shorter → move it
+            }
+        }
+
+        // Interpolated beam y at an arbitrary x.
+        fun beamYAt(x: Float): Float {
+            if (x1 == x0) return y0
+            val t = (x - x0) / (x1 - x0)
+            return y0 + (y1 - y0) * t
+        }
+
+        // Ensure every stem reaches ≥ MIN_STEM_FACTOR×lineSpacing; push the
+        // whole beam outward if any stem is too short.
+        // Web: compact (lineSpacing≤dp(8)) → 2.1×, normal → 2.5×.
+        val minStemFactor = if (lineSpacing <= 8.dp.toPx()) 2.1f else 2.5f
+        val minStem = lineSpacing * minStemFactor
+        var push = 0f
+        for (c in gChords) {
+            val by = beamYAt(stemX(c, up))
+            val len = kotlin.math.abs(by - attachY(c, up))
+            if (len < minStem) push = kotlin.math.max(push, minStem - len)
+        }
+        if (push > 0f) {
+            // dir is -1 for up-stems (beam above, smaller y) → push further up.
+            y0 += dir * push
+            y1 += dir * push
+        }
+
+        // ── Per-stem: extend each shared stem to the beam line. ──
+        for (c in gChords) {
+            val sx = stemX(c, up)
+            val by = beamYAt(sx)
+            drawPlainStem(c, up, by)
+        }
+
+        // ── Primary beam: filled quadrilateral between the first & last tips. ──
+        val px0 = stemX(first, up)
+        val px1 = stemX(last, up)
+        val py0 = beamYAt(px0)
+        val py1 = beamYAt(px1)
+        // Dominant-hand colour: most common stem colour in the group.
+        val beamColor = gChords.groupingBy { it.stemColor }.eachCount()
+            .maxByOrNull { it.value }!!.key
+        // Thickness grows toward the noteheads (opposite the outward `dir`).
+        val inward = -dir
+        val thick = beamThickness * inward
+        val primary = androidx.compose.ui.graphics.Path().apply {
+            moveTo(px0, py0)
+            lineTo(px1, py1)
+            lineTo(px1, py1 + thick)
+            lineTo(px0, py0 + thick)
+            close()
+        }
+        drawPath(primary, color = beamColor)
+
+        // ── Secondary beams for 16ths (flags ≥ 2). ──
+        // Inward = toward the noteheads from the primary beam.
+        val secOffset = (beamThickness + lineSpacing * 0.25f) * inward  // 0.75×ls inward edge
+        val sixteenths = gChords.withIndex().filter { it.value.flags >= 2 }.map { it.index }
+        if (sixteenths.isNotEmpty()) {
+            // Draw full secondary segments between adjacent 16th items.
+            val drawn = BooleanArray(gChords.size)
+            for (k in 0 until sixteenths.size - 1) {
+                val a = sixteenths[k]
+                val b = sixteenths[k + 1]
+                if (b == a + 1) {
+                    val ax = stemX(gChords[a], up); val bx = stemX(gChords[b], up)
+                    val ay = beamYAt(ax) + secOffset; val byy = beamYAt(bx) + secOffset
+                    val sec = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(ax, ay); lineTo(bx, byy)
+                        lineTo(bx, byy + thick); lineTo(ax, ay + thick); close()
+                    }
+                    drawPath(sec, color = beamColor)
+                    drawn[a] = true; drawn[b] = true
+                }
+            }
+            // Isolated 16ths get a short stub toward their neighbour.
+            for (idx in sixteenths) {
+                if (drawn[idx]) continue
+                val c = gChords[idx]
+                val sx = stemX(c, up)
+                val sy = beamYAt(sx) + secOffset
+                val toward = if (idx < gChords.size - 1) 1f else -1f
+                val stub = lineSpacing * 0.6f * toward
+                val sec = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(sx, sy); lineTo(sx + stub, sy)
+                    lineTo(sx + stub, sy + thick); lineTo(sx, sy + thick); close()
+                }
+                drawPath(sec, color = beamColor)
+            }
+        }
+    }
+}
+
 // ─── Note labels strip ────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NoteLabelsStrip(
     measure: MeasureData?,
@@ -1093,9 +1804,11 @@ private fun NoteLabelsStrip(
             ) {
                 if (expanded && measure != null) {
                     if (measure.melodyNotes.isNotEmpty()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        // FlowRow: chips WRAP onto multiple lines (a plain Row
+                        // never wraps — this was the unreadable single line).
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
                             Text("MD", fontSize = 11.sp, color = CyanMelody.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
                             measure.melodyNotes.map { it.pitch }.distinct()
@@ -1103,9 +1816,9 @@ private fun NoteLabelsStrip(
                         }
                     }
                     if (measure.chordInfo != null || measure.chordNotes.isNotEmpty()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
                             Text("MG", fontSize = 11.sp, color = PinkChords.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
                             if (measure.chordInfo != null) {
@@ -1199,10 +1912,10 @@ private fun OctaveKeys(
         intArrayOf(0, 2, 4, 5, 7, 9, 11).forEachIndexed { wi, semi ->
             val midi = cMidi + semi
             val color = when {
-                midi in pressedKeys        -> Color(0xFF4ADE80)            // green for MIDI input
+                midi in pressedKeys        -> Success            // green for MIDI input
                 midi in activeRightPitches -> CyanMelody.copy(alpha = 0.52f)
                 midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.52f)
-                else                       -> Color(0xFFE8ECF0)
+                else                       -> KeyWhite
             }
             drawRoundRect(color, Offset(wi * wkW + 0.5f, 0f), Size(wkW - 1f, size.height), CornerRadius(2f))
         }
@@ -1211,10 +1924,10 @@ private fun OctaveKeys(
         listOf(1 to 1, 3 to 2, 6 to 4, 8 to 5, 10 to 6).forEach { (semi, rw) ->
             val midi = cMidi + semi
             val color = when {
-                midi in pressedKeys        -> Color(0xFF4ADE80).copy(alpha = 0.40f) // green tint, stays dark
+                midi in pressedKeys        -> Success.copy(alpha = 0.40f) // green tint, stays dark
                 midi in activeRightPitches -> CyanMelody.copy(alpha = 0.18f)
                 midi in activeLeftPitches  -> PinkChords.copy(alpha = 0.18f)
-                else                       -> Color(0xFF1A1A1A)
+                else                       -> KeyBlack
             }
             val x = rw * wkW - bkW / 2f
             drawRoundRect(color, Offset(x, 0f), Size(bkW, bkH), CornerRadius(2f))
@@ -1243,9 +1956,11 @@ private fun ChordChip(
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         ArpeggioChordBadge(cwr)
                         if (showDetails) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(start = 8.dp)) {
-                                cwr.cycleNotes.forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), PinkChords) }
-                            }
+                            // One WRAPPED row per cycle occurrence (web parity):
+                            // FlowRow wraps; long cycles are chunked by the
+                            // detected display cycle so the pattern reads as
+                            // "Do Mib Sol Mib" / "Sol Mib Sol Mib" lines.
+                            CycleNoteRows(cwr.cycleNotes, showOctaves, useFlats)
                         }
                     }
                 }
@@ -1263,9 +1978,38 @@ private fun ChordChip(
             }
             if (showDetails && chordNotes.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    firstArpeggioCycle(chordNotes).map { midiToFrench(it.pitch, showOctaves, useFlats) }.forEach { NoteChip(it, PinkChords) }
-                }
+                // Full ordered sequence, one wrapped row per cycle occurrence
+                // (was: first cycle only, on a single non-wrapping Row).
+                CycleNoteRows(
+                    chordNotes.sortedBy { it.startTime }.map { it.pitch },
+                    showOctaves, useFlats,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Note chips grouped one row per cycle occurrence (web MotifRows parity).
+ * When a display cycle is detected the pitches are chunked by it — e.g.
+ * Departure's 8 eighths → "Do Mib Sol Mib" / "Sol Mib Sol Mib". Each row is
+ * a FlowRow so even a long cycle wraps instead of overflowing on one line.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CycleNoteRows(pitches: List<Int>, showOctaves: Boolean, useFlats: Boolean) {
+    val cycleLen = displayCycleLen(pitches)
+    val rows = if (cycleLen != null) pitches.chunked(cycleLen) else listOf(pitches)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.padding(start = 8.dp),
+    ) {
+        rows.forEach { row ->
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                row.forEach { pitch -> NoteChip(midiToFrench(pitch, showOctaves, useFlats), PinkChords) }
             }
         }
     }
@@ -1370,15 +2114,15 @@ private fun TransportBar(
                 horizontalArrangement = Arrangement.Center
             ) {
                 IconButton(onClick = onToggleMetronome, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else TextMuted, modifier = Modifier.size(14.dp))
                 }
-                val tempoTint = if (isPlaying) Color(0xFF334155) else Color(0xFF94A3B8)
+                val tempoTint = if (isPlaying) TextMuted else TextSecondary
                 IconButton(onClick = { onTempoAdjust(-0.1f) }, enabled = !isPlaying, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Remove, null, tint = tempoTint, modifier = Modifier.size(14.dp))
                 }
                 Text(
                     "${(tempoPercent * 100).toInt()}%",
-                    color = if (tempoPercent != 1.0f) IndigoAccent else Color.White,
+                    color = if (tempoPercent != 1.0f) IndigoAccent else TextPrimary,
                     fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.widthIn(min = 36.dp), textAlign = TextAlign.Center
                 )
@@ -1386,10 +2130,10 @@ private fun TransportBar(
                     Icon(Icons.Default.Add, null, tint = tempoTint, modifier = Modifier.size(14.dp))
                 }
                 IconButton(onClick = onToggleLoop, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else TextMuted, modifier = Modifier.size(14.dp))
                 }
                 IconButton(onClick = onToggleWaitMode, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.PanTool, "Attente", tint = if (waitMode) Color(0xFF4ADE80) else Color(0xFF475569), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.PanTool, "Attente", tint = if (waitMode) Success else TextMuted, modifier = Modifier.size(14.dp))
                 }
             }
 
@@ -1404,14 +2148,14 @@ private fun TransportBar(
                         onClick = onToggleDetails,
                         modifier = Modifier.size(28.dp)
                     ) {
-                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else TextTertiary, modifier = Modifier.size(14.dp))
                     }
                 }
                 IconButton(
                     onClick = onStop,
                     modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.Stop, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Stop, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
                 }
                 IconButton(
                     onClick = onPlay,
@@ -1423,7 +2167,7 @@ private fun TransportBar(
                     onClick = onSplit,
                     modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.ContentCut, "Diviser", tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.ContentCut, "Diviser", tint = TextTertiary, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -1445,7 +2189,7 @@ private fun HandButton(label: String, selected: Boolean, activeColor: Color, onC
             .padding(horizontal = 8.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = 11.sp, color = if (selected) activeColor else Color(0xFF64748B), fontWeight = FontWeight.Bold)
+        Text(label, fontSize = 11.sp, color = if (selected) activeColor else TextTertiary, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1454,21 +2198,21 @@ private fun LoopRangeRow(loopStart: Int, loopEnd: Int, totalMeasures: Int, onRan
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
         Text("Boucle", fontSize = 10.sp, color = AmberWarning, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(8.dp))
-        Text("m.", fontSize = 10.sp, color = Color(0xFF64748B))
+        Text("m.", fontSize = 10.sp, color = TextTertiary)
         Spacer(Modifier.width(4.dp))
         MeasureStepper(
             value = loopStart + 1,
             onDecrement = { if (loopStart > 0) onRangeChange(loopStart - 1, loopEnd) },
             onIncrement = { if (loopStart < loopEnd) onRangeChange(loopStart + 1, loopEnd) }
         )
-        Text("→", fontSize = 10.sp, color = Color(0xFF64748B), modifier = Modifier.padding(horizontal = 6.dp))
+        Text("→", fontSize = 10.sp, color = TextTertiary, modifier = Modifier.padding(horizontal = 6.dp))
         MeasureStepper(
             value = loopEnd + 1,
             onDecrement = { if (loopEnd > loopStart) onRangeChange(loopStart, loopEnd - 1) },
             onIncrement = { if (loopEnd < totalMeasures - 1) onRangeChange(loopStart, loopEnd + 1) }
         )
         Spacer(Modifier.width(4.dp))
-        Text("/ $totalMeasures", fontSize = 10.sp, color = Color(0xFF475569))
+        Text("/ $totalMeasures", fontSize = 10.sp, color = TextMuted)
     }
 }
 

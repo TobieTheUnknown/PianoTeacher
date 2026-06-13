@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- VARIANT D — "Monogram": bold geometric P built from piano-key bars -->
+  <defs>
+    <linearGradient id="d-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b26"/>
+      <stop offset="1" stop-color="#0a0c10"/>
+    </linearGradient>
+    <linearGradient id="d-white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#cfd3df"/>
+    </linearGradient>
+    <linearGradient id="d-cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7df0ff"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="d-pink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f873b8"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="225" fill="url(#d-tile)"/>
+
+  <!-- The "P": a vertical spine of key-bars + a bowl made of horizontal key-bars.
+       Spine: full-height stack of stacked white-key bars on the left. -->
+  <g>
+    <!-- vertical spine, 5 stacked key bars (gap = piano-key seams) -->
+    <rect x="276" y="170" width="150" height="134" rx="30" fill="url(#d-white)"/>
+    <rect x="276" y="312" width="150" height="134" rx="30" fill="url(#d-pink)"/>
+    <rect x="276" y="454" width="150" height="134" rx="30" fill="url(#d-white)"/>
+    <rect x="276" y="596" width="150" height="134" rx="30" fill="url(#d-white)"/>
+    <rect x="276" y="738" width="150" height="134" rx="30" fill="url(#d-white)"/>
+  </g>
+
+  <!-- bowl of the P: three horizontal key-bars forming the upper loop -->
+  <g>
+    <!-- top bar of the bowl -->
+    <rect x="426" y="170" width="312" height="134" rx="30" fill="url(#d-white)"/>
+    <!-- right edge of the bowl (vertical) -->
+    <rect x="604" y="312" width="134" height="134" rx="30" fill="url(#d-cyan)"/>
+    <!-- bottom bar of the bowl -->
+    <rect x="426" y="454" width="312" height="134" rx="30" fill="url(#d-white)"/>
+  </g>
+</svg>

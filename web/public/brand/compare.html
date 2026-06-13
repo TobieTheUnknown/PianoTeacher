@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Piano Teacher — Logo Exploration</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #07090d;
+    color: #e8eaf0;
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 40px;
+  }
+  h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; letter-spacing: -0.01em; }
+  p.sub { margin: 0 0 32px; color: #8a90a0; font-size: 14px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    max-width: 1080px;
+  }
+  .card {
+    background: #11141c;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+  .label {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
+    color: #6f76e8; text-transform: uppercase;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+  }
+  .big   { width: 220px; height: 220px; border-radius: 48px; display: block; }
+  .small { width: 48px;  height: 48px;  border-radius: 11px; display: block; }
+  .sizes { display: flex; align-items: flex-end; gap: 24px; }
+  .meta { flex: 1; }
+  .meta .name { font-weight: 650; font-size: 15px; margin-bottom: 4px; }
+  .meta .desc { color: #8a90a0; font-size: 13px; }
+  .px { color: #555c6c; font-size: 11px; margin-top: 6px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Piano Teacher — Logo Exploration</h1>
+  <p class="sub">Four concepts. Each shown at 220px and 48px. Palette: #0a0c10 / #3b82f6 / #22d3ee / #ec4899 / #e8eaf0.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">A</div>
+      <div class="meta">
+        <div class="name">Keys minimal</div>
+        <div class="desc">Oversized keys edge-to-edge, one cyan + one pink, strong negative space.</div>
+      </div>
+      <div class="sizes">
+        <div><img class="big"   src="/brand/variant-a.svg" alt="A 220"><div class="px">220px</div></div>
+        <div><img class="small" src="/brand/variant-a.svg" alt="A 48"><div class="px">48px</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">B</div>
+      <div class="meta">
+        <div class="name">Rising note</div>
+        <div class="desc">Single eighth-note; stem doubles as a key seam; cyan→pink notehead.</div>
+      </div>
+      <div class="sizes">
+        <div><img class="big"   src="/brand/variant-b.svg" alt="B 220"><div class="px">220px</div></div>
+        <div><img class="small" src="/brand/variant-b.svg" alt="B 48"><div class="px">48px</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">C</div>
+      <div class="meta">
+        <div class="name">Waveform keys</div>
+        <div class="desc">Key tops rise as an arpeggio/soundwave — the learning-progress metaphor.</div>
+      </div>
+      <div class="sizes">
+        <div><img class="big"   src="/brand/variant-c.svg" alt="C 220"><div class="px">220px</div></div>
+        <div><img class="small" src="/brand/variant-c.svg" alt="C 48"><div class="px">48px</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">D</div>
+      <div class="meta">
+        <div class="name">Monogram</div>
+        <div class="desc">Bold geometric “P” built from key bars, one pink + one cyan.</div>
+      </div>
+      <div class="sizes">
+        <div><img class="big"   src="/brand/variant-d.svg" alt="D 220"><div class="px">220px</div></div>
+        <div><img class="small" src="/brand/variant-d.svg" alt="D 48"><div class="px">48px</div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

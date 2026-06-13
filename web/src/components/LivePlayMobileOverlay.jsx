@@ -22,6 +22,7 @@ export function LivePlayMobileOverlay({
   allNotes,
   isPlaying,
   onPlayPause,
+  onRestart,
   onBack,
   currentTime,
   currentBPM,
@@ -42,10 +43,6 @@ export function LivePlayMobileOverlay({
   setIsMetronomeOn,
   metronomeSubdivision = 'quarter',
   setMetronomeSubdivision,
-  visualEffects,
-  setVisualEffects,
-  waitMode,
-  setWaitMode,
   hideDock = false,
 }) {
   const [visible, setVisible] = useState(true);
@@ -61,7 +58,8 @@ export function LivePlayMobileOverlay({
   }, [isPlaying]);
 
   useEffect(() => {
-    resetHideTimer();
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    resetHideTimer(); // intentionally resets visible state on play/pause
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
@@ -127,6 +125,8 @@ export function LivePlayMobileOverlay({
         <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
       </div>
 
+      {/* No zoom buttons on mobile — pinch-to-zoom covers it (user decision) */}
+
       {/* Shared PlaybackDock at bottom (hidden in landscape per user spec) */}
       {!hideDock && (
       <div className={styles.dockHost}>
@@ -161,6 +161,7 @@ export function LivePlayMobileOverlay({
               if (i < phraseMeasureRanges.length - 1) onPhraseSelect?.({ target: { value: String(i + 1) } });
             }
           }}
+          onRestart={onRestart}
         />
       </div>
       )}

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- VARIANT C — "Waveform keys": key tops form a rising arpeggio/soundwave curve -->
+  <defs>
+    <linearGradient id="c-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b26"/>
+      <stop offset="1" stop-color="#0a0c10"/>
+    </linearGradient>
+    <linearGradient id="c-cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7df0ff"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="c-pink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f873b8"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="c-white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c9cddb"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="225" fill="url(#c-tile)"/>
+
+  <!-- 7 bars whose top edge rises like an arpeggio: tallest at right.
+       Each bar: bottom fixed at y=874, top = topY, rounded all corners. -->
+  <g>
+    <rect x="150" y="690" width="100" height="184" rx="34" fill="url(#c-white)"/>
+    <rect x="262" y="610" width="100" height="264" rx="34" fill="url(#c-white)"/>
+    <rect x="374" y="540" width="100" height="334" rx="34" fill="url(#c-pink)"/>
+    <rect x="486" y="436" width="100" height="438" rx="34" fill="url(#c-white)"/>
+    <rect x="598" y="356" width="100" height="518" rx="34" fill="url(#c-white)"/>
+    <rect x="710" y="262" width="100" height="612" rx="34" fill="url(#c-cyan)"/>
+    <rect x="822" y="150" width="52"  height="724" rx="26" fill="url(#c-white)"/>
+  </g>
+
+  <!-- soundwave curve riding across the bar tops, tying them together -->
+  <path d="M200 690 Q 256 560 312 610 Q 368 660 424 540 Q 480 430 536 436 Q 598 442 648 356 Q 704 270 760 262 Q 812 254 848 150"
+        fill="none" stroke="#60a5fa" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.85"/>
+</svg>

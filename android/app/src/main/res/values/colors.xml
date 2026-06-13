@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Piano Teacher brand palette (mirrors web/src/styles/tokens.css) -->
+    <color name="brand_background">#0a0c10</color>
+    <color name="brand_accent">#3b82f6</color>
+    <color name="brand_hand_right">#22d3ee</color>
+    <color name="brand_hand_left">#ec4899</color>
+    <color name="brand_text">#e8eaf0</color>
+</resources>

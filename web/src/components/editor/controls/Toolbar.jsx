@@ -41,7 +41,6 @@ const ToolbarComponent = ({
 
     // Playback
     isPlaying,
-    playbackPosition, // kept for backward compat, not used for display
     positionRef,
     tempo,
     onPlay,

@@ -38,6 +38,17 @@ data class MeasureData(
     val chordNotes: List<NoteEvent>,
     val chordInfo: ChordInfo?,
     val arpeggioMotif: ArpeggioMotifResult? = null,
+    // Activated arpeggio badge from the consecutive-measures run pass; null when
+    // this measure is not part of a qualifying ≥2-measure arpeggio run.
+    val arpeggioBadge: com.tobietheunknown.pianoteacher.utils.ArpeggioBadge? = null,
+    // Per-hand role badges (arpège / ostinato / pédale) + combined-hands harmony
+    // watermark, resolved by computeMeasureRoles (run rules + priority).
+    val harmony: com.tobietheunknown.pianoteacher.utils.MeasureHarmony? = null,
+    val leftRole: com.tobietheunknown.pianoteacher.utils.HandRole? = null,
+    val rightRole: com.tobietheunknown.pianoteacher.utils.HandRole? = null,
+    // Active ostinato per hand (for Détail-ON MotifRows grouping); null otherwise.
+    val leftOstinato: com.tobietheunknown.pianoteacher.utils.OstinatoQualification? = null,
+    val rightOstinato: com.tobietheunknown.pianoteacher.utils.OstinatoQualification? = null,
     val measureStart: Double  // beat offset within phrase
 )
 
@@ -587,7 +598,7 @@ class LearningViewModel(
         val bpm = song.beatsPerMeasure.toDouble()
         val useFlats = keySig?.useFlats ?: false
         var globalIdx = 0
-        return song.phrases.mapIndexed { phraseIndex, phrase ->
+        val sections = song.phrases.mapIndexed { phraseIndex, phrase ->
             val measures = (0 until phrase.length).map { mi ->
                 val start = mi * bpm
                 val end = (mi + 1) * bpm
@@ -632,6 +643,38 @@ class LearningViewModel(
                 )
             }
             PhraseSectionData(phrase, phraseIndex, measures, phrase.id in mastered)
+        }
+
+        // ── Per-hand roles + harmony (consecutive-measures run rules) ───────
+        // Roles only activate across RUNs of ≥2 consecutive qualifying measures,
+        // which may span phrase boundaries — so run the pass over the flattened
+        // measure list, then re-attach results by global index.
+        val flat = sections.flatMap { it.measures }
+        val roles = com.tobietheunknown.pianoteacher.utils.computeMeasureRoles(
+            leftHandNotes = flat.map { it.chordNotes },
+            rightHandNotes = flat.map { it.melodyNotes },
+            unitsPerMeasure = song.beatsPerMeasure,
+            keySignature = keySig,
+        )
+        // Left-hand arpeggio badge survives separately so the arpège role badge
+        // can render its glyph/×N regardless of role priority.
+        val badges = com.tobietheunknown.pianoteacher.utils.computeArpeggioBadges(
+            flat.map { it.chordNotes },
+            keySig,
+        )
+        val byGlobal = flat.indices.associate { flat[it].globalIndex to (roles[it] to badges[it]) }
+        return sections.map { sec ->
+            sec.copy(measures = sec.measures.map { m ->
+                val (r, badge) = byGlobal[m.globalIndex] ?: return@map m
+                m.copy(
+                    arpeggioBadge = badge,
+                    harmony = r.harmony,
+                    leftRole = r.leftRole,
+                    rightRole = r.rightRole,
+                    leftOstinato = r.leftOstinato,
+                    rightOstinato = r.rightOstinato,
+                )
+            })
         }
     }
 

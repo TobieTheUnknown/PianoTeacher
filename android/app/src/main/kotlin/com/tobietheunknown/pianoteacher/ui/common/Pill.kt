@@ -3,10 +3,12 @@ package com.tobietheunknown.pianoteacher.ui.common
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -14,6 +16,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tobietheunknown.pianoteacher.ui.theme.*
 
 /**
  * Pill — small rounded chip used for level / key / status indicators.
@@ -26,9 +29,9 @@ fun Pill(
     mono: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val bg = color?.copy(alpha = 0.16f) ?: Color(0x12FFFFFF)
-    val border = color?.copy(alpha = 0.35f) ?: Color(0x14FFFFFF)
-    val textColor = color ?: Color(0xFFA8AEBD)
+    val bg = color?.copy(alpha = 0.16f) ?: Surface2
+    val border = color?.copy(alpha = 0.35f) ?: BorderColor
+    val textColor = color ?: TextSecondary
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
@@ -61,7 +64,9 @@ fun OutlineButton(
             .clip(RoundedCornerShape(10.dp))
             .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
             .background(Color.Transparent)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }

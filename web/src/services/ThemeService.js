@@ -425,7 +425,7 @@ class ThemeService {
             this._handCache = null;
             const colors = this.getColors();
             this._listeners.forEach((cb) => {
-                try { cb(colors); } catch (_) {}
+                try { cb(colors); } catch { /* listener threw */ }
             });
         });
         this._observer.observe(document.documentElement, {

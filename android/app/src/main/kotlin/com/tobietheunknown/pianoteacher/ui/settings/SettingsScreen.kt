@@ -51,10 +51,10 @@ fun SettingsScreen(
         containerColor = Background,
         topBar = {
             TopAppBar(
-                title = { Text("Réglages", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = { Text("Réglages", color = TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = TextPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
@@ -95,8 +95,8 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Tune, null, tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
-                    Text("Résonance", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.Tune, null, tint = TextTertiary, modifier = Modifier.size(20.dp))
+                    Text("Résonance", color = TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
                     listOf("Court" to 0, "Normal" to 1, "Long" to 2).forEach { (label, level) ->
                         val isSelected = releaseLevel == level
                         Box(
@@ -118,7 +118,7 @@ fun SettingsScreen(
                             Text(
                                 label,
                                 fontSize = 12.sp,
-                                color = if (isSelected) IndigoAccent else Color(0xFF64748B),
+                                color = if (isSelected) IndigoAccent else TextTertiary,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -135,8 +135,8 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.MusicNote, null, tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
-                    Text("Volume", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.MusicNote, null, tint = TextTertiary, modifier = Modifier.size(20.dp))
+                    Text("Volume", color = TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
                     listOf("Bas" to 0, "Moyen" to 1, "Fort" to 2).forEach { (label, level) ->
                         val isSelected = metronomeVolume == level
                         Box(
@@ -159,7 +159,7 @@ fun SettingsScreen(
                             Text(
                                 label,
                                 fontSize = 12.sp,
-                                color = if (isSelected) IndigoAccent else Color(0xFF64748B),
+                                color = if (isSelected) IndigoAccent else TextTertiary,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -212,12 +212,12 @@ fun SettingsScreen(
                     Icon(
                         Icons.Default.Piano,
                         null,
-                        tint = if (midiDeviceName != null) Color(0xFF4ADE80) else Color(0xFF475569),
+                        tint = if (midiDeviceName != null) Success else TextMuted,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         if (midiDeviceName != null) "Connecté : $midiDeviceName" else "Aucun appareil connecté",
-                        color = if (midiDeviceName != null) Color(0xFF4ADE80) else Color(0xFF64748B),
+                        color = if (midiDeviceName != null) Success else TextTertiary,
                         fontSize = 12.sp
                     )
                 }
@@ -244,7 +244,7 @@ fun SettingsScreen(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Piano Teacher v2.0.0", color = Color(0xFF475569), fontSize = 13.sp)
+                Text("Piano Teacher v2.0.0", color = TextMuted, fontSize = 13.sp)
             }
         }
     }
@@ -262,10 +262,10 @@ private fun SettingsSection(title: String, content: @Composable ColumnScope.() -
             title,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF64748B),
+            color = TextTertiary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
         )
-        HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+        HorizontalDivider(color = Hairline)
         content()
     }
 }
@@ -284,7 +284,7 @@ private fun ThemeCard(
             .background(colors.background)
             .then(
                 if (selected) Modifier.border(2.dp, colors.accent, RoundedCornerShape(10.dp))
-                else Modifier.border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                else Modifier.border(1.dp, BorderColor, RoundedCornerShape(10.dp))
             )
             .clickable(onClick = onClick)
             .padding(10.dp),
@@ -314,7 +314,7 @@ private fun ThemeCard(
         Text(
             label,
             fontSize = 11.sp,
-            color = if (selected) colors.accent else Color(0xFF94A3B8),
+            color = if (selected) colors.accent else TextSecondary,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
@@ -335,10 +335,10 @@ private fun ToggleSetting(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, null, tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = TextTertiary, modifier = Modifier.size(20.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = Color.White, fontSize = 14.sp)
-            Text(subtitle, color = Color(0xFF64748B), fontSize = 12.sp)
+            Text(label, color = TextPrimary, fontSize = 14.sp)
+            Text(subtitle, color = TextTertiary, fontSize = 12.sp)
         }
         Switch(
             checked = checked,

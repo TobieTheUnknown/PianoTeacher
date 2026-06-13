@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import themeService from '../services/ThemeService';
 import { StorageService } from '../services/StorageService';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
 import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
+import { LatencyWizard } from './LatencyWizard';
 import { DesignAppearance } from './DesignAppearance';
 import { useDeviceContext } from '../hooks/useDeviceContext';
 
@@ -13,7 +13,6 @@ export function Settings({ isOpen, onClose }) {
     const [activeTab, setActiveTab] = useState('general');
     const [fontSize, setFontSize] = useState(localStorage.getItem('piano-teacher-font-size') || '16');
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
-    const [currentTheme, setCurrentTheme] = useState(() => themeService.getThemeName());
     const fileInputRef = useRef(null);
 
     // Volume
@@ -25,6 +24,7 @@ export function Settings({ isOpen, onClose }) {
     const [midiSettings, setMidiSettings] = useState(() => midiInputService.getSettings());
     const [midiSupported, setMidiSupported] = useState(() => midiInputService.isSupported);
     const [showLatencyCalibration, setShowLatencyCalibration] = useState(false);
+    const [showAvWizard, setShowAvWizard] = useState(false);
 
     // MIDI effects - refresh data when modal opens
     // This intentionally syncs external service state on modal open - the setState is necessary
@@ -114,11 +114,6 @@ export function Settings({ isOpen, onClose }) {
         reader.readAsText(file);
     };
 
-    const handleThemeChange = (theme) => {
-        themeService.setTheme(theme);
-        setCurrentTheme(theme);
-    };
-
     // MIDI handlers
     const handleMidiDeviceSelect = (deviceId) => {
         if (deviceId === '') {
@@ -143,18 +138,6 @@ export function Settings({ isOpen, onClose }) {
         handleMidiSettingChange('latencyCompensation', compensation);
         setShowLatencyCalibration(false);
     };
-
-    const themeToggleBtnStyle = (active) => ({
-        padding: '0.5rem 1.25rem',
-        background: active ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-        color: active ? 'var(--bg-primary)' : 'var(--text-secondary)',
-        border: active ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-md)',
-        cursor: 'pointer',
-        fontSize: '0.9rem',
-        fontWeight: active ? '600' : '400',
-        transition: 'all var(--transition-fast)'
-    });
 
     return (
         <div
@@ -758,6 +741,48 @@ export function Settings({ isOpen, onClose }) {
                                                             onCalibrationComplete={handleLatencyCalibrationComplete}
                                                             onCancel={() => setShowLatencyCalibration(false)}
                                                         />
+                                                    )}
+                                                </div>
+
+                                                {/* A/V latency calibration (sound vs picture) */}
+                                                <div>
+                                                    <label style={{
+                                                        display: 'block',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: '500',
+                                                        color: 'var(--text-primary)',
+                                                        marginBottom: '0.5rem'
+                                                    }}>
+                                                        Synchronisation son / image (LivePlay)
+                                                    </label>
+                                                    <p style={{
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--text-secondary)',
+                                                        margin: '0 0 0.5rem',
+                                                        lineHeight: 1.5
+                                                    }}>
+                                                        Si le son semble en retard sur les notes qui tombent
+                                                        (fréquent sur Mac), calibre le décalage ici.
+                                                    </p>
+                                                    {!showAvWizard ? (
+                                                        <button
+                                                            onClick={() => setShowAvWizard(true)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '0.5rem',
+                                                                background: 'var(--accent-primary)',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: 'var(--radius-md)',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: '500'
+                                                            }}
+                                                        >
+                                                            Calibrer le décalage son / image
+                                                        </button>
+                                                    ) : (
+                                                        <LatencyWizard onClose={() => setShowAvWizard(false)} />
                                                     )}
                                                 </div>
 

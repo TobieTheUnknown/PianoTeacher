@@ -34,12 +34,12 @@ const LS_KEY_HANDS  = 'piano-teacher-design-hands';
 
 function readPref(key, fallback) {
     try { return localStorage.getItem(key) || fallback; }
-    catch (_) { return fallback; }
+    catch { return fallback; /* localStorage unavailable */ }
 }
 
 function writePref(key, value) {
     try { localStorage.setItem(key, value); }
-    catch (_) {}
+    catch { /* localStorage unavailable */ }
 }
 
 function applyAttr(name, value) {

@@ -241,18 +241,24 @@ fun identifyChord(midiPitches: List<Int>, useFlats: Boolean = false): ChordDetec
 }
 
 /**
- * Format chord display name with major/minor casing convention.
- * Minor chords -> lowercase root, Major chords -> UPPERCASE root.
+ * Format chord display name with the major/minor casing convention:
+ * every note starts with a capital — minor → Capitalized root ("Do"),
+ * Major → UPPERCASE root ("DO"). The casing alone carries the quality;
+ * extensions keep their digits (min7 → "Do 7", Maj7 → "DO Maj7").
  */
 fun formatChordDisplayName(rootName: String, quality: String): String {
     val isMinor = quality.startsWith("min")
-    val root = if (isMinor) rootName.lowercase() else rootName.uppercase()
+    val root = if (isMinor) {
+        rootName.replaceFirstChar { it.uppercaseChar() }
+            .let { it.first() + it.drop(1).lowercase() }
+    } else {
+        rootName.uppercase()
+    }
     return when {
-        quality == "Maj" -> root
-        quality == "min" -> root
+        quality == "Maj" || quality == "min" -> root
         isMinor -> {
             val suffix = quality.removePrefix("min")
-            "$root min$suffix"
+            if (suffix.isEmpty()) root else "$root $suffix"
         }
         else -> "$root $quality"
     }

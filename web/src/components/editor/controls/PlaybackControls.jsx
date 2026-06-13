@@ -8,7 +8,6 @@ import styles from '../PianoRollEditor.module.css';
 export function PlaybackControls({
     isPlaying,
     positionRef,
-    tempo,
     onPlay,
     onStop,
     onSeek

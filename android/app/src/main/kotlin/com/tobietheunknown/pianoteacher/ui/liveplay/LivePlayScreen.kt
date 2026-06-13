@@ -193,6 +193,7 @@ fun LivePlayScreen(
             },
             onPrev = { vm.seekToBeat((state.currentBeat - beatsPerMeasure).coerceAtLeast(0.0)) },
             onNext = { vm.seekToBeat((state.currentBeat + beatsPerMeasure).coerceAtMost(state.totalBeats)) },
+            onRestart = vm::restart,
         )
     }
 
@@ -257,8 +258,8 @@ fun LivePlayScreen(
                             modifier = Modifier.align(Alignment.Center),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("Aucune note trouvée", color = Color(0xFF64748B), fontSize = 14.sp)
-                            Text("Vérifie que le fichier MIDI est valide", color = Color(0xFF475569), fontSize = 12.sp)
+                            Text("Aucune note trouvée", color = TextTertiary, fontSize = 14.sp)
+                            Text("Vérifie que le fichier MIDI est valide", color = TextMuted, fontSize = 12.sp)
                         }
                     }
 
@@ -556,17 +557,17 @@ private fun PianoKeyboard(
         whiteKeyMidis.forEachIndexed { whiteIndex, midi ->
             val x = whiteIndex * whiteKeyWidth
             val color = when {
-                midi in wrongKeys -> Color(0xFFFF6B6B)
+                midi in wrongKeys -> Error
                 midi in pressedKeys && midi in expectedKeys -> CyanMelody
                 midi in pressedKeys -> CyanMelody.copy(alpha = 0.7f)
                 midi in activeRightPitches -> CyanMelody.copy(alpha = 0.7f)
                 midi in activeLeftPitches -> PinkChords.copy(alpha = 0.7f)
                 midi in expectedKeys -> AmberWarning.copy(alpha = 0.6f)
-                else -> Color(0xFFE8ECF0)
+                else -> KeyWhite
             }
             drawRoundRect(color, Offset(x + 0.5f, 0f), Size(whiteKeyWidth - 1f, keyHeight), CornerRadius(2f))
             drawRoundRect(
-                Color(0xFFCBD0D8),
+                KeyWhiteShadow,
                 Offset(x + 0.5f, 0f),
                 Size(whiteKeyWidth - 1f, keyHeight),
                 CornerRadius(2f),
@@ -583,17 +584,17 @@ private fun PianoKeyboard(
             val bw = whiteKeyWidth * 0.6f
 
             val color = when {
-                midi in wrongKeys -> Color(0xFFFF6B6B).copy(alpha = 0.9f)
+                midi in wrongKeys -> Error.copy(alpha = 0.9f)
                 midi in pressedKeys && midi in expectedKeys -> CyanMelody.copy(alpha = 0.85f)
                 midi in pressedKeys -> CyanMelody.copy(alpha = 0.6f)
                 midi in activeRightPitches -> CyanMelody.copy(alpha = 0.7f)
                 midi in activeLeftPitches -> PinkChords.copy(alpha = 0.7f)
                 midi in expectedKeys -> AmberWarning.copy(alpha = 0.7f)
-                else -> Color(0xFF1A1A1A)
+                else -> KeyBlack
             }
             drawRoundRect(color, Offset(x, 0f), Size(bw, blackHeight), CornerRadius(2f))
             drawRoundRect(
-                Color(0xFF0A0C10),
+                TokenBackground,
                 Offset(x, 0f),
                 Size(bw, blackHeight),
                 CornerRadius(2f),
@@ -625,11 +626,11 @@ private fun LivePlayTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = TextPrimary)
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp, maxLines = 1)
+            Text(title, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp, maxLines = 1)
             when {
                 phraseIndex >= 0 && phraseCount > 0 -> Text(
                     "Phrase ${phraseIndex + 1} / $phraseCount",
@@ -639,14 +640,14 @@ private fun LivePlayTopBar(
                 !artist.isNullOrBlank() -> Text(
                     artist,
                     fontSize = 11.sp,
-                    color = Color(0xFF94A3B8),
+                    color = TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 else -> Text(
                     "Morceau entier",
                     fontSize = 11.sp,
-                    color = Color(0xFF64748B)
+                    color = TextTertiary
                 )
             }
         }
@@ -657,14 +658,14 @@ private fun LivePlayTopBar(
                 Icon(
                     Icons.AutoMirrored.Filled.NavigateBefore,
                     "Phrase précédente",
-                    tint = if (phraseIndex > 0) Color.White else Color(0xFF334155)
+                    tint = if (phraseIndex > 0) TextPrimary else TextMuted
                 )
             }
             IconButton(onClick = onNext, enabled = phraseIndex < phraseCount - 1) {
                 Icon(
                     Icons.AutoMirrored.Filled.NavigateNext,
                     "Phrase suivante",
-                    tint = if (phraseIndex < phraseCount - 1) Color.White else Color(0xFF334155)
+                    tint = if (phraseIndex < phraseCount - 1) TextPrimary else TextMuted
                 )
             }
         }
@@ -764,7 +765,7 @@ private fun LivePlayControls(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onRestart) {
-                    Icon(Icons.Default.SkipPrevious, "Début", tint = Color(0xFF94A3B8))
+                    Icon(Icons.Default.SkipPrevious, "Début", tint = TextSecondary)
                 }
                 FloatingActionButton(
                     onClick = onPlayPause,
@@ -800,7 +801,7 @@ private fun LivePlayControls(
                 }
                 Text(
                     "${(playbackSpeed * 100).roundToInt()}%",
-                    color = if (playbackSpeed == 1.0f) Color(0xFF64748B) else AmberWarning,
+                    color = if (playbackSpeed == 1.0f) TextTertiary else AmberWarning,
                     fontSize = 12.sp,
                     modifier = Modifier.widthIn(min = 36.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -826,7 +827,7 @@ private fun LivePlayControls(
                         color = when (metronomeSubdivision) {
                             1 -> AmberWarning
                             2 -> Color(0xFFFFB300) // bright amber
-                            else -> Color(0xFF475569) // gray when off
+                            else -> TextMuted // gray when off
                         },
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
@@ -837,7 +838,7 @@ private fun LivePlayControls(
                     Icon(
                         Icons.Default.TouchApp,
                         "Mode attente",
-                        tint = if (isWaitMode) AmberWarning else Color(0xFF475569),
+                        tint = if (isWaitMode) AmberWarning else TextMuted,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -846,7 +847,7 @@ private fun LivePlayControls(
                     Icon(
                         Icons.Default.Repeat,
                         "Boucle",
-                        tint = if (isLooping) CyanMelody else Color(0xFF475569),
+                        tint = if (isLooping) CyanMelody else TextMuted,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -855,7 +856,7 @@ private fun LivePlayControls(
                     Icon(
                         if (audioEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
                         "Audio",
-                        tint = if (audioEnabled) Color(0xFF94A3B8) else Color(0xFF475569),
+                        tint = if (audioEnabled) TextSecondary else TextMuted,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -881,7 +882,7 @@ private fun LivePlayHandButton(label: String, selected: Boolean, activeColor: Co
         Text(
             label,
             fontSize = 11.sp,
-            color = if (selected) activeColor else Color(0xFF64748B),
+            color = if (selected) activeColor else TextTertiary,
             fontWeight = FontWeight.Bold
         )
     }

@@ -43,6 +43,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     }, [dockMetronome, dockMetronomeSubdivision, song, dockSpeed]);
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
+    const phraseTrackingRafRef = useRef(null);
 
     useEffect(() => {
         audioEngine.initialize().catch(error => {
@@ -83,8 +84,61 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
         const beatsPerMeasure = timeSignature.numerator;
         const tempo = Math.max(20, Math.round((song.tempo || 120) * (dockSpeed / 100)));
+
+        if (dockLoop) {
+            // Loop mode: play only the active phrase on a loop (existing behaviour).
+            audioEngine.playPhrase(
+                phrase,
+                tempo,
+                null,
+                true,
+                () => {
+                    if (dockLoop) handlePlayPhrase(phrase);
+                    else setPlayingPhraseId(null);
+                },
+                beatsPerMeasure,
+                { preroll: dockMetronome },
+            );
+            return;
+        }
+
+        // Non-loop mode: build a combined phrase from the active phrase
+        // through the end of the song so playback continues seamlessly.
+        const startPhraseIndex = song.phrases.findIndex(p => p.id === phrase.id);
+        const phrasesToPlay = startPhraseIndex >= 0
+            ? song.phrases.slice(startPhraseIndex)
+            : [phrase];
+
+        const melody = [];
+        const chords = [];
+        let beatOffset = 0;
+        phrasesToPlay.forEach((p) => {
+            p.tracks.melody.forEach((n) => {
+                melody.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            p.tracks.chords.forEach((n) => {
+                chords.push({ ...n, startTime: n.startTime + beatOffset });
+            });
+            beatOffset += p.length * beatsPerMeasure;
+        });
+
+        // Apply hand-mode filter.
+        const filteredMelody = dockHandMode === 'left' ? [] : melody;
+        const filteredChords = dockHandMode === 'right' ? [] : chords;
+
+        const combinedPhrase = {
+            tracks: { melody: filteredMelody, chords: filteredChords },
+            length: phrasesToPlay.reduce((s, p) => s + p.length, 0),
+        };
+
+        // Track which phrase the playhead is currently in during playback
+        // by watching audioEngine transport position.
+        const phraseStartBeat = startPhraseIndex >= 0
+            ? song.phrases.slice(0, startPhraseIndex).reduce((s, p) => s + p.length * beatsPerMeasure, 0)
+            : 0;
+
         audioEngine.playPhrase(
-            phrase,
+            combinedPhrase,
             tempo,
             null,
             true,
@@ -92,11 +146,43 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             beatsPerMeasure,
             { preroll: dockMetronome },
         );
+
+        // Update the highlighted phrase as playback crosses phrase boundaries.
+        // Capture the phrases array here so the RAF callback has a stable closure.
+        const phrasesSnapshot = song.phrases.slice();
+        const trackPhrase = () => {
+            if (!audioEngine.getIsActuallyPlaying()) return;
+            const musicT = audioEngine.getMusicSeconds();
+            if (musicT >= 0) {
+                const secondsPerBeat = 60 / tempo;
+                const currentBeat = phraseStartBeat + musicT / secondsPerBeat;
+                let cumulativeBeats = 0;
+                for (let i = 0; i < phrasesSnapshot.length; i++) {
+                    cumulativeBeats += phrasesSnapshot[i].length * beatsPerMeasure;
+                    if (currentBeat < cumulativeBeats || i === phrasesSnapshot.length - 1) {
+                        setPlayingPhraseId(phrasesSnapshot[i].id);
+                        break;
+                    }
+                }
+            }
+            phraseTrackingRafRef.current = requestAnimationFrame(trackPhrase);
+        };
+        phraseTrackingRafRef.current = requestAnimationFrame(trackPhrase);
     };
 
     const handleStop = () => {
         audioEngine.stop();
+        if (phraseTrackingRafRef.current) {
+            cancelAnimationFrame(phraseTrackingRafRef.current);
+            phraseTrackingRafRef.current = null;
+        }
         setPlayingPhraseId(null);
+    };
+
+    // Restart: stop playback and jump back to the first phrase.
+    const handleRestart = () => {
+        handleStop();
+        setActivePhraseIndex(0);
     };
 
     // Move phrase up/down
@@ -1087,6 +1173,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             if (playingPhraseId) handleStop();
                             else handlePlayPhrase(phrase);
                         }}
+                        onRestart={handleRestart}
                         speed={dockSpeed}
                         onSpeed={setDockSpeed}
                         handMode={dockHandMode}

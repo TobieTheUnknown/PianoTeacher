@@ -1,28 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Piano Teacher launcher icon — simple piano keys shape -->
+<!-- Piano Teacher launcher icon — VectorDrawable converted from web/public/brand/variant-a.svg.
+     108x108 viewport (standard adaptive icon foreground canvas).
+     Scale factor: 108/1024 ≈ 0.10547
+     Design: dark rounded-rect tile + 4 oversized white/pink/cyan/white keys + 3 black keys. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Background -->
+    <!-- Dark tile background (rx≈24 from 225*0.10547) -->
     <path
-        android:fillColor="#131620"
-        android:pathData="M0,0h108v108H0z" />
+        android:fillColor="#11141b"
+        android:pathData="M24,0 L84,0 Q108,0 108,24 L108,84 Q108,108 84,108 L24,108 Q0,108 0,84 L0,24 Q0,0 24,0 Z" />
 
-    <!-- White keys -->
+    <!-- 4 oversized white keys (white/pink/cyan/white), y=15.8≈16, h=76.3≈76, w=18.1≈18, rx≈4 -->
+    <!-- Key 1: white -->
     <path
-        android:fillColor="#E8ECF0"
-        android:pathData="M14,30h10v48H14zM26,30h10v48H26zM38,30h10v48H38zM50,30h10v48H50zM62,30h10v48H62zM74,30h10v48H74zM86,30h8v48H86z" />
-
-    <!-- Black keys -->
+        android:fillColor="#F2F4F8"
+        android:pathData="M16,16 L34,16 Q38,16 38,20 L38,88 Q38,92 34,92 L16,92 Q12,92 12,88 L12,20 Q12,16 16,16 Z" />
+    <!-- Key 2: pink -->
     <path
-        android:fillColor="#1A1A1A"
-        android:pathData="M21,30h7v30H21zM33,30h7v30H33zM57,30h7v30H57zM69,30h7v30H69zM81,30h7v30H81z" />
-
-    <!-- Cyan accent line (melody) -->
+        android:fillColor="#EC4899"
+        android:pathData="M35.2,16 L53.3,16 Q57.3,16 57.3,20 L57.3,92 Q57.3,96 53.3,96 L35.2,96 Q31.2,96 31.2,92 L31.2,20 Q31.2,16 35.2,16 Z" />
+    <!-- Key 3: cyan -->
     <path
         android:fillColor="#22D3EE"
-        android:pathData="M14,78h80v4H14z" />
+        android:pathData="M54.6,16 L72.7,16 Q76.7,16 76.7,20 L76.7,92 Q76.7,96 72.7,96 L54.6,96 Q50.6,96 50.6,92 L50.6,20 Q50.6,16 54.6,16 Z" />
+    <!-- Key 4: white -->
+    <path
+        android:fillColor="#F2F4F8"
+        android:pathData="M74,16 L92,16 Q96,16 96,20 L96,92 Q96,96 92,96 L74,96 Q70,96 70,92 L70,20 Q70,16 74,16 Z" />
+
+    <!-- 3 black keys in the seams (top portion), h=45.3≈45, w=9.7≈10, rx≈3 -->
+    <!-- Black key 1: x=30.4≈30 -->
+    <path
+        android:fillColor="#0a0c10"
+        android:pathData="M30.3,16 L40,16 Q43,16 43,19 L43,61 Q43,64 40,64 L30.3,64 Q27.3,64 27.3,61 L27.3,19 Q27.3,16 30.3,16 Z" />
+    <!-- Black key 2: x=49.1≈49 -->
+    <path
+        android:fillColor="#0a0c10"
+        android:pathData="M49.1,16 L58.8,16 Q61.8,16 61.8,19 L61.8,61 Q61.8,64 58.8,64 L49.1,64 Q46.1,64 46.1,61 L46.1,19 Q46.1,16 49.1,16 Z" />
+    <!-- Black key 3: x=67.9≈68 -->
+    <path
+        android:fillColor="#0a0c10"
+        android:pathData="M67.9,16 L77.6,16 Q80.6,16 80.6,19 L80.6,61 Q80.6,64 77.6,64 L67.9,64 Q64.9,64 64.9,61 L64.9,19 Q64.9,16 67.9,16 Z" />
+
 </vector>
