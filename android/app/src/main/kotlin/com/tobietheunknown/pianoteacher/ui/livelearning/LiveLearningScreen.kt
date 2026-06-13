@@ -259,14 +259,17 @@ fun LiveLearningScreen(
                 if (focusedMeasureData != null) {
                     // Pre-compute fixed-zoom window size across the whole
                     // song so the keyboard doesn't re-scale every measure.
-                    val songSpan = remember(allMeasures) {
-                        fixedKeyboardRange(
-                            allMeasures.mapNotNull { m ->
-                                val all = m.melodyNotes + m.chordNotes
-                                if (all.isEmpty()) null
-                                else all.minOf { it.pitch } to all.maxOf { it.pitch }
-                            }
-                        )
+                    val songRange = remember(allMeasures) {
+                        val allPitches = mutableListOf<Int>()
+                        val perMeasureRanges = allMeasures.mapNotNull { m ->
+                            // Include BOTH melody (right) and chord (left) notes so
+                            // the density vote and window size use the full song range.
+                            val all = m.melodyNotes + m.chordNotes
+                            if (all.isEmpty()) return@mapNotNull null
+                            all.forEach { allPitches.add(it.pitch) }
+                            all.minOf { it.pitch } to all.maxOf { it.pitch }
+                        }
+                        fixedKeyboardRange(perMeasureRanges, allPitches)
                     }
                     val activeRight = remember(focusedMeasureData) {
                         focusedMeasureData.melodyNotes.map { it.pitch }.toSet()
@@ -277,7 +280,8 @@ fun LiveLearningScreen(
                     MiniKeyboard(
                         activeRight = activeRight,
                         activeLeft = activeLeft,
-                        fixedRange = songSpan,
+                        fixedRange = songRange.windowSemis,
+                        globalAnchor = songRange.densityAnchor,
                     )
                 }
                 PlaybackDock(

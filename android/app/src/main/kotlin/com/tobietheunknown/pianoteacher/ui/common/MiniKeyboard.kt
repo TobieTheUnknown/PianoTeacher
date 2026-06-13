@@ -23,7 +23,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,17 +44,32 @@ private val MK_KEY_WHITE_SHADOW = KeyWhiteShadow
 private val MK_KEY_BLACK = KeyBlack
 private val MK_KEY_BORDER = TokenBackground
 
+// Flat-name table (no sharps/flats for now; enharmonics handled by keySignature
+// on the full note-name path, but for overflow labels we use the sharp spelling).
 private val NOTE_NAMES_FR = arrayOf(
     "Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"
 )
-private fun noteNameFr(pitch: Int): String =
-    NOTE_NAMES_FR[((pitch % 12) + 12) % 12]
+// Flat-preferred names for note classes that are typically written flat.
+// This matches the enharmonic convention used on the web side.
+private val NOTE_NAMES_FR_FLAT = arrayOf(
+    "Do", "Réb", "Ré", "Mib", "Mi", "Fa", "Solb", "Sol", "Lab", "La", "Sib", "Si"
+)
+
+fun noteNameFr(pitch: Int, useFlats: Boolean = false): String {
+    val idx = ((pitch % 12) + 12) % 12
+    return if (useFlats) NOTE_NAMES_FR_FLAT[idx] else NOTE_NAMES_FR[idx]
+}
+
+/** Result of [fixedKeyboardRange] — carries both the window size and the
+ *  density-anchored initial scroll position (C-aligned MIDI start). */
+data class KeyboardRangeResult(val windowSemis: Int, val densityAnchor: Int)
 
 /**
  * Compute the fixed pitch-window size (in semitones) the keyboard should
  * display so every measure in the song fits without changing zoom level.
  * Pass the per-measure (melody + chord) pitch pairs as a flat list of
- * (min, max). Returns at minimum 12 semitones (one octave).
+ * (min, max) AND a flat list of every note pitch across the whole song
+ * (both hands) for the density vote.
  *
  * The result is rounded UP to the next multiple of 12 (whole octaves) so the
  * window always starts on a natural C. We do NOT cap at songSpan — doing so
@@ -60,17 +78,52 @@ private fun noteNameFr(pitch: Int): String =
  * octave boundary (e.g. Si2+Sol3 at the edge of a 12-semitone window).
  * Instead we pad by at least 4 semitones beyond the widest span so the
  * C-aligned window always has room to accommodate boundary-straddling measures.
+ *
+ * Density vote: sweep all C-aligned start positions covering the song range
+ * and pick the one that contains the most note events. This anchors the
+ * keyboard over the busiest register (e.g. the left-hand chord cluster for
+ * Departure) rather than the lowest or highest extreme.
+ *
+ * @param perMeasureRanges per-measure (min, max) MIDI pitch pairs (both hands)
+ * @param allPitches flat list of every note pitch across the whole song (both hands)
  */
-fun fixedKeyboardRange(perMeasureRanges: List<Pair<Int, Int>>): Int {
-    if (perMeasureRanges.isEmpty()) return 24 // 2 octaves default
+fun fixedKeyboardRange(
+    perMeasureRanges: List<Pair<Int, Int>>,
+    allPitches: List<Int> = emptyList(),
+): KeyboardRangeResult {
+    if (perMeasureRanges.isEmpty()) return KeyboardRangeResult(24, 36) // C3
+
+    var globalMin = Int.MAX_VALUE
     var widest = 12
+    var globalMax = Int.MIN_VALUE
     for ((a, b) in perMeasureRanges) {
         widest = maxOf(widest, b - a + 1)
+        if (a < globalMin) globalMin = a
+        if (b > globalMax) globalMax = b
     }
     // Add at least 4 semitones of padding so C-aligned windows never exclude
     // notes sitting just past an octave boundary. Round up to whole octave.
     val padded = widest + 4
-    return ((padded + 11) / 12) * 12
+    val windowSemis = ((padded + 11) / 12) * 12
+
+    // Density vote: sweep C-aligned start positions that could cover any note
+    // in the global range. For each position count how many note events fall
+    // within [pos, pos+windowSemis-1]; pick the max.
+    val firstC = globalMin - ((globalMin % 12 + 12) % 12)
+    var bestStart = maxOf(12, firstC)
+    var bestCount = 0
+    var s = maxOf(12, firstC)
+    while (s <= globalMax && s <= 108 - windowSemis) {
+        val endS = s + windowSemis - 1
+        val count = allPitches.count { it in s..endS }
+        if (count > bestCount) {
+            bestCount = count
+            bestStart = s
+        }
+        s += 12
+    }
+    val densityAnchor = bestStart.coerceIn(12, 108 - windowSemis)
+    return KeyboardRangeResult(windowSemis, densityAnchor)
 }
 
 /**
@@ -89,9 +142,13 @@ fun MiniKeyboard(
     activeRight: Set<Int>,
     activeLeft: Set<Int>,
     fixedRange: Int = 36,
+    /** C-aligned MIDI start for the density-anchored initial scroll position.
+     *  When null the keyboard falls back to centring around C4. */
+    globalAnchor: Int? = null,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(true) }
+    val textMeasurer = rememberTextMeasurer()
 
     val rightLabels = remember(activeRight) {
         activeRight.sorted().map { noteNameFr(it) }.distinct()
@@ -169,14 +226,19 @@ fun MiniKeyboard(
             // measures keeps the keyboard fixed — no octave jumps for a hand
             // whose notes were already visible.
             //
-            // Initial position: centre the window around C4 (midi 60), aligned
-            // to the nearest C below (i.e. a multiple-of-12 MIDI value).
-            var startMidi by remember(fixedRange) {
-                mutableStateOf(run {
-                    val raw = 60 - windowSemis / 2
-                    // Round DOWN to the nearest C (multiple of 12).
-                    raw - ((raw % 12 + 12) % 12)
-                })
+            // Initial position: use the density-anchored C-aligned start from
+            // fixedKeyboardRange (globalAnchor) so the keyboard is pre-positioned
+            // over the busiest register rather than always centred on C4.
+            var startMidi by remember(fixedRange, globalAnchor) {
+                mutableStateOf(
+                    if (globalAnchor != null) {
+                        globalAnchor.coerceIn(12, 108 - windowSemis)
+                    } else {
+                        val raw = 60 - windowSemis / 2
+                        // Round DOWN to the nearest C (multiple of 12).
+                        raw - ((raw % 12 + 12) % 12)
+                    }
+                )
             }
             LaunchedEffect(activeRight, activeLeft, fixedRange) {
                 val active = activeRight + activeLeft
@@ -216,81 +278,133 @@ fun MiniKeyboard(
                 val cyan = CyanMelody
                 val pink = PinkChords
 
-                // White keys
+                // ── Octave-fold key rendering ─────────────────────────────────
+                // For every note of the current measure that falls outside
+                // [startMidi..endMidi], fold it into the window by shifting ±12
+                // repeatedly. The landing key is colored in the hand's color and
+                // gets a "+N" / "−N" label (Unicode minus) showing octave offset.
+                //
+                // Collision rules:
+                //  • Fold key has a real note of the OTHER hand → split top/bottom.
+                //  • Fold key has a real note of the SAME hand → single color + label.
+                //  • Multiple folds on same key → stack labels; split if diff hands.
+
+                // foldEntries: foldMidi → list of (hand color, octave offset)
+                data class FoldEntry(val color: Color, val hand: String, val octaves: Int)
+                val foldEntries = mutableMapOf<Int, MutableList<FoldEntry>>()
+
+                fun collectFolds(pitchSet: Set<Int>, color: Color, hand: String) {
+                    for (p in pitchSet) {
+                        if (p in startMidi..endMidi) continue
+                        var folded = p
+                        if (p < startMidi) { while (folded < startMidi) folded += 12 }
+                        else               { while (folded > endMidi)   folded -= 12 }
+                        if (folded !in startMidi..endMidi) continue
+                        val octaves = (p - folded) / 12 // positive = real note above fold key
+                        val list = foldEntries.getOrPut(folded) { mutableListOf() }
+                        if (list.none { it.hand == hand && it.octaves == octaves }) {
+                            list.add(FoldEntry(color, hand, octaves))
+                        }
+                    }
+                }
+                collectFolds(activeRight, cyan, "right")
+                collectFolds(activeLeft,  pink, "left")
+
+                // Helper: format label text (Unicode minus U+2212 for negative)
+                fun octaveLabel(octaves: Int): String = when {
+                    octaves > 0 -> "+$octaves"
+                    octaves < 0 -> "−${-octaves}"
+                    else        -> ""
+                }
+
+                // Label style: small monospace, 8sp
+                val foldLabelStyle = TextStyle(
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                )
+
+                // Helper to resolve colors for a key given real/fold sources.
+                // Returns (topColor, bottomColor, needsSplit).
+                data class KeySource(val color: Color, val hand: String, val isFold: Boolean)
+                fun resolveColors(m: Int): Triple<Color?, Color?, Boolean> {
+                    val folds = foldEntries[m] ?: emptyList()
+                    val realRight = m in activeRight
+                    val realLeft  = m in activeLeft
+                    val sources = mutableListOf<KeySource>()
+                    if (realRight) sources.add(KeySource(cyan, "right", false))
+                    if (realLeft)  sources.add(KeySource(pink, "left",  false))
+                    for (fe in folds) {
+                        val alreadyReal = (fe.hand == "right" && realRight) || (fe.hand == "left" && realLeft)
+                        if (!alreadyReal) sources.add(KeySource(fe.color, fe.hand, true))
+                    }
+                    val hasRight = sources.any { it.hand == "right" }
+                    val hasLeft  = sources.any { it.hand == "left"  }
+                    val split    = hasRight && hasLeft
+                    val foldSrc  = sources.firstOrNull { it.isFold }
+                    val realSrc  = sources.firstOrNull { !it.isFold }
+                    val top    = if (split) (foldSrc?.color ?: cyan) else sources.firstOrNull()?.color
+                    val bottom = if (split) (realSrc?.color ?: pink) else null
+                    return Triple(top, bottom, split)
+                }
+
+                // Pass 1: white keys (drawn first so black keys overlay their edges)
                 var wi = 0
                 for (m in startMidi..endMidi) {
                     if (isBlack(m)) continue
                     val x = wi * whiteWidth
-                    val fill = when {
-                        m in activeRight -> cyan
-                        m in activeLeft -> pink
-                        else -> MK_KEY_WHITE
+                    val (topColor, bottomColor, needsSplit) = resolveColors(m)
+                    if (needsSplit && topColor != null && bottomColor != null) {
+                        drawRect(color = topColor,         topLeft = Offset(x, 0f),     size = Size(whiteWidth - 0.5f, h / 2f))
+                        drawRect(color = bottomColor,      topLeft = Offset(x, h / 2f), size = Size(whiteWidth - 0.5f, h / 2f))
+                        drawRect(color = MK_KEY_WHITE_SHADOW, topLeft = Offset(x + whiteWidth - 0.5f, 0f), size = Size(0.5f, h))
+                    } else {
+                        drawRect(color = topColor ?: MK_KEY_WHITE, topLeft = Offset(x, 0f), size = Size(whiteWidth - 0.5f, h))
+                        drawRect(color = MK_KEY_WHITE_SHADOW,      topLeft = Offset(x + whiteWidth - 0.5f, 0f), size = Size(0.5f, h))
                     }
-                    drawRect(color = fill, topLeft = Offset(x, 0f), size = Size(whiteWidth - 0.5f, h))
-                    drawRect(
-                        color = MK_KEY_WHITE_SHADOW,
-                        topLeft = Offset(x + whiteWidth - 0.5f, 0f),
-                        size = Size(0.5f, h),
-                    )
                     wi++
                 }
-                // Black keys
+
+                // Pass 2: black keys (painted on top of white keys)
                 wi = 0
                 for (m in startMidi..endMidi) {
-                    if (!isBlack(m)) {
-                        wi++
-                        continue
-                    }
+                    if (!isBlack(m)) { wi++; continue }
                     val x = wi * whiteWidth - blackWidth / 2f
-                    val fill = when {
-                        m in activeRight -> cyan
-                        m in activeLeft -> pink
-                        else -> MK_KEY_BLACK
+                    val (topColor, bottomColor, needsSplit) = resolveColors(m)
+                    if (needsSplit && topColor != null && bottomColor != null) {
+                        drawRect(color = topColor,    topLeft = Offset(x, 0f),             size = Size(blackWidth, blackHeight / 2f))
+                        drawRect(color = bottomColor, topLeft = Offset(x, blackHeight / 2f), size = Size(blackWidth, blackHeight / 2f))
+                    } else {
+                        drawRect(color = topColor ?: MK_KEY_BLACK, topLeft = Offset(x, 0f), size = Size(blackWidth, blackHeight))
                     }
-                    drawRect(color = fill, topLeft = Offset(x, 0f), size = Size(blackWidth, blackHeight))
-                    drawRect(
-                        color = MK_KEY_BORDER,
-                        topLeft = Offset(x, 0f),
-                        size = Size(blackWidth, blackHeight),
-                        style = Stroke(width = 1f),
-                    )
+                    drawRect(color = MK_KEY_BORDER, topLeft = Offset(x, 0f), size = Size(blackWidth, blackHeight), style = Stroke(width = 1f))
                 }
 
-                // ── Edge overflow indicators ──────────────────────────────────
-                // If any active note is still outside the visible window (can happen
-                // when the song span exceeds the window, e.g. very wide-range songs),
-                // draw a small filled triangle at the keyboard edge in the hand color.
-                // Right hand (cyan) takes priority if both hands overflow the same edge.
-                val edgeW = 10.dp.toPx()
-                val edgeH = 10.dp.toPx()
-                val edgeMidY = h * 0.40f  // within white-key area
-
-                val leftOverflowRight  = activeRight.any { it < startMidi }
-                val leftOverflowLeft   = activeLeft.any  { it < startMidi }
-                val rightOverflowRight = activeRight.any { it > endMidi }
-                val rightOverflowLeft  = activeLeft.any  { it > endMidi }
-
-                if (leftOverflowRight || leftOverflowLeft) {
-                    val arrowColor = if (leftOverflowRight) cyan else pink
-                    // Left-pointing triangle at the left edge.
-                    val path = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(0f, edgeMidY)
-                        lineTo(edgeW, edgeMidY - edgeH / 2f)
-                        lineTo(edgeW, edgeMidY + edgeH / 2f)
-                        close()
+                // Pass 3: octave-fold labels drawn last (on top of all keys)
+                wi = 0
+                for (m in startMidi..endMidi) {
+                    val isBlackKey = isBlack(m)
+                    val folds = foldEntries[m] ?: emptyList()
+                    if (!isBlackKey) wi++
+                    if (folds.isEmpty()) continue
+                    // Key center X
+                    val keyCx: Float = if (!isBlackKey) {
+                        (wi - 1) * whiteWidth + whiteWidth / 2f
+                    } else {
+                        wi * whiteWidth - blackWidth / 2f + blackWidth / 2f
                     }
-                    drawPath(path, arrowColor)
-                }
-                if (rightOverflowRight || rightOverflowLeft) {
-                    val arrowColor = if (rightOverflowRight) cyan else pink
-                    // Right-pointing triangle at the right edge.
-                    val path = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(w, edgeMidY)
-                        lineTo(w - edgeW, edgeMidY - edgeH / 2f)
-                        lineTo(w - edgeW, edgeMidY + edgeH / 2f)
-                        close()
+                    // Label INSIDE the key at its bottom end — black on white keys,
+                    // white on black keys (legibility over hand-colored text).
+                    val labelColor = if (isBlackKey) Color.White else Color(0xFF0A0C10)
+                    val keyBottom = if (isBlackKey) blackHeight else size.height
+                    folds.forEachIndexed { stackIdx, fe ->
+                        val label = octaveLabel(fe.octaves)
+                        if (label.isEmpty()) return@forEachIndexed
+                        val layout = textMeasurer.measure(label, foldLabelStyle.copy(color = labelColor))
+                        val lx = keyCx - layout.size.width / 2f
+                        val ly = keyBottom - layout.size.height - 2.dp.toPx() - stackIdx * (layout.size.height + 1.dp.toPx())
+                        drawText(layout, topLeft = Offset(lx, ly))
                     }
-                    drawPath(path, arrowColor)
                 }
             }
         }

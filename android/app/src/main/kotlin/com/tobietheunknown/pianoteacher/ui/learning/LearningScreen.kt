@@ -376,14 +376,17 @@ fun LearningScreen(
     // Fixed-zoom window size across the whole song so the bottom keyboard
     // doesn't re-scale every time the focused measure changes — same logic
     // as the Apprentissage screen.
-    val keyboardSpan = remember(allMeasures) {
-        com.tobietheunknown.pianoteacher.ui.common.fixedKeyboardRange(
-            allMeasures.mapNotNull { m ->
-                val all = m.melodyNotes + m.chordNotes
-                if (all.isEmpty()) null
-                else all.minOf { it.pitch } to all.maxOf { it.pitch }
-            }
-        )
+    val keyboardRange = remember(allMeasures) {
+        val allPitches = mutableListOf<Int>()
+        val perMeasureRanges = allMeasures.mapNotNull { m ->
+            // Include BOTH melody (right) and chord (left) notes so the
+            // density vote and window size account for the full song range.
+            val all = m.melodyNotes + m.chordNotes
+            if (all.isEmpty()) return@mapNotNull null
+            all.forEach { allPitches.add(it.pitch) }
+            all.minOf { it.pitch } to all.maxOf { it.pitch }
+        }
+        com.tobietheunknown.pianoteacher.ui.common.fixedKeyboardRange(perMeasureRanges, allPitches)
     }
     val activeRightPitches = remember(focusedMeasureData) {
         focusedMeasureData?.melodyNotes?.map { it.pitch }?.toSet() ?: emptySet()
@@ -473,7 +476,8 @@ fun LearningScreen(
                     com.tobietheunknown.pianoteacher.ui.common.MiniKeyboard(
                         activeRight = activeRightPitches,
                         activeLeft = activeLeftPitches,
-                        fixedRange = keyboardSpan,
+                        fixedRange = keyboardRange.windowSemis,
+                        globalAnchor = keyboardRange.densityAnchor,
                     )
 
                     // Shared PlaybackDock (same look as the web app)
