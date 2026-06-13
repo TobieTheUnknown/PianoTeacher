@@ -6,7 +6,6 @@
 
 <p align="center">
   <strong>Maîtrisez vos morceaux, phrase par phrase.</strong><br/>
-  Apprenez le piano avec de vrais concepts musicaux — harmonie, degrés, motifs — pas de la devinette.
 </p>
 
 <p align="center">
