@@ -1,31 +1,27 @@
 import React from 'react';
 import { LibraryIcon } from './icons/LibraryIcon';
-import { EditorIcon } from './icons/EditorIcon';
 import { LearnIcon } from './icons/LearnIcon';
-import { PartitionIcon } from './icons/PartitionIcon';
 import { LivePlayIcon } from './icons/LivePlayIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import styles from './BottomTabBar.module.css';
 
 const TABS = [
-  { id: 'library', label: 'Bibliothèque', Icon: LibraryIcon },
-  { id: 'editor', label: 'Éditeur', Icon: EditorIcon },
-  { id: 'learn', label: 'Apprentissage', Icon: LearnIcon },
-  { id: 'sheet', label: 'Partition', Icon: PartitionIcon },
-  { id: 'liveplay', label: 'LivePlay', Icon: LivePlayIcon },
+  { id: 'library', label: 'Biblio', Icon: LibraryIcon },
+  { id: 'learn', label: 'Apprendre', Icon: LearnIcon },
+  { id: 'liveplay', label: 'Live', Icon: LivePlayIcon },
   { id: 'settings', label: 'Réglages', Icon: SettingsIcon },
 ];
 
-export function BottomTabBar({ activeMode, onChangeMode, visible = true, onOpenSettings }) {
+export function BottomTabBar({ activeMode, onChangeMode, visible = true, onOpenSettings, showSettings = false }) {
   if (!visible) return null;
 
   return (
-    <nav className={styles.tabBar}>
+    <nav className={styles.tabBar} aria-label="Navigation principale">
       {TABS.map((tab) => {
         const { id, label, Icon } = tab;
         const isActive = id === 'settings'
-          ? false // Settings is never "active" as a mode
-          : activeMode === id;
+          ? showSettings
+          : !showSettings && activeMode === id;
 
         const handleClick = () => {
           if (id === 'settings') {
@@ -41,6 +37,7 @@ export function BottomTabBar({ activeMode, onChangeMode, visible = true, onOpenS
             className={`${styles.tab} ${isActive ? styles.tabActive : ''}`}
             onClick={handleClick}
             aria-label={label}
+            aria-current={isActive ? 'page' : undefined}
           >
             <span className={styles.tabIcon}>
               <Icon size={22} strokeWidth={isActive ? 2 : 1.5} />

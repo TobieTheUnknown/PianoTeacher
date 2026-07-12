@@ -118,7 +118,7 @@ const OstinatoBadge = React.memo(function OstinatoBadge({ ostInfo, hand = 'left'
     let displayLabel, titleText, repsEl;
 
     if (ostInfo.kind === 'chord') {
-        displayLabel = ostInfo.label; // icon conveys "ostinato"; tooltip carries the word
+        displayLabel = `Ostinato ${ostInfo.label}`;
         const altMention = ostInfo.altered
             ? `${ostInfo.alteredNoteName ? ` — altération : ${ostInfo.alteredNoteName}` : ' — accord altéré/incomplet'}`
             : '';
@@ -130,7 +130,7 @@ const OstinatoBadge = React.memo(function OstinatoBadge({ ostInfo, hand = 'left'
     } else {
         // kind === 'motif'
         const notes = ostInfo.motifLabels.join('·');
-        displayLabel = notes; // icon conveys "ostinato"; tooltip carries the word
+        displayLabel = `Ostinato ${notes}`;
         titleText = `Ostinato — motif répété ${ostInfo.repetitions}× (${notes})`;
         repsEl = ostInfo.repetitions > 1
             ? <span style={{ fontSize: '0.78em', opacity: 0.8, flexShrink: 0 }}>×{ostInfo.repetitions}</span>
@@ -170,7 +170,6 @@ function PedalGlyph() {
 }
 
 const PedalBadge = React.memo(function PedalBadge({ pedal, hand = 'left' }) {
-    // Icon conveys "pédale"; tooltip carries the word. Badge text: note label only.
     const t = handTokens(hand);
     return (
         <span
@@ -178,7 +177,7 @@ const PedalBadge = React.memo(function PedalBadge({ pedal, hand = 'left' }) {
             style={{ ...ROLE_BADGE_STYLE, background: t.bg, border: `2px solid ${t.border}`, color: t.fg }}
         >
             <PedalGlyph />
-            {pedal.label}{pedal.octave ? ' · 8va' : ''}
+            Pédale {pedal.label}{pedal.octave ? ' · 8va' : ''}
         </span>
     );
 });
@@ -369,7 +368,11 @@ const MeasureCard = React.memo(function MeasureCard({
     // is purely visual (time signature numerator → division-line count).
     const beatsPerMeasure = measure.beatsPerMeasure || 4;
     const unitsPerMeasure = measure.unitsPerMeasure || 4;
-    const measureStartUnits = (measure.number - 1) * unitsPerMeasure;
+    // Note start times reset at every phrase. Deriving the local measure start
+    // from the global card number collapsed every phrase after the first onto
+    // the left edge of its rhythm strip.
+    const measureStartUnits = measure.measureStartUnits
+        ?? ((measure.number - 1) * unitsPerMeasure);
     const rightTimes = sortedMelody.map(n => Math.max(0, Math.min(1,
         ((n.startTime ?? 0) - measureStartUnits) / unitsPerMeasure
     )));
@@ -744,6 +747,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
                 measures.push({
                     number: measures.length + 1,
+                    phraseIndex,
                     chordGroups,
                     melodyGroups,
                     melodyCount: measure.melody.length,
@@ -753,6 +757,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                     chords: measure.chords,
                     beatsPerMeasure: measure.beatsPerMeasure || beatsPerMeasure,
                     unitsPerMeasure,
+                    measureStartUnits: measure.measureStartUnits,
                     isArpeggio,
                     detectedChord,
                     motifInfo,
@@ -776,7 +781,9 @@ export function LiveLearning({ song, onToggleHighlight }) {
         while (runStart < measures.length) {
             if (!measures[runStart].arpeggioMeasure) { runStart++; continue; }
             let runEnd = runStart;
-            while (runEnd + 1 < measures.length && measures[runEnd + 1].arpeggioMeasure) {
+            while (runEnd + 1 < measures.length
+                && measures[runEnd + 1].phraseIndex === measures[runEnd].phraseIndex
+                && measures[runEnd + 1].arpeggioMeasure) {
                 runEnd++;
             }
             if (runEnd - runStart + 1 >= 2) {
@@ -813,7 +820,9 @@ export function LiveLearning({ song, onToggleHighlight }) {
             while (s < measures.length) {
                 if (!pick(measures[s])) { s++; continue; }
                 let e = s;
-                while (e + 1 < measures.length && pick(measures[e + 1])
+                while (e + 1 < measures.length
+                    && measures[e + 1].phraseIndex === measures[e].phraseIndex
+                    && pick(measures[e + 1])
                     && (!sameSig || sameSig(measures[e], measures[e + 1]))) {
                     e++;
                 }
@@ -829,11 +838,11 @@ export function LiveLearning({ song, onToggleHighlight }) {
         applyRunRule(m => m.rightArpeggio, 'rightArpeggioActive');
         applyRunRule(
             m => m.leftOstinato, 'leftOstinatoActive',
-            (a, b) => a.leftOstinato.rhythmSig === b.leftOstinato.rhythmSig,
+            (a, b) => a.leftOstinato.runSig === b.leftOstinato.runSig,
         );
         applyRunRule(
             m => m.rightOstinato, 'rightOstinatoActive',
-            (a, b) => a.rightOstinato.rhythmSig === b.rightOstinato.rhythmSig,
+            (a, b) => a.rightOstinato.runSig === b.rightOstinato.runSig,
         );
 
         // ── Per-hand role resolution ───────────────────────────────────────

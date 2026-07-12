@@ -15,6 +15,7 @@ import com.tobietheunknown.pianoteacher.midi.MidiManager
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
 import com.tobietheunknown.pianoteacher.utils.detectKeySignature
+import com.tobietheunknown.pianoteacher.utils.musicKeySignatureFromStored
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -104,14 +105,17 @@ class LivePlayViewModel(
             val minPitch = ((allPitches.minOrNull() ?: 21) - 2).coerceIn(21, 108)
             val maxPitch = ((allPitches.maxOrNull() ?: 108) + 2).coerceIn(21, 108)
 
-            // Detect key signature for enharmonic note naming
+            // Older native imports stored a low-quality major-key guess without
+            // provenance. Analyse the actual notes when possible; use the stored
+            // key only for an empty song.
             val allNotesForKey = (allMelody + allChords)
-            val useFlats = if (allNotesForKey.isNotEmpty()) {
+            val keySignature = if (allNotesForKey.isNotEmpty()) {
                 detectKeySignature(
                     pitches = allNotesForKey.map { it.pitch },
                     durations = allNotesForKey.map { it.duration }
-                ).useFlats
-            } else false
+                )
+            } else musicKeySignatureFromStored(song.key)
+            val useFlats = keySignature?.useFlats ?: false
 
             _state.update {
                 it.copy(

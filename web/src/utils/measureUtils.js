@@ -59,6 +59,8 @@ export function getMeasuresFromPhrase(phrase, displayBeatsPerMeasure = 4) {
         measures.push({
             melody: rightHand,
             chords: leftHand,
+            measureIndex: i,
+            measureStartUnits: measureStart,
             beatsPerMeasure: displayBeatsPerMeasure, // visual time signature
             unitsPerMeasure: UNITS_PER_MEASURE,      // data convention
         });

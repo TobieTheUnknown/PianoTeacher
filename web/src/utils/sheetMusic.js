@@ -8,7 +8,7 @@
  * is `(topDiatonic - d) * (lineSpacing / 2)`.
  */
 
-import { getMidiNumber } from '../models/song';
+import { getMidiNumber, normalizeKeySignature } from '../models/song.js';
 
 // ─── Geometry constants (dp on Android, treated as px on web at 1× scale) ────
 
@@ -266,9 +266,11 @@ const FLAT_KEYS_MINOR = new Set(['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab']);
 export function toKotlinKeySig(keySig) {
     if (!keySig) return null;
     // Already Kotlin shape
-    if ('root' in keySig && 'isMinor' in keySig) return keySig;
-    const note = keySig.note;
-    const mode = keySig.mode;
+    if (typeof keySig === 'object' && 'root' in keySig && 'isMinor' in keySig) return keySig;
+    const normalized = normalizeKeySignature(keySig, null);
+    if (!normalized) return null;
+    const note = normalized.note;
+    const mode = normalized.mode;
     const root = NOTE_NAME_TO_PITCHCLASS[note] ?? 0;
     const isMinor = mode === 'minor';
     const useFlats = isMinor ? FLAT_KEYS_MINOR.has(note) : FLAT_KEYS_MAJOR.has(note);

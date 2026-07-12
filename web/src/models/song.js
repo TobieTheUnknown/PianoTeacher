@@ -70,15 +70,64 @@ export const KEY_MODE_NAMES = {
     'minor': 'mineur'
 };
 
+const DEFAULT_KEY_SIGNATURE = Object.freeze({ note: 'C', mode: 'major' });
+
+/**
+ * Normalize every supported key-signature representation to the persisted
+ * object shape used by both the web and native Android models.
+ *
+ * Legacy songs may contain a compact string ("Bb", "Bbm", "F#m"). Keeping
+ * that representation alive beyond the storage boundary is dangerous: newer
+ * harmony and engraving helpers expect `{ note, mode }` and may otherwise
+ * silently lose the mode or even throw when inspecting object fields.
+ *
+ * @param {unknown} keySignature
+ * @param {{note:string,mode:'major'|'minor'}|null} fallback
+ * @returns {{note:string,mode:'major'|'minor'}|null}
+ */
+export const normalizeKeySignature = (keySignature, fallback = DEFAULT_KEY_SIGNATURE) => {
+    let rawNote = null;
+    let rawMode = null;
+
+    if (typeof keySignature === 'string') {
+        const compact = keySignature.trim();
+        const match = compact.match(/^([A-Ga-g])([#b]?)(m)?$/);
+        if (match) {
+            rawNote = `${match[1].toUpperCase()}${match[2] || ''}`;
+            rawMode = match[3] ? 'minor' : 'major';
+        }
+    } else if (keySignature && typeof keySignature === 'object') {
+        rawNote = keySignature.note;
+        rawMode = keySignature.mode;
+
+        // Be forgiving with an object produced by an old adapter such as
+        // `{ note: "Bbm" }`, while still returning the canonical shape.
+        if (typeof rawNote === 'string') {
+            const compactNote = rawNote.trim().match(/^([A-Ga-g])([#b]?)(m)?$/);
+            if (compactNote) {
+                rawNote = `${compactNote[1].toUpperCase()}${compactNote[2] || ''}`;
+                if (!rawMode && compactNote[3]) rawMode = 'minor';
+            }
+        }
+    }
+
+    const validNote = typeof rawNote === 'string' && /^[A-G](?:#|b)?$/.test(rawNote);
+    if (!validNote) {
+        return fallback ? { note: fallback.note, mode: fallback.mode } : null;
+    }
+
+    return {
+        note: rawNote,
+        mode: rawMode === 'minor' ? 'minor' : 'major',
+    };
+};
+
 // Convert key object to French notation
 export const getFrenchKeyName = (key) => {
-    if (typeof key === 'string') {
-        // Legacy format: just note name
-        return NOTE_NAMES[key] || key;
-    }
-    if (key && key.note && key.mode) {
-        const noteName = NOTE_NAMES[key.note] || key.note;
-        const modeName = KEY_MODE_NAMES[key.mode] || key.mode;
+    const normalized = normalizeKeySignature(key);
+    if (normalized) {
+        const noteName = NOTE_NAMES[normalized.note] || normalized.note;
+        const modeName = KEY_MODE_NAMES[normalized.mode] || normalized.mode;
         return `${noteName} ${modeName}`;
     }
     return 'Do Majeur'; // Default
@@ -89,11 +138,10 @@ export const OCTAVES = [2, 3, 4, 5];
 
 // Get the correct enharmonic spelling for a note based on key signature
 export const getEnharmonicNote = (note, keySignature) => {
-    if (!keySignature || typeof keySignature === 'string') {
-        return note; // Legacy format, return as-is
-    }
+    const normalizedKey = normalizeKeySignature(keySignature, null);
+    if (!normalizedKey) return note;
 
-    const { note: tonic, mode } = keySignature;
+    const { note: tonic, mode } = normalizedKey;
 
     // Define the scale notes for each key (with proper sharps/flats)
     const keySignatures = {

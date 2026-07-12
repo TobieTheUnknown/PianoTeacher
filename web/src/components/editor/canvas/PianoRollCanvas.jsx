@@ -972,7 +972,7 @@ const PianoRollCanvas = memo(({
     }, [
         dragState, selectionRect, notes, keys, cellWidth, cellHeight, scrollX, scrollY,
         gridSize, snapToGridEnabled, onNoteClick, onNoteDragEnd, onSelectionComplete,
-        onGridClick, markOverlayDirty, stopAutoScroll, activeTool
+        onGridClick, markOverlayDirty, stopAutoScroll
     ]);
 
     const handleMouseLeave = useCallback(() => {

@@ -6,11 +6,15 @@
   left: 0;
   right: 0;
   z-index: 100;
-  background: var(--bg);
-  border-top: 1px solid var(--border);
-  padding-bottom: max(var(--safe-bottom), 6px);
-  justify-content: space-around;
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  border-top: 1px solid var(--border-strong);
+  padding: 6px max(var(--safe-right), 8px) max(var(--safe-bottom), 7px) max(var(--safe-left), 8px);
+  justify-content: center;
   align-items: stretch;
+  gap: 4px;
+  box-shadow: 0 -16px 44px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
 }
 
 .tabBarHidden {
@@ -30,23 +34,22 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 8px 3px 6px;
-  min-height: 56px;
+  max-width: 116px;
+  gap: 2px;
+  padding: 7px 5px 5px;
+  min-height: 52px;
   background: transparent;
-  border: none;
-  border-top: 3px solid transparent;
-  border-radius: 0;
+  border: 1px solid transparent;
+  border-radius: 12px;
   color: var(--text-tertiary);
   cursor: pointer;
-  transition: color var(--t-fast), border-color var(--t-fast);
+  transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
   position: relative;
   font-family: inherit;
 }
 
 .tab:hover {
-  background: transparent;
-  border-color: transparent;
+  background: var(--surface-2);
 }
 
 .tab:active {
@@ -59,8 +62,9 @@
 }
 
 .tabActive {
-  color: var(--accent);
-  border-top-color: var(--accent);
+  color: var(--accent-hover);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: var(--accent-dim);
 }
 
 .tabIcon {
@@ -73,7 +77,7 @@
 
 .tabLabel {
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 620;
   line-height: 1;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -83,5 +87,5 @@
 }
 
 .tabActive .tabLabel {
-  font-weight: 600;
+  font-weight: 720;
 }

@@ -664,7 +664,6 @@ function SheetSystem({
                         handMode={handMode}
                         isCurrent={isCurrent}
                         playheadFrac={isCurrent && isPlaying ? measureProgress : null}
-                        isLast={i === measures.length - 1}
                         canvasWidth={canvasWidth}
                         height={height}
                         sheetTheme={sheetTheme}
@@ -680,14 +679,20 @@ function SheetSystem({
 function SystemMeasure({
     measureData, measureNumber, showClefs, showTimeSig, headerWidth, beatsPerMeasure, useFlats,
     upperShift, lowerShift, keySig, timeSignature, handMode, isCurrent, playheadFrac,
-    isLast, canvasWidth, height, sheetTheme, showDetails, onClick,
+    canvasWidth, height, sheetTheme, showDetails, onClick,
 }) {
     const canvasRef = useRef(null);
 
     // Filter notes based on hand mode (visual filter only — left filters
     // out chordNotes, right filters out melodyNotes).
-    const visibleMelody = handMode === 'left' ? [] : measureData.melodyNotes;
-    const visibleChords = handMode === 'right' ? [] : measureData.chordNotes;
+    const visibleMelody = useMemo(
+        () => handMode === 'left' ? [] : measureData.melodyNotes,
+        [handMode, measureData.melodyNotes],
+    );
+    const visibleChords = useMemo(
+        () => handMode === 'right' ? [] : measureData.chordNotes,
+        [handMode, measureData.chordNotes],
+    );
 
     useEffect(() => {
         const canvas = canvasRef.current;

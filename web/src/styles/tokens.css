@@ -7,6 +7,9 @@
    ============================================================ */
 
 :root {
+  /* === LAYOUT === */
+  --content-max: 1420px;
+
   /* === SPACING SCALE (8pt grid) === */
   --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
   --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
@@ -30,6 +33,9 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
   --shadow-lg: 0 12px 32px rgba(0,0,0,0.6);
+  --shadow-card: 0 10px 32px rgba(0,0,0,0.16);
+  --shadow-card-hover: 0 18px 48px rgba(0,0,0,0.24);
+  --focus-ring: 0 0 0 3px var(--accent-dim);
 }
 
 /* === DARK THEME (default) === */
@@ -54,7 +60,7 @@
   --accent: #3b82f6;
   --accent-hover: #60a5fa;
   --accent-dim: rgba(59, 130, 246, 0.16);
-  --accent-text: #fff;
+  --accent-text: #071014;
 
   --hand-right: #22d3ee;
   --hand-right-dim: rgba(34, 211, 238, 0.18);
@@ -101,6 +107,8 @@
 
   --key-white: #ffffff;
   --key-white-shadow: #d4d8e0;
+  --shadow-card: 0 8px 28px rgba(24, 32, 48, 0.07);
+  --shadow-card-hover: 0 16px 42px rgba(24, 32, 48, 0.11);
 }
 
 /* === HAND-COLOR PRESETS === */
@@ -111,10 +119,10 @@
 [data-hands="mono"]    { --hand-right: #cbd5e1; --hand-left: #64748b; }
 
 /* === ACCENT PRESETS === */
-[data-accent="blue"]   { --accent: #3b82f6; --accent-hover: #60a5fa; --accent-dim: rgba(59,130,246,0.16); }
-[data-accent="violet"] { --accent: #8b5cf6; --accent-hover: #a78bfa; --accent-dim: rgba(139,92,246,0.16); }
-[data-accent="emerald"]{ --accent: #10b981; --accent-hover: #34d399; --accent-dim: rgba(16,185,129,0.16); }
-[data-accent="amber"]  { --accent: #f59e0b; --accent-hover: #fbbf24; --accent-dim: rgba(245,158,11,0.16); }
+[data-accent="blue"]   { --accent: #3b82f6; --accent-hover: #60a5fa; --accent-dim: rgba(59,130,246,0.16); --accent-text: #071014; }
+[data-accent="violet"] { --accent: #8b5cf6; --accent-hover: #a78bfa; --accent-dim: rgba(139,92,246,0.16); --accent-text: #071014; }
+[data-accent="emerald"]{ --accent: #10b981; --accent-hover: #34d399; --accent-dim: rgba(16,185,129,0.16); --accent-text: #071014; }
+[data-accent="amber"]  { --accent: #f59e0b; --accent-hover: #fbbf24; --accent-dim: rgba(245,158,11,0.16); --accent-text: #071014; }
 
 /* === COMPATIBILITY ALIASES ===
    Keep the legacy variable names from index.css working so existing
@@ -179,4 +187,12 @@
 @keyframes design-playbarSlide {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-med: 0ms;
+    --t-slow: 0ms;
+  }
 }

@@ -18,6 +18,7 @@ import com.tobietheunknown.pianoteacher.utils.detectArpeggioMotifs
 import com.tobietheunknown.pianoteacher.utils.detectChordOrArpeggio
 import com.tobietheunknown.pianoteacher.utils.MEASURE_EPSILON
 import com.tobietheunknown.pianoteacher.utils.detectKeySignature
+import com.tobietheunknown.pianoteacher.utils.musicKeySignatureFromStored
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -156,15 +157,18 @@ class LearningViewModel(
             _song.value = s
             _masteredPhrases.value = repo.getMasteredPhrases(songId)
 
-            // Detect key signature from all notes in the song
+            // Existing Android imports did not persist key provenance and older
+            // versions stored a simplistic "most frequent note = major tonic"
+            // guess. Keep the robust analysis authoritative whenever notes are
+            // available; the stored spelling remains a fallback for empty songs.
             if (s != null) {
                 val allNotes = s.phrases.flatMap { it.tracks.melody + it.tracks.chords }
-                if (allNotes.isNotEmpty()) {
-                    _keySignature.value = detectKeySignature(
+                _keySignature.value = if (allNotes.isNotEmpty()) {
+                    detectKeySignature(
                         pitches = allNotes.map { it.pitch },
                         durations = allNotes.map { it.duration }
                     )
-                }
+                } else musicKeySignatureFromStored(s.key)
             }
         }
         audioEngine.start()
@@ -646,21 +650,23 @@ class LearningViewModel(
         }
 
         // ── Per-hand roles + harmony (consecutive-measures run rules) ───────
-        // Roles only activate across RUNs of ≥2 consecutive qualifying measures,
-        // which may span phrase boundaries — so run the pass over the flattened
-        // measure list, then re-attach results by global index.
+        // Run the pass over the flattened measure list, while passing phrase
+        // identity explicitly so a role cannot be fabricated across a phrase
+        // boundary. Results are then re-attached by global index.
         val flat = sections.flatMap { it.measures }
         val roles = com.tobietheunknown.pianoteacher.utils.computeMeasureRoles(
             leftHandNotes = flat.map { it.chordNotes },
             rightHandNotes = flat.map { it.melodyNotes },
             unitsPerMeasure = song.beatsPerMeasure,
             keySignature = keySig,
+            phraseIndexes = flat.map { it.phraseIndex },
         )
         // Left-hand arpeggio badge survives separately so the arpège role badge
         // can render its glyph/×N regardless of role priority.
         val badges = com.tobietheunknown.pianoteacher.utils.computeArpeggioBadges(
             flat.map { it.chordNotes },
             keySig,
+            flat.map { it.phraseIndex },
         )
         val byGlobal = flat.indices.associate { flat[it].globalIndex to (roles[it] to badges[it]) }
         return sections.map { sec ->

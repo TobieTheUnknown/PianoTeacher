@@ -271,6 +271,7 @@ data class OstinatoQualification(
     val motifLabels: List<String>,
     val repetitions: Int,
     val rhythmSig: String,
+    val runSig: String,
 )
 
 /**
@@ -316,11 +317,15 @@ fun qualifyOstinatoMeasure(
             if (pcs[i] != motif[i % len]) { ok = false; break }
         }
         if (!ok) continue
+        val rhythmSig = "$total@${"%.2f".format(firstGap)}"
         return OstinatoQualification(
             motifPcs = motif,
             motifLabels = motif.map { noteLabelForPitchClass(it, keySignature) },
             repetitions = fullReps,
-            rhythmSig = "$total@${"%.2f".format(firstGap)}",
+            rhythmSig = rhythmSig,
+            // Rhythm alone is not enough: adjacent but unrelated motifs must
+            // not be promoted to one ostinato run.
+            runSig = "${motif.joinToString(",")}|$rhythmSig",
         )
     }
     return null
@@ -506,11 +511,13 @@ fun displayCycleLen(orderedPitches: List<Int>): Int? {
  *
  * @param measureChordNotes left-hand notes per measure, in global order
  * @param keySignature for enharmonic naming; may be null
+ * @param phraseIndexes optional phrase identity per measure; runs never cross it
  * @return list of nullable badges, same length / order as the input
  */
 fun computeArpeggioBadges(
     measureChordNotes: List<List<NoteEvent>>,
     keySignature: KeySignature?,
+    phraseIndexes: List<Int>? = null,
 ): List<ArpeggioBadge?> {
     val n = measureChordNotes.size
     val quals = measureChordNotes.map { qualifyArpeggioMeasure(it, keySignature) }
@@ -520,7 +527,9 @@ fun computeArpeggioBadges(
     while (runStart < n) {
         if (quals[runStart] == null) { runStart++; continue }
         var runEnd = runStart
-        while (runEnd + 1 < n && quals[runEnd + 1] != null) runEnd++
+        while (runEnd + 1 < n
+            && (phraseIndexes == null || phraseIndexes.getOrNull(runEnd + 1) == phraseIndexes.getOrNull(runEnd))
+            && quals[runEnd + 1] != null) runEnd++
 
         if (runEnd - runStart + 1 >= 2) {
             for (i in runStart..runEnd) {
@@ -559,7 +568,8 @@ fun computeArpeggioBadges(
 // arpège outranks an ostinato, but an ALTERED/incomplete arpège yields to an
 // ostinato (a tight repeating motif is the better lesson). Pédale has no run
 // requirement; arpège + ostinato need a RUN of ≥2 consecutive qualifying
-// measures (ostinato runs additionally keyed by matching rhythm signature).
+// measures. Runs stop at phrase boundaries; literal ostinatos additionally
+// require the same ordered motif and rhythm signature.
 
 /** A resolved per-hand role badge for one measure. */
 sealed class HandRole {
@@ -602,7 +612,7 @@ data class MeasureRoles(
  * `rightHandNotes` = melody (right hand); both in global measure order.
  *
  * Mirrors LiveLearning.jsx: arpeggio badge run (left), right-arpeggio run,
- * per-hand ostinato runs keyed by rhythm signature, per-measure pédale, then
+ * per-hand ostinato runs keyed by motif + rhythm, per-measure pédale, then
  * the priority resolution (clean arpège > ostinato > altered arpège yields to
  * ostinato > pédale).
  */
@@ -611,11 +621,12 @@ fun computeMeasureRoles(
     rightHandNotes: List<List<NoteEvent>>,
     unitsPerMeasure: Int,
     keySignature: KeySignature?,
+    phraseIndexes: List<Int>? = null,
 ): List<MeasureRoles> {
     val n = leftHandNotes.size
 
     // Left-hand arpeggio badges (run-gated ×N) — reuse the existing pass.
-    val leftArpBadges = computeArpeggioBadges(leftHandNotes, keySignature)
+    val leftArpBadges = computeArpeggioBadges(leftHandNotes, keySignature, phraseIndexes)
 
     // Per-measure qualifiers.
     val rightArpQuals = rightHandNotes.map { qualifyArpeggioMeasure(it, keySignature) }
@@ -639,7 +650,10 @@ fun computeMeasureRoles(
         while (s < n) {
             if (!pick(s)) { s++; continue }
             var e = s
-            while (e + 1 < n && pick(e + 1) && (sameSig == null || sameSig(e, e + 1))) e++
+            while (e + 1 < n
+                && (phraseIndexes == null || phraseIndexes.getOrNull(e + 1) == phraseIndexes.getOrNull(e))
+                && pick(e + 1)
+                && (sameSig == null || sameSig(e, e + 1))) e++
             if (e - s + 1 >= 2) for (i in s..e) active[i] = true
             s = e + 1
         }
@@ -649,11 +663,11 @@ fun computeMeasureRoles(
     val rightArpActive = applyRunRule({ rightArpQuals[it] != null })
     val leftOstinatoActive = applyRunRule(
         { leftOstinato[it] != null },
-        { a, b -> leftOstinato[a]!!.rhythmSig == leftOstinato[b]!!.rhythmSig },
+        { a, b -> leftOstinato[a]!!.runSig == leftOstinato[b]!!.runSig },
     )
     val rightOstinatoActive = applyRunRule(
         { rightOstinato[it] != null },
-        { a, b -> rightOstinato[a]!!.rhythmSig == rightOstinato[b]!!.rhythmSig },
+        { a, b -> rightOstinato[a]!!.runSig == rightOstinato[b]!!.runSig },
     )
 
     return (0 until n).map { i ->

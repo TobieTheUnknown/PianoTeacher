@@ -5,6 +5,9 @@ import { Settings } from './components/Settings';
 import { BottomTabBar } from './components/BottomTabBar';
 import { AudioLoadingIndicator } from './components/AudioLoadingIndicator';
 import { PageLoadingFallback } from './components/LoadingFallback';
+import { Onboarding } from './components/Onboarding';
+import { OnboardingService } from './services/OnboardingService';
+import { StorageService } from './services/StorageService';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
 
@@ -36,16 +39,29 @@ function AppMobile() {
   const [mode, setMode] = useState('library');
   const [showSettings, setShowSettings] = useState(false);
   const [isLivePlayFullscreen, setIsLivePlayFullscreen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !OnboardingService.isComplete());
 
   useMidiAudio();
 
   // Android back button: push history state on mode change, handle popstate to go back
-  const navigateTo = useCallback((newMode) => {
+  const navigateTo = useCallback((newMode, requestedSongId = null) => {
+    if (requestedSongId) {
+      loadSong(requestedSongId);
+    } else if ((newMode === 'learn' || newMode === 'liveplay') && !song?.phrases?.length) {
+      const fallbackSong = [...StorageService.getSongs()].sort((a, b) => (
+        new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
+      ))[0];
+      if (!fallbackSong) {
+        setMode('library');
+        return;
+      }
+      loadSong(fallbackSong.id);
+    }
     if (newMode !== 'library') {
       window.history.pushState({ mode: newMode }, '');
     }
     setMode(newMode);
-  }, []);
+  }, [loadSong, song]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -57,25 +73,38 @@ function AppMobile() {
   }, []);
 
   const handleLoadSongToLearn = (id) => {
-    loadSong(id);
-    navigateTo('learn');
+    navigateTo('learn', id);
   };
 
   const handleLoadSongToLivePlay = (id) => {
-    loadSong(id);
-    navigateTo('liveplay');
+    navigateTo('liveplay', id);
   };
 
   const handleLivePlayFullscreenChange = useCallback((isFullscreen) => {
     setIsLivePlayFullscreen(isFullscreen);
   }, []);
 
+  const handleLoadSongToEditor = (id) => {
+    navigateTo('editor', id);
+  };
+
+  const handleLoadSongToSheet = (id) => {
+    navigateTo('sheet', id);
+  };
+
+  const handleRestartOnboarding = () => {
+    setShowSettings(false);
+    setShowOnboarding(true);
+  };
+
   return (
-    <Layout hideMobileHeader={true}>
-      <main style={{ paddingBottom: '64px' }}>
+    <Layout>
+      <main>
         {mode === 'library' && (
           <SongLibrary
-            onLoadSong={handleLoadSongToLearn}
+            onLearnSong={handleLoadSongToLearn}
+            onEditSong={handleLoadSongToEditor}
+            onViewSheet={handleLoadSongToSheet}
             onLoadSongToLivePlay={handleLoadSongToLivePlay}
             onNewSong={null}
             isMobile={true}
@@ -125,11 +154,14 @@ function AppMobile() {
         onChangeMode={navigateTo}
         visible={!isLivePlayFullscreen}
         onOpenSettings={() => setShowSettings(true)}
+        showSettings={showSettings}
       />
 
-      <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} onRestartOnboarding={handleRestartOnboarding} />
 
       <AudioLoadingIndicator />
+
+      {showOnboarding && <Onboarding onComplete={() => { setShowOnboarding(false); setMode('library'); }} />}
     </Layout>
   );
 }

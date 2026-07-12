@@ -1,0 +1,53 @@
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 2.5%, transparent), transparent 240px),
+    var(--bg);
+}
+
+.shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: repeating-linear-gradient(90deg, transparent 0 63px, var(--hairline) 63px 64px);
+  mask-image: linear-gradient(to bottom, black, transparent 620px);
+}
+
+.ambientLeft,
+.ambientRight {
+  position: fixed;
+  z-index: -1;
+  width: 460px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: 0.04;
+  filter: blur(100px);
+  pointer-events: none;
+}
+
+.ambientLeft { top: -260px; left: -210px; background: var(--hand-left); }
+.ambientRight { top: -300px; right: -180px; background: var(--hand-right); }
+
+.inner {
+  width: min(100%, var(--content-max));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + var(--s-4)) clamp(var(--s-4), 3vw, var(--s-8)) calc(var(--safe-bottom) + var(--s-10));
+}
+
+.inner > main {
+  min-height: calc(100vh - 120px);
+}
+
+@media (max-width: 768px) {
+  .shell::before { display: none; }
+  .inner { padding: var(--safe-top) 0 calc(68px + var(--safe-bottom)); }
+  .inner > main { min-height: calc(100dvh - 68px - var(--safe-bottom)); padding-bottom: 0 !important; }
+}

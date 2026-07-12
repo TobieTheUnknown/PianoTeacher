@@ -21,6 +21,16 @@ private val FLAT_NAMES_FR = arrayOf(
 // English note names (for key lookup)
 private val SHARP_NAMES_EN = arrayOf("C","C#","D","D#","E","F","F#","G","G#","A","A#","B")
 
+private val EN_NOTE_TO_PITCH_CLASS = mapOf(
+    "C" to 0, "C#" to 1, "Db" to 1,
+    "D" to 2, "D#" to 3, "Eb" to 3,
+    "E" to 4, "E#" to 5, "Fb" to 4,
+    "F" to 5, "F#" to 6, "Gb" to 6,
+    "G" to 7, "G#" to 8, "Ab" to 8,
+    "A" to 9, "A#" to 10, "Bb" to 10,
+    "B" to 11, "B#" to 0, "Cb" to 11,
+)
+
 // French names mapping from English
 private val EN_TO_FR = mapOf(
     "C" to "Do", "C#" to "Do#", "Db" to "Réb",
@@ -136,6 +146,28 @@ data class KeySignature(val root: Int, val isMinor: Boolean, val useFlats: Boole
     }
 }
 
+/**
+ * Convert the persisted cross-platform `{ note, mode }` key into the analysis
+ * shape used by the native renderers. The stored spelling is authoritative:
+ * a user-selected Bb must not be silently redetected as A# on screen load.
+ */
+fun musicKeySignatureFromStored(
+    stored: com.tobietheunknown.pianoteacher.data.model.KeySignature,
+): KeySignature? {
+    val note = stored.note.trim().replaceFirstChar { it.uppercaseChar() }
+    val root = EN_NOTE_TO_PITCH_CLASS[note] ?: return null
+    val isMinor = stored.mode.equals("minor", ignoreCase = true)
+    val flatMajorKeys = setOf("F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb")
+    val flatMinorKeys = setOf("D", "G", "C", "F", "Bb", "Eb", "Ab")
+    val useFlats = when {
+        note.contains('b') -> true
+        note.contains('#') -> false
+        isMinor -> note in flatMinorKeys
+        else -> note in flatMajorKeys
+    }
+    return KeySignature(root = root, isMinor = isMinor, useFlats = useFlats)
+}
+
 fun detectKeySignature(pitches: List<Int>, durations: List<Double>): KeySignature {
     val distribution = DoubleArray(12)
     for (i in pitches.indices) {
@@ -158,7 +190,13 @@ fun detectKeySignature(pitches: List<Int>, durations: List<Double>): KeySignatur
 
     // Use flats for flat keys (F, Bb, Eb, Ab, Db, Gb and their relative minors)
     val flatRoots = setOf(5, 10, 3, 8, 1, 6) // F, Bb, Eb, Ab, Db, Gb
-    val useFlats = bestRoot in flatRoots || (bestMinor && (bestRoot + 3) % 12 in flatRoots)
+    val useFlats = if (bestMinor) {
+        // Minor spelling follows the relative major. Looking at the minor tonic
+        // itself incorrectly turned C# minor / F# minor into Db minor / Gb minor.
+        (bestRoot + 3) % 12 in flatRoots
+    } else {
+        bestRoot in flatRoots
+    }
 
     return KeySignature(bestRoot, bestMinor, useFlats)
 }

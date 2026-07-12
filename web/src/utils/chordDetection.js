@@ -1,4 +1,4 @@
-import { getEnharmonicNote, NOTE_NAMES } from '../models/song';
+import { getEnharmonicNote, normalizeKeySignature, NOTE_NAMES } from '../models/song.js';
 
 // English note name → pitch class (used by getChordDegree)
 const EN_NOTE_TO_PC = {
@@ -20,11 +20,13 @@ const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
  */
 export function getChordDegree(chord, keySignature) {
     if (!chord || !keySignature) return null;
-    const tonicPc = EN_NOTE_TO_PC[keySignature.note];
+    const normalizedKey = normalizeKeySignature(keySignature, null);
+    if (!normalizedKey) return null;
+    const tonicPc = EN_NOTE_TO_PC[normalizedKey.note];
     if (tonicPc === undefined || chord.rootPitchClass === undefined) return null;
 
     const interval = ((chord.rootPitchClass - tonicPc) + 12) % 12;
-    const scale = keySignature.mode === 'minor' ? MINOR_SCALE : MAJOR_SCALE;
+    const scale = normalizedKey.mode === 'minor' ? MINOR_SCALE : MAJOR_SCALE;
 
     const quality = chord.quality || '';
     const isLower = quality.startsWith('min') || quality.startsWith('dim');
@@ -543,7 +545,7 @@ export function getMeasureHarmony(allPitches, keySignature) {
  *
  * @param {Array<{startTime:number, notes:Array<{pitch:number|string, startTime?:number, duration?:number}>}>} chordGroups
  * @param {object} keySignature
- * @returns {{ motifPcs:number[], motifLabels:string[], repetitions:number, rhythmSig:string } | null}
+ * @returns {{ motifPcs:number[], motifLabels:string[], repetitions:number, rhythmSig:string, runSig:string } | null}
  */
 export function qualifyOstinatoMeasure(chordGroups, keySignature) {
     if (!chordGroups || chordGroups.length < 4) return null;
@@ -590,12 +592,17 @@ export function qualifyOstinatoMeasure(chordGroups, keySignature) {
             if (pcs[i] !== motif[i % len]) { ok = false; break; }
         }
         if (!ok) continue;
+        const rhythmSig = `${total}@${firstGap.toFixed(2)}`;
         return {
             motifPcs: motif,
             motifLabels: motif.map(pc => noteLabelForPitchClass(pc, keySignature)),
             repetitions: fullReps,
             // Rhythm signature for the consecutive-run rule: note count + gap.
-            rhythmSig: `${total}@${firstGap.toFixed(2)}`,
+            rhythmSig,
+            // A repeated texture is only the same ostinato when its ordered
+            // pitch-class motif also matches. Rhythm alone caused unrelated
+            // figures in adjacent measures to be merged into one run.
+            runSig: `${motif.join(',')}|${rhythmSig}`,
         };
     }
     return null;

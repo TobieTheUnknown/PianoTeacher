@@ -1,4 +1,4 @@
-import { getMidiNumber } from '../models/song';
+import { getMidiNumber, normalizeKeySignature } from '../models/song.js';
 
 // Detect if running in Tauri environment
 // In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
@@ -14,16 +14,20 @@ const STORAGE_KEY = 'piano_teacher_songs';
 
 // Helper to migrate legacy song data (string pitches) to new format (number pitches)
 const migrateSong = (song) => {
-    if (!song || !song.phrases) return song;
+    if (!song) return song;
 
     const migratedSong = { ...song };
+
+    // Legacy editor versions persisted compact strings such as "Bb" / "Bbm".
+    // Keep the canonical object shape at every storage boundary.
+    migratedSong.key = normalizeKeySignature(migratedSong.key);
 
     // Add default timeSignature if missing
     if (!migratedSong.timeSignature) {
         migratedSong.timeSignature = { numerator: 4, denominator: 4 };
     }
 
-    migratedSong.phrases = song.phrases.map(phrase => {
+    migratedSong.phrases = (Array.isArray(song.phrases) ? song.phrases : []).map(phrase => {
         const newPhrase = { ...phrase };
 
         // Migrate melody
@@ -87,7 +91,7 @@ export const StorageService = {
             const existingIndex = songs.findIndex(s => s.id === song.id);
 
             // Update timestamp
-            const songToSave = { ...song, updatedAt: new Date().toISOString() };
+            const songToSave = { ...migrateSong(song), updatedAt: new Date().toISOString() };
 
             if (existingIndex >= 0) {
                 songs[existingIndex] = songToSave;
@@ -122,7 +126,8 @@ export const StorageService = {
 
     // Export song as JSON file download
     exportSong: async (song) => {
-        const songJson = JSON.stringify(song, null, 2);
+        const canonicalSong = migrateSong(song);
+        const songJson = JSON.stringify(canonicalSong, null, 2);
         const defaultFilename = `${song.title.replace(/\s+/g, '_')}.json`;
 
         // Use Tauri dialog if available (desktop app)
@@ -289,12 +294,14 @@ export const StorageService = {
                 throw new Error('Les données importées ne sont pas au bon format.');
             }
 
+            const canonicalSongs = importedSongs.map(migrateSong);
+
             if (merge) {
                 // Merge with existing library
                 const existingSongs = StorageService.getSongs();
                 const mergedSongs = [...existingSongs];
 
-                importedSongs.forEach(importedSong => {
+                canonicalSongs.forEach(importedSong => {
                     const existingIndex = mergedSongs.findIndex(s => s.id === importedSong.id);
                     if (existingIndex >= 0) {
                         // Update existing song
@@ -308,7 +315,7 @@ export const StorageService = {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedSongs));
             } else {
                 // Replace entire library
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(importedSongs));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(canonicalSongs));
             }
 
             return true;
@@ -318,4 +325,3 @@ export const StorageService = {
         }
     }
 };
-

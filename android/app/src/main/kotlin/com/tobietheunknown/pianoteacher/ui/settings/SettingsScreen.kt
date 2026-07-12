@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,11 +28,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.audio.AudioEngine
 import com.tobietheunknown.pianoteacher.audio.MetronomeEngine
 import com.tobietheunknown.pianoteacher.ui.theme.*
+import com.tobietheunknown.pianoteacher.ui.onboarding.ExperienceLevel
+import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingPreferences
+import com.tobietheunknown.pianoteacher.ui.onboarding.PracticeGoal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onReviewIntro: () -> Unit,
     vm: SettingsViewModel = viewModel(
         factory = SettingsViewModel.Factory(LocalContext.current)
     )
@@ -46,6 +49,7 @@ fun SettingsScreen(
     val audioEngine = remember { AudioEngine.getInstance(context) }
     var releaseLevel by remember { mutableIntStateOf(ThemePrefs.getReleaseLevel(context)) }
     val midiDeviceName by com.tobietheunknown.pianoteacher.midi.MidiManager.getInstance(context).deviceName.collectAsState()
+    val learnerProfile = OnboardingPreferences.profile(context)
 
     Scaffold(
         containerColor = Background,
@@ -57,23 +61,35 @@ fun SettingsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = TextPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
         }
     ) { padding ->
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+                .fillMaxHeight()
+                .widthIn(max = 860.dp)
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = if (maxWidth >= 720.dp) 28.dp else 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Apparence — design picker (mirrors web's DesignAppearance section)
-            DesignAppearanceSection(
-                currentTheme = selectedTheme,
-                onThemeChange = { t -> selectedTheme = t; ThemeState.setTheme(context, t) }
+            StudioProfileCard(
+                goal = learnerProfile.goal,
+                experience = learnerProfile.experience,
+                wantsMidi = learnerProfile.wantsMidi,
+                onReviewIntro = onReviewIntro,
             )
+
+            // Apparence — design picker (mirrors web's DesignAppearance section)
+            SettingsSection(title = "Apparence") {
+                DesignAppearanceSection(
+                    currentTheme = selectedTheme,
+                    onThemeChange = { t -> selectedTheme = t; ThemeState.setTheme(context, t) }
+                )
+            }
 
             // Audio section
             SettingsSection(title = "Audio") {
@@ -102,7 +118,7 @@ fun SettingsScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) IndigoAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+                                .background(if (isSelected) IndigoAccent.copy(alpha = 0.18f) else Surface2)
                                 .then(
                                     if (isSelected) Modifier.border(1.dp, IndigoAccent, RoundedCornerShape(6.dp))
                                     else Modifier
@@ -142,7 +158,7 @@ fun SettingsScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) IndigoAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+                                .background(if (isSelected) IndigoAccent.copy(alpha = 0.18f) else Surface2)
                                 .then(
                                     if (isSelected) Modifier.border(1.dp, IndigoAccent, RoundedCornerShape(6.dp))
                                     else Modifier
@@ -244,8 +260,74 @@ fun SettingsScreen(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Piano Teacher v2.0.0", color = TextMuted, fontSize = 13.sp)
+                Text("Piano Teacher · Studio Android", color = TextMuted, fontSize = 13.sp)
             }
+        }
+        }
+    }
+}
+
+@Composable
+private fun StudioProfileCard(
+    goal: PracticeGoal,
+    experience: ExperienceLevel,
+    wantsMidi: Boolean,
+    onReviewIntro: () -> Unit,
+) {
+    val goalLabel = when (goal) {
+        PracticeGoal.READ -> "Lire"
+        PracticeGoal.TECHNIQUE -> "Technique"
+        PracticeGoal.CREATE -> "Créer"
+    }
+    val levelLabel = when (experience) {
+        ExperienceLevel.STARTING -> "Je commence"
+        ExperienceLevel.RETURNING -> "Je reprends"
+        ExperienceLevel.REGULAR -> "Pratique régulière"
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    listOf(IndigoAccent.copy(alpha = 0.18f), CyanMelody.copy(alpha = 0.07f)),
+                )
+            )
+            .border(1.dp, IndigoAccent.copy(alpha = 0.24f), RoundedCornerShape(20.dp))
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(IndigoAccent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Piano,
+                    null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(25.dp),
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Mon parcours", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("Objectif $goalLabel · $levelLabel", color = TextSecondary, fontSize = 12.sp)
+                Text(
+                    if (wantsMidi) "Piano MIDI prévu" else "Pratique sans MIDI",
+                    color = TextTertiary,
+                    fontSize = 11.sp,
+                )
+            }
+        }
+        OutlinedButton(
+            onClick = onReviewIntro,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, IndigoAccent.copy(alpha = 0.6f)),
+            shape = RoundedCornerShape(14.dp),
+        ) {
+            Icon(Icons.Default.AutoAwesome, null, tint = IndigoAccent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Revoir l’introduction", color = IndigoAccent, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -344,7 +426,7 @@ private fun ToggleSetting(
             checked = checked,
             onCheckedChange = onToggle,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                 checkedTrackColor = IndigoAccent
             )
         )

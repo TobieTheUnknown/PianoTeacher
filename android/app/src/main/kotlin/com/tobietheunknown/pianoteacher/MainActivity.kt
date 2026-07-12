@@ -19,6 +19,7 @@ import com.tobietheunknown.pianoteacher.ui.theme.ThemeState
 import com.tobietheunknown.pianoteacher.ui.theme.composeThemeColors
 import com.tobietheunknown.pianoteacher.ui.theme.getThemeColors
 import com.tobietheunknown.pianoteacher.ui.AppNavHost
+import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingState
 
 class MainActivity : ComponentActivity() {
 
@@ -36,6 +37,7 @@ class MainActivity : ComponentActivity() {
         // requestBlePermissionsIfNeeded()
 
         ThemeState.init(this)
+        OnboardingState.init(this)
 
         // Warm the audio engine on the way in. Loads SoundPool samples (~500ms)
         // and starts decoding Oboe samples in the background so the Library →

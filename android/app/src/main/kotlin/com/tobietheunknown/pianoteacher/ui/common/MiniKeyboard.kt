@@ -31,18 +31,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tobietheunknown.pianoteacher.ui.theme.*
+import com.tobietheunknown.pianoteacher.utils.KeySignature
+import com.tobietheunknown.pianoteacher.utils.midiToFrench
 
 // File-level palette: hoisted out of the Canvas DrawScope so we don't
 // allocate Color objects on every frame. Routed through design tokens.
 private val MK_BG_DARK = Color(0xFF0F1218)
-private val MK_BORDER = BorderColor
-private val MK_LABEL_GRAY = TextTertiary
-private val MK_DIVIDER_GRAY = TextMuted
-private val MK_ICON_GRAY = TextSecondary
-private val MK_KEY_WHITE = KeyWhite
-private val MK_KEY_WHITE_SHADOW = KeyWhiteShadow
-private val MK_KEY_BLACK = KeyBlack
-private val MK_KEY_BORDER = TokenBackground
+private val MK_BORDER = Tokens.BorderColor
+private val MK_LABEL_GRAY = Tokens.TextTertiary
+private val MK_DIVIDER_GRAY = Tokens.TextMuted
+private val MK_ICON_GRAY = Tokens.TextSecondary
+private val MK_KEY_WHITE = Tokens.KeyWhite
+private val MK_KEY_WHITE_SHADOW = Tokens.KeyWhiteShadow
+private val MK_KEY_BLACK = Tokens.KeyBlack
+private val MK_KEY_BORDER = Tokens.Background
 
 // Flat-name table (no sharps/flats for now; enharmonics handled by keySignature
 // on the full note-name path, but for overflow labels we use the sharp spelling).
@@ -145,16 +147,22 @@ fun MiniKeyboard(
     /** C-aligned MIDI start for the density-anchored initial scroll position.
      *  When null the keyboard falls back to centring around C4. */
     globalAnchor: Int? = null,
+    /** Key-aware spelling for the labels in the keyboard header. */
+    keySignature: KeySignature? = null,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(true) }
     val textMeasurer = rememberTextMeasurer()
 
-    val rightLabels = remember(activeRight) {
-        activeRight.sorted().map { noteNameFr(it) }.distinct()
+    val rightLabels = remember(activeRight, keySignature) {
+        activeRight.sorted()
+            .map { midiToFrench(it, showOctave = false, keySignature = keySignature) }
+            .distinct()
     }
-    val leftLabels = remember(activeLeft) {
-        activeLeft.sorted().map { noteNameFr(it) }.distinct()
+    val leftLabels = remember(activeLeft, keySignature) {
+        activeLeft.sorted()
+            .map { midiToFrench(it, showOctave = false, keySignature = keySignature) }
+            .distinct()
     }
 
     Column(

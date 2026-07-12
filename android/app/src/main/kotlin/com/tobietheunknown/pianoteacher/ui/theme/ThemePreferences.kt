@@ -14,17 +14,26 @@ enum class AppTheme { DARK, MIDNIGHT_BLUE, PASTEL_COZY, LIGHT }
 data class ThemeColors(
     val background: Color,
     val surface: Color,
+    val surfaceRaised: Color,
+    val surfaceStrong: Color,
     val accent: Color,
     val melodyColor: Color,
     val chordsColor: Color,
     val textPrimary: Color = Tokens.TextPrimary,
     val textSecondary: Color = Tokens.TextSecondary,
+    val textTertiary: Color = Tokens.TextTertiary,
+    val textMuted: Color = Tokens.TextMuted,
+    val border: Color = Tokens.BorderColor,
+    val borderStrong: Color = Tokens.BorderStrong,
+    val hairline: Color = Tokens.Hairline,
 )
 
 // Bases — ported pixel-fidelity from src/styles/tokens.css.
 val DarkTheme = ThemeColors(
     background = Color(0xFF0A0C10),
     surface = Color(0xFF11141B),
+    surfaceRaised = Color(0xFF181C25),
+    surfaceStrong = Color(0xFF1F242F),
     accent = Color(0xFF3B82F6),       // AccentBlue (default)
     melodyColor = Color(0xFF22D3EE),  // HandsClassic right
     chordsColor = Color(0xFFEC4899),  // HandsClassic left
@@ -33,18 +42,27 @@ val DarkTheme = ThemeColors(
 )
 
 val LightTheme = ThemeColors(
-    background = Color(0xFFF7F8FA),
+    background = Color(0xFFF3F5F9),
     surface = Color(0xFFFFFFFF),
+    surfaceRaised = Color(0xFFF7F8FB),
+    surfaceStrong = Color(0xFFECEFF5),
     accent = Color(0xFF3B82F6),
     melodyColor = Color(0xFF22D3EE),
     chordsColor = Color(0xFFEC4899),
     textPrimary = Color(0xFF0F1218),
     textSecondary = Color(0xFF4B5363),
+    textTertiary = Color(0xFF697386),
+    textMuted = Color(0xFF8E97A8),
+    border = Color(0x1F1A2233),
+    borderStrong = Color(0x331A2233),
+    hairline = Color(0x121A2233),
 )
 
 val MidnightBlueTheme = ThemeColors(
     background = Color(0xFF0A0E1A),
     surface = Color(0xFF111833),
+    surfaceRaised = Color(0xFF172141),
+    surfaceStrong = Color(0xFF1E2A50),
     accent = Color(0xFF4F8EFF),
     melodyColor = Color(0xFF00E5FF),
     chordsColor = Color(0xFFFF4081)
@@ -53,6 +71,8 @@ val MidnightBlueTheme = ThemeColors(
 val PastelCozyTheme = ThemeColors(
     background = Color(0xFF1A1520),
     surface = Color(0xFF231E2A),
+    surfaceRaised = Color(0xFF2D2635),
+    surfaceStrong = Color(0xFF382E40),
     accent = Color(0xFFC4A1D4),
     melodyColor = Color(0xFF7ECFB3),
     chordsColor = Color(0xFFE8A0BF)

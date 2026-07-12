@@ -3,7 +3,7 @@ import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
 import { parseMidiFile } from '../services/MidiService';
 import { StorageService } from '../services/StorageService';
-import { getFrenchNoteName } from '../models/song';
+import { getFrenchNoteName, normalizeKeySignature } from '../models/song';
 import { MobileHeader } from './MobileHeader';
 import { PlaybackDock } from './PlaybackDock';
 
@@ -568,7 +568,9 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 }
                                 return 'C';
                             })()}
-                            onChange={(e) => onUpdateMetadata({ key: e.target.value })}
+                            onChange={(e) => onUpdateMetadata({
+                                key: normalizeKeySignature(e.target.value)
+                            })}
                             style={{ width: '120px' }}
                         >
                             <optgroup label="Majeur">

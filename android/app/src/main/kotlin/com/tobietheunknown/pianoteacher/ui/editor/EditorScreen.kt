@@ -6,8 +6,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -55,6 +57,8 @@ fun EditorScreen(
             .fillMaxSize()
             .padding(padding)) {
             Column(modifier = Modifier
+                .align(Alignment.TopCenter)
+                .widthIn(max = 980.dp)
                 .fillMaxSize()
                 .padding(bottom = 130.dp)) {
                 // Header
@@ -86,11 +90,21 @@ fun EditorScreen(
                         CircularProgressIndicator(color = IndigoAccent)
                     }
                 } else {
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 360.dp),
+                        modifier = Modifier.fillMaxWidth().weight(1f),
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        item {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            EditorOverview(
+                                phrases = song!!.phrases.size,
+                                measures = song!!.totalMeasures,
+                                notes = song!!.phrases.sumOf { it.tracks.melody.size + it.tracks.chords.size },
+                            )
+                        }
+                        item(span = { GridItemSpan(maxLineSpan) }) {
                             Text(
                                 "PHRASES",
                                 color = TextTertiary,
@@ -129,6 +143,7 @@ fun EditorScreen(
             // Sticky dock at bottom
             Box(modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .widthIn(max = 980.dp)
                 .fillMaxWidth()) {
                 PlaybackDock(
                     playing = playing,
@@ -150,6 +165,33 @@ fun EditorScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun EditorOverview(phrases: Int, measures: Int, notes: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(IndigoAccent.copy(alpha = 0.10f))
+            .border(1.dp, IndigoAccent.copy(alpha = 0.22f), RoundedCornerShape(16.dp))
+            .height(IntrinsicSize.Min)
+            .padding(vertical = 12.dp),
+    ) {
+        EditorStat("PHRASES", phrases.toString(), Modifier.weight(1f))
+        Box(Modifier.width(1.dp).fillMaxHeight().background(BorderColor))
+        EditorStat("MESURES", measures.toString(), Modifier.weight(1f))
+        Box(Modifier.width(1.dp).fillMaxHeight().background(BorderColor))
+        EditorStat("NOTES", notes.toString(), Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun EditorStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
     }
 }
 
@@ -202,7 +244,7 @@ private fun PhraseCard(
                 IconButton(
                     onClick = onSplit,
                     enabled = length > 1,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(44.dp),
                 ) {
                     Icon(
                         Icons.Default.ContentCut,
@@ -213,7 +255,7 @@ private fun PhraseCard(
                 IconButton(
                     onClick = onMerge,
                     enabled = canMerge,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(44.dp),
                 ) {
                     Icon(
                         Icons.Default.MergeType,
@@ -312,7 +354,7 @@ private fun PhraseCard(
                         onClick = onConfirmSplit,
                         colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent),
                         modifier = Modifier.weight(1f),
-                    ) { Text("Découper", color = Color.White) }
+                    ) { Text("Découper", color = MaterialTheme.colorScheme.onPrimary) }
                 }
             }
         }

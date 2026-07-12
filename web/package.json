@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --test",
     "dev": "vite",
     "dev:mobile": "VITE_PLATFORM=mobile vite --config vite.mobile.config.js",
     "build:mobile": "VITE_PLATFORM=mobile vite build --config vite.mobile.config.js",

@@ -251,7 +251,7 @@ private fun PlayPauseButton(playing: Boolean, onClick: () -> Unit) {
         Icon(
             if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
             null,
-            tint = Color.White,
+            tint = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier.size(24.dp)
         )
     }

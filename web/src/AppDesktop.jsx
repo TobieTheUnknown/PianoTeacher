@@ -6,6 +6,9 @@ import { TopNavBar } from './components/TopNavBar';
 import { BottomTabBar } from './components/BottomTabBar';
 import { AudioLoadingIndicator } from './components/AudioLoadingIndicator';
 import { PageLoadingFallback } from './components/LoadingFallback';
+import { Onboarding } from './components/Onboarding';
+import { OnboardingService } from './services/OnboardingService';
+import { StorageService } from './services/StorageService';
 import { useDeviceContext } from './hooks/useDeviceContext';
 import { useSong } from './useSong';
 import { useMidiAudio } from './hooks/useMidiAudio';
@@ -39,6 +42,7 @@ function App() {
   const [mode, setMode] = useState('library');
   const [showSettings, setShowSettings] = useState(false);
   const [isLivePlayFullscreen, setIsLivePlayFullscreen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !OnboardingService.isComplete());
 
   const { isMobile } = useDeviceContext();
 
@@ -58,9 +62,9 @@ function App() {
     }
   }, []);
 
-  const handleLoadSong = (id) => {
+  const handleLearnSong = (id) => {
     loadSong(id);
-    setMode(isMobile ? 'learn' : 'edit');
+    setMode('learn');
   };
 
   const handleLoadSongToLivePlay = (id) => {
@@ -70,7 +74,36 @@ function App() {
 
   const handleNewSong = () => {
     newSong();
-    setMode('edit');
+    setMode('editor');
+  };
+
+  const handleEditSong = (id) => {
+    loadSong(id);
+    setMode('editor');
+  };
+
+  const handleViewSheet = (id) => {
+    loadSong(id);
+    setMode('sheet');
+  };
+
+  const handleRestartOnboarding = () => {
+    setShowSettings(false);
+    setShowOnboarding(true);
+  };
+
+  const handleChangeMode = (nextMode) => {
+    if ((nextMode === 'learn' || nextMode === 'liveplay') && !song?.phrases?.length) {
+      const fallbackSong = [...StorageService.getSongs()].sort((a, b) => (
+        new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
+      ))[0];
+      if (!fallbackSong) {
+        setMode('library');
+        return;
+      }
+      loadSong(fallbackSong.id);
+    }
+    setMode(nextMode);
   };
 
   const handleLivePlayFullscreenChange = useCallback((isFullscreen) => {
@@ -78,43 +111,27 @@ function App() {
   }, []);
 
   return (
-    <Layout hideMobileHeader={isMobile}>
+    <Layout>
       {/* Desktop Navigation */}
       <TopNavBar
         activeMode={mode}
-        onChangeMode={setMode}
+        onChangeMode={handleChangeMode}
         showSettings={showSettings}
         onOpenSettings={() => setShowSettings(true)}
       />
 
-      <main style={isMobile ? { paddingBottom: '64px' } : undefined}>
+      <main>
         {mode === 'library' && (
           <SongLibrary
-            onLoadSong={handleLoadSong}
+            onLearnSong={handleLearnSong}
+            onEditSong={handleEditSong}
+            onViewSheet={handleViewSheet}
             onLoadSongToLivePlay={handleLoadSongToLivePlay}
             onNewSong={handleNewSong}
             isMobile={isMobile}
           />
         )}
         <Suspense fallback={<PageLoadingFallback />}>
-        {mode === 'edit' && (
-          <SongEditor
-            song={song}
-            onUpdateMetadata={updateSongMetadata}
-            onImportSong={importSong}
-            onSaveSong={saveSong}
-            onAddPhrase={addPhrase}
-            onSplitPhrase={splitPhrase}
-            onMergePhraseWithPrevious={mergePhraseWithPrevious}
-            onRenamePhrasesInOrder={renamePhrasesInOrder}
-            addNoteToPhrase={addNoteToPhrase}
-            removeNoteFromPhrase={removeNoteFromPhrase}
-            onUpdateNote={updateNoteInPhrase}
-            onUpdateHandSeparators={updateHandSeparators}
-            onReorderPhrases={reorderPhrases}
-            readOnly={isMobile}
-          />
-        )}
         {mode === 'learn' && (
           <LiveLearning song={song} onToggleHighlight={toggleHighlightedMeasure} />
         )}
@@ -131,6 +148,7 @@ function App() {
             addNoteToPhrase={addNoteToPhrase}
             removeNoteFromPhrase={removeNoteFromPhrase}
             onUpdateNote={updateNoteInPhrase}
+            onUpdateHandSeparators={updateHandSeparators}
             onReorderPhrases={reorderPhrases}
             isMobile={isMobile}
             readOnly={false}
@@ -152,15 +170,18 @@ function App() {
       {/* Mobile Bottom Tab Bar */}
       <BottomTabBar
         activeMode={mode}
-        onChangeMode={setMode}
+        onChangeMode={handleChangeMode}
         visible={!isLivePlayFullscreen}
         onOpenSettings={() => setShowSettings(true)}
+        showSettings={showSettings}
       />
 
       {/* Settings Modal */}
-      <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} onRestartOnboarding={handleRestartOnboarding} />
 
       <AudioLoadingIndicator />
+
+      {showOnboarding && <Onboarding onComplete={() => { setShowOnboarding(false); setMode('library'); }} />}
     </Layout>
   );
 }

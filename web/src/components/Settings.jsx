@@ -6,14 +6,21 @@ import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
 import { LatencyWizard } from './LatencyWizard';
 import { DesignAppearance } from './DesignAppearance';
+import { OnboardingService } from '../services/OnboardingService';
 import { useDeviceContext } from '../hooks/useDeviceContext';
+import styles from './Settings.module.css';
 
-export function Settings({ isOpen, onClose }) {
+export function Settings({ isOpen, onClose, onRestartOnboarding }) {
     const { isMobile } = useDeviceContext();
     const [activeTab, setActiveTab] = useState('general');
     const [fontSize, setFontSize] = useState(localStorage.getItem('piano-teacher-font-size') || '16');
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
     const fileInputRef = useRef(null);
+    const modalRef = useRef(null);
+    const learnerProfile = OnboardingService.getPreferences();
+    const learnerGoal = { read: 'Lire avec fluidité', technique: 'Renforcer ma technique', create: 'Créer et arranger' }[learnerProfile.goal] || 'Lire avec fluidité';
+    const learnerLevel = { beginner: 'Je débute', intermediate: 'Je progresse', advanced: 'Je me perfectionne' }[learnerProfile.level] || 'Je débute';
+    const learnerInstrument = { midi: 'Piano MIDI', acoustic: 'Piano acoustique', none: 'Sans instrument' }[learnerProfile.instrument] || 'Piano MIDI';
 
     // Volume
     const [volume, setVolume] = useState(() => audioEngine.getVolumePercent());
@@ -66,6 +73,41 @@ export function Settings({ isOpen, onClose }) {
         };
     }, [isOpen]);
     /* eslint-enable react-hooks/set-state-in-effect */
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        const previousFocus = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        modalRef.current?.focus({ preventScroll: true });
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                onClose();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = [...(modalRef.current?.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
+            ) || [])].filter((element) => element.offsetParent !== null);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === modalRef.current)) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === modalRef.current)) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+            if (previousFocus instanceof HTMLElement) previousFocus.focus({ preventScroll: true });
+        };
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -141,7 +183,7 @@ export function Settings({ isOpen, onClose }) {
 
     return (
         <div
-            className="settings-overlay"
+            className={`settings-overlay ${styles.overlay}`}
             style={{
                 position: 'fixed',
                 top: 0,
@@ -157,9 +199,11 @@ export function Settings({ isOpen, onClose }) {
                 padding: '2rem'
             }}
             onClick={onClose}
+            role="presentation"
         >
             <div
-                className="settings-modal"
+                ref={modalRef}
+                className={`settings-modal ${styles.modal}`}
                 style={{
                     background: 'var(--bg-elevated)',
                     borderRadius: 'var(--radius-xl)',
@@ -173,6 +217,10 @@ export function Settings({ isOpen, onClose }) {
                     flexDirection: 'column'
                 }}
                 onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="settings-title"
+                tabIndex="-1"
             >
                 {/* Header */}
                 <div style={{
@@ -182,16 +230,17 @@ export function Settings({ isOpen, onClose }) {
                     justifyContent: 'space-between',
                     alignItems: 'center'
                 }}>
-                    <h2 style={{
+                    <h2 id="settings-title" style={{
                         margin: 0,
                         fontSize: '1.5rem',
                         fontWeight: '600',
                         color: 'var(--text-primary)'
                     }}>
-                        Paramètres
+                        Réglages
                     </h2>
                     <button
                         onClick={onClose}
+                        aria-label="Fermer les réglages"
                         style={{
                             background: 'transparent',
                             border: 'none',
@@ -392,6 +441,22 @@ export function Settings({ isOpen, onClose }) {
                                     </p>
                                 </div>
                             </div>
+
+                            {onRestartOnboarding && (
+                                <section className={styles.onboardingCard}>
+                                    <span className={styles.onboardingIcon} aria-hidden="true">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22z" />
+                                            <path d="M4 4.5v15M9 7h7M9 11h5" />
+                                        </svg>
+                                    </span>
+                                    <div>
+                                        <h3>{learnerGoal}</h3>
+                                        <p>{learnerLevel} · {learnerInstrument}. Modifiez ces repères en reparcourant l’introduction.</p>
+                                    </div>
+                                    <button onClick={onRestartOnboarding}>Revoir l’introduction</button>
+                                </section>
+                            )}
                         </div>
                     )}
 

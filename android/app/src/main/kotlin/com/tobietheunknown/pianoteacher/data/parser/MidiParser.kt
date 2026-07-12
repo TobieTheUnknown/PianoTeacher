@@ -134,15 +134,20 @@ object MidiParser {
     }
 
     private fun detectKey(notes: List<NoteEvent>): KeySignature {
-        // Simple pitch-class frequency analysis
-        val pitchCounts = IntArray(12)
-        notes.forEach { pitchCounts[it.pitch % 12]++ }
-
-        // Find most common note as tonic (simplified)
-        val tonicIndex = pitchCounts.indices.maxByOrNull { pitchCounts[it] } ?: 0
-        val noteNames = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
-
-        return KeySignature(note = noteNames[tonicIndex], mode = "major")
+        if (notes.isEmpty()) return KeySignature()
+        val detected = com.tobietheunknown.pianoteacher.utils.detectKeySignature(
+            pitches = notes.map { it.pitch },
+            durations = notes.map { it.duration },
+        )
+        val names = if (detected.useFlats) {
+            arrayOf("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
+        } else {
+            arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+        }
+        return KeySignature(
+            note = names[detected.root],
+            mode = if (detected.isMinor) "minor" else "major",
+        )
     }
 
     private fun emptySong(title: String, tempo: Int, timeSig: TimeSignature) = Song(

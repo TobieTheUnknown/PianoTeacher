@@ -478,6 +478,7 @@ fun LearningScreen(
                         activeLeft = activeLeftPitches,
                         fixedRange = keyboardRange.windowSemis,
                         globalAnchor = keyboardRange.densityAnchor,
+                        keySignature = keySignature,
                     )
 
                     // Shared PlaybackDock (same look as the web app)
@@ -2161,7 +2162,12 @@ private fun TransportBar(
                     onClick = onPlay,
                     modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(IndigoAccent)
                 ) {
-                    Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(
+                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
                 IconButton(
                     onClick = onSplit,

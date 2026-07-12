@@ -4,6 +4,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 // ─── Piano Teacher Design Tokens ─────────────────────────────────────────────
 // Source of truth: web/src/styles/tokens.css (dark theme).
@@ -50,16 +53,16 @@ object Tokens {
 
 // Top-level aliases (flat names) so screens can write TextSecondary, Surface2, etc.
 val TokenBackground get() = Tokens.Background
-val Surface1   get() = Tokens.Surface1
-val Surface2   get() = Tokens.Surface2
-val Surface3   get() = Tokens.Surface3
-val BorderColor  get() = Tokens.BorderColor
-val Hairline     get() = Tokens.Hairline
-val BorderStrong get() = Tokens.BorderStrong
-val TextPrimary   get() = Tokens.TextPrimary
-val TextSecondary get() = Tokens.TextSecondary
-val TextTertiary  get() = Tokens.TextTertiary
-val TextMuted     get() = Tokens.TextMuted
+val Surface1: Color get() = ActiveTheme.colors.surface
+val Surface2: Color get() = ActiveTheme.colors.surfaceRaised
+val Surface3: Color get() = ActiveTheme.colors.surfaceStrong
+val BorderColor: Color get() = ActiveTheme.colors.border
+val Hairline: Color get() = ActiveTheme.colors.hairline
+val BorderStrong: Color get() = ActiveTheme.colors.borderStrong
+val TextPrimary: Color get() = ActiveTheme.colors.textPrimary
+val TextSecondary: Color get() = ActiveTheme.colors.textSecondary
+val TextTertiary: Color get() = ActiveTheme.colors.textTertiary
+val TextMuted: Color get() = ActiveTheme.colors.textMuted
 val AccentHover get() = Tokens.AccentHover
 val Success get() = Tokens.Success
 val Warning get() = Tokens.Warning
@@ -81,7 +84,7 @@ object ActiveTheme {
 // the dynamic theme. Accent + hand colors stay dynamic (user-configurable).
 val Background: Color get() = ActiveTheme.colors.background
 val Surface: Color get() = ActiveTheme.colors.surface
-val SurfaceVariant: Color get() = Tokens.Surface3
+val SurfaceVariant: Color get() = ActiveTheme.colors.surfaceStrong
 
 val CyanMelody: Color get() = ActiveTheme.colors.melodyColor   // dynamic hand-right
 val PinkChords: Color get() = ActiveTheme.colors.chordsColor   // dynamic hand-left
@@ -105,18 +108,46 @@ object ThemeAware {
     val surface: Color @Composable get() = LocalThemeColors.current.surface
 }
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Tokens.Accent,
-    secondary = Tokens.HandRight,
-    tertiary = Tokens.HandLeft,
-    background = Tokens.Background,
-    surface = Tokens.Surface1,
-    surfaceVariant = Tokens.Surface3,
-    onPrimary = Color.White,
-    onSecondary = Color.Black,
-    onBackground = Tokens.TextPrimary,
-    onSurface = Tokens.TextPrimary,
-    error = Tokens.Error,
+private val AppTypography = Typography(
+    displaySmall = androidx.compose.ui.text.TextStyle(
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+        fontSize = 36.sp,
+        lineHeight = 40.sp,
+        letterSpacing = (-0.6).sp,
+    ),
+    headlineMedium = androidx.compose.ui.text.TextStyle(
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+        fontSize = 26.sp,
+        lineHeight = 31.sp,
+    ),
+    titleLarge = androidx.compose.ui.text.TextStyle(
+        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        fontSize = 20.sp,
+    ),
+    titleMedium = androidx.compose.ui.text.TextStyle(
+        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        fontSize = 16.sp,
+    ),
+    bodyLarge = androidx.compose.ui.text.TextStyle(
+        fontSize = 16.sp,
+        lineHeight = 23.sp,
+    ),
+    bodyMedium = androidx.compose.ui.text.TextStyle(
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
+    labelLarge = androidx.compose.ui.text.TextStyle(
+        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        fontSize = 14.sp,
+    ),
+)
+
+private val AppShapes = Shapes(
+    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+    small = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    medium = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    large = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(30.dp),
 )
 
 @Composable
@@ -125,17 +156,42 @@ fun PianoTeacherTheme(
     content: @Composable () -> Unit
 ) {
     ActiveTheme.apply(colors)
-    val colorScheme = DarkColorScheme.copy(
+    // WCAG crossover for choosing black/white text is roughly L=0.179.
+    val onAccent = if (colors.accent.luminance() > 0.179f) Color(0xFF071014) else Color.White
+    val colorScheme = if (colors.background.luminance() > 0.5f) lightColorScheme(
         primary = colors.accent,
         secondary = colors.melodyColor,
         tertiary = colors.chordsColor,
         background = colors.background,
-        surface = colors.surface
+        surface = colors.surface,
+        surfaceVariant = colors.surfaceStrong,
+        onPrimary = onAccent,
+        onSecondary = Color(0xFF071014),
+        onBackground = colors.textPrimary,
+        onSurface = colors.textPrimary,
+        onSurfaceVariant = colors.textSecondary,
+        outline = colors.borderStrong,
+        error = Tokens.Error,
+    ) else darkColorScheme(
+        primary = colors.accent,
+        secondary = colors.melodyColor,
+        tertiary = colors.chordsColor,
+        background = colors.background,
+        surface = colors.surface,
+        surfaceVariant = colors.surfaceStrong,
+        onPrimary = onAccent,
+        onSecondary = Color(0xFF071014),
+        onBackground = colors.textPrimary,
+        onSurface = colors.textPrimary,
+        onSurfaceVariant = colors.textSecondary,
+        outline = colors.borderStrong,
+        error = Tokens.Error,
     )
     CompositionLocalProvider(LocalThemeColors provides colors) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography(),
+            typography = AppTypography,
+            shapes = AppShapes,
             content = content
         )
     }

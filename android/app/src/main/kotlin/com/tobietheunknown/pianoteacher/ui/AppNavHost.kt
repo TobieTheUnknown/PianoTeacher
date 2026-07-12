@@ -1,37 +1,37 @@
 package com.tobietheunknown.pianoteacher.ui
 
 import android.content.Intent
-import android.net.Uri
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.compose.currentBackStackEntryAsState
+import com.tobietheunknown.pianoteacher.ui.common.AdaptiveNavigationFrame
 import com.tobietheunknown.pianoteacher.ui.common.AppTab
-import com.tobietheunknown.pianoteacher.ui.common.BottomTabBar
 import com.tobietheunknown.pianoteacher.ui.editor.EditorScreen
 import com.tobietheunknown.pianoteacher.ui.library.LibraryScreen
 import com.tobietheunknown.pianoteacher.ui.livelearning.LiveLearningScreen
 import com.tobietheunknown.pianoteacher.ui.liveplay.LivePlayScreen
 import com.tobietheunknown.pianoteacher.ui.learning.LearningScreen
+import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingScreen
+import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingState
 import com.tobietheunknown.pianoteacher.ui.settings.SettingsScreen
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
+    object Onboarding : Screen("onboarding?replay={replay}") {
+        fun route(replay: Boolean) = "onboarding?replay=$replay"
+    }
     object Library : Screen("library")
     object LivePlay : Screen("liveplay/{songId}/{phraseIndex}") {
-        // phraseIndex = -1 → full song view (all phrases merged)
         fun route(songId: String, phraseIndex: Int = -1) = "liveplay/$songId/$phraseIndex"
     }
     object Learning : Screen("learning/{songId}") {
@@ -49,170 +49,173 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavHost(intent: Intent? = null) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    val onboardingComplete by OnboardingState.isComplete
+    var pendingImportUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastSongId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Handle deep link import intent
     LaunchedEffect(intent) {
-        intent?.data?.let { uri ->
-            // Pass import URI to library screen via saved state
-            navController.currentBackStackEntry
-                ?.savedStateHandle
-                ?.set("import_uri", uri.toString())
-        }
+        intent?.data?.toString()?.let { pendingImportUri = it }
     }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val currentSongId = backStackEntry?.arguments?.getString("songId")
+    LaunchedEffect(currentSongId) {
+        if (!currentSongId.isNullOrBlank()) lastSongId = currentSongId
+    }
+
     val activeTab = remember(currentRoute) {
         when {
             currentRoute == Screen.Library.route -> AppTab.LIBRARY
-            currentRoute?.startsWith("editor") == true -> AppTab.EDITOR
-            currentRoute?.startsWith("livelearning") == true -> AppTab.LEARN
-            currentRoute?.startsWith("learning") == true -> AppTab.SHEET
             currentRoute?.startsWith("liveplay") == true -> AppTab.LIVEPLAY
+            currentRoute?.startsWith("learning") == true ||
+                currentRoute?.startsWith("livelearning") == true ||
+                currentRoute?.startsWith("editor") == true -> AppTab.LEARN
             currentRoute == Screen.Settings.route -> AppTab.SETTINGS
             else -> AppTab.LIBRARY
         }
     }
+    val showNavigation = currentRoute?.startsWith("liveplay") != true &&
+        currentRoute?.startsWith("onboarding") != true
 
-    // Track the last song id seen on a music tab so tab clicks can navigate
-    // back to the right song.
-    val currentSongId = backStackEntry?.arguments?.getString("songId")
-    val lastSongIdRef = remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    androidx.compose.runtime.LaunchedEffect(currentSongId) {
-        if (!currentSongId.isNullOrBlank()) lastSongIdRef.value = currentSongId
-    }
-
-    // LivePlay should be fullscreen — hide the tab bar.
-    val showTabBar = currentRoute?.startsWith("liveplay") != true
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-    NavHost(navController = navController, startDestination = Screen.Library.route) {
-
-        composable(Screen.Library.route) { backStack ->
-            val importUriString = backStack.savedStateHandle.getStateFlow<String?>("import_uri", null)
-                .collectAsState()
-            LibraryScreen(
-                importUriString = importUriString.value,
-                onImportConsumed = { backStack.savedStateHandle.remove<String>("import_uri") },
-                onSongSelected = { songId ->
-                    navController.navigate(Screen.Learning.route(songId))
-                },
-                onPlaySong = { songId ->
-                    navController.navigate(Screen.LivePlay.route(songId))
-                },
-                onApprentissageSong = { songId ->
-                    navController.navigate(Screen.LiveLearning.route(songId))
-                },
-                onSettings = {
-                    navController.navigate(Screen.Settings.route)
-                }
-            )
-        }
-
-        composable(
-            route = Screen.LivePlay.route,
-            arguments = listOf(
-                navArgument("songId") { type = NavType.StringType },
-                navArgument("phraseIndex") { type = NavType.IntType; defaultValue = 0 }
-            )
-        ) { backStack ->
-            val songId = backStack.arguments?.getString("songId") ?: return@composable
-            val phraseIndex = backStack.arguments?.getInt("phraseIndex") ?: 0
-            LivePlayScreen(
-                songId = songId,
-                initialPhraseIndex = phraseIndex,
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(
-            route = Screen.Learning.route,
-            arguments = listOf(navArgument("songId") { type = NavType.StringType })
-        ) { backStack ->
-            val songId = backStack.arguments?.getString("songId") ?: return@composable
-            LearningScreen(
-                songId = songId,
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(
-            route = Screen.Editor.route,
-            arguments = listOf(navArgument("songId") { type = NavType.StringType })
-        ) { backStack ->
-            val songId = backStack.arguments?.getString("songId") ?: return@composable
-            EditorScreen(
-                songId = songId,
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(
-            route = Screen.LiveLearning.route,
-            arguments = listOf(navArgument("songId") { type = NavType.StringType })
-        ) { backStack ->
-            val songId = backStack.arguments?.getString("songId") ?: return@composable
-            LiveLearningScreen(
-                songId = songId,
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(Screen.Settings.route) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+    fun requireSong(action: (String) -> Unit) {
+        val songId = lastSongId
+        if (songId == null) {
+            navController.popBackStack(Screen.Library.route, inclusive = false)
+            scope.launch { snackbar.showSnackbar("Choisissez d’abord un morceau dans la bibliothèque") }
+        } else {
+            action(songId)
         }
     }
-        }
 
-        // Shared BottomTabBar at the very bottom — hidden on LivePlay
-        // (fullscreen falling-notes view).
-        if (showTabBar) {
-            BottomTabBar(
-                active = activeTab,
-                onSelect = { tab ->
-                    val songId = lastSongIdRef.value
-                    when (tab) {
-                        AppTab.LIBRARY -> {
-                            // Pop everything back to Library — guaranteed root reset.
-                            navController.popBackStack(Screen.Library.route, inclusive = false)
-                        }
-                        AppTab.SETTINGS -> {
-                            if (currentRoute != Screen.Settings.route) {
-                                navController.navigate(Screen.Settings.route) { launchSingleTop = true }
-                            }
-                        }
-                        AppTab.SHEET -> {
-                            if (songId == null) {
-                                navController.popBackStack(Screen.Library.route, inclusive = false)
-                            } else if (currentRoute?.startsWith("learning") != true) {
-                                navController.navigate(Screen.Learning.route(songId)) { launchSingleTop = true }
-                            }
-                        }
-                        AppTab.LEARN -> {
-                            if (songId == null) {
-                                navController.popBackStack(Screen.Library.route, inclusive = false)
-                            } else if (currentRoute?.startsWith("livelearning") != true) {
-                                navController.navigate(Screen.LiveLearning.route(songId)) { launchSingleTop = true }
-                            }
-                        }
-                        AppTab.LIVEPLAY -> {
-                            if (songId == null) {
-                                navController.popBackStack(Screen.Library.route, inclusive = false)
-                            } else if (currentRoute?.startsWith("liveplay") != true) {
-                                navController.navigate(Screen.LivePlay.route(songId)) { launchSingleTop = true }
-                            }
-                        }
-                        AppTab.EDITOR -> {
-                            if (songId == null) {
-                                navController.popBackStack(Screen.Library.route, inclusive = false)
-                            } else if (currentRoute?.startsWith("editor") != true) {
-                                navController.navigate(Screen.Editor.route(songId)) { launchSingleTop = true }
-                            }
-                        }
+    AdaptiveNavigationFrame(
+        active = activeTab,
+        showNavigation = showNavigation,
+        onSelect = { tab ->
+            when (tab) {
+                AppTab.LIBRARY -> navController.popBackStack(Screen.Library.route, inclusive = false)
+                AppTab.LEARN -> requireSong { id ->
+                    if (currentRoute?.startsWith("livelearning") != true) {
+                        navController.navigate(Screen.LiveLearning.route(id)) { launchSingleTop = true }
                     }
-                },
-            )
+                }
+                AppTab.LIVEPLAY -> requireSong { id ->
+                    if (currentRoute?.startsWith("liveplay") != true) {
+                        navController.navigate(Screen.LivePlay.route(id)) { launchSingleTop = true }
+                    }
+                }
+                AppTab.SETTINGS -> if (currentRoute != Screen.Settings.route) {
+                    navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                }
+            }
+        },
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = if (onboardingComplete) Screen.Library.route else Screen.Onboarding.route(false),
+            ) {
+                composable(
+                    route = Screen.Onboarding.route,
+                    arguments = listOf(navArgument("replay") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    }),
+                ) { entry ->
+                    val replay = entry.arguments?.getBoolean("replay") ?: false
+                    OnboardingScreen(
+                        isReplay = replay,
+                        onFinished = {
+                            if (replay) {
+                                navController.popBackStack()
+                            } else {
+                                navController.navigate(Screen.Library.route) {
+                                    popUpTo(Screen.Onboarding.route) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        },
+                    )
+                }
+
+                composable(Screen.Library.route) {
+                    LibraryScreen(
+                        importUriString = pendingImportUri,
+                        onImportConsumed = { pendingImportUri = null },
+                        onSongContextSelected = { lastSongId = it },
+                        onSongDeleted = { deletedId ->
+                            if (lastSongId == deletedId) lastSongId = null
+                        },
+                        onSongSelected = { songId ->
+                            lastSongId = songId
+                            navController.navigate(Screen.Learning.route(songId))
+                        },
+                        onEditSong = { songId ->
+                            lastSongId = songId
+                            navController.navigate(Screen.Editor.route(songId))
+                        },
+                        onPlaySong = { songId ->
+                            lastSongId = songId
+                            navController.navigate(Screen.LivePlay.route(songId))
+                        },
+                        onApprentissageSong = { songId ->
+                            lastSongId = songId
+                            navController.navigate(Screen.LiveLearning.route(songId))
+                        },
+                        onSettings = { navController.navigate(Screen.Settings.route) },
+                    )
+                }
+
+                composable(
+                    route = Screen.LivePlay.route,
+                    arguments = listOf(
+                        navArgument("songId") { type = NavType.StringType },
+                        navArgument("phraseIndex") { type = NavType.IntType; defaultValue = -1 },
+                    ),
+                ) { entry ->
+                    val songId = entry.arguments?.getString("songId") ?: return@composable
+                    val phraseIndex = entry.arguments?.getInt("phraseIndex") ?: -1
+                    LivePlayScreen(
+                        songId = songId,
+                        initialPhraseIndex = phraseIndex,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+
+                composable(
+                    route = Screen.Learning.route,
+                    arguments = listOf(navArgument("songId") { type = NavType.StringType }),
+                ) { entry ->
+                    val songId = entry.arguments?.getString("songId") ?: return@composable
+                    LearningScreen(songId = songId, onBack = { navController.popBackStack() })
+                }
+
+                composable(
+                    route = Screen.Editor.route,
+                    arguments = listOf(navArgument("songId") { type = NavType.StringType }),
+                ) { entry ->
+                    val songId = entry.arguments?.getString("songId") ?: return@composable
+                    EditorScreen(songId = songId, onBack = { navController.popBackStack() })
+                }
+
+                composable(
+                    route = Screen.LiveLearning.route,
+                    arguments = listOf(navArgument("songId") { type = NavType.StringType }),
+                ) { entry ->
+                    val songId = entry.arguments?.getString("songId") ?: return@composable
+                    LiveLearningScreen(songId = songId, onBack = { navController.popBackStack() })
+                }
+
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onReviewIntro = { navController.navigate(Screen.Onboarding.route(true)) },
+                    )
+                }
+            }
+            SnackbarHost(hostState = snackbar, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter))
         }
     }
 }

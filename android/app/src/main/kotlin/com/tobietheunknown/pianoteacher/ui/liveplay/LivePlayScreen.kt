@@ -771,7 +771,7 @@ private fun LivePlayControls(
                     onClick = onPlayPause,
                     modifier = Modifier.size(44.dp),
                     containerColor = IndigoAccent,
-                    contentColor = Color.White
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
                     Icon(
                         if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,

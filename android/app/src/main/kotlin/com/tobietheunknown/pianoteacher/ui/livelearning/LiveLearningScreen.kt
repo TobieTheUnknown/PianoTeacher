@@ -133,9 +133,10 @@ fun LiveLearningScreen(
     val focusedMeasureData = allMeasures.getOrNull(focusedMeasure)
 
     Scaffold(containerColor = Background) { padding ->
-        Box(modifier = Modifier
+        BoxWithConstraints(modifier = Modifier
             .fillMaxSize()
             .padding(padding)) {
+            val wideMeasureGrid = maxWidth >= 700.dp
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -213,13 +214,15 @@ fun LiveLearningScreen(
                                         fontWeight = FontWeight.Bold,
                                     )
                                 }
-                                for (row in 0 until 2) {
+                                val columnCount = if (wideMeasureGrid) 4 else 2
+                                val rowCount = (group.size + columnCount - 1) / columnCount
+                                for (row in 0 until rowCount) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        for (col in 0..1) {
-                                            val cellIdx = row * 2 + col
+                                        for (col in 0 until columnCount) {
+                                            val cellIdx = row * columnCount + col
                                             if (cellIdx < group.size) {
                                                 val measure = group[cellIdx]
                                                 val globalIdx = measure.globalIndex
@@ -282,6 +285,7 @@ fun LiveLearningScreen(
                         activeLeft = activeLeft,
                         fixedRange = songRange.windowSemis,
                         globalAnchor = songRange.densityAnchor,
+                        keySignature = keySignature,
                     )
                 }
                 PlaybackDock(
@@ -513,7 +517,7 @@ private fun DetailToggle(active: Boolean, onClick: () -> Unit) {
     ) {
         Text(
             "Détail",
-            color = if (active) Color.White else TextSecondary,
+            color = if (active) MaterialTheme.colorScheme.onPrimary else TextSecondary,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -570,7 +574,7 @@ private fun OstinatoRoleBadge(
     val desc: String
     val reps: Int
     if (isChord) {
-        label = role.chordLabel ?: ""
+        label = "Ostinato ${role.chordLabel ?: ""}"
         val altMention = if (role.chordAltered)
             " — altération" + (role.chordAlteredNote?.let { " ($it)" } ?: "")
         else ""
@@ -578,7 +582,7 @@ private fun OstinatoRoleBadge(
         reps = role.chordReps
     } else {
         val notes = role.ostinato!!.motifLabels.joinToString("·")
-        label = notes
+        label = "Ostinato $notes"
         desc = "Ostinato — motif répété ${role.ostinato.repetitions}× ($notes)"
         reps = role.ostinato.repetitions
     }
@@ -623,7 +627,7 @@ private fun PedalRoleBadge(
         ) {
             PedalGlyph(tone)
             Text(
-                pedal.label + if (pedal.octave) " · 8va" else "",
+                "Pédale ${pedal.label}" + if (pedal.octave) " · 8va" else "",
                 color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                 letterSpacing = 0.2.sp,
             )
@@ -868,4 +872,3 @@ private fun BeatStrip(
         }
     }
 }
-

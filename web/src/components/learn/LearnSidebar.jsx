@@ -75,7 +75,7 @@ export function LearnSidebar({ measure, allMeasures, keySignature, displayNoteNa
                 borderRadius: 'var(--r-md)',
             }}>
                 <div style={eyebrow}>Clavier</div>
-                <MiniKeyboard fixedRange={keyboardInfo.windowSemis} densityAnchor={keyboardInfo.densityAnchor} activeRight={activeRight} activeLeft={activeLeft} keySignature={keySignature} />
+                <MiniKeyboard fixedRange={keyboardInfo.windowSemis} densityAnchor={keyboardInfo.densityAnchor} activeRight={activeRight} activeLeft={activeLeft} />
             </div>
         </aside>
     );
@@ -273,7 +273,7 @@ function HandIcon({ hand }) {
     );
 }
 
-function MiniKeyboard({ fixedRange, densityAnchor, activeRight, activeLeft, keySignature }) {
+function MiniKeyboard({ fixedRange, densityAnchor, activeRight, activeLeft }) {
     // Fixed pitch window for the whole song. The keyboard never re-scales
     // when the focused measure changes; the window only shifts in octave
     // increments to keep active notes visible. Same approach as the
@@ -387,8 +387,6 @@ function MiniKeyboard({ fixedRange, densityAnchor, activeRight, activeLeft, keyS
     // Now rebuild the whites/blacks arrays with fold coloring + split key support.
     // We reuse the same loop structure but check foldEntries for each key.
     const foldLabels = []; // SVG text elements rendered on top of everything
-    const labelFontSize = 9; // px (SVG units scaled to viewBox width 100)
-
     // Helper: octave label text
     const octaveLabel = (octaves) => {
         if (octaves > 0) return `+${octaves}`;

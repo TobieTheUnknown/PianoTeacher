@@ -47,20 +47,13 @@
 
 html {
   touch-action: manipulation;
+  color-scheme: dark;
 }
+
+[data-theme="light"] { color-scheme: light; }
 
 * {
   box-sizing: border-box;
-}
-
-*:not(input):not(textarea) {
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-input, textarea {
-  -webkit-user-select: text;
-  user-select: text;
 }
 
 body {
@@ -76,8 +69,8 @@ body {
   text-rendering: optimizeLegibility;
   min-height: 100vh;
   line-height: 1.6;
-  font-weight: 300;
-  letter-spacing: 0.01em;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 #root {
@@ -114,8 +107,17 @@ button:active {
 
 button:focus,
 button:focus-visible {
-  outline: 1px solid var(--accent-primary);
+  outline: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
+  box-shadow: var(--focus-ring);
 }
 
 button:disabled {
@@ -127,14 +129,14 @@ button:disabled {
 /* Primary Button Variant */
 .btn-primary {
   background-color: var(--accent-primary);
-  color: var(--bg-primary);
+  color: var(--accent-text);
   border-color: var(--accent-primary);
 }
 
 .btn-primary:hover {
   background-color: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: var(--bg-primary);
+  color: var(--accent-text);
 }
 
 /* Minimal Input Styles */
@@ -176,6 +178,18 @@ textarea::placeholder {
   font-weight: 300;
 }
 
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 /* Utilities */
 .container {
   max-width: 1200px;
@@ -200,7 +214,7 @@ textarea::placeholder {
 /* Headings - Light & Spacious */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-  font-weight: 300;
+  font-weight: 500;
   line-height: 1.2;
   margin: 0;
   color: var(--text-primary);
@@ -209,12 +223,22 @@ h1, h2, h3, h4, h5, h6 {
 
 h1 {
   font-size: 2.5rem;
-  font-weight: 200;
+  font-weight: 700;
 }
 
 h2 {
   font-size: 1.75rem;
-  font-weight: 300;
+  font-weight: 650;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within { scroll-behavior: auto; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 h3 {

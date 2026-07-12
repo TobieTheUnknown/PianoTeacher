@@ -1,40 +1,171 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StorageService } from '../services/StorageService';
 import { ScoreService } from '../services/ScoreService';
 import { getFrenchKeyName } from '../models/song';
-import { Cover, ProgressRing, Pill } from './ui';
-import { MobileHeader } from './MobileHeader';
+import { Cover, ProgressRing } from './ui';
+import styles from './SongLibrary.module.css';
 
-export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMobile = false }) {
-    const [songs, setSongs] = useState([]);
-    const [showLibraryModal, setShowLibraryModal] = useState(false);
-    const [mergeOnImport, setMergeOnImport] = useState(false);
-    const [actionSheetSong, setActionSheetSong] = useState(null);
-    const [midiImportStatus, setMidiImportStatus] = useState(null); // null | 'loading' | 'success' | 'error'
-    const [showFabMenu, setShowFabMenu] = useState(false);
+const FILTERS = [
+    { id: 'all', label: 'Tous' },
+    { id: 'new', label: 'À découvrir' },
+    { id: 'active', label: 'En cours' },
+    { id: 'mastered', label: 'Maîtrisés' },
+    { id: 'major', label: 'Majeur' },
+    { id: 'minor', label: 'Mineur' },
+];
 
-    const loadSongs = useCallback(() => {
-        setSongs(StorageService.getSongs());
+const SORTS = [
+    { id: 'recent', label: 'Récemment modifiés' },
+    { id: 'title', label: 'Titre A–Z' },
+    { id: 'progress', label: 'Progression' },
+    { id: 'tempo', label: 'Tempo' },
+];
+
+function useDialogFocus() {
+    const dialogRef = useRef(null);
+    useEffect(() => {
+        const previousFocus = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        dialogRef.current?.focus({ preventScroll: true });
+
+        const trapFocus = (event) => {
+            if (event.key !== 'Tab') return;
+            const focusable = [...(dialogRef.current?.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
+            ) || [])].filter((element) => element.offsetParent !== null);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+
+        window.addEventListener('keydown', trapFocus);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', trapFocus);
+            if (previousFocus instanceof HTMLElement) previousFocus.focus({ preventScroll: true });
+        };
     }, []);
+    return dialogRef;
+}
+
+export function SongLibrary({
+    onLoadSong,
+    onLearnSong,
+    onEditSong,
+    onViewSheet,
+    onNewSong,
+    onLoadSongToLivePlay,
+    isMobile = false,
+}) {
+    const [songs, setSongs] = useState([]);
+    const [query, setQuery] = useState('');
+    const [filter, setFilter] = useState('all');
+    const [sort, setSort] = useState('recent');
+    const [showLibraryModal, setShowLibraryModal] = useState(false);
+    const [mergeOnImport, setMergeOnImport] = useState(true);
+    const [detailSong, setDetailSong] = useState(null);
+    const [midiImportStatus, setMidiImportStatus] = useState(null);
+    const searchInputRef = useRef(null);
+
+    const loadSongs = useCallback(() => setSongs(StorageService.getSongs()), []);
+    useEffect(() => { loadSongs(); }, [loadSongs]);
 
     useEffect(() => {
+        if (!showLibraryModal && !detailSong) return undefined;
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') {
+                setShowLibraryModal(false);
+                setDetailSong(null);
+            }
+        };
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [showLibraryModal, detailSong]);
+
+    useEffect(() => {
+        const focusSearch = (event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                searchInputRef.current?.focus();
+            }
+        };
+        window.addEventListener('keydown', focusSearch);
+        return () => window.removeEventListener('keydown', focusSearch);
+    }, []);
+
+    const enrichedSongs = useMemo(() => songs.map((song) => {
+        const statistics = ScoreService.getSongStatistics(song.id);
+        const phraseCount = song.phrases?.length || 0;
+        const noteCount = (song.phrases || []).reduce((total, phrase) => (
+            total + (phrase.tracks?.melody?.length || 0) + (phrase.tracks?.chords?.length || 0)
+        ), 0);
+        const progress = Math.round(statistics.bestAccuracy || 0);
+        const status = statistics.totalSessions === 0 ? 'new' : progress >= 90 ? 'mastered' : 'active';
+        const keyMode = typeof song.key === 'object' ? song.key?.mode : null;
+        return { song, statistics, phraseCount, noteCount, progress, status, keyMode };
+    }), [songs]);
+
+    const filteredSongs = useMemo(() => {
+        const normalizedQuery = normalizeText(query);
+        const list = enrichedSongs.filter((item) => {
+            const haystack = normalizeText([
+                item.song.title,
+                item.song.artist,
+                getFrenchKeyName(item.song.key),
+                ...(item.song.phrases || []).map((phrase) => phrase.name),
+            ].filter(Boolean).join(' '));
+            const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
+            const matchesFilter = filter === 'all'
+                || item.status === filter
+                || (filter === 'major' && item.keyMode === 'major')
+                || (filter === 'minor' && item.keyMode === 'minor');
+            return matchesQuery && matchesFilter;
+        });
+
+        return [...list].sort((a, b) => {
+            if (sort === 'title') return (a.song.title || '').localeCompare(b.song.title || '', 'fr');
+            if (sort === 'progress') return b.progress - a.progress;
+            if (sort === 'tempo') return (a.song.tempo || 0) - (b.song.tempo || 0);
+            return getTimestamp(b.song) - getTimestamp(a.song);
+        });
+    }, [enrichedSongs, query, filter, sort]);
+
+    const summary = useMemo(() => {
+        const sessions = enrichedSongs.reduce((total, item) => total + item.statistics.totalSessions, 0);
+        const active = enrichedSongs.filter((item) => item.status === 'active').length;
+        const mastered = enrichedSongs.filter((item) => item.status === 'mastered').length;
+        const notes = enrichedSongs.reduce((total, item) => total + item.noteCount, 0);
+        return { sessions, active, mastered, notes };
+    }, [enrichedSongs]);
+
+    const resumeItem = useMemo(() => (
+        [...enrichedSongs]
+            .sort((a, b) => {
+                const activityDelta = Number(b.statistics.totalSessions > 0) - Number(a.statistics.totalSessions > 0);
+                return activityDelta || getTimestamp(b.song) - getTimestamp(a.song);
+            })[0]
+    ), [enrichedSongs]);
+
+    const learnSong = onLearnSong || onLoadSong;
+
+    const handleDelete = (song) => {
+        if (!window.confirm(`Supprimer « ${song.title || 'Sans titre'} » de la bibliothèque ?`)) return;
+        StorageService.deleteSong(song.id);
+        ScoreService.deleteSongScores(song.id);
+        setDetailSong(null);
         loadSongs();
-    }, [loadSongs]);
-
-    const handleDelete = (id, e) => {
-        e.stopPropagation();
-        if (window.confirm('Êtes-vous sûr de vouloir supprimer ce morceau ?')) {
-            StorageService.deleteSong(id);
-            loadSongs();
-        }
     };
 
-    const handleOpenLibraryModal = () => {
-        setShowLibraryModal(true);
-    };
-
-    const handleImportMidi = async (e) => {
-        const file = e.target.files[0];
+    const handleImportMidi = async (event) => {
+        const file = event.target.files?.[0];
         if (!file) return;
         setMidiImportStatus('loading');
         try {
@@ -43,760 +174,380 @@ export function SongLibrary({ onLoadSong, onNewSong, onLoadSongToLivePlay, isMob
             StorageService.saveSong(song);
             loadSongs();
             setMidiImportStatus('success');
-            setTimeout(() => setMidiImportStatus(null), 3000);
-        } catch (err) {
-            console.error('MIDI import error:', err);
+        } catch (error) {
+            console.error('MIDI import error:', error);
             setMidiImportStatus('error');
-            setTimeout(() => setMidiImportStatus(null), 3000);
+        } finally {
+            event.target.value = '';
         }
-        e.target.value = '';
     };
 
-    const handleExportMidi = async (song, e) => {
-        e?.stopPropagation();
+    const handleExportMidi = async (song) => {
         try {
             const result = await StorageService.exportSongAsMidi(song);
-            if (result.success && !result.cancelled && result.path) {
-                alert(`MIDI exporté !\n${result.path}`);
-            }
-        } catch (err) {
-            console.error('MIDI export error:', err);
-            alert('Erreur lors de l\'export MIDI.');
+            if (result.success && !result.cancelled && result.path) alert(`MIDI exporté !\n${result.path}`);
+        } catch (error) {
+            console.error('MIDI export error:', error);
+            alert('Impossible d’exporter ce fichier MIDI.');
         }
     };
 
-    const handleImportLibraryJson = (e) => {
-        const file = e.target.files[0];
+    const handleImportLibrary = (event) => {
+        const file = event.target.files?.[0];
         if (!file) return;
-
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = ({ target }) => {
             try {
-                const importedLibrary = JSON.parse(event.target.result);
-                StorageService.importLibrary(importedLibrary, mergeOnImport);
+                StorageService.importLibrary(JSON.parse(target.result), mergeOnImport);
                 loadSongs();
                 setShowLibraryModal(false);
-                alert(`Bibliothèque ${mergeOnImport ? 'fusionnée' : 'importée'} avec succès !`);
-            // eslint-disable-next-line no-unused-vars
-            } catch (error) {
-                alert('Erreur lors de l\'import du fichier JSON.');
+            } catch {
+                alert('Ce fichier ne contient pas une bibliothèque Piano Teacher valide.');
             }
         };
         reader.readAsText(file);
+        event.target.value = '';
     };
 
-    const phrasesCount = songs.filter(s => s.phrases?.length > 0).length;
-    const subtitle = `${songs.length} ${songs.length === 1 ? 'morceau' : 'morceaux'}${phrasesCount > 0 ? ` · ${phrasesCount} avec phrases` : ''}`;
+    const openSong = (item) => {
+        if (isMobile) setDetailSong(item.song);
+        else learnSong?.(item.song.id);
+    };
 
     return (
-        <div>
-            {/* Mobile uses shared MobileHeader; desktop keeps the wider header bar */}
-            {isMobile ? (
-                <MobileHeader title="Bibliothèque" subtitle={subtitle} />
-            ) : (
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '2rem',
-                paddingBottom: '1.5rem',
-                borderBottom: '1px solid var(--border-color)'
-            }}>
+        <div className={styles.page}>
+            <header className={styles.pageHeader}>
                 <div>
-                    <h2 style={{
-                        fontSize: '1.875rem',
-                        margin: 0,
-                        fontWeight: 700,
-                        letterSpacing: '-0.02em',
-                        lineHeight: 1.1,
-                        color: 'var(--text-primary)',
-                    }}>
-                        Bibliothèque
-                    </h2>
-                    <p style={{
-                        color: 'var(--text-tertiary)',
-                        fontSize: '0.8125rem',
-                        margin: '4px 0 0',
-                        fontWeight: 500,
-                    }}>
-                        {subtitle}
+                    <p className={styles.eyebrow}>Mon studio</p>
+                    <h1>Bibliothèque</h1>
+                    <p className={styles.subtitle}>
+                        {songs.length} {songs.length === 1 ? 'morceau' : 'morceaux'} · {summary.notes.toLocaleString('fr-FR')} notes organisées
                     </p>
                 </div>
-
-                {/* Action Buttons - hidden on mobile (FAB instead) */}
-                {!isMobile && (
-                    <div style={{
-                        display: 'flex',
-                        gap: '0.75rem',
-                        flexWrap: 'wrap'
-                    }}>
-                        <button onClick={handleOpenLibraryModal}>
-                            Import/Export
-                        </button>
-
-                        <button
-                            onClick={onNewSong}
-                            className="btn-primary"
-                        >
-                            Nouveau Morceau
-                        </button>
-                    </div>
-                )}
-            </div>
-            )}
-
-            {/* Empty State */}
-            {songs.length === 0 ? (
-                <div className="card" style={{
-                    textAlign: 'center',
-                    padding: '4rem 2rem'
-                }}>
-                    <h3 style={{
-                        color: 'var(--text-primary)',
-                        marginBottom: '0.75rem',
-                        fontSize: '1.25rem',
-                        fontWeight: '400'
-                    }}>
-                        Votre bibliothèque est vide
-                    </h3>
-                    <p style={{
-                        color: 'var(--text-tertiary)',
-                        fontSize: '0.9375rem',
-                        maxWidth: '500px',
-                        margin: '0 auto 2rem',
-                        lineHeight: '1.6',
-                        fontWeight: '300'
-                    }}>
-                        Créez votre premier morceau et commencez votre voyage musical
-                    </p>
+                <div className={styles.headerActions}>
+                    <button aria-label="Importer ou exporter" className={styles.secondaryButton} onClick={() => setShowLibraryModal(true)}>
+                        <Icon kind="transfer" />
+                        <span>Importer</span>
+                    </button>
                     {onNewSong && (
-                        <button
-                            onClick={onNewSong}
-                            className="btn-primary"
-                            style={{
-                                padding: '0.75rem 2rem'
-                            }}
-                        >
-                            Commencer maintenant
+                        <button aria-label="Créer un nouveau morceau" className={styles.primaryButton} onClick={onNewSong}>
+                            <Icon kind="plus" />
+                            <span>Nouveau morceau</span>
                         </button>
                     )}
                 </div>
-            ) : (
-                /* Song Cards Grid */
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: isMobile ? '0.5rem' : '1rem'
-                }}>
-                    {songs.map((song) => (
-                        <div
-                            key={song.id}
-                            onClick={() => isMobile ? setActionSheetSong(song) : onLoadSong(song.id)}
-                            className="card"
-                            style={{
-                                cursor: 'pointer',
-                                padding: '1rem',
-                                minHeight: isMobile ? '56px' : undefined,
-                                position: 'relative',
-                                display: 'flex',
-                                gap: '0.75rem',
-                                alignItems: 'flex-start',
-                            }}
-                        >
-                            <Cover id={song.id} title={song.title} size={isMobile ? 44 : 52} />
+            </header>
 
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                {/* Song Title */}
-                                <h3 style={{
-                                    margin: 0,
-                                    color: 'var(--text-primary)',
-                                    fontSize: isMobile ? '0.95rem' : '1rem',
-                                    fontWeight: 600,
-                                    letterSpacing: '-0.01em',
-                                    lineHeight: 1.3,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    {song.title}
-                                </h3>
-
-                                {/* Song Metadata */}
-                                <p style={{
-                                    margin: '2px 0 6px',
-                                    fontSize: '0.78rem',
-                                    color: 'var(--text-tertiary)',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                }}>
-                                    {song.artist || 'Artiste inconnu'}
-                                </p>
-
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <Pill style={{ padding: '2px 7px', fontSize: 10 }}>
-                                        {getFrenchKeyName(song.key)}
-                                    </Pill>
-                                    <span style={{
-                                        fontSize: 10,
-                                        color: 'var(--text-muted)',
-                                        fontFamily: 'var(--font-mono)',
-                                        fontWeight: 600,
-                                    }}>
-                                        {song.tempo} BPM
-                                    </span>
-                                </div>
-
-                                <p style={{
-                                    fontSize: '0.7rem',
-                                    margin: '6px 0 0',
-                                    color: 'var(--text-muted)',
-                                    fontFamily: 'var(--font-mono)',
-                                }}>
-                                    {new Date(song.updatedAt || song.createdAt).toLocaleDateString('fr-FR')}
-                                </p>
-
-                                {/* Song Actions */}
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'flex-start',
-                                    gap: '0.35rem',
-                                    paddingTop: '0.6rem',
-                                    marginTop: '0.6rem',
-                                    borderTop: '1px solid var(--hairline)'
-                                }}>
-                                    <button
-                                        onClick={(e) => handleExportMidi(song, e)}
-                                        style={{
-                                            padding: '0.25rem 0.6rem',
-                                            background: 'transparent',
-                                            color: 'var(--text-secondary)',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: 'var(--r-sm)',
-                                            fontSize: '0.7rem',
-                                            fontFamily: 'inherit',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        MIDI
-                                    </button>
-                                    <button
-                                        onClick={(e) => handleDelete(song.id, e)}
-                                        style={{
-                                            padding: '0.25rem 0.6rem',
-                                            background: 'transparent',
-                                            color: 'var(--error)',
-                                            border: '1px solid var(--error)',
-                                            borderRadius: 'var(--r-sm)',
-                                            fontSize: '0.7rem',
-                                            fontFamily: 'inherit',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        Supprimer
-                                    </button>
-                                </div>
+            {songs.length > 0 && resumeItem && (
+                <section className={styles.dashboard} aria-label="Aperçu de votre progression">
+                    <div className={styles.resumeCard}>
+                        <div className={styles.resumeGlow} aria-hidden="true" />
+                        <div className={styles.resumeCopy}>
+                            <p className={styles.cardEyebrow}>{resumeItem.statistics.totalSessions ? 'Continuer votre progression' : 'Prêt à découvrir'}</p>
+                            <h2>{resumeItem.song.title || 'Sans titre'}</h2>
+                            <p>{resumeItem.song.artist || `${getFrenchKeyName(resumeItem.song.key)} · ${resumeItem.song.tempo || 120} BPM`}</p>
+                            <div className={styles.resumeMeta}>
+                                <span>{resumeItem.phraseCount} {resumeItem.phraseCount === 1 ? 'phrase' : 'phrases'}</span>
+                                <i />
+                                <span>{resumeItem.noteCount} notes</span>
+                                <i />
+                                <span>{formatRelativeDate(resumeItem.song.updatedAt || resumeItem.song.createdAt)}</span>
+                            </div>
+                            <div className={styles.resumeActions}>
+                                <button className={styles.primaryButton} onClick={() => learnSong?.(resumeItem.song.id)}><Icon kind="learn" /> Apprendre</button>
+                                <button className={styles.glassButton} onClick={() => onLoadSongToLivePlay?.(resumeItem.song.id)}><Icon kind="live" /> Live</button>
                             </div>
                         </div>
-                    ))}
-                </div>
+                        <div className={styles.resumeProgress}>
+                            <Cover id={resumeItem.song.id} title={resumeItem.song.title} size={90} />
+                            <div className={styles.ringWrap}>
+                                <ProgressRing value={resumeItem.progress / 100} size={54} stroke={4} />
+                                <strong>{resumeItem.progress || '—'}{resumeItem.progress > 0 && <small>%</small>}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={styles.statsPanel}>
+                        <LibraryStat icon="spark" value={summary.active} label="En cours" color="accent" />
+                        <LibraryStat icon="check" value={summary.mastered} label="Maîtrisés" color="success" />
+                        <LibraryStat icon="sessions" value={summary.sessions} label="Sessions" color="cyan" />
+                    </div>
+                </section>
             )}
 
-            {/* Mobile FAB with expandable menu */}
-            {isMobile && (
-                <div style={{
-                    position: 'fixed',
-                    bottom: 'calc(70px + var(--safe-bottom) + 16px)',
-                    right: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-end',
-                    gap: '0.75rem',
-                    zIndex: 50
-                }}>
-                    {showFabMenu && (
-                        <>
-                            <button
-                                onClick={() => { handleOpenLibraryModal(); setShowFabMenu(false); }}
-                                style={{
-                                    height: '44px',
-                                    borderRadius: '22px',
-                                    background: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border-color)',
-                                    color: 'var(--text-primary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0 1rem',
-                                    minHeight: 'unset',
-                                    boxShadow: 'var(--shadow-lg)',
-                                    fontSize: '0.875rem',
-                                    whiteSpace: 'nowrap'
-                                }}
-                            >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                    <polyline points="7 10 12 15 17 10" />
-                                    <line x1="12" y1="15" x2="12" y2="3" />
-                                </svg>
-                                Importer
+            <section className={styles.collection} aria-labelledby="collection-title">
+                <div className={styles.collectionTitle}>
+                    <div>
+                        <h2 id="collection-title">Vos morceaux</h2>
+                        <span>{filteredSongs.length} résultat{filteredSongs.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <label className={styles.searchField}>
+                        <span className="sr-only">Rechercher un morceau</span>
+                        <Icon kind="search" />
+                        <input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, artiste, tonalité, phrase…" type="search" />
+                        {query && <button onClick={() => setQuery('')} aria-label="Effacer la recherche"><Icon kind="close" /></button>}
+                        <kbd>⌘ K</kbd>
+                    </label>
+                </div>
+
+                <div className={styles.filtersRow}>
+                    <div className={styles.filterChips} role="group" aria-label="Filtrer la bibliothèque">
+                        {FILTERS.map((item) => (
+                            <button key={item.id} className={filter === item.id ? styles.filterActive : ''} onClick={() => setFilter(item.id)} aria-pressed={filter === item.id}>
+                                {item.label}
+                                {item.id !== 'all' && item.id !== 'major' && item.id !== 'minor' && (
+                                    <small>{enrichedSongs.filter((song) => song.status === item.id).length}</small>
+                                )}
                             </button>
-                            {onNewSong && (
-                                <button
-                                    onClick={() => { onNewSong(); setShowFabMenu(false); }}
-                                    style={{
-                                        height: '44px',
-                                        borderRadius: '22px',
-                                        background: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-color)',
-                                        color: 'var(--text-primary)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0 1rem',
-                                        minHeight: 'unset',
-                                        boxShadow: 'var(--shadow-lg)',
-                                        fontSize: '0.875rem',
-                                        whiteSpace: 'nowrap'
-                                    }}
-                                >
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                    </svg>
-                                    Nouveau
-                                </button>
-                            )}
-                        </>
-                    )}
-                    <button
-                        onClick={() => setShowFabMenu(!showFabMenu)}
-                        style={{
-                            width: '56px',
-                            height: '56px',
-                            borderRadius: '16px',
-                            background: 'var(--accent)',
-                            color: '#fff',
-                            border: 'none',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: 0,
-                            minHeight: 'unset',
-                            boxShadow: '0 8px 24px -4px var(--accent), 0 2px 6px rgba(0,0,0,0.3)',
-                            fontSize: '1.5rem',
-                            transform: showFabMenu ? 'rotate(45deg)' : 'none',
-                            transition: 'transform 0.2s ease',
-                            cursor: 'pointer',
-                        }}
-                        title="Actions"
-                    >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                    </button>
+                        ))}
+                    </div>
+                    <label className={styles.sortSelect}>
+                        <Icon kind="sort" />
+                        <span className="sr-only">Trier les morceaux</span>
+                        <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                            {SORTS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                        </select>
+                    </label>
                 </div>
-            )}
 
-            {/* Mobile Song Detail Sheet (design-aligned bottom sheet) */}
-            {actionSheetSong && isMobile && (
-                <SongDetailSheet
-                    song={actionSheetSong}
-                    onClose={() => setActionSheetSong(null)}
-                    onLearn={() => { onLoadSong(actionSheetSong.id); setActionSheetSong(null); }}
-                    onLivePlay={() => { (onLoadSongToLivePlay || onLoadSong)(actionSheetSong.id); setActionSheetSong(null); }}
-                    onDelete={() => { handleDelete(actionSheetSong.id, { stopPropagation: () => {} }); setActionSheetSong(null); }}
+                {songs.length === 0 ? (
+                    <EmptyLibrary onNewSong={onNewSong} onImport={() => setShowLibraryModal(true)} />
+                ) : filteredSongs.length === 0 ? (
+                    <div className={styles.noResults}>
+                        <span><Icon kind="search" /></span>
+                        <h3>Aucun morceau ne correspond</h3>
+                        <p>Essayez un autre terme ou affichez toute la bibliothèque.</p>
+                        <button onClick={() => { setQuery(''); setFilter('all'); }}>Réinitialiser les filtres</button>
+                    </div>
+                ) : (
+                    <div className={styles.songGrid}>
+                        {filteredSongs.map((item) => (
+                            <SongCard
+                                key={item.song.id}
+                                item={item}
+                                isMobile={isMobile}
+                                onOpen={() => openSong(item)}
+                                onLearn={() => learnSong?.(item.song.id)}
+                                onLive={() => onLoadSongToLivePlay?.(item.song.id)}
+                                onEdit={() => onEditSong?.(item.song.id)}
+                                onSheet={() => onViewSheet?.(item.song.id)}
+                                onMore={() => setDetailSong(item.song)}
+                            />
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {detailSong && (
+                <SongDetailDialog
+                    song={detailSong}
+                    data={enrichedSongs.find((item) => item.song.id === detailSong.id)}
+                    onClose={() => setDetailSong(null)}
+                    onLearn={() => { learnSong?.(detailSong.id); setDetailSong(null); }}
+                    onLive={() => { onLoadSongToLivePlay?.(detailSong.id); setDetailSong(null); }}
+                    onEdit={onEditSong ? () => { onEditSong(detailSong.id); setDetailSong(null); } : null}
+                    onSheet={onViewSheet ? () => { onViewSheet(detailSong.id); setDetailSong(null); } : null}
+                    onExport={() => handleExportMidi(detailSong)}
+                    onDelete={() => handleDelete(detailSong)}
                 />
             )}
 
-            {/* Library Import/Export Modal */}
             {showLibraryModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                    padding: '2rem'
-                }}
-                onClick={() => setShowLibraryModal(false)}
-                >
-                    <div
-                        className="card"
-                        style={{
-                            maxWidth: '800px',
-                            width: '100%',
-                            maxHeight: '85vh',
-                            overflow: 'auto',
-                            padding: '2rem'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <h2 style={{
-                            marginBottom: '2rem',
-                            fontSize: '1.5rem',
-                            fontWeight: '400'
-                        }}>
-                            Import / Export Bibliothèque
-                        </h2>
-
-                        {/* Merge Option */}
-                        <div style={{
-                            marginBottom: '2rem',
-                            padding: '1rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem'
-                        }}>
-                            <input
-                                type="checkbox"
-                                id="merge-library"
-                                checked={mergeOnImport}
-                                onChange={(e) => setMergeOnImport(e.target.checked)}
-                                style={{
-                                    width: '18px',
-                                    height: '18px',
-                                    cursor: 'pointer'
-                                }}
-                            />
-                            <label htmlFor="merge-library" style={{
-                                cursor: 'pointer',
-                                fontSize: '0.875rem',
-                                color: 'var(--text-primary)',
-                                fontWeight: '400'
-                            }}>
-                                Fusionner avec la bibliothèque existante
-                            </label>
-                        </div>
-
-                        {/* JSON Section */}
-                        <div style={{
-                            marginBottom: '2rem',
-                            padding: '1.5rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <h3 style={{
-                                marginBottom: '1rem',
-                                fontSize: '1.125rem',
-                                fontWeight: '500'
-                            }}>
-                                Export / Import JSON
-                            </h3>
-                            <p style={{
-                                color: 'var(--text-tertiary)',
-                                marginBottom: '1.25rem',
-                                fontSize: '0.875rem',
-                                lineHeight: '1.6',
-                                fontWeight: '300'
-                            }}>
-                                Format JSON pour sauvegarder toute votre bibliothèque
-                            </p>
-                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                <button
-                                    onClick={async () => {
-                                        const result = await StorageService.exportLibrary();
-                                        if (result.success && !result.cancelled) {
-                                            const message = result.path
-                                                ? `Bibliothèque exportée !\n${result.path}`
-                                                : 'Bibliothèque exportée !';
-                                            alert(message);
-                                        }
-                                    }}
-                                    style={{
-                                        background: 'var(--accent-success)',
-                                        color: 'white',
-                                        border: 'none'
-                                    }}
-                                >
-                                    Exporter JSON
-                                </button>
-                                <div style={{ position: 'relative', display: 'inline-block' }}>
-                                    <input
-                                        type="file"
-                                        accept=".json"
-                                        onChange={handleImportLibraryJson}
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: '100%',
-                                            opacity: 0,
-                                            cursor: 'pointer',
-                                            zIndex: 10
-                                        }}
-                                    />
-                                    <button>
-                                        Importer JSON
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* MIDI Section */}
-                        <div style={{
-                            marginBottom: '2rem',
-                            padding: '1.5rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem', fontWeight: '500' }}>
-                                Import MIDI
-                            </h3>
-                            <p style={{
-                                color: 'var(--text-tertiary)',
-                                marginBottom: '1.25rem',
-                                fontSize: '0.875rem',
-                                lineHeight: '1.6',
-                                fontWeight: '300'
-                            }}>
-                                Importer un fichier .mid pour créer un nouveau morceau dans la bibliothèque
-                            </p>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                                <div style={{ position: 'relative', display: 'inline-block' }}>
-                                    <input
-                                        type="file"
-                                        accept=".mid,.midi"
-                                        onChange={handleImportMidi}
-                                        disabled={midiImportStatus === 'loading'}
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0, left: 0,
-                                            width: '100%', height: '100%',
-                                            opacity: 0,
-                                            cursor: midiImportStatus === 'loading' ? 'not-allowed' : 'pointer',
-                                            zIndex: 10
-                                        }}
-                                    />
-                                    <button disabled={midiImportStatus === 'loading'}>
-                                        {midiImportStatus === 'loading' ? 'Import...' : 'Importer MIDI'}
-                                    </button>
-                                </div>
-                                {midiImportStatus === 'success' && (
-                                    <span style={{ color: 'var(--accent-success)', fontSize: '0.875rem' }}>Importé !</span>
-                                )}
-                                {midiImportStatus === 'error' && (
-                                    <span style={{ color: 'var(--accent-danger)', fontSize: '0.875rem' }}>Erreur d'import</span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Close Button */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-                            <button onClick={() => setShowLibraryModal(false)}>
-                                Fermer
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <LibraryTransferDialog
+                    merge={mergeOnImport}
+                    setMerge={setMergeOnImport}
+                    midiStatus={midiImportStatus}
+                    onClose={() => setShowLibraryModal(false)}
+                    onImportMidi={handleImportMidi}
+                    onImportLibrary={handleImportLibrary}
+                    onExportLibrary={async () => {
+                        const result = await StorageService.exportLibrary();
+                        if (result.success && !result.cancelled && result.path) alert(`Bibliothèque exportée !\n${result.path}`);
+                    }}
+                />
             )}
         </div>
     );
 }
 
-// ── SongDetailSheet — design-aligned bottom sheet ────────────────────────────
-function SongDetailSheet({ song, onClose, onLearn, onLivePlay, onDelete }) {
-    const phraseCount = song?.phrases?.length || 0;
-    const created = song?.createdAt ? new Date(song.createdAt).toLocaleDateString('fr-FR') : null;
+function SongCard({ item, isMobile, onOpen, onLearn, onLive, onEdit, onSheet, onMore }) {
+    const { song, phraseCount, noteCount, progress, status } = item;
     return (
-        <div
-            onClick={onClose}
-            style={{
-                position: 'fixed', inset: 0,
-                background: 'rgba(0, 0, 0, 0.55)',
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
-                display: 'flex', alignItems: 'flex-end',
-                zIndex: 1000,
-                animation: 'design-fadeIn 220ms var(--ease-out)',
-            }}
-        >
-            <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                    background: 'var(--surface-1)',
-                    borderRadius: 'var(--r-xl) var(--r-xl) 0 0',
-                    width: '100%',
-                    padding: '12px 20px calc(20px + var(--safe-bottom))',
-                    maxHeight: '85%',
-                    overflowY: 'auto',
-                    border: '1px solid var(--border)',
-                    animation: 'design-slideUp 280ms var(--ease-out)',
-                }}
-            >
-                {/* Drag handle */}
-                <div style={{
-                    width: 40, height: 4, background: 'var(--border-strong)',
-                    borderRadius: 999, margin: '0 auto 16px',
-                }} />
+        <article className={styles.songCard}>
+            <button className={styles.songMain} onClick={onOpen} aria-label={`${isMobile ? 'Ouvrir' : 'Apprendre'} ${song.title}`}>
+                <Cover id={song.id} title={song.title} size={64} />
+                <span className={styles.songCopy}>
+                    <span className={styles.songTitleRow}>
+                        <strong>{song.title || 'Sans titre'}</strong>
+                        <StatusBadge status={status} />
+                    </span>
+                    <small className={styles.artist}>{song.artist || 'Artiste inconnu'}</small>
+                    <span className={styles.metadata}>
+                        <em>{getFrenchKeyName(song.key)}</em>
+                        <i>{song.tempo || 120} BPM</i>
+                        <i>{song.timeSignature?.numerator || 4}/{song.timeSignature?.denominator || 4}</i>
+                    </span>
+                </span>
+                <span className={styles.cardProgress}>
+                    <ProgressRing value={progress / 100} size={40} stroke={3} />
+                    <strong>{progress ? `${progress}%` : '—'}</strong>
+                </span>
+            </button>
 
-                {/* Hero — cover + title + artist */}
-                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                    <Cover id={song.id} title={song.title} size={72} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{
-                            fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em',
-                            color: 'var(--text-primary)',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>{song.title || 'Sans titre'}</div>
-                        <div style={{
-                            fontSize: 13, color: 'var(--text-secondary)', marginTop: 2,
-                        }}>{song.artist || 'Artiste inconnu'}</div>
-                    </div>
-                </div>
+            <div className={styles.songDetails}>
+                <span><Icon kind="phrases" /> {phraseCount} phrase{phraseCount !== 1 ? 's' : ''}</span>
+                <span><Icon kind="notes" /> {noteCount} notes</span>
+                <span className={styles.updated}>{formatRelativeDate(song.updatedAt || song.createdAt)}</span>
+            </div>
 
-                {/* Stats grid */}
-                <div style={{
-                    marginTop: 18,
-                    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-                    background: 'var(--surface-2)',
-                    borderRadius: 'var(--r-md)',
-                    padding: '10px 4px',
-                }}>
-                    <SheetStat label="Phrases" value={phraseCount} />
-                    <SheetStat label="Tempo" value={song.tempo} unit="bpm" divider />
-                    <SheetStat label="Tonalité" value={getFrenchKeyName(song.key).split(' ')[0]} divider />
-                </div>
+            <div className={styles.songActions}>
+                <button className={styles.learnButton} onClick={onLearn}><Icon kind="learn" /> Apprendre</button>
+                <button onClick={onLive} aria-label={`Jouer ${song.title} en Live`} title="Live"><Icon kind="live" /></button>
+                {onEdit && <button onClick={onEdit} aria-label={`Éditer ${song.title}`} title="Éditeur"><Icon kind="edit" /></button>}
+                {onSheet && <button onClick={onSheet} aria-label={`Voir la partition de ${song.title}`} title="Partition"><Icon kind="score" /></button>}
+                <button onClick={onMore} aria-label={`Plus d’actions pour ${song.title}`} title="Plus d’actions"><Icon kind="more" /></button>
+            </div>
+        </article>
+    );
+}
 
-                {created && (
-                    <div style={{
-                        marginTop: 10,
-                        fontSize: 11, color: 'var(--text-tertiary)',
-                        fontFamily: 'var(--font-mono)',
-                        textAlign: 'center',
-                    }}>
-                        Créé le {created}
-                    </div>
-                )}
+function StatusBadge({ status }) {
+    const labels = { new: 'Nouveau', active: 'En cours', mastered: 'Maîtrisé' };
+    return <span className={`${styles.statusBadge} ${styles[`status_${status}`]}`}>{labels[status]}</span>;
+}
 
-                {/* Action buttons */}
-                <div style={{
-                    marginTop: 16,
-                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
-                }}>
-                    <ActionBtn onClick={onLearn} primary label="Apprendre" icon={<ActionIcon kind="learn" />} />
-                    <ActionBtn onClick={onLivePlay} label="LivePlay" icon={<ActionIcon kind="liveplay" />} />
-                </div>
+function LibraryStat({ icon, value, label, color }) {
+    return (
+        <div className={styles.libraryStat} data-color={color}>
+            <span><Icon kind={icon} /></span>
+            <p><strong>{value}</strong><small>{label}</small></p>
+        </div>
+    );
+}
 
-                <button
-                    onClick={onDelete}
-                    style={{
-                        marginTop: 10,
-                        width: '100%',
-                        padding: '12px',
-                        background: 'transparent',
-                        color: 'var(--error)',
-                        border: '1px solid var(--error)',
-                        borderRadius: 'var(--r-md)',
-                        fontSize: 13,
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                    }}
-                >
-                    Supprimer
-                </button>
-
-                <button
-                    onClick={onClose}
-                    style={{
-                        marginTop: 8,
-                        width: '100%',
-                        padding: '12px',
-                        background: 'transparent',
-                        color: 'var(--text-secondary)',
-                        border: 'none',
-                        fontSize: 13,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                    }}
-                >
-                    Annuler
-                </button>
+function EmptyLibrary({ onNewSong, onImport }) {
+    return (
+        <div className={styles.emptyLibrary}>
+            <div className={styles.emptyKeys} aria-hidden="true"><i /><i /><i /><i /><i /></div>
+            <p className={styles.cardEyebrow}>Premier morceau</p>
+            <h2>Construisez votre répertoire</h2>
+            <p>Importez un fichier MIDI ou créez un morceau pour commencer à travailler phrase par phrase.</p>
+            <div>
+                <button className={styles.primaryButton} onClick={onImport}><Icon kind="transfer" /> Importer un MIDI</button>
+                {onNewSong && <button className={styles.secondaryButton} onClick={onNewSong}><Icon kind="plus" /> Créer un morceau</button>}
             </div>
         </div>
     );
 }
 
-function SheetStat({ label, value, unit, divider }) {
+function SongDetailDialog({ song, data, onClose, onLearn, onLive, onEdit, onSheet, onExport, onDelete }) {
+    const dialogRef = useDialogFocus();
     return (
-        <div style={{
-            textAlign: 'center',
-            borderLeft: divider ? '1px solid var(--border)' : 'none',
-            padding: '2px 0',
-        }}>
-            <div style={{
-                fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 16,
-                color: 'var(--text-primary)',
-            }}>
-                {value}
-                {unit && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 1 }}>{unit}</span>}
-            </div>
-            <div style={{
-                fontSize: 9, color: 'var(--text-tertiary)',
-                textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2,
-            }}>{label}</div>
+        <div className={styles.dialogOverlay} onMouseDown={onClose}>
+            <section ref={dialogRef} tabIndex="-1" className={styles.detailDialog} role="dialog" aria-modal="true" aria-labelledby="song-detail-title" onMouseDown={(event) => event.stopPropagation()}>
+                <div className={styles.sheetHandle} aria-hidden="true" />
+                <button className={styles.dialogClose} onClick={onClose} aria-label="Fermer"><Icon kind="close" /></button>
+                <div className={styles.detailHero}>
+                    <Cover id={song.id} title={song.title} size={78} />
+                    <div><StatusBadge status={data?.status || 'new'} /><h2 id="song-detail-title">{song.title || 'Sans titre'}</h2><p>{song.artist || 'Artiste inconnu'}</p></div>
+                </div>
+                <div className={styles.detailStats}>
+                    <span><strong>{data?.phraseCount || 0}</strong><small>Phrases</small></span>
+                    <span><strong>{song.tempo || 120}</strong><small>BPM</small></span>
+                    <span><strong>{data?.progress ? `${data.progress}%` : '—'}</strong><small>Précision</small></span>
+                </div>
+                <div className={styles.detailMetadata}><span>{getFrenchKeyName(song.key)}</span><span>{song.timeSignature?.numerator || 4}/{song.timeSignature?.denominator || 4}</span><span>{data?.noteCount || 0} notes</span></div>
+                <div className={styles.detailActions}>
+                    <button className={styles.primaryButton} onClick={onLearn}><Icon kind="learn" /> Apprendre</button>
+                    <button onClick={onLive}><Icon kind="live" /> Live</button>
+                    {onEdit && <button onClick={onEdit}><Icon kind="edit" /> Éditer</button>}
+                    {onSheet && <button onClick={onSheet}><Icon kind="score" /> Partition</button>}
+                </div>
+                <div className={styles.detailUtilities}>
+                    <button onClick={onExport}><Icon kind="download" /> Exporter en MIDI</button>
+                    <button className={styles.deleteButton} onClick={onDelete}><Icon kind="trash" /> Supprimer</button>
+                </div>
+            </section>
         </div>
     );
 }
 
-function ActionBtn({ icon, label, primary, onClick }) {
+function LibraryTransferDialog({ merge, setMerge, midiStatus, onClose, onImportMidi, onImportLibrary, onExportLibrary }) {
+    const dialogRef = useDialogFocus();
     return (
-        <button onClick={onClick} style={{
-            padding: '14px 6px',
-            borderRadius: 'var(--r-md)',
-            background: primary ? 'var(--accent)' : 'var(--surface-2)',
-            color: primary ? '#fff' : 'var(--text-primary)',
-            border: primary ? 'none' : '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-            fontSize: 12, fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-        }}>
-            {icon}
-            <span>{label}</span>
-        </button>
+        <div className={styles.dialogOverlay} onMouseDown={onClose}>
+            <section ref={dialogRef} tabIndex="-1" className={styles.transferDialog} role="dialog" aria-modal="true" aria-labelledby="transfer-title" onMouseDown={(event) => event.stopPropagation()}>
+                <header>
+                    <div><p className={styles.cardEyebrow}>Votre répertoire</p><h2 id="transfer-title">Importer et sauvegarder</h2><p>Les formats MIDI créent un morceau. Le format JSON conserve toute votre bibliothèque.</p></div>
+                    <button className={styles.dialogClose} onClick={onClose} aria-label="Fermer"><Icon kind="close" /></button>
+                </header>
+                <div className={styles.transferGrid}>
+                    <div className={styles.transferCard}>
+                        <span className={styles.transferIcon}><Icon kind="notes" /></span>
+                        <div><h3>Ajouter un morceau MIDI</h3><p>Analyse automatiquement les notes, le tempo, la mesure et les pistes.</p></div>
+                        <label className={styles.fileButton}>
+                            <input type="file" accept=".mid,.midi" onChange={onImportMidi} disabled={midiStatus === 'loading'} />
+                            <Icon kind="transfer" /> {midiStatus === 'loading' ? 'Analyse…' : 'Choisir un MIDI'}
+                        </label>
+                        {midiStatus && midiStatus !== 'loading' && <p className={`${styles.importStatus} ${midiStatus === 'error' ? styles.importError : ''}`} role="status">{midiStatus === 'success' ? 'Morceau ajouté à la bibliothèque.' : 'Le fichier MIDI n’a pas pu être importé.'}</p>}
+                    </div>
+                    <div className={styles.transferCard}>
+                        <span className={styles.transferIcon}><Icon kind="library" /></span>
+                        <div><h3>Bibliothèque Piano Teacher</h3><p>Restaurez une sauvegarde JSON ou conservez-en une copie locale.</p></div>
+                        <label className={styles.mergeOption}><input type="checkbox" checked={merge} onChange={(event) => setMerge(event.target.checked)} /><span><strong>Fusionner à l’import</strong><small>Conserve les morceaux déjà présents</small></span></label>
+                        <div className={styles.transferActions}>
+                            <label className={styles.fileButton}><input type="file" accept=".json" onChange={onImportLibrary} /><Icon kind="upload" /> Importer JSON</label>
+                            <button onClick={onExportLibrary}><Icon kind="download" /> Exporter JSON</button>
+                        </div>
+                    </div>
+                </div>
+                <div className={styles.localNotice}><Icon kind="shield" /><p><strong>Stockage local</strong><span>Vos morceaux ne quittent pas cet appareil, sauf si vous exportez volontairement un fichier.</span></p></div>
+            </section>
+        </div>
     );
 }
 
-function ActionIcon({ kind }) {
-    if (kind === 'learn') {
-        return (
-            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="14" width="4" height="8" rx="0.5"/>
-                <rect x="7" y="10" width="3" height="12" rx="0.5"/>
-                <rect x="11" y="14" width="4" height="8" rx="0.5"/>
-                <rect x="16" y="10" width="3" height="12" rx="0.5"/>
-                <rect x="20" y="14" width="4" height="8" rx="0.5"/>
-                <circle cx="12" cy="5" r="2"/>
-                <path d="M10 5l-3 3"/>
-                <path d="M14 5l3 3"/>
-            </svg>
-        );
-    }
-    // liveplay
-    return (
-        <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="20" height="18" rx="2"/>
-            <path d="M8 3v12"/>
-            <path d="M16 3v12"/>
-            <rect x="2" y="15" width="20" height="6"/>
-            <path d="M6 15v6"/>
-            <path d="M10 15v6"/>
-            <path d="M14 15v6"/>
-            <path d="M18 15v6"/>
-        </svg>
-    );
+function Icon({ kind }) {
+    const props = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+    if (kind === 'search') return <svg {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>;
+    if (kind === 'close') return <svg {...props}><path d="m6 6 12 12M18 6 6 18" /></svg>;
+    if (kind === 'plus') return <svg {...props}><path d="M12 5v14M5 12h14" /></svg>;
+    if (kind === 'transfer') return <svg {...props}><path d="M12 3v12M8 7l4-4 4 4M5 21h14a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2" /></svg>;
+    if (kind === 'sort') return <svg {...props}><path d="M4 7h12M4 12h9M4 17h6M18 14v7M15 18l3 3 3-3" /></svg>;
+    if (kind === 'learn') return <svg {...props}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /><path d="m10 8 5 3-5 3z" /></svg>;
+    if (kind === 'live') return <svg {...props}><path d="M3 12h3l2-6 4 12 2-6h7" /></svg>;
+    if (kind === 'edit') return <svg {...props}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4" /></svg>;
+    if (kind === 'score') return <svg {...props}><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4" /><path d="M11 6v4" /></svg>;
+    if (kind === 'more') return <svg {...props}><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></svg>;
+    if (kind === 'phrases') return <svg {...props}><path d="M4 5h16M4 12h11M4 19h7" /></svg>;
+    if (kind === 'notes') return <svg {...props}><path d="M9 18V5l10-2v13M9 8l10-2" /><circle cx="6" cy="18" r="3" /><circle cx="16" cy="16" r="3" /></svg>;
+    if (kind === 'spark') return <svg {...props}><path d="m12 3 1.2 4.8L18 9l-4.8 1.2L12 15l-1.2-4.8L6 9l4.8-1.2zM18 15l.6 2.4L21 18l-2.4.6L18 21l-.6-2.4L15 18l2.4-.6z" /></svg>;
+    if (kind === 'check') return <svg {...props}><path d="m5 12 4 4L19 6" /></svg>;
+    if (kind === 'sessions') return <svg {...props}><path d="M4 18V9M9 18V5M14 18v-7M19 18V3" /></svg>;
+    if (kind === 'download') return <svg {...props}><path d="M12 3v12M8 11l4 4 4-4M5 21h14" /></svg>;
+    if (kind === 'upload') return <svg {...props}><path d="M12 16V4M8 8l4-4 4 4M5 20h14" /></svg>;
+    if (kind === 'trash') return <svg {...props}><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></svg>;
+    if (kind === 'library') return <svg {...props}><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22zM4 4.5v15M9 7h7M9 11h5" /></svg>;
+    if (kind === 'shield') return <svg {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-5" /></svg>;
+    return null;
+}
+
+function normalizeText(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function getTimestamp(song) {
+    const date = new Date(song.updatedAt || song.createdAt || 0).getTime();
+    return Number.isNaN(date) ? 0 : date;
+}
+
+function formatRelativeDate(value) {
+    if (!value) return 'Date inconnue';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Date inconnue';
+    const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+    if (days <= 0) return 'Aujourd’hui';
+    if (days === 1) return 'Hier';
+    if (days < 7) return `Il y a ${days} jours`;
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }

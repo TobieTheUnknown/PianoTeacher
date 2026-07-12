@@ -2,8 +2,11 @@ package com.tobietheunknown.pianoteacher.ui.theme
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -13,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,8 +46,6 @@ fun DesignAppearanceSection(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        SectionLabel("Apparence")
-
         // Thème row
         PickerRow(label = "Thème") {
             ThemeSwatch(
@@ -63,6 +67,7 @@ fun DesignAppearanceSection(
         PickerRow(label = "Couleur d'accent") {
             AllAccents.forEach { a ->
                 AccentDot(
+                    label = a.key,
                     color = a.color,
                     selected = accent.key == a.key,
                     onClick = { ThemeState.setAccent(context, a) },
@@ -94,19 +99,7 @@ private fun handLabel(key: String): String = when (key) {
     else -> key
 }
 
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text.uppercase(),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        color = Color(0xFF6B7280),
-        letterSpacing = 0.08.em,
-    )
-}
-
-private val Double.em get() = this.sp.value.let { androidx.compose.ui.unit.TextUnit(it.toFloat(), androidx.compose.ui.unit.TextUnitType.Em) }
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PickerRow(
     label: String,
@@ -118,19 +111,20 @@ private fun PickerRow(
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFFA8AEBD),
+            color = TextSecondary,
         )
         if (wrap) {
-            // 3 columns flow
-            val items = mutableListOf<@Composable () -> Unit>()
-            Row(
+            FlowRow(
+                modifier = Modifier.selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                maxItemsInEachRow = 3,
             ) {
                 content()
             }
         } else {
             Row(
+                modifier = Modifier.selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -158,7 +152,11 @@ private fun ThemeSwatch(
                 color = if (selected) accent.color else Color.Transparent,
                 shape = RoundedCornerShape(10.dp),
             )
-            .clickable(onClick = onClick)
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.RadioButton,
+            )
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -177,29 +175,44 @@ private fun ThemeSwatch(
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (selected) accent.color else Color(0xFFA8AEBD),
+            color = if (selected) accent.color else TextSecondary,
         )
     }
 }
 
 @Composable
 private fun AccentDot(
+    label: String,
     color: Color,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(48.dp)
             .clip(CircleShape)
-            .background(color)
-            .border(
-                width = if (selected) 3.dp else 0.dp,
-                color = if (selected) Color(0xFFE8EAF0) else Color.Transparent,
-                shape = CircleShape,
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.RadioButton,
             )
-            .clickable(onClick = onClick)
-    )
+            .semantics {
+                contentDescription = "Couleur d’accent $label"
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(color)
+                .border(
+                    width = if (selected) 3.dp else 0.dp,
+                    color = if (selected) TextPrimary else Color.Transparent,
+                    shape = CircleShape,
+                )
+        )
+    }
 }
 
 @Composable
@@ -220,7 +233,11 @@ private fun HandSwatch(
                 color = if (selected) accent.color else Color.Transparent,
                 shape = RoundedCornerShape(10.dp),
             )
-            .clickable(onClick = onClick)
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.RadioButton,
+            )
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -243,7 +260,7 @@ private fun HandSwatch(
             text = label,
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (selected) accent.color else Color(0xFFA8AEBD),
+            color = if (selected) accent.color else TextSecondary,
         )
     }
 }
