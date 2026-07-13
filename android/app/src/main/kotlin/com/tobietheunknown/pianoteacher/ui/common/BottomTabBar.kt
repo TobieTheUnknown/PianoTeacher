@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Piano
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -30,15 +31,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tobietheunknown.pianoteacher.ui.theme.*
 
-/** Stable top-level destinations. Partition and Editor deliberately remain
- * contextual actions of a song instead of competing for scarce navigation. */
-enum class AppTab { LIBRARY, LEARN, LIVEPLAY, SETTINGS }
+/** Stable top-level destinations. Editor remains a contextual song action. */
+enum class AppTab { LIBRARY, LEARN, PARTITION, LIVEPLAY, SETTINGS }
 
 data class TabItem(val tab: AppTab, val label: String, val icon: ImageVector)
 
 private val TABS = listOf(
     TabItem(AppTab.LIBRARY, "Bibliothèque", Icons.AutoMirrored.Filled.LibraryBooks),
-    TabItem(AppTab.LEARN, "Apprendre", Icons.Default.School),
+    TabItem(AppTab.PARTITION, "Partition", Icons.Default.QueueMusic),
+    TabItem(AppTab.LEARN, "Coach", Icons.Default.School),
     TabItem(AppTab.LIVEPLAY, "Live", Icons.Default.GraphicEq),
     TabItem(AppTab.SETTINGS, "Réglages", Icons.Default.Settings),
 )
@@ -51,11 +52,15 @@ fun AdaptiveNavigationFrame(
     content: @Composable BoxScope.() -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val useRail = maxWidth >= 720.dp
+        val useRail = maxWidth >= 720.dp && maxHeight >= 520.dp
         when {
             !showNavigation -> Box(Modifier.fillMaxSize(), content = content)
             useRail -> Row(Modifier.fillMaxSize()) {
-                StudioNavigationRail(active = active, onSelect = onSelect)
+                StudioNavigationRail(
+                    active = active,
+                    onSelect = onSelect,
+                    compact = maxHeight < 620.dp,
+                )
                 Box(Modifier.weight(1f).fillMaxHeight(), content = content)
             }
             else -> Column(Modifier.fillMaxSize()) {
@@ -66,35 +71,42 @@ fun AdaptiveNavigationFrame(
     }
 }
 
-/** Phone navigation: four clear targets, 48dp minimum tap areas and safe-area support. */
+/** Phone navigation: five clear targets, compact labels and safe-area support. */
 @Composable
 fun BottomTabBar(
     active: AppTab,
     onSelect: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .background(Surface1)
-            .navigationBarsPadding()
-            .height(68.dp)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .navigationBarsPadding(),
     ) {
-        TABS.forEach { item ->
-            NavigationItem(
-                item = item,
-                selected = item.tab == active,
-                onClick = { onSelect(item.tab) },
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
+        val compactLabels = maxWidth < 380.dp
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(68.dp)
+                .padding(horizontal = 4.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            TABS.forEach { item ->
+                NavigationItem(
+                    item = item,
+                    selected = item.tab == active,
+                    onClick = { onSelect(item.tab) },
+                    compactLabel = compactLabels,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun StudioNavigationRail(active: AppTab, onSelect: (AppTab) -> Unit) {
+private fun StudioNavigationRail(active: AppTab, onSelect: (AppTab) -> Unit, compact: Boolean) {
     Column(
         modifier = Modifier
             .width(96.dp)
@@ -113,7 +125,7 @@ private fun StudioNavigationRail(active: AppTab, onSelect: (AppTab) -> Unit) {
         ) {
             Icon(Icons.Default.Piano, contentDescription = "Piano Teacher", tint = IndigoAccent)
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(if (compact) 12.dp else 20.dp))
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center,
@@ -123,9 +135,10 @@ private fun StudioNavigationRail(active: AppTab, onSelect: (AppTab) -> Unit) {
                     item = item,
                     selected = item.tab == active,
                     onClick = { onSelect(item.tab) },
-                    modifier = Modifier.fillMaxWidth().height(72.dp),
+                    compactLabel = compact,
+                    modifier = Modifier.fillMaxWidth().height(if (compact) 58.dp else 66.dp),
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(if (compact) 2.dp else 4.dp))
             }
         }
     }
@@ -136,6 +149,7 @@ private fun NavigationItem(
     item: TabItem,
     selected: Boolean,
     onClick: () -> Unit,
+    compactLabel: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -168,10 +182,15 @@ private fun NavigationItem(
                 modifier = Modifier.size(21.dp),
             )
         }
+        val displayLabel = when {
+            item.tab == AppTab.LIBRARY -> "Biblio"
+            compactLabel && item.tab == AppTab.PARTITION -> "Part."
+            else -> item.label
+        }
         Text(
-            text = if (item.tab == AppTab.LIBRARY) "Biblio" else item.label,
+            text = displayLabel,
             color = if (selected) IndigoAccent else TextTertiary,
-            fontSize = 10.sp,
+            fontSize = if (compactLabel) 9.sp else 10.sp,
             lineHeight = 12.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,

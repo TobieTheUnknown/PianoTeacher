@@ -1396,13 +1396,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
 
             {/* Universal PlaybackDock — fixed to viewport bottom on
                 desktop, and just above the bottom tab bar on mobile. */}
-            <div style={{
-                position: 'fixed',
-                bottom: isMobile ? 64 : 0,
-                left: 0,
-                right: 0,
-                zIndex: 1000,
-            }}>
+            <div className="workspace-playback">
                     <PlaybackDock
                         playing={isPlaying}
                         onPlayPause={handlePlayPause}

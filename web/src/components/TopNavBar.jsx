@@ -1,13 +1,15 @@
 import React from 'react';
 import { LibraryIcon } from './icons/LibraryIcon';
+import { PartitionIcon } from './icons/PartitionIcon';
 import { LearnIcon } from './icons/LearnIcon';
 import { LivePlayIcon } from './icons/LivePlayIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import styles from './TopNavBar.module.css';
 
 const NAV_ITEMS = [
-  { id: 'library', label: 'Bibliothèque', icon: LibraryIcon },
-  { id: 'learn', label: 'Apprendre', icon: LearnIcon },
+  { id: 'library', label: 'Studio', icon: LibraryIcon },
+  { id: 'sheet', label: 'Partition', icon: PartitionIcon },
+  { id: 'learn', label: 'Coach', icon: LearnIcon },
   { id: 'liveplay', label: 'Live', icon: LivePlayIcon },
 ];
 
@@ -17,7 +19,7 @@ export function TopNavBar({ activeMode, onChangeMode, showSettings, onOpenSettin
       <button className={styles.brand} onClick={() => onChangeMode('library')} aria-label="Piano Teacher — Bibliothèque">
         <span className={styles.brandMark} aria-hidden="true"><i /><i /><i /><i /></span>
         <span className={styles.brandName}><strong>Piano</strong> Teacher</span>
-        <span className={styles.localBadge}>STUDIO</span>
+        <span className={styles.localBadge}>WORKSPACE</span>
       </button>
 
       <div className={styles.navBarInner}>

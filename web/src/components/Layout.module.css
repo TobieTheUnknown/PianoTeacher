@@ -51,3 +51,12 @@
   .inner { padding: var(--safe-top) 0 calc(68px + var(--safe-bottom)); }
   .inner > main { min-height: calc(100dvh - 68px - var(--safe-bottom)); padding-bottom: 0 !important; }
 }
+
+@media (min-width: 1100px) {
+  .inner {
+    padding-top: calc(var(--safe-top) + var(--s-6));
+    padding-left: 252px;
+  }
+
+  .inner > main { min-height: calc(100dvh - 48px); }
+}

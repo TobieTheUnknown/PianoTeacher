@@ -211,7 +211,7 @@ export function SongLibrary({
 
     const openSong = (item) => {
         if (isMobile) setDetailSong(item.song);
-        else learnSong?.(item.song.id);
+        else onViewSheet?.(item.song.id);
     };
 
     return (
@@ -254,7 +254,8 @@ export function SongLibrary({
                                 <span>{formatRelativeDate(resumeItem.song.updatedAt || resumeItem.song.createdAt)}</span>
                             </div>
                             <div className={styles.resumeActions}>
-                                <button className={styles.primaryButton} onClick={() => learnSong?.(resumeItem.song.id)}><Icon kind="learn" /> Apprendre</button>
+                                <button className={styles.primaryButton} onClick={() => onViewSheet?.(resumeItem.song.id)}><Icon kind="score" /> Ouvrir la partition</button>
+                                <button className={styles.glassButton} onClick={() => learnSong?.(resumeItem.song.id)}><Icon kind="learn" /> Coach</button>
                                 <button className={styles.glassButton} onClick={() => onLoadSongToLivePlay?.(resumeItem.song.id)}><Icon kind="live" /> Live</button>
                             </div>
                         </div>
@@ -374,7 +375,7 @@ function SongCard({ item, isMobile, onOpen, onLearn, onLive, onEdit, onSheet, on
     const { song, phraseCount, noteCount, progress, status } = item;
     return (
         <article className={styles.songCard}>
-            <button className={styles.songMain} onClick={onOpen} aria-label={`${isMobile ? 'Ouvrir' : 'Apprendre'} ${song.title}`}>
+            <button className={styles.songMain} onClick={onOpen} aria-label={`${isMobile ? 'Ouvrir les détails de' : 'Ouvrir la partition de'} ${song.title}`}>
                 <Cover id={song.id} title={song.title} size={64} />
                 <span className={styles.songCopy}>
                     <span className={styles.songTitleRow}>
@@ -401,10 +402,10 @@ function SongCard({ item, isMobile, onOpen, onLearn, onLive, onEdit, onSheet, on
             </div>
 
             <div className={styles.songActions}>
-                <button className={styles.learnButton} onClick={onLearn}><Icon kind="learn" /> Apprendre</button>
+                {onSheet && <button className={styles.learnButton} onClick={onSheet}><Icon kind="score" /> Partition</button>}
+                <button onClick={onLearn} aria-label={`Ouvrir le coach pour ${song.title}`} title="Coach"><Icon kind="learn" /></button>
                 <button onClick={onLive} aria-label={`Jouer ${song.title} en Live`} title="Live"><Icon kind="live" /></button>
                 {onEdit && <button onClick={onEdit} aria-label={`Éditer ${song.title}`} title="Éditeur"><Icon kind="edit" /></button>}
-                {onSheet && <button onClick={onSheet} aria-label={`Voir la partition de ${song.title}`} title="Partition"><Icon kind="score" /></button>}
                 <button onClick={onMore} aria-label={`Plus d’actions pour ${song.title}`} title="Plus d’actions"><Icon kind="more" /></button>
             </div>
         </article>
@@ -458,10 +459,10 @@ function SongDetailDialog({ song, data, onClose, onLearn, onLive, onEdit, onShee
                 </div>
                 <div className={styles.detailMetadata}><span>{getFrenchKeyName(song.key)}</span><span>{song.timeSignature?.numerator || 4}/{song.timeSignature?.denominator || 4}</span><span>{data?.noteCount || 0} notes</span></div>
                 <div className={styles.detailActions}>
-                    <button className={styles.primaryButton} onClick={onLearn}><Icon kind="learn" /> Apprendre</button>
+                    {onSheet && <button className={styles.primaryButton} onClick={onSheet}><Icon kind="score" /> Partition</button>}
+                    <button onClick={onLearn}><Icon kind="learn" /> Coach</button>
                     <button onClick={onLive}><Icon kind="live" /> Live</button>
                     {onEdit && <button onClick={onEdit}><Icon kind="edit" /> Éditer</button>}
-                    {onSheet && <button onClick={onSheet}><Icon kind="score" /> Partition</button>}
                 </div>
                 <div className={styles.detailUtilities}>
                     <button onClick={onExport}><Icon kind="download" /> Exporter en MIDI</button>

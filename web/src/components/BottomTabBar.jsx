@@ -1,5 +1,6 @@
 import React from 'react';
 import { LibraryIcon } from './icons/LibraryIcon';
+import { PartitionIcon } from './icons/PartitionIcon';
 import { LearnIcon } from './icons/LearnIcon';
 import { LivePlayIcon } from './icons/LivePlayIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
@@ -7,7 +8,8 @@ import styles from './BottomTabBar.module.css';
 
 const TABS = [
   { id: 'library', label: 'Biblio', Icon: LibraryIcon },
-  { id: 'learn', label: 'Apprendre', Icon: LearnIcon },
+  { id: 'sheet', label: 'Partition', Icon: PartitionIcon },
+  { id: 'learn', label: 'Coach', Icon: LearnIcon },
   { id: 'liveplay', label: 'Live', Icon: LivePlayIcon },
   { id: 'settings', label: 'Réglages', Icon: SettingsIcon },
 ];

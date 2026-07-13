@@ -70,9 +70,9 @@ fun AppNavHost(intent: Intent? = null) {
         when {
             currentRoute == Screen.Library.route -> AppTab.LIBRARY
             currentRoute?.startsWith("liveplay") == true -> AppTab.LIVEPLAY
-            currentRoute?.startsWith("learning") == true ||
-                currentRoute?.startsWith("livelearning") == true ||
-                currentRoute?.startsWith("editor") == true -> AppTab.LEARN
+            currentRoute?.startsWith("learning") == true -> AppTab.PARTITION
+            currentRoute?.startsWith("livelearning") == true -> AppTab.LEARN
+            currentRoute?.startsWith("editor") == true -> AppTab.LIBRARY
             currentRoute == Screen.Settings.route -> AppTab.SETTINGS
             else -> AppTab.LIBRARY
         }
@@ -90,6 +90,13 @@ fun AppNavHost(intent: Intent? = null) {
         }
     }
 
+    fun navigateTopLevel(route: String) {
+        navController.navigate(route) {
+            popUpTo(Screen.Library.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+
     AdaptiveNavigationFrame(
         active = activeTab,
         showNavigation = showNavigation,
@@ -98,16 +105,21 @@ fun AppNavHost(intent: Intent? = null) {
                 AppTab.LIBRARY -> navController.popBackStack(Screen.Library.route, inclusive = false)
                 AppTab.LEARN -> requireSong { id ->
                     if (currentRoute?.startsWith("livelearning") != true) {
-                        navController.navigate(Screen.LiveLearning.route(id)) { launchSingleTop = true }
+                        navigateTopLevel(Screen.LiveLearning.route(id))
+                    }
+                }
+                AppTab.PARTITION -> requireSong { id ->
+                    if (currentRoute?.startsWith("learning") != true) {
+                        navigateTopLevel(Screen.Learning.route(id))
                     }
                 }
                 AppTab.LIVEPLAY -> requireSong { id ->
                     if (currentRoute?.startsWith("liveplay") != true) {
-                        navController.navigate(Screen.LivePlay.route(id)) { launchSingleTop = true }
+                        navigateTopLevel(Screen.LivePlay.route(id))
                     }
                 }
                 AppTab.SETTINGS -> if (currentRoute != Screen.Settings.route) {
-                    navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                    navigateTopLevel(Screen.Settings.route)
                 }
             }
         },

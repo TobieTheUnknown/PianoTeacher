@@ -12,8 +12,8 @@ import {
     toKotlinKeySig,
 } from '../utils/sheetMusic';
 import { PlaybackDock } from './PlaybackDock';
-import { MobileHeader } from './MobileHeader';
 import { audioEngine } from '../services/AudioEngine';
+import styles from './SheetMusicLearning.module.css';
 
 /**
  * Sheet Music Learning — design-aligned partition view.
@@ -46,13 +46,22 @@ const TOOLBAR_PILL = {
  * when the theme/accent/hands data-attributes change on <html>.
  */
 function useSheetTheme() {
-    const [theme, setTheme] = useState(() =>
-        resolveSheetTheme(typeof document !== 'undefined' ? document.documentElement : null)
-    );
+    const resolveDeskTheme = () => ({
+        ...resolveSheetTheme(typeof document !== 'undefined' ? document.documentElement : null),
+        staffLine: 'rgba(32, 36, 43, 0.28)',
+        staffLineKey: 'rgba(32, 36, 43, 0.44)',
+        ledger: 'rgba(32, 36, 43, 0.62)',
+        clef: '#24272d',
+        keySig: '#343941',
+        bracket: 'rgba(32, 36, 43, 0.58)',
+        bar: 'rgba(32, 36, 43, 0.48)',
+        measureNum: '#6d655b',
+    });
+    const [theme, setTheme] = useState(resolveDeskTheme);
     useEffect(() => {
         if (typeof document === 'undefined') return;
         const root = document.documentElement;
-        const update = () => setTheme(resolveSheetTheme(root));
+        const update = () => setTheme(resolveDeskTheme());
         update();
         const mo = new MutationObserver(update);
         mo.observe(root, {
@@ -106,9 +115,12 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const previewTimeoutRef = useRef(null);
 
     // Details toggle — persisted in localStorage, OFF by default (stemless view)
-    const LS_KEY = 'piano-teacher-sheet-details';
+    const LS_KEY = 'piano-teacher-sheet-classic';
     const [showDetails, setShowDetails] = useState(() => {
-        try { return localStorage.getItem(LS_KEY) === 'true'; } catch { return false; }
+        try {
+            const stored = localStorage.getItem(LS_KEY);
+            return stored == null ? true : stored === 'true';
+        } catch { return true; }
     });
     const handleToggleDetails = () => {
         setShowDetails((prev) => {
@@ -384,14 +396,14 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     // Group measures into systems of 4 — keep this BEFORE the early return
     // so the hook call order stays stable across renders that hit/miss the
     // empty-song branch (React would otherwise crash on subsequent mounts).
-    const SYSTEM_SIZE = 4;
+    const SYSTEM_SIZE = isMobile ? 2 : 4;
     const systems = useMemo(() => {
         const out = [];
         for (let i = 0; i < measures.length; i += SYSTEM_SIZE) {
             out.push(measures.slice(i, i + SYSTEM_SIZE));
         }
         return out;
-    }, [measures]);
+    }, [measures, SYSTEM_SIZE]);
 
     if (!song || song.phrases?.length === 0 || measures.length === 0) {
         return (
@@ -404,29 +416,21 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     }
 
     return (
-        <div style={{
-            // Clear the fixed PlaybackDock (~130px) plus the mobile tab bar
-            // (64px) and the device safe-area inset so nothing hides behind it.
-            paddingBottom: `calc(${130 + (isMobile ? 64 : 0)}px + env(safe-area-inset-bottom, 0px))`,
-        }}>
-            <MobileHeader
-                title={song.title || 'Sans titre'}
-                subtitle={`Mesure ${currentMeasure}/${totalMeasures}${tsText ? ` · ${tsText}` : ''}`}
-            />
+        <div className={styles.workspace}>
+            <header className={styles.header}>
+                <div className={styles.heading}>
+                    <p className={styles.eyebrow}>Partition</p>
+                    <h1>{song.title || 'Sans titre'}</h1>
+                    <p>MESURE {currentMeasure}/{totalMeasures}{tsText ? ` · ${tsText}` : ''} · {bpm} BPM</p>
+                </div>
+                <span className={styles.modeMark} aria-hidden="true"><i /><i /><i /><i /><i /></span>
+            </header>
 
             {/* Scrollable content */}
-            <div style={{
-                padding: '4px 16px 12px',
-            }}>
+            <div className={styles.content}>
                 {/* Compact toolbar — key · time signature · tempo. Sizes to
                     content (no full-width stretch) and wraps on narrow mobile. */}
-                <div style={{
-                    display: 'flex',
-                    gap: 6,
-                    marginBottom: 10,
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                }}>
+                <div className={styles.toolbar}>
                     {/* Key signature */}
                     <span style={TOOLBAR_PILL}>
                         <span style={{
@@ -468,43 +472,18 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                     {/* Détails toggle — shows/hides stems, flags, augmentation dots */}
                     <button
                         onClick={handleToggleDetails}
-                        style={{
-                            padding: '4px 10px',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            borderRadius: 'var(--r-pill)',
-                            border: `1px solid ${showDetails ? 'var(--accent)' : 'var(--border)'}`,
-                            background: showDetails ? 'var(--accent-dim)' : 'transparent',
-                            color: showDetails ? 'var(--accent)' : 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            minHeight: 0,
-                            height: 30,
-                            boxSizing: 'border-box',
-                            transition: 'all var(--t-fast)',
-                        }}
+                        className={`${styles.viewToggle} ${showDetails ? styles.viewToggleActive : ''}`}
+                        aria-pressed={showDetails}
+                        title="Basculer entre notation classique et vue épurée"
                     >
-                        Détails
+                        {showDetails ? 'Classique' : 'Épurée'}
                     </button>
                 </div>
 
                 {/* Sheet music staves */}
-                <div style={{
-                    background: 'var(--surface-1)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                    padding: '14px 12px',
-                    marginBottom: 12,
-                    overflow: 'hidden',
-                }}>
+                <div className={styles.paper}>
                     {song.composer && (
-                        <div style={{
-                            fontFamily: 'serif',
-                            fontStyle: 'italic',
-                            fontSize: 11,
-                            color: 'var(--text-tertiary)',
-                            textAlign: 'right',
-                            marginBottom: 8,
-                        }}>~ {song.composer}</div>
+                        <div className={styles.composer}>~ {song.composer}</div>
                     )}
 
                     {systems.map((systemMeasures, sysIdx) => (
@@ -532,7 +511,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
                 </div>
 
                 {/* Hand toggle pills */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                <div className={styles.handToggles}>
                     <ToggleHandPill
                         hand="left"
                         label="Main G."
@@ -549,13 +528,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             </div>
 
             {/* Shared PlaybackDock — fixed to viewport bottom */}
-            <div style={{
-                position: 'fixed',
-                bottom: isMobile ? 64 : 0,
-                left: 0,
-                right: 0,
-                zIndex: 1000,
-            }}>
+            <div className="workspace-playback">
             <PlaybackDock
                 playing={playing}
                 onPlayPause={handlePlayPause}

@@ -93,7 +93,7 @@ function App() {
   };
 
   const handleChangeMode = (nextMode) => {
-    if ((nextMode === 'learn' || nextMode === 'liveplay') && !song?.phrases?.length) {
+    if ((nextMode === 'sheet' || nextMode === 'learn' || nextMode === 'liveplay') && !song?.phrases?.length) {
       const fallbackSong = [...StorageService.getSongs()].sort((a, b) => (
         new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
       ))[0];

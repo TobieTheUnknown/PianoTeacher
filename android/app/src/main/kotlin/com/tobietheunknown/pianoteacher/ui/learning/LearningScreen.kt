@@ -403,14 +403,27 @@ fun LearningScreen(
                     TopAppBar(
                         title = {
                             Column(modifier = Modifier.clickable { showRenameSongDialog = true }) {
-                                Text(
-                                    song?.title ?: "",
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary,
-                                    fontSize = 18.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        "PARTITION",
+                                        color = IndigoAccent,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 0.9.sp,
+                                    )
+                                    Text(
+                                        song?.title ?: "",
+                                        modifier = Modifier.weight(1f),
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary,
+                                        fontSize = 18.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                                 // Dot-separated metadata mirroring web partition header
                                 val keySigText = keySignature?.name
                                 val tsText = song?.timeSignature?.let { "${it.numerator}/${it.denominator}" }

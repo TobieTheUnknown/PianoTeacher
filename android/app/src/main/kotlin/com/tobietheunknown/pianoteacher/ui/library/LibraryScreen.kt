@@ -381,7 +381,7 @@ private fun SongDetailSheet(
                     modifier = Modifier.weight(1f),
                 )
                 ActionBtn(
-                    label = "Apprendre",
+                    label = "Coach",
                     icon = Icons.Default.School,
                     primary = false,
                     onClick = onApprentissage,
