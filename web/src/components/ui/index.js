@@ -4,7 +4,6 @@
  */
 export { Cover } from './Cover';
 export { LevelPill } from './LevelPill';
-export { ProgressRing } from './ProgressRing';
 export { Pill } from './Pill';
 export { HandBadge, HandRightIcon, HandLeftIcon } from './HandBadge';
 export { MonoStat } from './MonoStat';

@@ -1331,7 +1331,7 @@ export function LiveLearning({ song, onToggleHighlight }) {
                                             textTransform: 'uppercase',
                                             letterSpacing: '0.08em',
                                             fontWeight: 700,
-                                        }}>Mesures en cours</span>
+                                        }}>Mesures</span>
                                         <span style={{
                                             fontFamily: 'var(--font-mono)',
                                             fontSize: 14, fontWeight: 700,

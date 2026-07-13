@@ -224,7 +224,7 @@ function StepContent({ step, preferences, updatePreference, titleRef }) {
     if (step === 2) {
         return (
             <>
-                <h1 id="onboarding-title" ref={titleRef} tabIndex="-1">Une méthode qui suit <span>votre progression.</span></h1>
+                <h1 id="onboarding-title" ref={titleRef} tabIndex="-1">Une méthode qui suit <span>votre rythme.</span></h1>
                 <p className={styles.lead}>Apprenez par phrases, ralentissez sans changer la hauteur et passez au jeu libre quand vous êtes prêt.</p>
                 <div className={styles.levelList} role="radiogroup" aria-label="Niveau de piano">
                     {LEVELS.map((level) => (
@@ -342,12 +342,12 @@ function LibraryVisual() {
         <div className={styles.libraryMockup}>
             <div className={styles.mockTop}><span>Bibliothèque</span><i /><i /></div>
             <div className={styles.mockSearch}>Rechercher un morceau…</div>
-            <div className={styles.mockFilters}><span>Tous</span><span>En cours</span><span>Maîtrisés</span></div>
+            <div className={styles.mockFilters}><span>Tous</span><span>Majeur</span><span>Mineur</span></div>
             {cards.map((card, index) => (
                 <div className={styles.mockSong} key={card.title} style={{ '--delay': `${index * 90}ms` }}>
                     <b className={styles[card.color]}>{card.initials}</b>
                     <p><strong>{card.title}</strong><small>{card.meta}</small></p>
-                    <em>{index === 0 ? '72%' : index === 1 ? '48%' : 'Nouveau'}</em>
+                    <em>{index === 0 ? '9/8' : index === 1 ? '12/8' : '4/4'}</em>
                 </div>
             ))}
         </div>
@@ -364,7 +364,7 @@ function LearningVisual() {
                 <b />
             </div>
             <div className={styles.learningHands}><span>MG</span><p>Écouter · Ralentir · Boucler</p><span>MD</span></div>
-            <div className={styles.learningProgress}><i /><strong>86% précis</strong></div>
+            <div className={styles.learningRange}><span>Mesures</span><strong>05–08</strong></div>
         </div>
     );
 }

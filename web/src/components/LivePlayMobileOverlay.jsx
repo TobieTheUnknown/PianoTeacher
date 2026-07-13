@@ -8,15 +8,6 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function LiveStat({ label, value, color, divider }) {
-  return (
-    <div className={`${styles.liveStat} ${divider ? styles.liveStatDivider : ''}`}>
-      <div className={styles.liveStatValue} style={color ? { color } : undefined}>{value}</div>
-      <div className={styles.liveStatLabel}>{label}</div>
-    </div>
-  );
-}
-
 export function LivePlayMobileOverlay({
   song,
   allNotes,
@@ -35,7 +26,6 @@ export function LivePlayMobileOverlay({
   loopRange,
   onLoopRangeChange,
   totalMeasuresHint,
-  sessionStats,
   phraseMeasureRanges,
   selectedPhraseIndex,
   onPhraseSelect,
@@ -73,23 +63,12 @@ export function LivePlayMobileOverlay({
     }
   };
 
-  // Stats: progress + accuracy (computed from sessionStats)
-  const totalNotes = sessionStats.totalNotes || (allNotes?.length ?? 0);
-  const completedNotes = (sessionStats.correctNotes || 0)
-    + (sessionStats.wrongNotes || 0)
-    + (sessionStats.missedNotes || 0);
-  const accuracy = completedNotes > 0
-    ? Math.round((sessionStats.correctNotes / completedNotes) * 100)
-    : 100;
-  const score = (sessionStats.perfectNotes || 0) * 100
-    + (sessionStats.goodNotes || 0) * 60
-    + ((sessionStats.correctNotes || 0) - (sessionStats.perfectNotes || 0) - (sessionStats.goodNotes || 0)) * 40;
-
   // Last note end-time for progress bar (in seconds)
   let songDurSec = 1;
   if (allNotes && allNotes.length > 0) {
     const last = allNotes[allNotes.length - 1];
-    songDurSec = ((last.startTime || 0) + (last.duration || 0)) / 4; // beat→sec rough; canvas uses beatsPerSecond
+    const beatsPerSecond = Math.max((currentBPM ?? defaultBPM ?? 120) / 60, 0.001);
+    songDurSec = ((last.startTime || 0) + (last.duration || 0)) / beatsPerSecond;
   }
   const progressPct = Math.min(100, Math.max(0, (currentTime / Math.max(songDurSec, 0.001)) * 100));
 
@@ -112,15 +91,7 @@ export function LivePlayMobileOverlay({
         <span className={styles.timeDisplay}>{formatTime(currentTime)}</span>
       </div>
 
-      {/* Stats strip */}
-      <div className={styles.statsStrip}>
-        <LiveStat label="Score" value={score.toLocaleString('fr-FR')} />
-        <LiveStat label="Combo" value={`×${sessionStats.currentCombo || 0}`} color="var(--accent)" divider />
-        <LiveStat label="Précision" value={`${accuracy}%`} color="var(--success)" divider />
-        <LiveStat label="Notes" value={`${completedNotes}/${totalNotes}`} divider />
-      </div>
-
-      {/* Gradient progress bar */}
+      {/* Temporal position only — no performance metrics */}
       <div className={styles.progressTrack}>
         <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
       </div>

@@ -50,7 +50,6 @@ const LivePlayCanvas = memo(({
   song,
   isLoopEnabled,
   loopConfig,
-  sessionStats,
   canvasWidth: propWidth,
   canvasHeight: propHeight,
   mobileKeyRange,
@@ -103,7 +102,6 @@ const LivePlayCanvas = memo(({
     activeNotes,
     playedNotes,
     feedbackMessages,
-    sessionStats,
     isLoopEnabled,
     loopConfig,
     song,
@@ -721,14 +719,14 @@ const LivePlayCanvas = memo(({
     ctx.shadowBlur = 0;
   }, [allNotes, beatsPerSecond, getNoteX, isBlackKey, getKeyColor, darkenColor, darkenedColors, drawRoundedRect, dynamicColors, buildHandMap, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, NOTE_FALL_HEIGHT, WHITE_KEY_WIDTH, fontScale, firstKey, lastKey, visualEffects, isMobile, repeatCount, skipLabel, lookAheadTime, noteLabelMap]);
 
-  // Draw overlay layer (feedback, combo, particles)
+  // Draw overlay layer (immediate feedback and particles)
   // dtFrames ≈ 1.0 at 60Hz, 0.5 at 120Hz — keeps animation speed identical
   // across display refresh rates.
   const drawOverlayLayer = useCallback((ctx, currentTime, dtFrames) => {
     // Skip overlay entirely on mobile — mobile overlay component handles UI
     if (isMobile) return;
 
-    const { feedbackMessages: feedbacks, sessionStats: stats } = liveRef.current;
+    const { feedbackMessages: feedbacks } = liveRef.current;
     const keyboardY = CANVAS_HEIGHT - KEYBOARD_HEIGHT;
 
     // Feedback messages
@@ -775,29 +773,6 @@ const LivePlayCanvas = memo(({
       ctx.globalAlpha = 1.0;
     });
 
-    // Combo counter
-    if (stats.currentCombo > 2) {
-      const comboBoxWidth = 140 * fontScale;
-      const comboBoxHeight = 70 * fontScale;
-      const comboX = CANVAS_WIDTH - comboBoxWidth - 10;
-      const comboY = 80 * fontScale;
-
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(comboX - 20 * fontScale, comboY - 50 * fontScale, comboBoxWidth, comboBoxHeight);
-      ctx.strokeStyle = stats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(comboX - 20 * fontScale, comboY - 50 * fontScale, comboBoxWidth, comboBoxHeight);
-
-      ctx.textAlign = 'center';
-      ctx.fillStyle = stats.currentCombo >= 10 ? '#fbbf24' : '#22c55e';
-
-      ctx.font = `bold ${Math.round(32 * fontScale)}px Arial`;
-      ctx.fillText(`${stats.currentCombo}x`, comboX + comboBoxWidth / 2 - 20 * fontScale, comboY - 10 * fontScale);
-
-      ctx.font = `bold ${Math.round(14 * fontScale)}px Arial`;
-      ctx.fillText('COMBO', comboX + comboBoxWidth / 2 - 20 * fontScale, comboY + 5 * fontScale);
-    }
-
     // Particles (only when effects enabled) — deltaTime-scaled physics
     if (visualEffects) {
       const particles = particlesRef.current;
@@ -820,7 +795,7 @@ const LivePlayCanvas = memo(({
     }
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
-  }, [getNoteX, CANVAS_WIDTH, CANVAS_HEIGHT, KEYBOARD_HEIGHT, WHITE_KEY_WIDTH, fontScale, visualEffects, isMobile]);
+  }, [getNoteX, CANVAS_HEIGHT, KEYBOARD_HEIGHT, WHITE_KEY_WIDTH, fontScale, visualEffects, isMobile]);
 
   // Render loop — mounted once per layout/theme change, NOT per frame.
   // Reads timeRef each frame; skips drawing entirely when nothing changed
@@ -891,7 +866,7 @@ const LivePlayCanvas = memo(({
 
   useEffect(() => {
     markOverlayDirty();
-  }, [feedbackMessages, sessionStats.currentCombo, activeNotes, markOverlayDirty]);
+  }, [feedbackMessages, activeNotes, markOverlayDirty]);
 
   return (
     <div className={styles.canvasContainer}>
@@ -920,7 +895,6 @@ const LivePlayCanvas = memo(({
     prevProps.activeNotes === nextProps.activeNotes &&
     prevProps.playedNotes === nextProps.playedNotes &&
     prevProps.feedbackMessages === nextProps.feedbackMessages &&
-    prevProps.sessionStats.currentCombo === nextProps.sessionStats.currentCombo &&
     prevProps.allNotes === nextProps.allNotes &&
     prevProps.beatsPerSecond === nextProps.beatsPerSecond &&
     prevProps.song === nextProps.song &&

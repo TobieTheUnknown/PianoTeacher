@@ -97,57 +97,10 @@
   flex-shrink: 0;
 }
 
-/* Stats strip — 4-col card under the HUD */
-.statsStrip {
-  position: absolute;
-  top: calc(var(--safe-top, 0px) + 56px);
-  left: 18px;
-  right: 18px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 8px 4px;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  pointer-events: none;
-  z-index: 2;
-}
-
-.liveStat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
-.liveStatDivider {
-  border-left: 1px solid var(--border);
-}
-
-.liveStatValue {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-.liveStatLabel {
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-/* Gradient progress bar — sits just under the stats strip */
+/* Temporal progress bar — sits just under the song header */
 .progressTrack {
   position: absolute;
-  top: calc(var(--safe-top, 0px) + 116px);
+  top: calc(var(--safe-top, 0px) + 58px);
   left: 18px;
   right: 18px;
   height: 3px;
@@ -175,4 +128,3 @@
   pointer-events: auto;
   z-index: 4;
 }
-

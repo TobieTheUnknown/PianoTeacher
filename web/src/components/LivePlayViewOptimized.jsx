@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import LivePlayCanvas from './LivePlayCanvas';
-import { ScoreService } from '../services/ScoreService';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { midiInputService } from '../services/MidiInputService';
@@ -25,7 +24,7 @@ import styles from './LivePlayView.module.css';
  *    their exact audio-clock time (sample-accurate, no React-frame jitter)
  *  - miss detection / expected notes use monotonic pointers into the sorted
  *    note list (O(1) amortized per frame instead of O(n) scans)
- *  - React state for the UI (timeline, dock, stats) updates at ~10Hz; the
+ *  - React state for the UI (timeline, dock, transport) updates at ~10Hz; the
  *    canvas reads songTimeRef directly at display refresh rate.
  */
 
@@ -52,6 +51,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
   const windowStartIdxRef = useRef(0);    // pointer: expected-notes window
   const nextClickIdxRef = useRef(-1);     // pointer: metronome clicks (-1 = recompute)
   const lastUiUpdateRef = useRef(0);
+  const completionHandledRef = useRef(false);
 
   // State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -69,20 +69,8 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
   const [loopConfig, setLoopConfig] = useState(null);
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState('');
 
-  // Scoring and wait mode state
+  // Live guidance and wait mode state
   const [waitMode, setWaitMode] = useState(false);
-  const [sessionStats, setSessionStats] = useState({
-    correctNotes: 0,
-    wrongNotes: 0,
-    missedNotes: 0,
-    perfectNotes: 0,
-    goodNotes: 0,
-    totalNotes: 0,
-    startTime: null,
-    completed: false,
-    currentCombo: 0,
-    maxCombo: 0
-  });
   const [playedNotes, setPlayedNotes] = useState(new Map());
   const [feedbackMessages, setFeedbackMessages] = useState([]);
   const [freePlayMode] = useState(false);
@@ -129,7 +117,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
   useEffect(() => {
     if (!isMobile) {
-      setCanvasDimensions({ width: 0, height: 0 }); // Use defaults
       return;
     }
 
@@ -289,7 +276,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
   // Seek to a position (seconds). Re-anchors the clock and resets all the
   // scan pointers. Notes already in the past are pre-marked as processed so
-  // a forward seek doesn't flood the stats with "missed" notes.
+  // a forward seek doesn't flag them as missed.
   const seekTo = useCallback((t) => {
     const clamped = Math.max(0, t);
     songTimeRef.current = clamped;
@@ -301,6 +288,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     windowStartIdxRef.current = 0;
     nextClickIdxRef.current = -1;
     pausedAtTimeRef.current = null;
+    completionHandledRef.current = false;
 
     const bps = currentBPM / 60;
     const processed = new Set();
@@ -331,7 +319,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     }
   }, []);
 
-  // ── MIDI input → scoring (reads refs: subscribes once per mode change) ────
+  // ── MIDI input → immediate guidance (subscribes once per mode change) ─────
   useEffect(() => {
     const handleNoteOn = (event) => {
       const { note } = event;
@@ -368,18 +356,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           processedNotesRef.current.add(noteObj.id);
           markNotePlayed(noteObj.id, 'correct');
 
-          setSessionStats(prev => {
-            const newCombo = prev.currentCombo + 1;
-            return {
-              ...prev,
-              correctNotes: prev.correctNotes + 1,
-              perfectNotes: accuracy === 'perfect' ? prev.perfectNotes + 1 : prev.perfectNotes,
-              goodNotes: accuracy === 'good' ? prev.goodNotes + 1 : prev.goodNotes,
-              currentCombo: newCombo,
-              maxCombo: Math.max(prev.maxCombo, newCombo)
-            };
-          });
-
           addFeedback(`${feedbackText} ${getFrenchNoteName(note)}`, 'correct', note, accuracy);
 
           if (waitMode && pausedAtTimeRef.current !== null) {
@@ -387,12 +363,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           }
         }
       } else if (handMode !== 'watch') {
-        setSessionStats(prev => ({
-          ...prev,
-          wrongNotes: prev.wrongNotes + 1,
-          currentCombo: 0
-        }));
-
         addFeedback(`✗ ${getFrenchNoteName(note)}`, 'wrong', note);
       }
     };
@@ -506,15 +476,9 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
   // Reset BPM when song changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tempo follows the newly loaded score
     setCurrentBPM(song?.tempo || 120);
   }, [song?.id, song?.tempo]);
-
-  // Calculate total notes
-  useEffect(() => {
-    if (sessionStats.totalNotes === 0 && allNotes.length > 0) {
-      setSessionStats(prev => ({ ...prev, totalNotes: allNotes.length }));
-    }
-  }, [allNotes.length, sessionStats.totalNotes]);
 
   // Auto-pause when the tab/app goes to background: rAF stops firing there
   // while the real-time clock keeps running, so without this the song would
@@ -682,7 +646,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
         // 4) Miss detection
         let m = missIdxRef.current;
-        let missed = 0;
         while (m < allNotes.length && allNotes[m].startTime / bps + NOTE_TOLERANCE < presented) {
           const n = allNotes[m];
           if (userHands.has(n.hand) &&
@@ -690,14 +653,10 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
             !processedNotesRef.current.has(n.id)) {
             processedNotesRef.current.add(n.id);
             markNotePlayed(n.id, 'missed');
-            missed++;
           }
           m++;
         }
         missIdxRef.current = m;
-        if (missed > 0) {
-          setSessionStats(prev => ({ ...prev, missedNotes: prev.missedNotes + missed }));
-        }
 
         // 5) Wait mode: pause just before an unplayed user note
         if (waitMode && userHands.size > 0 && pausedAtTimeRef.current === null) {
@@ -719,7 +678,19 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
         }
       }
 
-      // 6) Throttled React clock for the timeline / overlay / dock
+      // 6) Stop cleanly after the final note, without recording a result.
+      if (allNotes.length > 0 && !completionHandledRef.current) {
+        const lastNote = allNotes[allNotes.length - 1];
+        const lastNoteTime = (lastNote.startTime + lastNote.duration) / bps;
+        if (presented > lastNoteTime + 1) {
+          completionHandledRef.current = true;
+          setCurrentTime(presented);
+          setIsPlaying(false);
+          return;
+        }
+      }
+
+      // 7) Throttled React clock for the timeline / overlay / dock
       if (ts - lastUiUpdateRef.current >= UI_UPDATE_INTERVAL_MS) {
         lastUiUpdateRef.current = ts;
         setCurrentTime(presented);
@@ -739,42 +710,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     audioInitialized, seekTo, markNotePlayed
   ]);
 
-  const handleSongCompleted = useCallback(() => {
-    setIsPlaying(false);
-    setSessionStats(prev => ({ ...prev, completed: true }));
-
-    const accuracy = sessionStats.totalNotes > 0
-      ? ((sessionStats.correctNotes / sessionStats.totalNotes) * 100).toFixed(2)
-      : 0;
-
-    const scoreData = {
-      correctNotes: sessionStats.correctNotes,
-      wrongNotes: sessionStats.wrongNotes,
-      missedNotes: sessionStats.missedNotes,
-      totalNotes: sessionStats.totalNotes,
-      accuracy: parseFloat(accuracy),
-      playbackSpeed: currentBPM / Math.max(defaultBPM, 1),
-      completed: true,
-      duration: songTimeRef.current
-    };
-
-    ScoreService.saveScore(song.id, scoreData);
-
-    alert(`Bravo ! Morceau terminé !\nPrécision: ${accuracy}%\nNotes correctes: ${sessionStats.correctNotes}/${sessionStats.totalNotes}`);
-  }, [sessionStats, currentBPM, defaultBPM, song?.id]);
-
-  // Check if song completed (runs on the throttled clock — 10Hz is plenty)
-  useEffect(() => {
-    if (allNotes.length > 0 && currentTime > 0) {
-      const lastNote = allNotes[allNotes.length - 1];
-      const lastNoteTime = (lastNote.startTime + lastNote.duration) / beatsPerSecond;
-
-      if (currentTime > lastNoteTime + 1 && !sessionStats.completed) {
-        handleSongCompleted();
-      }
-    }
-  }, [currentTime, allNotes, sessionStats.completed, beatsPerSecond, handleSongCompleted]);
-
   // Play/Pause controls — when metronome is on, run a 1-bar preroll
   // before the falling notes start moving.
   const prerollTimerRef = useRef(null);
@@ -793,8 +728,8 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       return;
     }
 
-    if (!sessionStats.startTime) {
-      setSessionStats(prev => ({ ...prev, startTime: new Date().toISOString() }));
+    if (completionHandledRef.current) {
+      seekTo(0);
     }
 
     clockRef.current = audioEngine.getClock();
@@ -819,7 +754,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     }
   };
 
-  // Restart: stop playback, seek to 0, clear feedback and reset session stats.
+  // Restart: stop playback, seek to 0 and clear live guidance.
   const handleRestart = useCallback(() => {
     // Stop any active playback / preroll
     setIsPlaying(false);
@@ -833,20 +768,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     anchorRef.current = null;
     // Clear feedback messages
     setFeedbackMessages([]);
-    // Reset session stats to their initial shape
-    setSessionStats({
-      correctNotes: 0,
-      wrongNotes: 0,
-      missedNotes: 0,
-      perfectNotes: 0,
-      goodNotes: 0,
-      totalNotes: allNotes.length,
-      startTime: null,
-      completed: false,
-      currentCombo: 0,
-      maxCombo: 0,
-    });
-  }, [seekTo, allNotes.length]);
+  }, [seekTo]);
 
   // Change tempo while preserving the BEAT position (no time jump, and no
   // quadratic speed: X% tempo now really plays at X%).
@@ -868,6 +790,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
 
   // Reset play-session tracking when the song itself changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- all transport state belongs to the loaded score
     setIsPlaying(false);
     setIsPrerolling(false);
     songTimeRef.current = 0;
@@ -884,6 +807,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
     setPlayedNotes(new Map());
     setCurrentTime(0);
     setActiveNotes(new Set());
+    completionHandledRef.current = false;
   }, [song?.id]);
 
   // Canvas-size state — MUST stay above any early return so the hook order
@@ -933,7 +857,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           song={song}
           isLoopEnabled={isLoopEnabled}
           loopConfig={loopConfig}
-          sessionStats={sessionStats}
           canvasWidth={canvasDimensions.width || undefined}
           canvasHeight={canvasDimensions.height || undefined}
           mobileKeyRange={mobileKeyRange}
@@ -959,7 +882,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           loopRange={loopConfig ? [loopConfig.startMeasure, loopConfig.endMeasure] : [1, song?.phrases?.length || 1]}
           onLoopRangeChange={([from, to]) => handleLoopChange(from, to)}
           totalMeasuresHint={song?.phrases?.length || 1}
-          sessionStats={sessionStats}
           phraseMeasureRanges={phraseMeasureRanges}
           selectedPhraseIndex={selectedPhraseIndex}
           onPhraseSelect={handlePhraseSelect}
@@ -1035,7 +957,6 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           song={song}
           isLoopEnabled={isLoopEnabled}
           loopConfig={loopConfig}
-          sessionStats={sessionStats}
           visualEffects={visualEffects}
           canvasWidth={canvasSize.width}
           canvasHeight={canvasSize.height}

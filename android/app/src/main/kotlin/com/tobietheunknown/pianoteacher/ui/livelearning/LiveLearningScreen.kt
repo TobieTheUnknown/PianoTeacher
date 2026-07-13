@@ -78,7 +78,7 @@ private fun noteName(pitch: Int, keySignature: MusicKeySignature? = null): Strin
 /**
  * Apprentissage mobile — measure-by-measure cards with real data.
  *
- * MESURES EN COURS · 01-04 group header, 2x2 compact MeasureCards
+ * MESURES · 01-04 group header, 2x2 compact MeasureCards
  * showing real melody/chord notes from the song, sticky PlaybackDock.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -200,7 +200,7 @@ fun LiveLearningScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        "MESURES EN COURS",
+                                        "MESURES",
                                         color = LL_LABEL_GRAY,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,

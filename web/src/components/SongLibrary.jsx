@@ -1,15 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StorageService } from '../services/StorageService';
-import { ScoreService } from '../services/ScoreService';
 import { getFrenchKeyName } from '../models/song';
-import { Cover, ProgressRing } from './ui';
+import { Cover } from './ui';
 import styles from './SongLibrary.module.css';
 
 const FILTERS = [
     { id: 'all', label: 'Tous' },
-    { id: 'new', label: 'À découvrir' },
-    { id: 'active', label: 'En cours' },
-    { id: 'mastered', label: 'Maîtrisés' },
     { id: 'major', label: 'Majeur' },
     { id: 'minor', label: 'Mineur' },
 ];
@@ -17,7 +13,6 @@ const FILTERS = [
 const SORTS = [
     { id: 'recent', label: 'Récemment modifiés' },
     { id: 'title', label: 'Titre A–Z' },
-    { id: 'progress', label: 'Progression' },
     { id: 'tempo', label: 'Tempo' },
 ];
 
@@ -102,15 +97,12 @@ export function SongLibrary({
     }, []);
 
     const enrichedSongs = useMemo(() => songs.map((song) => {
-        const statistics = ScoreService.getSongStatistics(song.id);
         const phraseCount = song.phrases?.length || 0;
         const noteCount = (song.phrases || []).reduce((total, phrase) => (
             total + (phrase.tracks?.melody?.length || 0) + (phrase.tracks?.chords?.length || 0)
         ), 0);
-        const progress = Math.round(statistics.bestAccuracy || 0);
-        const status = statistics.totalSessions === 0 ? 'new' : progress >= 90 ? 'mastered' : 'active';
         const keyMode = typeof song.key === 'object' ? song.key?.mode : null;
-        return { song, statistics, phraseCount, noteCount, progress, status, keyMode };
+        return { song, phraseCount, noteCount, keyMode };
     }), [songs]);
 
     const filteredSongs = useMemo(() => {
@@ -124,7 +116,6 @@ export function SongLibrary({
             ].filter(Boolean).join(' '));
             const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
             const matchesFilter = filter === 'all'
-                || item.status === filter
                 || (filter === 'major' && item.keyMode === 'major')
                 || (filter === 'minor' && item.keyMode === 'minor');
             return matchesQuery && matchesFilter;
@@ -132,26 +123,14 @@ export function SongLibrary({
 
         return [...list].sort((a, b) => {
             if (sort === 'title') return (a.song.title || '').localeCompare(b.song.title || '', 'fr');
-            if (sort === 'progress') return b.progress - a.progress;
             if (sort === 'tempo') return (a.song.tempo || 0) - (b.song.tempo || 0);
             return getTimestamp(b.song) - getTimestamp(a.song);
         });
     }, [enrichedSongs, query, filter, sort]);
 
-    const summary = useMemo(() => {
-        const sessions = enrichedSongs.reduce((total, item) => total + item.statistics.totalSessions, 0);
-        const active = enrichedSongs.filter((item) => item.status === 'active').length;
-        const mastered = enrichedSongs.filter((item) => item.status === 'mastered').length;
-        const notes = enrichedSongs.reduce((total, item) => total + item.noteCount, 0);
-        return { sessions, active, mastered, notes };
-    }, [enrichedSongs]);
-
     const resumeItem = useMemo(() => (
         [...enrichedSongs]
-            .sort((a, b) => {
-                const activityDelta = Number(b.statistics.totalSessions > 0) - Number(a.statistics.totalSessions > 0);
-                return activityDelta || getTimestamp(b.song) - getTimestamp(a.song);
-            })[0]
+            .sort((a, b) => getTimestamp(b.song) - getTimestamp(a.song))[0]
     ), [enrichedSongs]);
 
     const learnSong = onLearnSong || onLoadSong;
@@ -159,7 +138,6 @@ export function SongLibrary({
     const handleDelete = (song) => {
         if (!window.confirm(`Supprimer « ${song.title || 'Sans titre'} » de la bibliothèque ?`)) return;
         StorageService.deleteSong(song.id);
-        ScoreService.deleteSongScores(song.id);
         setDetailSong(null);
         loadSongs();
     };
@@ -220,9 +198,7 @@ export function SongLibrary({
                 <div>
                     <p className={styles.eyebrow}>Mon studio</p>
                     <h1>Bibliothèque</h1>
-                    <p className={styles.subtitle}>
-                        {songs.length} {songs.length === 1 ? 'morceau' : 'morceaux'} · {summary.notes.toLocaleString('fr-FR')} notes organisées
-                    </p>
+                    <p className={styles.subtitle}>Votre répertoire de travail</p>
                 </div>
                 <div className={styles.headerActions}>
                     <button aria-label="Importer ou exporter" className={styles.secondaryButton} onClick={() => setShowLibraryModal(true)}>
@@ -239,11 +215,11 @@ export function SongLibrary({
             </header>
 
             {songs.length > 0 && resumeItem && (
-                <section className={styles.dashboard} aria-label="Aperçu de votre progression">
+                <section className={styles.dashboard} aria-label="Morceau récent">
                     <div className={styles.resumeCard}>
                         <div className={styles.resumeGlow} aria-hidden="true" />
                         <div className={styles.resumeCopy}>
-                            <p className={styles.cardEyebrow}>{resumeItem.statistics.totalSessions ? 'Continuer votre progression' : 'Prêt à découvrir'}</p>
+                            <p className={styles.cardEyebrow}>Dernier morceau</p>
                             <h2>{resumeItem.song.title || 'Sans titre'}</h2>
                             <p>{resumeItem.song.artist || `${getFrenchKeyName(resumeItem.song.key)} · ${resumeItem.song.tempo || 120} BPM`}</p>
                             <div className={styles.resumeMeta}>
@@ -259,19 +235,9 @@ export function SongLibrary({
                                 <button className={styles.glassButton} onClick={() => onLoadSongToLivePlay?.(resumeItem.song.id)}><Icon kind="live" /> Live</button>
                             </div>
                         </div>
-                        <div className={styles.resumeProgress}>
+                        <div className={styles.resumeArtwork}>
                             <Cover id={resumeItem.song.id} title={resumeItem.song.title} size={90} />
-                            <div className={styles.ringWrap}>
-                                <ProgressRing value={resumeItem.progress / 100} size={54} stroke={4} />
-                                <strong>{resumeItem.progress || '—'}{resumeItem.progress > 0 && <small>%</small>}</strong>
-                            </div>
                         </div>
-                    </div>
-
-                    <div className={styles.statsPanel}>
-                        <LibraryStat icon="spark" value={summary.active} label="En cours" color="accent" />
-                        <LibraryStat icon="check" value={summary.mastered} label="Maîtrisés" color="success" />
-                        <LibraryStat icon="sessions" value={summary.sessions} label="Sessions" color="cyan" />
                     </div>
                 </section>
             )}
@@ -296,9 +262,6 @@ export function SongLibrary({
                         {FILTERS.map((item) => (
                             <button key={item.id} className={filter === item.id ? styles.filterActive : ''} onClick={() => setFilter(item.id)} aria-pressed={filter === item.id}>
                                 {item.label}
-                                {item.id !== 'all' && item.id !== 'major' && item.id !== 'minor' && (
-                                    <small>{enrichedSongs.filter((song) => song.status === item.id).length}</small>
-                                )}
                             </button>
                         ))}
                     </div>
@@ -372,7 +335,7 @@ export function SongLibrary({
 }
 
 function SongCard({ item, isMobile, onOpen, onLearn, onLive, onEdit, onSheet, onMore }) {
-    const { song, phraseCount, noteCount, progress, status } = item;
+    const { song, phraseCount, noteCount } = item;
     return (
         <article className={styles.songCard}>
             <button className={styles.songMain} onClick={onOpen} aria-label={`${isMobile ? 'Ouvrir les détails de' : 'Ouvrir la partition de'} ${song.title}`}>
@@ -380,7 +343,6 @@ function SongCard({ item, isMobile, onOpen, onLearn, onLive, onEdit, onSheet, on
                 <span className={styles.songCopy}>
                     <span className={styles.songTitleRow}>
                         <strong>{song.title || 'Sans titre'}</strong>
-                        <StatusBadge status={status} />
                     </span>
                     <small className={styles.artist}>{song.artist || 'Artiste inconnu'}</small>
                     <span className={styles.metadata}>
@@ -388,10 +350,6 @@ function SongCard({ item, isMobile, onOpen, onLearn, onLive, onEdit, onSheet, on
                         <i>{song.tempo || 120} BPM</i>
                         <i>{song.timeSignature?.numerator || 4}/{song.timeSignature?.denominator || 4}</i>
                     </span>
-                </span>
-                <span className={styles.cardProgress}>
-                    <ProgressRing value={progress / 100} size={40} stroke={3} />
-                    <strong>{progress ? `${progress}%` : '—'}</strong>
                 </span>
             </button>
 
@@ -409,20 +367,6 @@ function SongCard({ item, isMobile, onOpen, onLearn, onLive, onEdit, onSheet, on
                 <button onClick={onMore} aria-label={`Plus d’actions pour ${song.title}`} title="Plus d’actions"><Icon kind="more" /></button>
             </div>
         </article>
-    );
-}
-
-function StatusBadge({ status }) {
-    const labels = { new: 'Nouveau', active: 'En cours', mastered: 'Maîtrisé' };
-    return <span className={`${styles.statusBadge} ${styles[`status_${status}`]}`}>{labels[status]}</span>;
-}
-
-function LibraryStat({ icon, value, label, color }) {
-    return (
-        <div className={styles.libraryStat} data-color={color}>
-            <span><Icon kind={icon} /></span>
-            <p><strong>{value}</strong><small>{label}</small></p>
-        </div>
     );
 }
 
@@ -450,14 +394,9 @@ function SongDetailDialog({ song, data, onClose, onLearn, onLive, onEdit, onShee
                 <button className={styles.dialogClose} onClick={onClose} aria-label="Fermer"><Icon kind="close" /></button>
                 <div className={styles.detailHero}>
                     <Cover id={song.id} title={song.title} size={78} />
-                    <div><StatusBadge status={data?.status || 'new'} /><h2 id="song-detail-title">{song.title || 'Sans titre'}</h2><p>{song.artist || 'Artiste inconnu'}</p></div>
+                    <div><h2 id="song-detail-title">{song.title || 'Sans titre'}</h2><p>{song.artist || 'Artiste inconnu'}</p></div>
                 </div>
-                <div className={styles.detailStats}>
-                    <span><strong>{data?.phraseCount || 0}</strong><small>Phrases</small></span>
-                    <span><strong>{song.tempo || 120}</strong><small>BPM</small></span>
-                    <span><strong>{data?.progress ? `${data.progress}%` : '—'}</strong><small>Précision</small></span>
-                </div>
-                <div className={styles.detailMetadata}><span>{getFrenchKeyName(song.key)}</span><span>{song.timeSignature?.numerator || 4}/{song.timeSignature?.denominator || 4}</span><span>{data?.noteCount || 0} notes</span></div>
+                <div className={styles.detailMetadata}><span>{getFrenchKeyName(song.key)}</span><span>{song.tempo || 120} BPM</span><span>{song.timeSignature?.numerator || 4}/{song.timeSignature?.denominator || 4}</span><span>{data?.phraseCount || 0} phrases</span><span>{data?.noteCount || 0} notes</span></div>
                 <div className={styles.detailActions}>
                     {onSheet && <button className={styles.primaryButton} onClick={onSheet}><Icon kind="score" /> Partition</button>}
                     <button onClick={onLearn}><Icon kind="learn" /> Coach</button>
@@ -522,9 +461,6 @@ function Icon({ kind }) {
     if (kind === 'more') return <svg {...props}><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></svg>;
     if (kind === 'phrases') return <svg {...props}><path d="M4 5h16M4 12h11M4 19h7" /></svg>;
     if (kind === 'notes') return <svg {...props}><path d="M9 18V5l10-2v13M9 8l10-2" /><circle cx="6" cy="18" r="3" /><circle cx="16" cy="16" r="3" /></svg>;
-    if (kind === 'spark') return <svg {...props}><path d="m12 3 1.2 4.8L18 9l-4.8 1.2L12 15l-1.2-4.8L6 9l4.8-1.2zM18 15l.6 2.4L21 18l-2.4.6L18 21l-.6-2.4L15 18l2.4-.6z" /></svg>;
-    if (kind === 'check') return <svg {...props}><path d="m5 12 4 4L19 6" /></svg>;
-    if (kind === 'sessions') return <svg {...props}><path d="M4 18V9M9 18V5M14 18v-7M19 18V3" /></svg>;
     if (kind === 'download') return <svg {...props}><path d="M12 3v12M8 11l4 4 4-4M5 21h14" /></svg>;
     if (kind === 'upload') return <svg {...props}><path d="M12 16V4M8 8l4-4 4 4M5 20h14" /></svg>;
     if (kind === 'trash') return <svg {...props}><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></svg>;
