@@ -352,35 +352,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 />
             )}
 
-            {/* Mobile info banner — design-aligned compact pill */}
-            {isMobile && (
-                <div style={{
-                    margin: '0 18px 12px',
-                    padding: '10px 14px',
-                    background: 'var(--accent-dim)',
-                    border: '1px solid color-mix(in oklab, var(--accent), transparent 70%)',
-                    borderRadius: 'var(--r-md)',
-                    fontSize: '12px',
-                    color: 'var(--text-secondary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                }}>
-                    <span style={{
-                        width: 22, height: 22, flexShrink: 0,
-                        borderRadius: 'var(--r-sm)',
-                        background: 'var(--accent-dim)',
-                        color: 'var(--accent)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 12,
-                        fontWeight: 700,
-                    }}>i</span>
-                    Édition complète disponible sur ordinateur. Sur mobile, seules les métadonnées sont modifiables.
-                </div>
-            )}
-
             {/* Song Metadata */}
             <div className="card" style={{
                 marginBottom: '2rem'
@@ -909,18 +880,18 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 keySignature={song.key}
                                 tempo={song.tempo}
                                 timeSignature={song.timeSignature || { numerator: 4, denominator: 4 }}
-                                onAddNote={isMobile ? null : addNoteToPhrase}
-                                onRemoveNote={isMobile ? null : removeNoteFromPhrase}
-                                onUpdateNote={isMobile ? null : onUpdateNote}
-                                onUpdatePhraseLength={isMobile ? null : (newLength) => handleUpdatePhraseLength(phrase.id, newLength)}
-                                onSplit={isMobile ? null : () => handleStartSplit(phrase.id)}
+                                onAddNote={readOnly ? null : addNoteToPhrase}
+                                onRemoveNote={readOnly ? null : removeNoteFromPhrase}
+                                onUpdateNote={readOnly ? null : onUpdateNote}
+                                onUpdatePhraseLength={readOnly ? null : (newLength) => handleUpdatePhraseLength(phrase.id, newLength)}
+                                onSplit={readOnly ? null : () => handleStartSplit(phrase.id)}
                                 isSplitMode={splitMode?.phraseId === phrase.id}
                                 splitTime={splitTime}
                                 onSplitTimeChange={setSplitTime}
                                 onConfirmSplit={handleConfirmSplit}
                                 onCancelSplit={handleCancelSplit}
                                 isCurrentlyPlaying={playingPhraseId === phrase.id}
-                                readOnly={!!isMobile}
+                                readOnly={readOnly}
                                 splitThresholdMode={isSplitModeActive}
                                 splitThreshold={splitThreshold}
                                 onSplitThresholdChange={setSplitThreshold}

@@ -11,7 +11,7 @@ const PianoRollEditor = lazy(() => import('./editor/PianoRollEditor').then(modul
 const CELL_WIDTH = 40; // px per beat
 const CELL_HEIGHT = 24; // px per note
 
-export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = { numerator: 4, denominator: 4 }, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, isCurrentlyPlaying = false }) {
+export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = { numerator: 4, denominator: 4 }, onAddNote, onRemoveNote, onUpdateNote, onUpdatePhraseLength, isCurrentlyPlaying = false, readOnly = false }) {
     // Compute key range dynamically so notes outside the default octave 1-5 range are always visible
     const keys = useMemo(() => {
         const allPitches = [
@@ -45,6 +45,10 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
 
     const SCROLL_THRESHOLD = 60; // px from edge to trigger auto-scroll
     const SCROLL_SPEED = 12;     // max px per frame
+    const canEditNotes = !readOnly
+        && typeof onAddNote === 'function'
+        && typeof onRemoveNote === 'function'
+        && typeof onUpdateNote === 'function';
 
     const stopAutoScroll = () => {
         if (autoScrollRef.current) {
@@ -149,6 +153,8 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
     }, [isCurrentlyPlaying, isPlaying, positionRef, phraseLengthBeats]);
 
     const handleGridClick = (pitch, beatIndex) => {
+        if (!canEditNotes) return;
+
         // Check if note exists at this position in either track
         let existingNote = null;
         let trackName = null;
@@ -176,6 +182,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
     };
 
     const handleNoteMouseDown = (e, note, type) => {
+        if (!canEditNotes) return;
         e.stopPropagation();
         e.preventDefault();
 
@@ -192,7 +199,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
     };
 
     const handleMouseMove = (e) => {
-        if (!dragState) return;
+        if (!dragState || !canEditNotes) return;
 
         // Update mouse position for auto-scroll loop
         mousePositionRef.current = { x: e.clientX, y: e.clientY };
@@ -260,7 +267,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
         stopAutoScroll();
         // If mouse didn't move, treat as click to delete note
         if (dragState && !dragState.hasMoved) {
-            if (dragState.noteId) {
+            if (dragState.noteId && canEditNotes) {
                 onRemoveNote(phrase.id, dragState.trackName, dragState.noteId);
             }
         }
@@ -378,7 +385,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                 </div>
 
                 {/* Fullscreen Toggle - only show when not in fullscreen */}
-                {!isFullscreen && (
+                {!isFullscreen && canEditNotes && (
                     <button
                         onClick={() => setIsFullscreen(true)}
                         style={{
@@ -606,7 +613,7 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                                                     ? `linear-gradient(135deg, ${handColors.rightHand.primary} 0%, ${handColors.rightHand.dark} 100%)`
                                                     : `linear-gradient(135deg, ${handColors.leftHand.primary} 0%, ${handColors.leftHand.dark} 100%)`,
                                                 borderRadius: 'var(--radius-sm)',
-                                                cursor: isDragging ? 'grabbing' : 'grab',
+                                                cursor: canEditNotes ? (isDragging ? 'grabbing' : 'grab') : 'default',
                                                 boxShadow: note.trackName === 'melody'
                                                     ? `0 2px 8px ${handColors.rightHand.primary}66, inset 0 1px 0 rgba(255, 255, 255, 0.2)`
                                                     : `0 2px 8px ${handColors.leftHand.primary}66, inset 0 1px 0 rgba(255, 255, 255, 0.2)`,
@@ -618,10 +625,10 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between'
                                             }}
-                                            onMouseDown={(e) => handleNoteMouseDown(e, note, 'move')}
+                                            onMouseDown={canEditNotes ? (e) => handleNoteMouseDown(e, note, 'move') : undefined}
                                         >
                                             {/* Resize handle on the right */}
-                                            <div
+                                            {canEditNotes && <div
                                                 style={{
                                                     position: 'absolute',
                                                     right: 0,
@@ -646,13 +653,13 @@ export function PianoRoll({ phrase, keySignature, tempo = 120, timeSignature = {
                                                         e.currentTarget.style.opacity = '0';
                                                     }
                                                 }}
-                                            />
+                                            />}
                                         </div>
                                     );
                                 })}
 
                                 {/* Click Area Overlay */}
-                                {!dragState && keys.map((pitch, yIndex) => (
+                                {canEditNotes && !dragState && keys.map((pitch, yIndex) => (
                                     Array.from({ length: phrase.length * beatsPerMeasure }).map((_, xIndex) => (
                                         <div
                                             key={`${pitch}-${xIndex}`}
