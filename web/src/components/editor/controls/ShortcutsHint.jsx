@@ -32,6 +32,7 @@ export function ShortcutsHint({ className }) {
             aria-label="Raccourcis clavier"
             onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
                     setIsExpanded(!isExpanded);
                 }
             }}

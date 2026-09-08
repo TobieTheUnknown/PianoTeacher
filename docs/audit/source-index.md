@@ -58,7 +58,7 @@ Symboles :
 
 ## web/src/components/LiveLearning.jsx
 
-1164 lignes ; accessible depuis main.jsx
+1181 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js, utils/analyzeSong.js, utils/timing.js, services/AudioEngine.js, hooks/useDeviceContext.js, components/learn/CoordinationTimeline.jsx, components/PlaybackDock.jsx, components/MobileHeader.jsx, components/learn/LearnSidebar.jsx
 Symboles : handTokens, OstinatoGlyph, PedalGlyph, RepeatedMotifRows, MotifRows, HandRoleBadge, ArpeggioNotePills, SmallToggleBtn, LiveLearning
 
@@ -76,7 +76,7 @@ Symboles : formatTime, LivePlayMobileOverlay
 
 ## web/src/components/LivePlayMobileOverlay.module.css
 
-130 lignes ; accessible depuis main.jsx
+137 lignes ; accessible depuis main.jsx
 Dépendances locales : 
 Symboles : 
 
@@ -298,7 +298,7 @@ Symboles : SelectionActions
 
 ## web/src/components/editor/controls/ShortcutsHint.jsx
 
-55 lignes ; accessible depuis main.jsx
+56 lignes ; accessible depuis main.jsx
 Dépendances locales : components/editor/PianoRollEditor.module.css
 Symboles : ShortcutsHint
 

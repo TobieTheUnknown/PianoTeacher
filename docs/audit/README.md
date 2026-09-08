@@ -25,6 +25,7 @@ Les cases ne sont cochées qu'après examen et vérification ; une compilation s
 - `03-audio.md` : moteur audio, entrées MIDI et cycle de vie.
 - `04-platforms-ui.md` : applications, édition, stockage et pistes de simplification.
 - `05-validation.md` : commandes, résultats, limites et reprises.
+- `06-ui-design.md` : audit d'accessibilité, sources de surcharge et directions de simplification.
 
 ## Règles de cette révision
 

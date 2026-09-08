@@ -251,7 +251,7 @@ export function SongLibrary({
                     <label className={styles.searchField}>
                         <span className="sr-only">Rechercher un morceau</span>
                         <Icon kind="search" />
-                        <input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, artiste, tonalité, phrase…" type="search" />
+                        <input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, artiste, tonalité, phrase…" type="search" aria-label="Rechercher dans la bibliothèque" name="library-search" autoComplete="off" />
                         {query && <button onClick={() => setQuery('')} aria-label="Effacer la recherche"><Icon kind="close" /></button>}
                         <kbd>⌘ K</kbd>
                     </label>
@@ -268,7 +268,7 @@ export function SongLibrary({
                     <label className={styles.sortSelect}>
                         <Icon kind="sort" />
                         <span className="sr-only">Trier les morceaux</span>
-                        <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                        <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Trier la bibliothèque">
                             {SORTS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                         </select>
                     </label>

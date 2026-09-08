@@ -342,7 +342,19 @@ const MeasureCard = React.memo(function MeasureCard({
         .map(n => displayNoteName(n.pitch, keySignature));
 
     return (
-        <div onClick={() => onPlay(measure, 'both')} style={cardStyle}>
+        <div
+            onClick={() => onPlay(measure, 'both')}
+            onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onPlay(measure, 'both');
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label={`Écouter la mesure ${measure.number}`}
+            style={cardStyle}
+        >
             {/* Animated playing bar at top */}
             {isCurrent && isPlaying && (
                 <div style={{
@@ -362,7 +374,8 @@ const MeasureCard = React.memo(function MeasureCard({
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 gap: 6, marginBottom: 7,
             }}>
-                <div
+                <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); onToggleHighlight(measure.number); }}
                     style={{
                         fontFamily: 'var(--font-mono)',
@@ -370,11 +383,15 @@ const MeasureCard = React.memo(function MeasureCard({
                         color: accentBorder ? 'var(--accent)' : 'var(--text-tertiary)',
                         letterSpacing: '0.04em',
                         cursor: 'pointer',
+                        border: 0,
+                        padding: 0,
+                        background: 'transparent',
                     }}
                     title="Surligner cette mesure"
+                    aria-label={`Surligner la mesure ${measure.number}`}
                 >
                     {String(measure.number).padStart(2, '0')}
-                </div>
+                </button>
             </div>
 
             {/* Right hand.
