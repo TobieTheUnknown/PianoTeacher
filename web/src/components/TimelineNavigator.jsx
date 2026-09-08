@@ -18,6 +18,7 @@ export function TimelineNavigator({
     loopConfig,
     isLoopEnabled,
     beatsPerSecond,
+    beatsPerMeasure = 4,
     onSeek,
     onLoopChange,
     isPlaying,
@@ -26,8 +27,8 @@ export function TimelineNavigator({
 }) {
     // Helper functions pour conversion (définis avant le hook)
     const measureToTime = useCallback((measure, bps) => {
-        return ((measure - 1) * 4) / bps;
-    }, []);
+        return ((measure - 1) * beatsPerMeasure) / bps;
+    }, [beatsPerMeasure]);
 
     // eslint-disable-next-line no-unused-vars
     const timeToMeasure = useCallback((time, bps) => {
@@ -35,14 +36,14 @@ export function TimelineNavigator({
         // Soustraire un petit epsilon pour éviter que la fin d'une mesure
         // soit comptée comme le début de la suivante
         const adjustedBeats = beats > 0 ? beats - 0.001 : beats;
-        return Math.floor(adjustedBeats / 4) + 1;
-    }, []);
+        return Math.floor(adjustedBeats / beatsPerMeasure) + 1;
+    }, [beatsPerMeasure]);
 
     // Version sans epsilon pour la conversion exacte des handles de loop
     const timeToMeasureExact = useCallback((time, bps) => {
         const beats = time * bps;
-        return Math.floor(beats / 4) + 1;
-    }, []);
+        return Math.floor(beats / beatsPerMeasure) + 1;
+    }, [beatsPerMeasure]);
 
     // Calculer loopStart et loopEnd
     const loopStart = loopConfig ? measureToTime(loopConfig.startMeasure, beatsPerSecond) : null;
@@ -81,8 +82,8 @@ export function TimelineNavigator({
 
     // Calculer le nombre total de mesures
     const totalMeasures = useMemo(() => {
-        return Math.ceil(totalDuration * beatsPerSecond / 4);
-    }, [totalDuration, beatsPerSecond]);
+        return Math.ceil(totalDuration * beatsPerSecond / beatsPerMeasure);
+    }, [totalDuration, beatsPerSecond, beatsPerMeasure]);
 
     // Calculer les positions pour le rendu
     const timelineWidth = 1100; // Largeur de la timeline

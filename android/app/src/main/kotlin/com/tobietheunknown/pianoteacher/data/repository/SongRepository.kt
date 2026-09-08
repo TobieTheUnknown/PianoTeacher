@@ -2,6 +2,7 @@ package com.tobietheunknown.pianoteacher.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.data.model.toDomain
 import com.tobietheunknown.pianoteacher.data.model.toEntity
@@ -29,7 +30,7 @@ class SongRepository(private val context: Context) {
     }
 
     suspend fun saveSong(song: Song) = withContext(Dispatchers.IO) {
-        dao.insertSong(song.toEntity())
+        dao.saveScore(song.toEntity())
     }
 
     suspend fun deleteSong(song: Song) = withContext(Dispatchers.IO) {
@@ -51,7 +52,7 @@ class SongRepository(private val context: Context) {
         }
 
     suspend fun updateSong(song: Song) = withContext(Dispatchers.IO) {
-        dao.insertSong(song.toEntity()) // REPLACE on conflict
+        dao.saveScore(song.toEntity())
     }
 
     suspend fun updateSongTitle(songId: String, title: String) = withContext(Dispatchers.IO) {
@@ -60,8 +61,7 @@ class SongRepository(private val context: Context) {
 
     suspend fun importFromAssets(assetName: String, title: String): ImportResult = withContext(Dispatchers.IO) {
         runCatching {
-            val input = context.assets.open(assetName)
-            val song = MidiParser.parse(input, title).getOrElse {
+            val song = context.assets.open(assetName).use { MidiParser.parse(it, title) }.getOrElse {
                 return@runCatching ImportResult.Error("Erreur MIDI : ${it.message}")
             }
             if (song.phrases.isEmpty()) {
@@ -83,7 +83,13 @@ class SongRepository(private val context: Context) {
     suspend fun importFromUri(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
         runCatching {
             val mimeType = context.contentResolver.getType(uri) ?: ""
-            val fileName = uri.lastPathSegment?.substringAfterLast("/") ?: "Untitled"
+            val displayName = context.contentResolver.query(
+                uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+            )?.use { cursor ->
+                val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
+            }
+            val fileName = displayName ?: uri.lastPathSegment?.substringAfterLast("/") ?: "Untitled"
             val titleFromFile = fileName.substringBeforeLast(".")
 
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
@@ -119,7 +125,7 @@ class SongRepository(private val context: Context) {
                     val libraryResult = SongJsonParser.parseLibrary(json)
                     if (libraryResult.isSuccess) {
                         val songs = libraryResult.getOrThrow()
-                        songs.forEach { saveSong(it) }
+                        dao.saveScores(songs.map { it.toEntity() })
                         ImportResult.MultiSuccess(songs)
                     } else {
                         ImportResult.Error("Format non reconnu (.mid ou .json attendu)")

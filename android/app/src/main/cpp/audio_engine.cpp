@@ -30,7 +30,8 @@ static std::atomic<float> gReleasePer{0.9998f};
 // ─── Metronome click (synthesized in audio callback, zero Java overhead) ─────
 
 struct ClickState {
-    std::atomic<bool> active{false};
+    bool active = false; // audio-thread owned
+    std::atomic<int> request{-1}; // packed amplitude + accent, producer -> audio thread
     int pos = 0;          // current sample position (audio-thread owned)
     int totalSamples = 0; // click duration in samples (audio-thread owned)
     double freq = 440.0;  // Hz (audio-thread owned)
@@ -86,6 +87,15 @@ public:
             return oboe::DataCallbackResult::Continue;
         }
 
+        const int clickRequest = gClick.request.exchange(-1, std::memory_order_acquire);
+        if (clickRequest >= 0) {
+            gClick.freq = (clickRequest & 1) ? 880.0 : 440.0;
+            gClick.amplitude = (clickRequest >> 1) / 1000.0f;
+            gClick.pos = 0;
+            gClick.totalSamples = mOutputSampleRate * gClickDurationMs / 1000;
+            gClick.active = true;
+        }
+
         // Snapshot the release rate once per buffer (cheap, avoids re-reading).
         const float releasePer = gReleasePer.load(std::memory_order_relaxed);
 
@@ -138,7 +148,7 @@ public:
         }
 
         // ─── Metronome click (mixed into output) ─────────────────────────────
-        if (gClick.active.load(std::memory_order_acquire)) {
+        if (gClick.active) {
             const int sr = mOutputSampleRate;
             for (int f = 0; f < numFrames && gClick.pos < gClick.totalSamples; f++) {
                 float t = (float)gClick.pos / (float)sr;
@@ -156,7 +166,7 @@ public:
                 gClick.pos++;
             }
             if (gClick.pos >= gClick.totalSamples) {
-                gClick.active.store(false, std::memory_order_release);
+                gClick.active = false;
             }
         }
 
@@ -271,7 +281,7 @@ public:
     // Called from the loader thread (UI) for each sample. Not lock-free, but
     // it only runs during init; the audio callback bails out via !mReady.
     void loadSample(int midiNote, const float* pcm, int len, int sampleRate, int channels) {
-        if (midiNote < 0 || midiNote >= MIDI_RANGE) return;
+        if (midiNote < 0 || midiNote >= MIDI_RANGE || sampleRate <= 0 || (channels != 1 && channels != 2) || len < channels * 2) return;
         auto s = std::make_unique<SampleData>();
         s->midiNote = midiNote;
         s->sampleRate = sampleRate;
@@ -366,12 +376,8 @@ Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSetRelease(
 JNIEXPORT void JNICALL
 Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativePlayClick(
     JNIEnv* /*env*/, jobject /*thiz*/, jboolean isAccent, jfloat amplitude) {
-    int sr = gEngine ? gEngine->mOutputSampleRate : 48000;
-    gClick.freq = isAccent ? 880.0 : 440.0;
-    gClick.amplitude = amplitude;
-    gClick.totalSamples = sr * gClickDurationMs / 1000;
-    gClick.pos = 0;
-    gClick.active.store(true, std::memory_order_release);
+    const int gain = static_cast<int>(std::clamp(amplitude, 0.0f, 1.0f) * 1000.0f);
+    gClick.request.store((gain << 1) | (isAccent ? 1 : 0), std::memory_order_release);
 }
 
 } // extern "C"

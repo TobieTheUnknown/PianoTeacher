@@ -31,8 +31,8 @@ jobs:
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses || true
 
-      - name: Install NDK 27
-        run: sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Install pinned NDK and CMake
+        run: sdkmanager "ndk;30.0.14904198" "cmake;3.22.1"
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -46,7 +46,7 @@ jobs:
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew testDebugUnitTest assembleDebug
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 

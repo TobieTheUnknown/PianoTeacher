@@ -28,22 +28,29 @@ export async function preloadDemoSongsIfEmpty() {
 
         const { parseMidiFile } = await import('./MidiService');
         const base = import.meta.env.BASE_URL + 'demo/';
-        let loaded = 0;
-        for (const demo of DEMOS) {
+        const parsed = await Promise.allSettled(DEMOS.map(async (demo) => {
             try {
-                const res = await fetch(base + demo.file);
-                if (!res.ok) continue;
+                const signal = typeof AbortSignal !== 'undefined' && AbortSignal.timeout
+                    ? AbortSignal.timeout(5000)
+                    : undefined;
+                const res = await fetch(base + demo.file, { signal });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const blob = await res.blob();
                 const file = new File([blob], demo.file, { type: 'audio/midi' });
                 const song = await parseMidiFile(file);
                 song.title = demo.title;
-                StorageService.saveSong(song);
-                loaded++;
+                return song;
             } catch (e) {
                 console.warn('[DemoSongs] failed to preload', demo.file, e);
+                throw e;
             }
+        }));
+        let loaded = 0;
+        for (const result of parsed) {
+            if (result.status === 'fulfilled' && StorageService.saveSong(result.value)) loaded++;
         }
-        localStorage.setItem(DEMO_FLAG, '1');
+        // A fully failed first run should be retried on the next launch.
+        if (loaded > 0) localStorage.setItem(DEMO_FLAG, '1');
         return loaded > 0;
     } catch (e) {
         console.warn('[DemoSongs] preload skipped:', e);

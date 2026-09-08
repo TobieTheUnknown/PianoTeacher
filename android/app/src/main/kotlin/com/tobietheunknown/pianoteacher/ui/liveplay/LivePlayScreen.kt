@@ -133,7 +133,7 @@ fun LivePlayScreen(
     fun controlsBlock() {
         // Shared PlaybackDock — same look as Apprendre / Partition / Editor.
         var loopEditorOpen by remember { mutableStateOf(false) }
-        val beatsPerMeasure = state.song?.beatsPerMeasure ?: 4
+        val beatsPerMeasure = state.song?.beatsPerMeasure ?: 4.0
         val totalMeasures = ((state.totalBeats / beatsPerMeasure).toInt()).coerceAtLeast(1)
         val loopStartMeasure = (state.loopStartBeat / beatsPerMeasure).toInt() + 1
         val loopEndMeasure = (state.loopEndBeat / beatsPerMeasure).toInt().coerceAtLeast(loopStartMeasure)
@@ -405,7 +405,7 @@ private fun LivePlayCanvas(
                 val beatValue = beatIndex.toDouble()
                 val y = canvasHeight - ((beatValue - state.currentBeat) * beatsPerPixel).toFloat()
                 if (y in 0f..canvasHeight) {
-                    val isMeasureBoundary = beatIndex >= 0 && beatIndex % song.beatsPerMeasure == 0
+                    val isMeasureBoundary = beatIndex >= 0 && beatIndex % song.beatsPerMeasure == 0.0
                     if (isMeasureBoundary) {
                         // Measure boundary: thicker line, higher alpha
                         drawLine(
@@ -704,7 +704,7 @@ private fun LivePlayControls(
     totalBeats: Double,
     loopStartBeat: Double,
     loopEndBeat: Double,
-    beatsPerMeasure: Int,
+    beatsPerMeasure: Double,
     selectedHand: PlaybackHand,
     onPlayPause: () -> Unit,
     onRestart: () -> Unit,

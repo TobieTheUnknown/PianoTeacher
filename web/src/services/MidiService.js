@@ -1,8 +1,10 @@
-import { Midi } from '@tonejs/midi';
-import { createSong, createPhrase, createNoteEvent } from '../models/song';
+import { quarterNotesPerMeasure } from '../utils/timing.js';
+import * as MidiModule from '@tonejs/midi';
+const { Midi } = MidiModule.default ?? MidiModule;
+import { createSong, createPhrase, createNoteEvent } from '../models/song.js';
 
 // Key detection using note frequency analysis
-const detectKey = (notes) => {
+export const detectKey = (notes) => {
     if (!notes || notes.length === 0) {
         return { note: 'C', mode: 'major' };
     }
@@ -18,38 +20,51 @@ const detectKey = (notes) => {
     const majorProfile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
     const minorProfile = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
 
-    // Pitch class names
-    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const correlation = (distribution, profile, tonic) => {
+        const rotated = Array.from({ length: 12 }, (_, index) => distribution[(index + tonic) % 12]);
+        const meanA = rotated.reduce((sum, value) => sum + value, 0) / 12;
+        const meanB = profile.reduce((sum, value) => sum + value, 0) / 12;
+        let numerator = 0;
+        let squareA = 0;
+        let squareB = 0;
+        for (let index = 0; index < 12; index++) {
+            const a = rotated[index] - meanA;
+            const b = profile[index] - meanB;
+            numerator += a * b;
+            squareA += a * a;
+            squareB += b * b;
+        }
+        const denominator = Math.sqrt(squareA * squareB);
+        return denominator === 0 ? 0 : numerator / denominator;
+    };
 
-    let bestCorrelation = -1;
+    let bestCorrelation = -2;
     let bestKey = { note: 'C', mode: 'major' };
 
     // Try all 12 keys in both major and minor
     for (let tonic = 0; tonic < 12; tonic++) {
         // Major correlation
-        let majorCorr = 0;
-        for (let i = 0; i < 12; i++) {
-            const pitchClass = (i + tonic) % 12;
-            majorCorr += pitchClassCounts[pitchClass] * majorProfile[i];
-        }
+        const majorCorr = correlation(pitchClassCounts, majorProfile, tonic);
         if (majorCorr > bestCorrelation) {
             bestCorrelation = majorCorr;
-            bestKey = { note: noteNames[tonic], mode: 'major' };
+            bestKey = { root: tonic, mode: 'major' };
         }
 
         // Minor correlation
-        let minorCorr = 0;
-        for (let i = 0; i < 12; i++) {
-            const pitchClass = (i + tonic) % 12;
-            minorCorr += pitchClassCounts[pitchClass] * minorProfile[i];
-        }
+        const minorCorr = correlation(pitchClassCounts, minorProfile, tonic);
         if (minorCorr > bestCorrelation) {
             bestCorrelation = minorCorr;
-            bestKey = { note: noteNames[tonic], mode: 'minor' };
+            bestKey = { root: tonic, mode: 'minor' };
         }
     }
-
-    return bestKey;
+    const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+    const flatMajorRoots = new Set([1, 3, 5, 6, 8, 10]);
+    const relativeMajorRoot = bestKey.mode === 'minor' ? (bestKey.root + 3) % 12 : bestKey.root;
+    return {
+        note: (flatMajorRoots.has(relativeMajorRoot) ? flatNames : sharpNames)[bestKey.root],
+        mode: bestKey.mode,
+    };
 };
 
 export const parseMidiFile = async (file) => {
@@ -62,13 +77,13 @@ export const parseMidiFile = async (file) => {
 
         // Create a new song from MIDI metadata
         const song = createSong(midi.name || file.name.replace('.mid', ''));
-        if (midi.header.tempos.length > 0) {
-            song.tempo = Math.round(midi.header.tempos[0].bpm);
-        }
+        const initialTempo = midi.header.tempos.find(event => event.ticks === 0);
+        if (initialTempo) song.tempo = Math.round(initialTempo.bpm);
 
         // Extract time signature from MIDI
-        if (midi.header.timeSignatures.length > 0) {
-            const ts = midi.header.timeSignatures[0];
+        const initialTimeSignature = midi.header.timeSignatures.find(event => event.ticks === 0);
+        if (initialTimeSignature) {
+            const ts = initialTimeSignature;
             // @tonejs/midi stores time signature as an array [numerator, denominator]
             song.timeSignature = {
                 numerator: ts.timeSignature[0],
@@ -90,16 +105,14 @@ export const parseMidiFile = async (file) => {
         const ppq = midi.header.ppq;
         const durationInBeats = midi.durationTicks / ppq;
         // Calculate beats per measure based on time signature
-        const beatsPerMeasure = (song.timeSignature.numerator / song.timeSignature.denominator) * 4;
+        const beatsPerMeasure = quarterNotesPerMeasure(song.timeSignature);
         let phraseLength = Math.ceil(durationInBeats / beatsPerMeasure); // in measures
 
-        // Ensure phrase length is valid (at least 1 measure, at most 64 measures)
+        // Ensure phrase length is valid (at least 1 measure; never hide notes beyond a display cap)
         if (!phraseLength || phraseLength < 1 || !isFinite(phraseLength)) {
             console.warn("Invalid phrase length calculated:", phraseLength, "defaulting to 4 measures");
             phraseLength = 4;
-        } else if (phraseLength > 64) {
-            console.warn("Phrase too long:", phraseLength, "capping at 64 measures");
-            phraseLength = 64;
+
         }
 
         const phrase = createPhrase('Phrase A', phraseLength);
@@ -129,37 +142,28 @@ export const parseMidiFile = async (file) => {
                 // Use ticks (exact integers) instead of seconds to avoid FP noise
                 // that would put downbeats at e.g. 27.99999... instead of 28.
                 const startTimeBeats = note.ticks / ppq;
-                const durationBeats = Math.max(0.0625, note.durationTicks / ppq); // Min 1/16 note
+                const durationBeats = note.durationTicks / ppq;
+                if (!(durationBeats > 0)) return;
 
                 const event = createNoteEvent(note.midi, startTimeBeats, durationBeats);
-                phrase.tracks[targetTrack].push(event);
+                const hand = nonEmptyTracks.length === 1 ? (note.midi < 60 ? 'chords' : 'melody') : targetTrack;
+                phrase.tracks[hand].push(event);
             });
         });
 
         // Detect key signature from all notes
         const detectedKey = detectKey(allMidiNotes);
-        song.key = detectedKey;
+        const explicitKey = midi.header.keySignatures?.find(key => key.ticks === 0);
+        // @tonejs/midi reports the major-key name for the signed accidental count,
+        // including minor signatures. Resolve its relative minor explicitly.
+        const relativeMinor = { Cb: 'Ab', Gb: 'Eb', Db: 'Bb', Ab: 'F', Eb: 'C', Bb: 'G', F: 'D', C: 'A', G: 'E', D: 'B', A: 'F#', E: 'C#', B: 'G#', 'F#': 'D#', 'C#': 'A#' };
+        song.key = explicitKey?.key ? {
+            note: explicitKey.scale === 'minor' ? relativeMinor[explicitKey.key] : explicitKey.key,
+            mode: explicitKey.scale,
+        } : detectedKey;
         console.log("Detected key:", detectedKey);
 
-        // Normalize note positions to align with measure boundaries
-        let earliestNoteTime = Infinity;
-        phrase.tracks.melody.forEach(note => {
-            if (note.startTime < earliestNoteTime) earliestNoteTime = note.startTime;
-        });
-        phrase.tracks.chords.forEach(note => {
-            if (note.startTime < earliestNoteTime) earliestNoteTime = note.startTime;
-        });
-
-        if (earliestNoteTime !== Infinity && earliestNoteTime > 0) {
-            const measuresBeforeFirstNote = Math.floor(earliestNoteTime / beatsPerMeasure);
-            const alignedStart = measuresBeforeFirstNote * beatsPerMeasure;
-            const offset = earliestNoteTime - alignedStart;
-
-            console.log(`Normalizing notes: earliest=${earliestNoteTime}, alignedStart=${alignedStart}, offset=${offset}`);
-
-            phrase.tracks.melody.forEach(note => { note.startTime -= offset; });
-            phrase.tracks.chords.forEach(note => { note.startTime -= offset; });
-        }
+        // Preserve anacrusis and initial rests exactly as encoded in ticks.
 
         song.phrases.push(phrase);
         return song;

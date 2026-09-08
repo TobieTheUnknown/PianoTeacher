@@ -19,6 +19,8 @@ import com.tobietheunknown.pianoteacher.utils.detectChordOrArpeggio
 import com.tobietheunknown.pianoteacher.utils.MEASURE_EPSILON
 import com.tobietheunknown.pianoteacher.utils.detectKeySignature
 import com.tobietheunknown.pianoteacher.utils.musicKeySignatureFromStored
+import com.tobietheunknown.pianoteacher.utils.StaffDisplayNote
+import com.tobietheunknown.pianoteacher.utils.sliceNotesForStaff
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -37,6 +39,8 @@ data class MeasureData(
     val globalIndex: Int,     // flat index across all measures in the song
     val melodyNotes: List<NoteEvent>,
     val chordNotes: List<NoteEvent>,
+    val melodyStaffNotes: List<StaffDisplayNote>,
+    val chordStaffNotes: List<StaffDisplayNote>,
     val chordInfo: ChordInfo?,
     val arpeggioMotif: ArpeggioMotifResult? = null,
     // Activated arpeggio badge from the consecutive-measures run pass; null when
@@ -172,7 +176,6 @@ class LearningViewModel(
             }
         }
         audioEngine.start()
-        midiManager.startUsbScanning()
         viewModelScope.launch {
             midiManager.events.collect { event ->
                 when (event) {
@@ -185,6 +188,11 @@ class LearningViewModel(
                         audioEngine.noteOff(event.pitch)
                     }
                     is MidiEvent.SustainPedal -> audioEngine.setSustainPedal(event.engaged)
+                    MidiEvent.Reset -> {
+                        _pressedKeys.value = emptySet()
+                        audioEngine.setSustainPedal(false)
+                        audioEngine.noteOff(-1)
+                    }
                 }
             }
         }
@@ -247,7 +255,20 @@ class LearningViewModel(
 
     fun toggleDetails() { _showDetails.value = !_showDetails.value }
     fun toggleOctaves() { _showOctaves.value = !_showOctaves.value }
-    fun focusMeasure(globalIdx: Int) { _focusedMeasureIndex.value = globalIdx }
+    fun focusMeasure(globalIdx: Int) {
+        val lastIndex = allMeasures.value.lastIndex
+        _focusedMeasureIndex.value = if (lastIndex >= 0) globalIdx.coerceIn(0, lastIndex) else 0
+    }
+
+    fun focusPreviousMeasure() {
+        pause()
+        focusMeasure(_focusedMeasureIndex.value - 1)
+    }
+
+    fun focusNextMeasure() {
+        pause()
+        focusMeasure(_focusedMeasureIndex.value + 1)
+    }
 
     // ─── Playback ─────────────────────────────────────────────────────────────
 
@@ -267,7 +288,7 @@ class LearningViewModel(
             // Preroll — one bar of metronome ticks before the music starts
             // when the metronome is enabled. Matches the web flow.
             if (_metronomeEnabled.value) {
-                for (i in 0 until s.beatsPerMeasure) {
+                for (i in 0 until kotlin.math.ceil(s.beatsPerMeasure).toInt()) {
                     audioEngine.playClick(isAccent = i == 0)
                     delay(beatMs)
                 }
@@ -278,7 +299,7 @@ class LearningViewModel(
                 launch {
                     var beat = 0
                     while (isActive) {
-                        audioEngine.playClick(isAccent = beat % s.beatsPerMeasure == 0)
+                        audioEngine.playClick(isAccent = beat % s.beatsPerMeasure == 0.0)
                         beat++
                         delay(beatMs)
                     }
@@ -641,6 +662,8 @@ class LearningViewModel(
                     globalIndex = globalIdx++,
                     melodyNotes = melody,
                     chordNotes = chords,
+                    melodyStaffNotes = sliceNotesForStaff(phrase.tracks.melody, start, end),
+                    chordStaffNotes = sliceNotesForStaff(phrase.tracks.chords, start, end),
                     chordInfo = chordInfo,
                     arpeggioMotif = arpeggioMotif,
                     measureStart = start

@@ -210,7 +210,7 @@ private fun PhraseCard(
     onMerge: () -> Unit,
     melodyNotes: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent> = emptyList(),
     chordNotes: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent> = emptyList(),
-    beatsPerMeasure: Int = 4,
+    beatsPerMeasure: Double = 4.0,
 ) {
     Column(
         modifier = Modifier
@@ -364,7 +364,7 @@ private fun PhraseCard(
 @Composable
 private fun PhrasePreview(
     length: Int,
-    beatsPerMeasure: Int,
+    beatsPerMeasure: Double,
     melody: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent>,
     chords: List<com.tobietheunknown.pianoteacher.data.model.NoteEvent>,
     splitAt: Int?,
@@ -396,7 +396,7 @@ private fun PhrasePreview(
 
             // Note dots — top row cyan (melody), bottom row pink (chords)
             melody.forEach { n ->
-                val x = (n.startTime.toFloat() / totalBeats) * w
+                val x = (n.startTime / totalBeats).toFloat() * w
                 if (x in 0f..w) {
                     drawCircle(
                         color = HandRight,
@@ -406,7 +406,7 @@ private fun PhrasePreview(
                 }
             }
             chords.forEach { n ->
-                val x = (n.startTime.toFloat() / totalBeats) * w
+                val x = (n.startTime / totalBeats).toFloat() * w
                 if (x in 0f..w) {
                     drawCircle(
                         color = HandLeft,

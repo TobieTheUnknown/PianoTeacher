@@ -1,3 +1,4 @@
+import { quarterNotesPerMeasure } from '../utils/timing.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
@@ -82,7 +83,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         await audioEngine.initialize();
         setPlayingPhraseId(phrase.id);
         const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
-        const beatsPerMeasure = timeSignature.numerator;
+        const beatsPerMeasure = quarterNotesPerMeasure(timeSignature);
         const tempo = Math.max(20, Math.round((song.tempo || 120) * (dockSpeed / 100)));
 
         if (dockLoop) {

@@ -1122,24 +1122,6 @@ const PianoRollCanvas = memo(({
             />
         </div>
     );
-}, (prevProps, nextProps) => {
-    // Custom comparison for performance optimization
-    // Only re-render if essential props change
-    return (
-        prevProps.notes === nextProps.notes &&
-        prevProps.selectedNoteIds === nextProps.selectedNoteIds &&
-        prevProps.isPlaying === nextProps.isPlaying &&
-        prevProps.cellWidth === nextProps.cellWidth &&
-        prevProps.cellHeight === nextProps.cellHeight &&
-        prevProps.scrollX === nextProps.scrollX &&
-        prevProps.scrollY === nextProps.scrollY &&
-        prevProps.gridSize === nextProps.gridSize &&
-        prevProps.showScaleHighlight === nextProps.showScaleHighlight &&
-        prevProps.loopEnabled === nextProps.loopEnabled &&
-        prevProps.loopRegion === nextProps.loopRegion &&
-        prevProps.recordingPreviewNotes === nextProps.recordingPreviewNotes &&
-        prevProps.activeRecordingNotes === nextProps.activeRecordingNotes
-    );
 });
 
 PianoRollCanvas.displayName = 'PianoRollCanvas';

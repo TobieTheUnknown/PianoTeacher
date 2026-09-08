@@ -889,21 +889,6 @@ const LivePlayCanvas = memo(({
       </div>
     </div>
   );
-}, (prevProps, nextProps) => {
-  return (
-    prevProps.timeRef === nextProps.timeRef &&
-    prevProps.activeNotes === nextProps.activeNotes &&
-    prevProps.playedNotes === nextProps.playedNotes &&
-    prevProps.feedbackMessages === nextProps.feedbackMessages &&
-    prevProps.allNotes === nextProps.allNotes &&
-    prevProps.beatsPerSecond === nextProps.beatsPerSecond &&
-    prevProps.song === nextProps.song &&
-    prevProps.isLoopEnabled === nextProps.isLoopEnabled &&
-    prevProps.loopConfig === nextProps.loopConfig &&
-    prevProps.canvasWidth === nextProps.canvasWidth &&
-    prevProps.canvasHeight === nextProps.canvasHeight &&
-    prevProps.visualEffects === nextProps.visualEffects
-  );
 });
 
 LivePlayCanvas.displayName = 'LivePlayCanvas';

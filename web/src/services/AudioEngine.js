@@ -1,4 +1,4 @@
-import { getNoteNameFromMidi } from '../models/song';
+import { getNoteNameFromMidi } from '../models/song.js';
 
 // Lazy-loaded Tone.js module — avoids AudioContext creation on import (crashes Android WebView)
 let Tone = null;
@@ -14,8 +14,10 @@ async function loadTone() {
     return Tone;
 }
 
-class AudioEngine {
-    constructor() {
+export class AudioEngine {
+    constructor(toneLoader = loadTone) {
+        this._loadTone = toneLoader;
+        this._tone = null;
         this.sampler = null;
         this.samplerLoaded = false;
         this.isPlaying = false;
@@ -25,7 +27,9 @@ class AudioEngine {
         // when the slider was once dragged to 0%): restoring it would leave
         // the app PERMANENTLY silent across restarts. Non-finite or
         // out-of-range values fall back to 0 dB (full volume).
-        const storedVolume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0');
+        let storedVolume = 0;
+        try { storedVolume = parseFloat(localStorage.getItem('piano-teacher-volume') ?? '0'); }
+        catch { /* Audio remains usable when browser storage is disabled. */ }
         this._volume = (Number.isFinite(storedVolume) && storedVolume >= -60 && storedVolume <= 0)
             ? storedVolume
             : 0;
@@ -42,7 +46,7 @@ class AudioEngine {
      */
     getAutoAvOffsetSeconds() {
         try {
-            const ctx = Tone && Tone.context ? Tone.context.rawContext || Tone.context : null;
+            const ctx = this._tone && this._tone.context ? this._tone.context.rawContext || this._tone.context : null;
             if (!ctx) return 0;
             const base = typeof ctx.baseLatency === 'number' ? ctx.baseLatency : 0;
             const output = typeof ctx.outputLatency === 'number' ? ctx.outputLatency : 0;
@@ -98,20 +102,20 @@ class AudioEngine {
         return this.isPlaying;
     }
 
-    // Expose Tone module for consumers that need it (e.g. usePlaybackPosition)
+    // Expose the Tone module for consumers that need it (e.g. usePlaybackPosition)
     getTone() {
-        return Tone;
+        return this._tone;
     }
 
     /**
      * Stable clock function for a play session. Returns the audio-context
-     * clock (Tone.now()) when available so visuals and scheduled audio share
+     * clock (this._tone.now()) when available so visuals and scheduled audio share
      * the same time base; falls back to performance.now() before init.
      * Callers must capture ONE clock per play session — never mix sources.
      */
     getClock() {
-        if (Tone) {
-            const T = Tone;
+        if (this._tone) {
+            const T = this._tone;
             return () => T.now();
         }
         return () => performance.now() / 1000;
@@ -127,6 +131,7 @@ class AudioEngine {
         } else {
             this._readyCallbacks.push(callback);
         }
+        return () => { this._readyCallbacks = this._readyCallbacks.filter(cb => cb !== callback); };
     }
 
     /**
@@ -136,19 +141,30 @@ class AudioEngine {
      */
     async preload() {
         if (this._preloadPromise) return this._preloadPromise;
-        this._preloadPromise = this._doPreload();
+        this._preloadPromise = this._doPreload().catch(error => {
+            this.samplerLoaded = false;
+            this.sampler?.dispose();
+            this.metronomeSynth?.dispose();
+            this.masterVolume?.dispose();
+            this.sampler = null;
+            this.metronomeSynth = null;
+            this.masterVolume = null;
+            this._preloadPromise = null;
+            throw error;
+        });
         return this._preloadPromise;
     }
 
     async _doPreload() {
         if (this.samplerLoaded) return;
 
-        const T = await loadTone();
+        const T = this._tone || await this._loadTone();
+        this._tone = T;
 
         // lookAhead trades latency for scheduling stability. The previous 0.2s on
         // mobile (200ms) made live MIDI feel unplayable. 0.05s is the same as
         // desktop — Tone.js' default — and matches Web Audio's ~50ms intrinsic
-        // latency, so total observed latency for triggerAttack(Tone.now()) stays
+        // latency, so total observed latency for triggerAttack(this._tone.now()) stays
         // under ~100ms on a phone. If we hit buffer underruns on low-end Android
         // WebViews, bump back up only on those specifically.
         if (T.context) {
@@ -168,7 +184,7 @@ class AudioEngine {
             }
         }).connect(this.masterVolume);
 
-        await new Promise((resolve) => {
+        await new Promise((resolve, reject) => {
             this.sampler = new T.Sampler({
                 urls: {
                     "A0": "A0.mp3",
@@ -202,8 +218,9 @@ class AudioEngine {
                     "A7": "A7.mp3",
                     "C8": "C8.mp3"
                 },
+                onerror: reject,
                 release: 1,
-                baseUrl: import.meta.env.BASE_URL + "audio/salamander/",
+                baseUrl: (import.meta.env?.BASE_URL || '/') + "audio/salamander/",
                 onload: () => {
                     console.log("[AudioEngine] Sampler loaded");
                     this.samplerLoaded = true;
@@ -223,41 +240,38 @@ class AudioEngine {
      * by a user gesture (click/touch/keydown). Idempotent — safe to call often.
      */
     async start() {
-        await this.preload();
-        const T = await loadTone();
-        if (T.context && T.context.state !== 'running') {
-            await T.start();
-        }
+        const T = this._tone || await this._loadTone();
+        this._tone = T;
+        // Resume while handling the gesture, before waiting for sample downloads.
+        const resumed = T.context?.state !== 'running' ? T.start() : Promise.resolve();
+        await Promise.all([resumed, this.preload()]);
     }
 
-    /** Backward-compatible alias for older call sites. */
     async initialize() {
-        if (this._initPromise) return this._initPromise;
-        this._initPromise = this.start();
-        return this._initPromise;
+        return this.start();
     }
 
     playNote(pitch, duration = '8n', time) {
-        if (!this.sampler || !Tone || !this.samplerLoaded) return;
+        if (!this.sampler || !this._tone || !this.samplerLoaded) return;
         const note = typeof pitch === 'number' ? getNoteNameFromMidi(pitch) : pitch;
         this.sampler.triggerAttackRelease(note, duration, time);
     }
 
     playPhrase(phrase, tempo = 120, startPositionBeats = null, stopAtEnd = false, onPlaybackEnd = null, beatsPerMeasure = 4, options = {}) {
-        if (!Tone) return;
+        if (!this._tone || !this.samplerLoaded || !this.sampler) return;
         this.onPlaybackEnd = onPlaybackEnd;
 
         // Ensure context is running (mobile browsers suspend it)
-        if (Tone.context.state !== 'running') {
-            Tone.context.resume();
+        if (this._tone.context.state !== 'running') {
+            this._tone.context.resume();
         }
 
         // Remember whether the running metronome loop was alive so we can
-        // recreate it after Tone.Transport.cancel() wipes everything.
+        // recreate it after this._tone.Transport.cancel() wipes everything.
         const hadRunningMetronome = !!(this.metronomeEnabled && this.metronomeLoop);
         const prevMetronomeSubdivision = this._metronomeSubdivision || 'quarter';
 
-        Tone.Transport.stop();
+        this._tone.Transport.stop();
         if (this._currentPart) {
             this._currentPart.dispose();
             this._currentPart = null;
@@ -267,7 +281,7 @@ class AudioEngine {
             this.metronomeLoop.dispose();
             this.metronomeLoop = null;
         }
-        Tone.Transport.cancel();
+        this._tone.Transport.cancel();
         if (this.sampler) {
             this.sampler.releaseAll();
         }
@@ -277,7 +291,7 @@ class AudioEngine {
             this.stopTimeout = null;
         }
 
-        Tone.Transport.bpm.value = tempo;
+        this._tone.Transport.bpm.value = tempo;
 
         // Preroll is now explicit. Caller passes options.preroll=true to
         // get one bar of metronome click before the music. We no longer
@@ -293,9 +307,9 @@ class AudioEngine {
             ...phrase.tracks.chords.map(n => ({ ...n, track: 'chords' }))
         ];
 
-        const quarterDuration = Tone.Time('4n').toSeconds();
+        const quarterDuration = this._tone.Time('4n').toSeconds();
 
-        this._currentPart = new Tone.Part((time, note) => {
+        this._currentPart = new this._tone.Part((time, note) => {
             const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
             this.sampler.triggerAttackRelease(pitch, note.duration * quarterDuration, time);
         }, allNotes.map(n => ({
@@ -319,7 +333,7 @@ class AudioEngine {
             this._currentPart.clear();
             allNotes.forEach((n) => {
                 const noteSec = n.startTime * quarterDuration + prerollSec;
-                if (noteSec >= startSeconds) {
+                if (n.startTime * quarterDuration >= startSeconds) {
                     this._currentPart.add(noteSec - startSeconds, {
                         pitch: n.pitch,
                         duration: n.duration,
@@ -327,7 +341,7 @@ class AudioEngine {
                 }
             });
         }
-        Tone.Transport.seconds = 0;
+        this._tone.Transport.seconds = 0;
 
         // THEN start Part and Transport
         this._currentPart.start(0);
@@ -337,7 +351,7 @@ class AudioEngine {
         if (wantsPreroll && this.metronomeSynth) {
             const secondsPerBeat = 60 / tempo;
             for (let i = 0; i < prerollBeats; i++) {
-                Tone.Transport.scheduleOnce((time) => {
+                this._tone.Transport.scheduleOnce((time) => {
                     this.playClick(time, i === 0);
                 }, i * secondsPerBeat);
             }
@@ -349,13 +363,13 @@ class AudioEngine {
         if (hadRunningMetronome) {
             const subMap = { half: '2n', quarter: '4n', eighth: '8n' };
             const sub = subMap[prevMetronomeSubdivision] || '4n';
-            this.metronomeLoop = new Tone.Loop((time) => {
+            this.metronomeLoop = new this._tone.Loop((time) => {
                 this.playClick(time);
             }, sub);
             this.metronomeLoop.start(prerollSec);
         }
 
-        Tone.Transport.start();
+        this._tone.Transport.start();
         this.isPlaying = true;
 
         if (stopAtEnd) {
@@ -365,39 +379,25 @@ class AudioEngine {
 
             if (remainingSeconds > 0) {
                 this.stopTimeout = setTimeout(() => {
-                    this.stop();
-                    this.stopTimeout = null;
+                    this.stop({ notify: true });
                 }, remainingSeconds * 1000);
             }
         }
     }
 
     playNotes(notes, tempo = 120) {
-        if (!Tone) return;
-
-        // Ensure context is running (mobile browsers suspend it)
-        if (Tone.context.state !== 'running') {
-            Tone.context.resume();
-        }
-
-        Tone.Transport.stop();
-        if (this._currentPart) {
-            this._currentPart.dispose();
-            this._currentPart = null;
-        }
-        Tone.Transport.cancel();
-        if (this.sampler) {
-            this.sampler.releaseAll();
-        }
-
+        this.stop();
+        if (!this._tone || !this.samplerLoaded || !this.sampler) return;
+        if (this._tone.context.state !== 'running') this._tone.context.resume();
+        this._tone.Transport.seconds = 0;
         if (notes.length === 0) return;
 
-        Tone.Transport.bpm.value = tempo;
+        this._tone.Transport.bpm.value = tempo;
 
         const minTime = Math.min(...notes.map(n => n.startTime));
-        const quarterDuration = Tone.Time('4n').toSeconds();
+        const quarterDuration = this._tone.Time('4n').toSeconds();
 
-        this._currentPart = new Tone.Part((time, note) => {
+        this._currentPart = new this._tone.Part((time, note) => {
             const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
             this.sampler.triggerAttackRelease(pitch, note.duration * quarterDuration, time);
         }, notes.map(n => ({
@@ -412,8 +412,10 @@ class AudioEngine {
             this.metronomeLoop.start(0);
         }
 
-        Tone.Transport.start();
+        this._tone.Transport.start();
         this.isPlaying = true;
+        const endBeats = Math.max(...notes.map(n => n.startTime - minTime + n.duration));
+        this.stopTimeout = setTimeout(() => this.stop(), endBeats * quarterDuration * 1000);
     }
 
     playClick(time, isAccent = false) {
@@ -430,12 +432,12 @@ class AudioEngine {
      * amount.
      */
     playPrerollClicks(beats = 4, tempo = 120) {
-        if (!Tone || !this.metronomeSynth) return 0;
-        if (Tone.context.state !== 'running') {
-            Tone.context.resume();
+        if (!this._tone || !this.metronomeSynth) return 0;
+        if (this._tone.context.state !== 'running') {
+            this._tone.context.resume();
         }
         const secondsPerBeat = 60 / Math.max(20, tempo);
-        const now = Tone.now();
+        const now = this._tone.now();
         for (let i = 0; i < beats; i++) {
             this.playClick(now + i * secondsPerBeat, i === 0);
         }
@@ -443,12 +445,12 @@ class AudioEngine {
     }
 
     startMetronome(tempo = 120, subdivision = 'quarter') {
-        if (!Tone) return;
+        if (!this._tone) return;
         this.stopMetronome();
 
         this.metronomeEnabled = true;
         this._metronomeSubdivision = subdivision;
-        Tone.Transport.bpm.value = tempo;
+        this._tone.Transport.bpm.value = tempo;
 
         const subdivisionMap = {
             'half': '2n',
@@ -457,12 +459,12 @@ class AudioEngine {
         };
         const toneSubdivision = subdivisionMap[subdivision] || '4n';
 
-        this.metronomeLoop = new Tone.Loop((time) => {
+        this.metronomeLoop = new this._tone.Loop((time) => {
             this.playClick(time);
         }, toneSubdivision).start(0);
 
-        if (Tone.Transport.state !== 'started') {
-            Tone.Transport.start();
+        if (this._tone.Transport.state !== 'started') {
+            this._tone.Transport.start();
         }
     }
 
@@ -476,56 +478,40 @@ class AudioEngine {
     }
 
     setTempo(bpm) {
-        if (!Tone) return;
-        Tone.Transport.bpm.value = bpm;
+        if (!this._tone) return;
+        this._tone.Transport.bpm.value = bpm;
     }
 
     getTransportSeconds() {
-        if (!Tone) return 0;
-        return Tone.Transport.seconds;
+        if (!this._tone) return 0;
+        return this._tone.Transport.seconds;
     }
 
     // Music position in seconds, accounting for the metronome preroll.
     // Returns a negative number during preroll (countdown).
     getMusicSeconds() {
-        if (!Tone) return 0;
-        return Tone.Transport.seconds - (this._prerollSec || 0);
+        if (!this._tone) return 0;
+        return this._tone.Transport.seconds - (this._prerollSec || 0);
     }
 
     getPrerollSeconds() {
         return this._prerollSec || 0;
     }
 
-    stop() {
-        if (Tone) {
-            Tone.Transport.stop();
-        }
-        if (this._currentPart) {
-            this._currentPart.dispose();
-            this._currentPart = null;
-        }
-        if (Tone) {
-            Tone.Transport.cancel();
-        }
+    stop({ notify = false } = {}) {
+        const onEnd = this.onPlaybackEnd;
+        this.onPlaybackEnd = null;
+        this._tone?.Transport.stop();
+        this._currentPart?.dispose();
+        this._currentPart = null;
+        this._tone?.Transport.cancel();
         this.isPlaying = false;
-
-        if (this.stopTimeout) {
-            clearTimeout(this.stopTimeout);
-            this.stopTimeout = null;
-        }
-
-        if (this.onPlaybackEnd) {
-            this.onPlaybackEnd();
-            this.onPlaybackEnd = null;
-        }
-
-        if (!this.metronomeEnabled) {
-            this.stopMetronome();
-        }
-
-        if (this.sampler) {
-            this.sampler.releaseAll();
-        }
+        if (this.stopTimeout) clearTimeout(this.stopTimeout);
+        this.stopTimeout = null;
+        this.stopMetronome();
+        this.sampler?.releaseAll();
+        // A loop may restart in this callback: finish ALL old-session cleanup first.
+        if (notify) onEnd?.();
     }
 
     stopAll() {
@@ -538,11 +524,13 @@ class AudioEngine {
     }
 
     setVolume(dB) {
-        this._volume = dB;
+        if (!Number.isFinite(dB)) return;
+        this._volume = Math.max(-60, Math.min(0, dB));
         if (this.masterVolume) {
-            this.masterVolume.volume.value = dB;
+            this.masterVolume.volume.value = this._volume;
         }
-        localStorage.setItem('piano-teacher-volume', String(dB));
+        try { localStorage.setItem('piano-teacher-volume', String(this._volume)); }
+        catch { /* Keep the current session volume even if storage is unavailable. */ }
     }
 
     /** Volume as 0-100 percentage (convenience) */
@@ -553,7 +541,7 @@ class AudioEngine {
 
     setVolumePercent(pct) {
         // 0% → -60dB, 100% → 0dB
-        const dB = pct <= 0 ? -Infinity : (pct / 100) * 60 - 60;
+        const dB = (Math.max(0, Math.min(100, pct)) / 100) * 60 - 60;
         this.setVolume(dB);
     }
 }

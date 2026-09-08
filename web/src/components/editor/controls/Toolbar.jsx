@@ -247,36 +247,6 @@ const ToolbarComponent = ({
     );
 };
 
-/**
- * Custom comparison function for React.memo
- * Only re-render when state values change, not when callback references change
- */
-const arePropsEqual = (prevProps, nextProps) => {
-    // Compare state values that should trigger re-render
-    return (
-        prevProps.zoom === nextProps.zoom &&
-        prevProps.gridSize === nextProps.gridSize &&
-        prevProps.snapToGrid === nextProps.snapToGrid &&
-        prevProps.showScaleHighlight === nextProps.showScaleHighlight &&
-        prevProps.keySignature === nextProps.keySignature &&
-        prevProps.metronomeEnabled === nextProps.metronomeEnabled &&
-        prevProps.metronomeSubdivision === nextProps.metronomeSubdivision &&
-        prevProps.loopEnabled === nextProps.loopEnabled &&
-        prevProps.isPlaying === nextProps.isPlaying &&
-        prevProps.tempo === nextProps.tempo &&
-        prevProps.totalMeasures === nextProps.totalMeasures &&
-        prevProps.phraseLength === nextProps.phraseLength &&
-        prevProps.selectedNotesCount === nextProps.selectedNotesCount &&
-        prevProps.totalNotesCount === nextProps.totalNotesCount &&
-        prevProps.hasClipboard === nextProps.hasClipboard &&
-        prevProps.canUndo === nextProps.canUndo &&
-        prevProps.canRedo === nextProps.canRedo &&
-        prevProps.isRecording === nextProps.isRecording &&
-        prevProps.isFullscreen === nextProps.isFullscreen &&
-        prevProps.activeTool === nextProps.activeTool
-    );
-};
-
-export const Toolbar = memo(ToolbarComponent, arePropsEqual);
+export const Toolbar = memo(ToolbarComponent);
 
 export default Toolbar;

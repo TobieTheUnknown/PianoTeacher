@@ -1,5 +1,8 @@
 package com.tobietheunknown.pianoteacher.ui.livelearning
 
+import com.tobietheunknown.pianoteacher.utils.segmentRepeatedMotifs
+import com.tobietheunknown.pianoteacher.utils.RepeatedMotif
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -113,8 +116,8 @@ fun LiveLearningScreen(
     // LazyColumn so we don't recompute (and re-allocate) per cell every recomp.
     val measureDurationMs = remember(song?.tempo, song?.beatsPerMeasure, tempoPercent) {
         val bpm = song?.tempo ?: 120
-        val bpmPerMeasure = song?.beatsPerMeasure ?: 4
-        (60_000L * bpmPerMeasure) / (bpm * tempoPercent).toLong().coerceAtLeast(1L)
+        val bpmPerMeasure = song?.beatsPerMeasure ?: 4.0
+        ((60_000.0 * bpmPerMeasure) / (bpm * tempoPercent).coerceAtLeast(1f)).toLong()
     }
 
     // Auto-scroll to the group containing the playing measure.
@@ -234,7 +237,7 @@ fun LiveLearningScreen(
                                                 }
                                                 MeasureCardCompact(
                                                     measure = measure,
-                                                    beatsPerMeasure = song?.beatsPerMeasure ?: 4,
+                                                    beatsPerMeasure = song?.beatsPerMeasure ?: 4.0,
                                                     isCurrent = globalIdx == focusedMeasure || globalIdx == playingMeasure,
                                                     isPlaying = isPlaying && globalIdx == playingMeasure,
                                                     measureDurationMs = measureDurationMs,
@@ -346,7 +349,7 @@ fun LiveLearningScreen(
 @Composable
 private fun MeasureCardCompact(
     measure: MeasureData,
-    beatsPerMeasure: Int,
+    beatsPerMeasure: Double,
     isCurrent: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
@@ -385,8 +388,11 @@ private fun MeasureCardCompact(
             //   Détail OFF + a role → role badge only.
             //   Détail OFF + no role → wrapped melody note chips.
             //   Détail ON → badge (if any) at top, then MotifRows / NotesRow below.
+            val rightSegments = remember(measure.melodyNotes) { segmentRepeatedMotifs(measure.melodyNotes) }
             val rightRole = measure.rightRole
             when {
+                rightSegments.any { it.repetitions > 1 } ->
+                    RepeatedMotifRows(rightSegments, CyanMelody, keySignature)
                 !showDetails && rightRole != null ->
                     HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
                 !showDetails ->
@@ -410,8 +416,11 @@ private fun MeasureCardCompact(
             //   Détail OFF + no role + notes → ≤4 note chips + "…".
             //   Détail OFF + no role + no notes → empty spacer.
             //   Détail ON → badge (if any) at top, then MotifRows / NotesRow below.
+            val leftSegments = remember(measure.chordNotes) { segmentRepeatedMotifs(measure.chordNotes) }
             val leftRole = measure.leftRole
             when {
+                leftSegments.any { it.repetitions > 1 } ->
+                    RepeatedMotifRows(leftSegments, PinkChords, keySignature)
                 !showDetails && leftRole != null ->
                     HandRoleBadge(leftRole, hand = HandSide.LEFT, keySignature = keySignature)
                 !showDetails && measure.chordNotes.isNotEmpty() ->
@@ -788,7 +797,7 @@ private fun NotesRow(notes: List<NoteEvent>, color: Color, keySignature: MusicKe
 
 @Composable
 private fun BeatStrip(
-    beatsPerMeasure: Int,
+    beatsPerMeasure: Double,
     isCurrent: Boolean,
     isPlaying: Boolean,
     melody: List<NoteEvent>,
@@ -827,8 +836,8 @@ private fun BeatStrip(
                 size = Size(w, 1f),
             )
             // Beat division lines (N-1) — taller, brighter
-            for (i in 1 until beatsPerMeasure) {
-                val x = w * i / beatsPerMeasure
+            for (i in 1 until kotlin.math.ceil(beatsPerMeasure).toInt()) {
+                val x = (w * i / beatsPerMeasure).toFloat()
                 drawRect(
                     color = LL_BEAT_DIV_BRIGHT,
                     topLeft = Offset(x - 0.5f, 0f),
@@ -869,6 +878,20 @@ private fun BeatStrip(
                     size = Size(2f, h),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun RepeatedMotifRows(segments: List<RepeatedMotif>, tone: Color, keySignature: MusicKeySignature?) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        segments.forEach { segment ->
+            val motif = segment.groups.joinToString(" ") { group -> group.joinToString(" + ") { noteName(it.pitch, keySignature) } }
+            Text(
+                text = motif + if (segment.repetitions > 1) " ×${segment.repetitions}" else "",
+                color = tone,
+                fontSize = 12.sp,
+            )
         }
     }
 }

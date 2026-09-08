@@ -91,7 +91,7 @@ export function PianoRollEditor({
     const [activeTool, setActiveTool] = useState('draw');
 
     // Recording state
-    const [recordingPreviewNotes, setRecordingPreviewNotes] = useState([]);
+    const recordingPreviewNotes = [];
     const [activeRecordingNotes, setActiveRecordingNotes] = useState([]);
     const [isRecording, setIsRecording] = useState(false);
 
@@ -960,14 +960,15 @@ export function PianoRollEditor({
             {/* MIDI Recorder (fullscreen only) */}
             {isFullscreen && isRecording && (
                 <MidiRecorder
-                    phrase={phrase}
                     tempo={tempo}
+                    phraseLength={phrase.length}
                     timeSignature={timeSignature}
-                    gridSize={gridSize}
-                    metronomeEnabled={metronomeEnabled}
+                    snapToGrid={snapToGrid}
                     metronomeSubdivision={metronomeSubdivision}
-                    onAddNote={onAddNote}
-                    onRecordingPreviewChange={setRecordingPreviewNotes}
+                    onRecordingComplete={notes => {
+                        for (const note of notes) onAddNote(phrase.id, note.pitch < 60 ? 'chords' : 'melody', note.pitch, note.startTime, note.duration);
+                        setActiveRecordingNotes([]);
+                    }}
                     onActiveNotesChange={setActiveRecordingNotes}
                 />
             )}

@@ -52,6 +52,7 @@ fun AdaptiveNavigationFrame(
     content: @Composable BoxScope.() -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
+        val compactRail = maxHeight < 620.dp
         val useRail = maxWidth >= 720.dp && maxHeight >= 520.dp
         when {
             !showNavigation -> Box(Modifier.fillMaxSize(), content = content)
@@ -59,7 +60,7 @@ fun AdaptiveNavigationFrame(
                 StudioNavigationRail(
                     active = active,
                     onSelect = onSelect,
-                    compact = maxHeight < 620.dp,
+                    compact = compactRail,
                 )
                 Box(Modifier.weight(1f).fillMaxHeight(), content = content)
             }

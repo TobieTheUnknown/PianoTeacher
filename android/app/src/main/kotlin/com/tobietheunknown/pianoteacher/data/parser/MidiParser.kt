@@ -49,37 +49,26 @@ object MidiParser {
         val chordNotes: List<NoteEvent>
 
         if (rawMidi.tracks.size >= 2) {
-            val t0 = rawMidi.tracks[0].notes.map { n ->
+            val sortedTracks = rawMidi.tracks.sortedBy { track -> track.notes.map { it.pitch }.average() }
+            fun events(tracks: List<RawTrack>) = tracks.flatMap { track -> track.notes.map { n ->
                 NoteEvent(UUID.randomUUID().toString(), n.pitch,
                     n.startTick.toDouble() / ticksPerBeat, n.durationTicks.toDouble() / ticksPerBeat)
-            }.sortedBy { it.startTime }
-            val t1 = rawMidi.tracks[1].notes.map { n ->
-                NoteEvent(UUID.randomUUID().toString(), n.pitch,
-                    n.startTick.toDouble() / ticksPerBeat, n.durationTicks.toDouble() / ticksPerBeat)
-            }.sortedBy { it.startTime }
-
-            // Assign higher-average-pitch track to melody
-            val avgPitch0 = if (t0.isEmpty()) 0.0 else t0.map { it.pitch }.average()
-            val avgPitch1 = if (t1.isEmpty()) 0.0 else t1.map { it.pitch }.average()
-
-            if (avgPitch0 >= avgPitch1) {
-                melodyNotes = t0; chordNotes = t1
-            } else {
-                melodyNotes = t1; chordNotes = t0
-            }
+            } }.sortedBy { it.startTime }
+            chordNotes = events(sortedTracks.take(1))
+            melodyNotes = events(sortedTracks.drop(1))
         } else {
             melodyNotes = rightHand
             chordNotes = rightHandLow
         }
 
         // Split into phrases based on silence gaps
-        val phrases = splitIntoPhrases(melodyNotes, chordNotes, timeSignature.numerator)
+        val phrases = splitIntoPhrases(melodyNotes, chordNotes, timeSignature.numerator * 4.0 / timeSignature.denominator)
 
         Song(
             id = UUID.randomUUID().toString(),
             title = title,
             artist = "",
-            key = detectKey(allNotes),
+            key = rawMidi.keySignature ?: detectKey(allNotes),
             tempo = tempo,
             timeSignature = timeSignature,
             phrases = phrases,
@@ -90,7 +79,7 @@ object MidiParser {
     private fun splitIntoPhrases(
         melody: List<NoteEvent>,
         chords: List<NoteEvent>,
-        beatsPerMeasure: Int
+        beatsPerMeasure: Double
     ): List<Phrase> {
         if (melody.isEmpty() && chords.isEmpty()) return emptyList()
 
@@ -101,12 +90,14 @@ object MidiParser {
         val boundaries = mutableListOf(0.0)
         var prevEnd = 0.0
 
-        for (note in allNotes) {
+        for ((index, note) in allNotes.withIndex()) {
             val gap = note.startTime - prevEnd
-            if (gap >= SILENCE_GAP_BEATS && note.startTime - boundaries.last() >= MIN_PHRASE_BEATS) {
+            // The silence before the first note belongs to the score. Splitting
+            // there would silently erase an intro or a long pickup.
+            if (index > 0 && gap >= SILENCE_GAP_BEATS && note.startTime - boundaries.last() >= MIN_PHRASE_BEATS) {
                 // Snap to nearest measure boundary
-                val measuresElapsed = ((note.startTime / beatsPerMeasure)).roundToInt()
-                boundaries.add(measuresElapsed.toDouble() * beatsPerMeasure)
+                val boundary = kotlin.math.floor(note.startTime / beatsPerMeasure) * beatsPerMeasure
+                if (boundary > boundaries.last() && boundary >= prevEnd) boundaries.add(boundary)
             }
             prevEnd = maxOf(prevEnd, note.startTime + note.duration)
         }
@@ -114,7 +105,7 @@ object MidiParser {
 
         return boundaries.zipWithNext { start, end ->
             val phraseBeats = end - start
-            val phraseMeasures = maxOf(1, (phraseBeats / beatsPerMeasure).roundToInt())
+            val phraseMeasures = maxOf(1, kotlin.math.ceil(phraseBeats / beatsPerMeasure).toInt())
             val phraseIndex = boundaries.indexOf(start) + 1
 
             val phraseMelody = melody.filter {
@@ -165,7 +156,8 @@ object MidiParser {
         val tracks: List<RawTrack>,
         val ticksPerBeat: Int,
         val tempo: Int,
-        val timeSignature: TimeSignature
+        val timeSignature: TimeSignature,
+        val keySignature: KeySignature?
     )
 
     private class MidiReader(private val data: ByteArray) {
@@ -176,11 +168,16 @@ object MidiParser {
             expect("MThd")
             val headerLength = readInt32()
             val format = readInt16()
+            require(format in 0..1) { "Independent MIDI sequences (format 2) are not supported" }
             val numTracks = readInt16()
             val ticksPerBeat = readInt16()
+            require(ticksPerBeat in 1..0x7fff) { "SMPTE MIDI timing is not supported" }
+            require(headerLength >= 6) { "Invalid MIDI header length" }
+            pos += headerLength - 6
 
             var globalTempo = 120
             var globalTimeSig = TimeSignature()
+            var globalKeySig: KeySignature? = null
             val tracks = mutableListOf<RawTrack>()
 
             repeat(numTracks) {
@@ -188,7 +185,9 @@ object MidiParser {
                 val trackLength = readInt32()
                 val trackEnd = pos + trackLength
 
-                val noteOnTimes = mutableMapOf<Int, Long>() // pitch → startTick
+                // Channel is part of note identity. The deque also preserves
+                // repeated same-pitch attacks before their corresponding offs.
+                val noteOnTimes = mutableMapOf<Pair<Int, Int>, ArrayDeque<Long>>()
                 val notes = mutableListOf<RawNote>()
                 var tick = 0L
 
@@ -219,32 +218,59 @@ object MidiParser {
                                         val us = ((data[pos].toInt() and 0xFF) shl 16) or
                                                  ((data[pos+1].toInt() and 0xFF) shl 8) or
                                                  (data[pos+2].toInt() and 0xFF)
-                                        if (us > 0) globalTempo = (60_000_000.0 / us).roundToInt()
+                                        if (us > 0 && tick == 0L) globalTempo = (60_000_000.0 / us).roundToInt()
                                     }
                                 }
                                 0x58 -> { // Time signature
                                     if (metaLen >= 2) {
                                         val num = data[pos].toInt() and 0xFF
                                         val den = 1 shl (data[pos+1].toInt() and 0xFF)
-                                        globalTimeSig = TimeSignature(num, den)
+                                        if (tick == 0L && num > 0 && den > 0) globalTimeSig = TimeSignature(num, den)
+                                    }
+                                }
+                                0x59 -> { // Key signature: signed flats/sharps + major/minor
+                                    if (metaLen >= 2 && tick == 0L) {
+                                        val accidentals = data[pos].toInt()
+                                        val minor = (data[pos + 1].toInt() and 0xFF) == 1
+                                        val majorNames = mapOf(
+                                            -7 to "Cb", -6 to "Gb", -5 to "Db", -4 to "Ab",
+                                            -3 to "Eb", -2 to "Bb", -1 to "F", 0 to "C",
+                                            1 to "G", 2 to "D", 3 to "A", 4 to "E",
+                                            5 to "B", 6 to "F#", 7 to "C#"
+                                        )
+                                        val minorNames = mapOf(
+                                            -7 to "Ab", -6 to "Eb", -5 to "Bb", -4 to "F",
+                                            -3 to "C", -2 to "G", -1 to "D", 0 to "A",
+                                            1 to "E", 2 to "B", 3 to "F#", 4 to "C#",
+                                            5 to "G#", 6 to "D#", 7 to "A#"
+                                        )
+                                        (if (minor) minorNames else majorNames)[accidentals]?.let { note ->
+                                            globalKeySig = KeySignature(note, if (minor) "minor" else "major")
+                                        }
                                     }
                                 }
                             }
                             pos += metaLen
                         }
                         (statusByte and 0xF0) == 0x90 -> { // Note On
+                            val channel = statusByte and 0x0F
                             val pitch = data[pos++].toInt() and 0xFF
                             val velocity = data[pos++].toInt() and 0xFF
-                            if (velocity > 0) noteOnTimes[pitch] = tick
-                            else noteOnTimes.remove(pitch)?.let { start ->
+                            val key = channel to pitch
+                            if (velocity > 0) noteOnTimes.getOrPut(key) { ArrayDeque() }.addLast(tick)
+                            else noteOnTimes[key]?.removeFirstOrNull()?.let { start ->
                                 notes.add(RawNote(pitch, start, tick - start))
+                                if (noteOnTimes[key]?.isEmpty() == true) noteOnTimes.remove(key)
                             }
                         }
                         (statusByte and 0xF0) == 0x80 -> { // Note Off
+                            val channel = statusByte and 0x0F
                             val pitch = data[pos++].toInt() and 0xFF
                             pos++ // velocity
-                            noteOnTimes.remove(pitch)?.let { start ->
+                            val key = channel to pitch
+                            noteOnTimes[key]?.removeFirstOrNull()?.let { start ->
                                 notes.add(RawNote(pitch, start, tick - start))
+                                if (noteOnTimes[key]?.isEmpty() == true) noteOnTimes.remove(key)
                             }
                         }
                         statusByte in 0xA0..0xAF -> pos += 2 // Aftertouch
@@ -260,14 +286,16 @@ object MidiParser {
                 }
 
                 // Close any notes still open at track end (rare but valid)
-                noteOnTimes.forEach { (pitch, startTick) ->
-                    if (tick > startTick) notes.add(RawNote(pitch, startTick, tick - startTick))
+                noteOnTimes.forEach { (key, starts) ->
+                    starts.forEach { startTick ->
+                        if (tick > startTick) notes.add(RawNote(key.second, startTick, tick - startTick))
+                    }
                 }
                 pos = trackEnd
                 if (notes.isNotEmpty()) tracks.add(RawTrack(notes))
             }
 
-            return RawMidi(tracks, ticksPerBeat, globalTempo, globalTimeSig)
+            return RawMidi(tracks, ticksPerBeat, globalTempo, globalTimeSig, globalKeySig)
         }
 
         private fun expect(header: String) {

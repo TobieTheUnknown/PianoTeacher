@@ -1,14 +1,16 @@
 package com.tobietheunknown.pianoteacher
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import com.tobietheunknown.pianoteacher.midi.MidiManager
+import com.tobietheunknown.pianoteacher.ui.settings.appPreferences
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
@@ -25,25 +27,34 @@ class MainActivity : ComponentActivity() {
 
     private var currentIntent by mutableStateOf<Intent?>(null)
 
-    private val blePermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* BLE scan will be guarded by try-catch if denied */ }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         currentIntent = intent
-        // BLE permissions are now requested from Settings when BLE MIDI is toggled on
-        // requestBlePermissionsIfNeeded()
 
         ThemeState.init(this)
         OnboardingState.init(this)
 
-        // Warm the audio engine on the way in. Loads SoundPool samples (~500ms)
+        // Warm the audio engine on the way in. SoundPool reports readiness through its load callback.
         // and starts decoding Oboe samples in the background so the Library →
         // LivePlay/Learning transition has a sampler ready instead of dropping
         // the first key presses.
         AudioEngine.getInstance(applicationContext)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val midi = MidiManager.getInstance(applicationContext)
+                try {
+                    applicationContext.appPreferences.collect { prefs ->
+                        midi.configure(usb = prefs.usbMidiEnabled, ble = prefs.bleMidiEnabled)
+                    }
+                } finally {
+                    midi.stop()
+                    AudioEngine.getInstance(applicationContext).setSustainPedal(false)
+                    AudioEngine.getInstance(applicationContext).noteOff(-1)
+                }
+            }
+        }
+
 
         setContent {
             val currentTheme by ThemeState.current
@@ -64,18 +75,4 @@ class MainActivity : ComponentActivity() {
         currentIntent = intent
     }
 
-    private fun requestBlePermissionsIfNeeded() {
-        val needed = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)
-                    add(Manifest.permission.BLUETOOTH_SCAN)
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
-                    add(Manifest.permission.BLUETOOTH_CONNECT)
-            } else {
-                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-                    add(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-        }
-        if (needed.isNotEmpty()) blePermissionLauncher.launch(needed.toTypedArray())
-    }
 }

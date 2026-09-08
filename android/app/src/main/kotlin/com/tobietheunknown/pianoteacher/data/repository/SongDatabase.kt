@@ -16,6 +16,22 @@ interface SongDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSong(song: SongEntity)
 
+    // Keep learning metadata when replacing the editable score. The read and
+    // write share a Room transaction so a concurrent progress update is safe.
+    @Transaction
+    suspend fun saveScore(song: SongEntity) {
+        val previous = getSongById(song.id)
+        insertSong(song.copy(
+            lastPlayedAt = previous?.lastPlayedAt ?: song.lastPlayedAt,
+            masteredPhrases = previous?.masteredPhrases ?: song.masteredPhrases
+        ))
+    }
+
+    @Transaction
+    suspend fun saveScores(songs: List<SongEntity>) {
+        songs.forEach { saveScore(it) }
+    }
+
     @Delete
     suspend fun deleteSong(song: SongEntity)
 

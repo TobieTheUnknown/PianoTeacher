@@ -1,9 +1,10 @@
 package com.tobietheunknown.pianoteacher.ui.settings
 
 import android.Manifest
-import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +44,12 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs by vm.prefs.collectAsState()
+    val midiManager = remember { com.tobietheunknown.pianoteacher.midi.MidiManager.getInstance(context) }
+    val blePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        val enabled = grants.values.all { it }
+        vm.setBleMidiEnabled(enabled)
+        if (enabled) midiManager.startBleScanning()
+    }
     var selectedTheme by remember { mutableStateOf(ThemePrefs.getTheme(context)) }
     var metronomeVolume by remember { mutableIntStateOf(ThemePrefs.getMetronomeVolume(context)) }
     val previewMetronome = remember { MetronomeEngine() }
@@ -191,26 +198,17 @@ fun SettingsScreen(
                     icon = Icons.Default.Bluetooth,
                     checked = prefs.bleMidiEnabled,
                     onToggle = { enabled ->
-                        if (enabled) {
-                            val activity = context as? Activity
-                            if (activity != null) {
-                                val needed = buildList {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                        if (activity.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)
-                                            add(Manifest.permission.BLUETOOTH_SCAN)
-                                        if (activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
-                                            add(Manifest.permission.BLUETOOTH_CONNECT)
-                                    } else {
-                                        if (activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-                                            add(Manifest.permission.ACCESS_FINE_LOCATION)
-                                    }
-                                }
-                                if (needed.isNotEmpty()) {
-                                    activity.requestPermissions(needed.toTypedArray(), 100)
-                                }
-                            }
+                        val needed = if (enabled) buildList {
+                            val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                                listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+                            else listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                            permissions.filterTo(this) { context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+                        } else emptyList()
+                        if (needed.isNotEmpty()) blePermissions.launch(needed.toTypedArray())
+                        else {
+                            vm.setBleMidiEnabled(enabled)
+                            if (enabled) midiManager.startBleScanning()
                         }
-                        vm.setBleMidiEnabled(enabled)
                     }
                 )
                 ToggleSetting(

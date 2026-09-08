@@ -64,7 +64,7 @@ data class Song(
     val createdAt: String = ""
 ) {
     val totalMeasures: Int get() = phrases.sumOf { it.length }
-    val beatsPerMeasure: Int get() = timeSignature.numerator
+    val beatsPerMeasure: Double get() = timeSignature.numerator * 4.0 / timeSignature.denominator
     val totalBeats: Double get() = totalMeasures.toDouble() * beatsPerMeasure
     val durationSeconds: Double get() = totalBeats / (tempo / 60.0)
 }

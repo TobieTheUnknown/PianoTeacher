@@ -1,6 +1,8 @@
+import { quarterNotesPerMeasure } from './utils/timing.js';
 import { useState, useCallback } from 'react';
 import { createSong, createPhrase, createNoteEvent } from './models/song';
 import { StorageService } from './services/StorageService';
+import { mergePhrases, splitPhraseAtMeasure } from './utils/phraseEditing.js';
 
 export function useSong() {
     const [song, setSong] = useState(createSong());
@@ -48,44 +50,13 @@ export function useSong() {
             if (phraseIndex === -1) return prev;
 
             const phrase = prev.phrases[phraseIndex];
-
-            // Split notes by track
-            const beforeMelody = phrase.tracks.melody.filter(n => n.startTime < splitTime);
-            const afterMelody = phrase.tracks.melody
-                .filter(n => n.startTime >= splitTime)
-                .map(n => ({ ...n, startTime: n.startTime - splitTime }));
-
-            const beforeChords = phrase.tracks.chords.filter(n => n.startTime < splitTime);
-            const afterChords = phrase.tracks.chords
-                .filter(n => n.startTime >= splitTime)
-                .map(n => ({ ...n, startTime: n.startTime - splitTime }));
-
-            // Calculate new phrase lengths (in beats / 4 to get measures, assuming 4/4 time)
-            const beatsPerMeasure = 4;
-            const beforeLength = Math.ceil(splitTime / beatsPerMeasure);
-
-            // Find the last note in the second phrase to determine its length
-            const allAfterNotes = [...afterMelody, ...afterChords];
-            const maxEndTime = allAfterNotes.length > 0
-                ? Math.max(...allAfterNotes.map(n => n.startTime + n.duration))
-                : beatsPerMeasure;
-            const afterLength = Math.ceil(maxEndTime / beatsPerMeasure);
-
-            // Create updated first phrase
-            const updatedPhrase = {
-                ...phrase,
-                length: beforeLength,
-                tracks: {
-                    melody: beforeMelody,
-                    chords: beforeChords
-                }
-            };
-
-            // Create new second phrase
+            const beatsPerMeasure = quarterNotesPerMeasure(prev.timeSignature);
             const newPhraseName = `Phrase ${String.fromCharCode(65 + prev.phrases.length)}`;
-            const newPhrase = createPhrase(newPhraseName, afterLength);
-            newPhrase.tracks.melody = afterMelody;
-            newPhrase.tracks.chords = afterChords;
+            const splitMeasure = Math.round(splitTime / beatsPerMeasure);
+            if (Math.abs(splitTime - splitMeasure * beatsPerMeasure) > 1e-9) return prev;
+            const result = splitPhraseAtMeasure(phrase, splitMeasure, beatsPerMeasure, newPhraseName);
+            if (!result) return prev;
+            const [updatedPhrase, newPhrase] = result;
 
             // Insert new phrase right after the current one
             const newPhrases = [...prev.phrases];
@@ -196,43 +167,8 @@ export function useSong() {
             const currentPhrase = prev.phrases[phraseIndex];
             const previousPhrase = prev.phrases[phraseIndex - 1];
 
-            // Calculate offset for current phrase notes (in beats)
-            const beatsPerMeasure = 4;
-            const offset = previousPhrase.length * beatsPerMeasure;
-
-            // Merge notes with offset
-            const mergedMelody = [
-                ...previousPhrase.tracks.melody,
-                ...currentPhrase.tracks.melody.map(n => ({
-                    ...n,
-                    startTime: n.startTime + offset
-                }))
-            ];
-
-            const mergedChords = [
-                ...previousPhrase.tracks.chords,
-                ...currentPhrase.tracks.chords.map(n => ({
-                    ...n,
-                    startTime: n.startTime + offset
-                }))
-            ];
-
-            // Calculate new length
-            const allNotes = [...mergedMelody, ...mergedChords];
-            const maxEndTime = allNotes.length > 0
-                ? Math.max(...allNotes.map(n => n.startTime + n.duration))
-                : beatsPerMeasure;
-            const mergedLength = Math.ceil(maxEndTime / beatsPerMeasure);
-
-            // Create merged phrase
-            const mergedPhrase = {
-                ...previousPhrase,
-                length: mergedLength,
-                tracks: {
-                    melody: mergedMelody,
-                    chords: mergedChords
-                }
-            };
+            const beatsPerMeasure = quarterNotesPerMeasure(prev.timeSignature);
+            const mergedPhrase = mergePhrases(previousPhrase, currentPhrase, beatsPerMeasure);
 
             // Update phrases array
             const newPhrases = [...prev.phrases];

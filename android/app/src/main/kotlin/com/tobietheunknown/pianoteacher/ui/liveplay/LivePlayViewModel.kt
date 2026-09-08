@@ -132,8 +132,6 @@ class LivePlayViewModel(
             updateVisibleNotes(0.0)
 
             audioEngine.start()
-            midiManager.startUsbScanning()
-            midiManager.startBleScanning()
 
             launch {
                 midiManager.events.collect { event ->
@@ -141,6 +139,11 @@ class LivePlayViewModel(
                         is MidiEvent.NoteOn -> handleMidiNoteOn(event.pitch, event.velocity)
                         is MidiEvent.NoteOff -> handleMidiNoteOff(event.pitch)
                         is MidiEvent.SustainPedal -> audioEngine.setSustainPedal(event.engaged)
+                        MidiEvent.Reset -> {
+                            _state.update { it.copy(pressedKeys = emptySet(), wrongKeys = emptySet()) }
+                            audioEngine.setSustainPedal(false)
+                            audioEngine.noteOff(-1)
+                        }
                     }
                 }
             }
@@ -195,8 +198,8 @@ class LivePlayViewModel(
                 val bpm = _state.value.song?.tempo ?: 120
                 val speed = _state.value.playbackSpeed
                 val beatMs = (60_000.0 / bpm / speed).toLong()
-                val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
-                for (i in 0 until beatsPerMeasure) {
+                val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4.0
+                for (i in 0 until kotlin.math.ceil(beatsPerMeasure).toInt()) {
                     audioEngine.playClick(i == 0, amplitude = 0.7f)
                     delay(beatMs)
                 }
@@ -265,8 +268,8 @@ class LivePlayViewModel(
                         val tickIndex = kotlin.math.floor(currentBeat * multiplier).toInt()
                         if (tickIndex != lastMetronomeBeat && tickIndex >= 0) {
                             lastMetronomeBeat = tickIndex
-                            val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4
-                            val isAccent = tickIndex % (beatsPerMeasure * multiplier) == 0
+                            val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4.0
+                            val isAccent = tickIndex % (beatsPerMeasure * multiplier) == 0.0
                             audioEngine.playClick(isAccent)
                         }
                     }

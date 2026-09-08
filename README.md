@@ -49,11 +49,11 @@ Et autour : un **éditeur** piano-roll, une **bibliothèque** (import MIDI), un 
 
 ## Architecture
 
-Deux applications natives qui partagent le même design et la même pédagogie :
+Deux applications distinctes qui partagent le même design et la même pédagogie :
 
 ```
 PianoTeacher/
-├── web/        React 19 + Vite + Tone.js — l'app web, empaquetée en app Mac via Tauri 2
+├── web/        React 19 + Vite + Tone.js — une seule source pour le Web, GitHub Pages et l'app desktop Tauri 2
 │   └── src-tauri/
 ├── android/    App native Kotlin / Jetpack Compose (audio temps réel via Oboe)
 └── landing/    Site vitrine statique (GitHub Pages)
@@ -62,6 +62,7 @@ PianoTeacher/
 - **Design tokens** : `web/src/styles/tokens.css` est la source de vérité ; `android/.../ui/theme/Theme.kt` la reflète.
 - **Moteur de rendu partition** : `web/src/utils/sheetMusic.js` fait référence ; le renderer Compose s'y aligne constante par constante.
 - **Synchro** : tout le timing LivePlay est ancré sur l'horloge audio (`Tone.now()`), avec un offset audio/visuel calibrable par un assistant de taps dans les Réglages.
+- **Données** : chaque application conserve actuellement sa propre bibliothèque locale ; il n'y a pas encore de synchronisation entre Web, desktop et Android.
 
 ## Développer
 
@@ -76,7 +77,7 @@ cd web && npx tauri build --bundles app
 cd android && JAVA_HOME=/path/to/jdk-17 ./gradlew :app:assembleDebug
 ```
 
-Un corpus MIDI de test vit dans `web/docs/` (Departure, Other Promise, Halleluah, Laputa…) le tout arrangé par [@Jotabe](https://www.twitch.tv/jotabemusique).
+Les morceaux de démonstration intégrés vivent dans `web/public/demo/` (Departure, Other Promise, Halleluah, Laputa…), arrangés par [@Jotabe](https://www.twitch.tv/jotabemusique).
 
 J'ai commencé a build l'app (et je continuerai) en parallèle du suivi de ses cours sur [twitch](https://www.twitch.tv/jotabemusique), l'app n'est donc pas parfaite et correspond surtout a mes usages (je ne l'ai pas testée sur des miliers de fichiers midi).
 

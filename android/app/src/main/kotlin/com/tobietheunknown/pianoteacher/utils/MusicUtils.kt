@@ -2,11 +2,8 @@ package com.tobietheunknown.pianoteacher.utils
 
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 
-// Tolerance (in beats) for measure-boundary comparisons. A note within EPSILON
-// before a measure boundary snaps forward to the next measure. Mirrors the
-// `EPSILON = 0.001` convention in web/src/utils/measureUtils.js so all
-// platforms agree on which measure a downbeat belongs to.
-const val MEASURE_EPSILON = 0.001
+// Floating-point noise tolerance. It must stay far below a real MIDI tick.
+const val MEASURE_EPSILON = 1e-9
 
 // ─── Note names ───────────────────────────────────────────────────────────────
 
@@ -77,19 +74,7 @@ val KEY_SCALE_NOTES = mapOf(
     "Ab-minor" to listOf("Ab","Bb","Cb","Db","Eb","Fb","Gb"),
 )
 
-private val ENHARMONIC_PAIRS = mapOf(
-    "C#" to "Db", "Db" to "C#",
-    "D#" to "Eb", "Eb" to "D#",
-    "F#" to "Gb", "Gb" to "F#",
-    "G#" to "Ab", "Ab" to "G#",
-    "A#" to "Bb", "Bb" to "A#",
-    "E#" to "Fb", "Fb" to "E#",
-    "B#" to "Cb", "Cb" to "B#"
-)
-
 private val FLAT_NAMES_EN = arrayOf("C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B")
-
-private fun getEnharmonicPair(note: String): String? = ENHARMONIC_PAIRS[note]
 
 /** Returns the correct enharmonic note name for a pitch class given the key signature. */
 fun getEnharmonicNote(pitchClass: Int, keySignature: KeySignature): String {
@@ -98,11 +83,8 @@ fun getEnharmonicNote(pitchClass: Int, keySignature: KeySignature): String {
     val scaleNotes = KEY_SCALE_NOTES[keyName]
 
     if (scaleNotes != null) {
-        // Check if raw name is in the scale
-        if (rawName in scaleNotes) return EN_TO_FR[rawName] ?: rawName
-        // Check enharmonic
-        val enharmonic = getEnharmonicPair(rawName)
-        if (enharmonic != null && enharmonic in scaleNotes) return EN_TO_FR[enharmonic] ?: enharmonic
+        val spelling = scaleNotes.firstOrNull { EN_NOTE_TO_PITCH_CLASS[it] == pitchClass }
+        if (spelling != null) return EN_TO_FR[spelling] ?: spelling
         // Chromatic: use flat preference from scale
         val usesFlats = scaleNotes.any { it.contains("b") }
         return if (usesFlats) EN_TO_FR[FLAT_NAMES_EN[pitchClass]] ?: rawName
@@ -121,7 +103,12 @@ fun midiToFrench(midi: Int, showOctave: Boolean = true, useFlats: Boolean = fals
         val names = if (useFlats) FLAT_NAMES_FR else SHARP_NAMES_FR
         names[midi % 12]
     }
-    return if (showOctave) "$name${midi / 12 - 1}" else name
+    val octave = midi / 12 - 1 + when {
+        name == "Dob" && midi % 12 == 11 -> 1
+        name == "Si#" && midi % 12 == 0 -> -1
+        else -> 0
+    }
+    return if (showOctave) "$name$octave" else name
 }
 
 /** Returns French note name for a pitch class (0-11) given useFlats flag. */
@@ -134,10 +121,10 @@ fun getNoteNameForKey(pitchClass: Int, useFlats: Boolean): String {
 private val MAJOR_PROFILE = doubleArrayOf(6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88)
 private val MINOR_PROFILE = doubleArrayOf(6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17)
 
-data class KeySignature(val root: Int, val isMinor: Boolean, val useFlats: Boolean) {
+data class KeySignature(val root: Int, val isMinor: Boolean, val useFlats: Boolean, val spelling: String? = null) {
     /** Key name for scale lookup, e.g. "Bb-major", "C#-minor" */
     val keyName: String get() {
-        val enName = if (useFlats) FLAT_NAMES_EN[root] else SHARP_NAMES_EN[root]
+        val enName = spelling ?: if (useFlats) FLAT_NAMES_EN[root] else SHARP_NAMES_EN[root]
         return "$enName-${if (isMinor) "minor" else "major"}"
     }
     val name: String get() {
@@ -165,7 +152,7 @@ fun musicKeySignatureFromStored(
         isMinor -> note in flatMinorKeys
         else -> note in flatMajorKeys
     }
-    return KeySignature(root = root, isMinor = isMinor, useFlats = useFlats)
+    return KeySignature(root = root, isMinor = isMinor, useFlats = useFlats, spelling = note)
 }
 
 fun detectKeySignature(pitches: List<Int>, durations: List<Double>): KeySignature {
@@ -265,15 +252,17 @@ fun identifyChord(midiPitches: List<Int>, useFlats: Boolean = false): ChordDetec
     val lowestPitchClass = midiPitches.min() % 12
     val orderedRoots = listOf(lowestPitchClass) + pitchClasses.filter { it != lowestPitchClass }
 
+    for (exact in listOf(true, false)) {
     for (root in orderedRoots) {
         val intervals = pitchClasses.map { ((it - root + 12) % 12) }.sorted()
         for (template in CHORD_TEMPLATES) {
-            if (intervalsMatch(intervals, template.intervals)) {
+            if ((!exact || intervals.size == template.intervals.size) && intervalsMatch(intervals, template.intervals)) {
                 val rootName = getNoteNameForKey(root, useFlats)
                 val displayName = formatChordDisplayName(rootName, template.quality)
                 return ChordDetectionResult(rootName, template.quality, displayName, root)
             }
         }
+    }
     }
     return null
 }

@@ -28,9 +28,8 @@ private object Keys {
     val EXPECTED_KEYS = booleanPreferencesKey("show_expected_keys")
 }
 
-class SettingsViewModel(private val context: Context) : ViewModel() {
-
-    val prefs: StateFlow<AppPrefs> = context.dataStore.data
+val Context.appPreferences: Flow<AppPrefs>
+    get() = dataStore.data
         .map { p ->
             AppPrefs(
                 audioEnabled = p[Keys.AUDIO] ?: true,
@@ -40,6 +39,11 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                 showExpectedKeys = p[Keys.EXPECTED_KEYS] ?: true,
             )
         }
+
+
+class SettingsViewModel(private val context: Context) : ViewModel() {
+
+    val prefs: StateFlow<AppPrefs> = context.appPreferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppPrefs())
 
     fun setAudioEnabled(v: Boolean) = set(Keys.AUDIO, v)

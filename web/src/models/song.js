@@ -62,7 +62,8 @@ export const NOTE_NAMES = {
     'A': 'La',
     'A#': 'La#',
     'Bb': 'Sib',
-    'B': 'Si'
+    'B': 'Si',
+    'Cb': 'Dob', 'Fb': 'Fab', 'E#': 'Mi#', 'B#': 'Si#'
 };
 
 export const KEY_MODE_NAMES = {
@@ -207,10 +208,10 @@ export const getEnharmonicNote = (note, keySignature) => {
         return enharmonicMap[note] || note;
     }
 
-    // Check if the note is in the scale
-    if (scaleNotes.includes(note)) {
-        return note; // Note is in the scale, use as-is
-    }
+    // Match by sound, preserving the scale spelling (F becomes E# in F# major).
+    const midi = getMidiNumber(`${note}4`);
+    const diatonic = scaleNotes.find(n => getMidiNumber(`${n}4`) % 12 === midi % 12);
+    if (midi !== null && diatonic) return diatonic;
 
     // For chromatic notes, determine preferred enharmonic
     // Check if this key uses sharps or flats
@@ -237,35 +238,13 @@ export const getMidiNumber = (noteName) => {
     if (typeof noteName === 'number') return noteName;
     if (!noteName) return null;
 
-    const noteToOffset = {
-        'C': 0, 'C#': 1, 'Db': 1,
-        'D': 2, 'D#': 3, 'Eb': 3,
-        'E': 4,
-        'F': 5, 'F#': 6, 'Gb': 6,
-        'G': 7, 'G#': 8, 'Ab': 8,
-        'A': 9, 'A#': 10, 'Bb': 10,
-        'B': 11
-    };
-
-    try {
-        // Handle "C4" or "C#4"
-        let note, octave;
-        if (isNaN(noteName[1])) {
-            note = noteName.slice(0, 2);
-            octave = parseInt(noteName.slice(2));
-        } else {
-            note = noteName[0];
-            octave = parseInt(noteName.slice(1));
-        }
-
-        if (noteToOffset[note] !== undefined && !isNaN(octave)) {
-            return 12 + (octave * 12) + noteToOffset[note];
-        }
-    // eslint-disable-next-line no-unused-vars
-    } catch (_e) {
-        console.warn('Invalid note name:', noteName);
-    }
-    return null;
+    if (typeof noteName !== 'string') return null;
+    const match = noteName.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+    if (!match) return null;
+    const natural = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    const offset = natural[match[1].toUpperCase()] + (match[2] === '#' ? 1 : match[2] === 'b' ? -1 : 0);
+    const midi = (Number(match[3]) + 1) * 12 + offset;
+    return Number.isInteger(midi) && midi >= 0 && midi <= 127 ? midi : null;
 };
 
 // Helper to convert MIDI number to note name (e.g., 60 -> "C4")
@@ -302,6 +281,11 @@ export const getFrenchNoteName = (pitch, keySignature = null, includeOctave = tr
     // Get the correct enharmonic spelling
     const correctNote = keySignature ? getEnharmonicNote(note, keySignature) : note;
 
+    if (octave !== '' && correctNote !== note) {
+        const midi = getMidiNumber(noteName);
+        const spelled = getMidiNumber(`${correctNote}${octave}`);
+        if (midi !== null && spelled !== null) octave = Number(octave) + (midi - spelled) / 12;
+    }
     return `${NOTE_NAMES[correctNote] || correctNote}${includeOctave ? octave : ''}`;
 };
 

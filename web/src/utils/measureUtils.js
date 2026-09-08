@@ -1,23 +1,15 @@
-import { getPianoRollKeys } from '../models/song';
+import { getMidiNumber } from '../models/song.js';
+import { quarterNotesPerMeasure } from './timing.js';
 
-/**
- * Slice a phrase into measures.
- *
- * @param phrase
- * @param displayBeatsPerMeasure  How many beats the measure shows visually
- *   (= time signature numerator). Carried on each measure so the UI can
- *   draw the right number of division lines.
- *
- * Note: the underlying note `startTime` values are stored in our internal
- * "4 units per measure" convention (legacy, matches what the MIDI parser
- * and editor produce). That's what we slice against. The display unit
- * (numerator) is purely cosmetic.
- */
-export function getMeasuresFromPhrase(phrase, displayBeatsPerMeasure = 4) {
+/** Slice note onsets using quarter-note time, with separate visual divisions. */
+export function getMeasuresFromPhrase(phrase, timeSignature = { numerator: 4, denominator: 4 }) {
     const measures = [];
-    const EPSILON = 0.001;
-    const keys = getPianoRollKeys(1, 5);
-    const UNITS_PER_MEASURE = 4;
+    // Only absorb floating-point representation noise. A musically real MIDI
+    // tick (often 1/480 beat) must remain in the measure where it was authored.
+    const EPSILON = 1e-9;
+    // A numeric argument remains compatible with callers using quarter-note bars.
+    const displayBeatsPerMeasure = typeof timeSignature === 'number' ? timeSignature : timeSignature.numerator;
+    const UNITS_PER_MEASURE = typeof timeSignature === 'number' ? timeSignature : quarterNotesPerMeasure(timeSignature);
 
     const getSeparatorForMeasure = (measureIndex) => {
         const handSeparators = phrase.handSeparators || [];
@@ -29,16 +21,16 @@ export function getMeasuresFromPhrase(phrase, displayBeatsPerMeasure = 4) {
     };
 
     const splitNotesByHand = (notes, separatorPitch) => {
-        if (!separatorPitch) {
+        if (separatorPitch === null || separatorPitch === undefined) {
             return {
                 rightHand: notes.filter(n => n.trackName === 'melody'),
                 leftHand: notes.filter(n => n.trackName === 'chords')
             };
         }
-        const separatorIndex = keys.indexOf(separatorPitch);
+        const separator = getMidiNumber(separatorPitch);
         return {
-            rightHand: notes.filter(n => keys.indexOf(n.pitch) < separatorIndex),
-            leftHand: notes.filter(n => keys.indexOf(n.pitch) >= separatorIndex)
+            rightHand: notes.filter(n => getMidiNumber(n.pitch) > separator),
+            leftHand: notes.filter(n => getMidiNumber(n.pitch) <= separator)
         };
     };
 
@@ -69,11 +61,12 @@ export function getMeasuresFromPhrase(phrase, displayBeatsPerMeasure = 4) {
 }
 
 export function groupNotesByTime(notes) {
+    const ONSET_EPSILON = 1e-6;
     const groups = [];
     const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
     sorted.forEach(note => {
         const lastGroup = groups[groups.length - 1];
-        if (lastGroup && Math.abs(lastGroup.startTime - note.startTime) < 0.1) {
+        if (lastGroup && Math.abs(lastGroup.startTime - note.startTime) < ONSET_EPSILON) {
             lastGroup.notes.push(note);
         } else {
             groups.push({ startTime: note.startTime, notes: [note] });

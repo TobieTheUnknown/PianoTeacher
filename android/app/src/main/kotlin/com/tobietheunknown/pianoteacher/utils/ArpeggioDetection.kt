@@ -169,6 +169,7 @@ data class ToleratedChord(
 fun identifyChordWithTolerance(
     pitches: List<Int>,
     keySignature: KeySignature?,
+    allowIncomplete: Boolean = true,
 ): ToleratedChord? {
     if (pitches.isEmpty()) return null
     val pitchClasses = pitches.map { it % 12 }.toSet().toList()
@@ -188,14 +189,14 @@ fun identifyChordWithTolerance(
     val pcSet = pitchClasses.toSet()
     val bassPc = pitches[0] % 12
     val exactRoots = listOf(bassPc) + pitchClasses.filter { it != bassPc }
-    for (template in CHORD_TEMPLATES) {
-        if (template.intervals.size != pcSet.size) continue
-        for (root in exactRoots) {
+    for (root in exactRoots) {
+        for (template in CHORD_TEMPLATES) {
+            if (template.intervals.size != pcSet.size) continue
             val templatePcs = template.intervals.map { (root + it) % 12 }.toSet()
             if (templatePcs.size == pcSet.size && pcSet.all { it in templatePcs }) {
                 return ToleratedChord(makeChord(root, template.quality), false, null)
             }
-        }
+    }
     }
 
     val direct = identifyChord(pitches, keySignature?.useFlats ?: false)
@@ -226,6 +227,8 @@ fun identifyChordWithTolerance(
         )
         return ToleratedChord(keyAware, altered, alteredNoteName)
     }
+
+    if (!allowIncomplete) return null
 
     // INCOMPLETE 4-note chord: exactly 3 of a 4-tone template, no foreign tone.
     val rootsToTry = listOf(bassPc) + pitchClasses.filter { it != bassPc }
@@ -258,7 +261,7 @@ data class MeasureHarmony(
  */
 fun getMeasureHarmony(allPitches: List<Int>, keySignature: KeySignature?): MeasureHarmony? {
     if (allPitches.isEmpty()) return null
-    val identified = identifyChordWithTolerance(allPitches, keySignature) ?: return null
+    val identified = identifyChordWithTolerance(allPitches, keySignature, allowIncomplete = false) ?: return null
     val bassPitchClass = allPitches.min() % 12
     val label = formatArpeggioBadge(identified.chord, bassPitchClass, keySignature)
     val degree = chordDegree(identified.chord, keySignature)
@@ -345,12 +348,12 @@ data class PedalQualification(
  */
 fun qualifyPedalMeasure(
     handNotes: List<NoteEvent>,
-    unitsPerMeasure: Int,
+    unitsPerMeasure: Double,
     keySignature: KeySignature?,
 ): PedalQualification? {
     if (handNotes.isEmpty()) return null
 
-    val span = if (unitsPerMeasure > 0) unitsPerMeasure else 4
+    val span = if (unitsPerMeasure > 0) unitsPerMeasure else 4.0
     val groups = handNotes.groupBy { it.startTime }.toSortedMap()
     val allPitches = mutableListOf<Int>()
     var maxDuration = 0.0
@@ -619,7 +622,7 @@ data class MeasureRoles(
 fun computeMeasureRoles(
     leftHandNotes: List<List<NoteEvent>>,
     rightHandNotes: List<List<NoteEvent>>,
-    unitsPerMeasure: Int,
+    unitsPerMeasure: Double,
     keySignature: KeySignature?,
     phraseIndexes: List<Int>? = null,
 ): List<MeasureRoles> {

@@ -1,6 +1,6 @@
+import { quarterNotesPerMeasure } from '../utils/timing.js';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { midiInputService } from '../services/MidiInputService';
-import { audioEngine } from '../services/AudioEngine';
 import { createNoteEvent } from '../models/song';
 
 /**
@@ -14,7 +14,7 @@ import { createNoteEvent } from '../models/song';
  * - Pre-roll countdown
  * - Auto-stop on phrase length
  */
-export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25, snapToGrid = true, onNoteRecorded = null, onActiveNotesChange = null, onPreRollComplete = null) {
+export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0.25, snapToGrid = true, onNoteRecorded = null, onActiveNotesChange = null, onPreRollComplete = null, timeSignature = null) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPreRoll, setIsPreRoll] = useState(false);
     const [preRollCount, setPreRollCount] = useState(0);
@@ -30,7 +30,8 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
 
     // Memoize calculated values to prevent unnecessary callback recreations
     const beatDuration = useMemo(() => (60 / tempo) * 1000, [tempo]);
-    const phraseLengthBeats = useMemo(() => phraseLength * 4, [phraseLength]);
+    const measureBeats = quarterNotesPerMeasure(timeSignature);
+    const phraseLengthBeats = phraseLength * measureBeats;
 
     // Keep refs in sync with state
     useEffect(() => {
@@ -89,7 +90,7 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
                 onActiveNotesChange(activeNotesArray);
             }
 
-            audioEngine.playNote(event.note, event.velocity / 127);
+            // The global useMidiAudio hook owns MIDI monitoring (including sustain).
         };
 
         handleNoteOffRef.current = (event) => {
@@ -216,9 +217,9 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
     // Start pre-roll countdown (stable reference)
     const startPreRoll = useCallback((preRollBars = 1) => {
         setIsPreRoll(true);
-        setPreRollCount(preRollBars * 4);
+        setPreRollCount(preRollBars * measureBeats);
 
-        let count = preRollBars * 4;
+        let count = preRollBars * measureBeats;
 
         // NO metronome clicks here - AudioEngine handles it
         // Just count down
@@ -234,7 +235,7 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
                 actuallyStartRecording();
             }
         }, beatDuration);
-    }, [beatDuration, actuallyStartRecording]);
+    }, [beatDuration, actuallyStartRecording, measureBeats]);
 
     // Start recording with pre-roll
     const startRecording = useCallback((withPreRoll = true, preRollBars = 1) => {

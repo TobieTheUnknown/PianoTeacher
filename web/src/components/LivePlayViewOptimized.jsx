@@ -854,6 +854,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           feedbackMessages={feedbackMessages}
           allNotes={allNotes}
           beatsPerSecond={beatsPerSecond}
+          beatsPerMeasure={beatsPerMeasure}
           song={song}
           isLoopEnabled={isLoopEnabled}
           loopConfig={loopConfig}
@@ -936,6 +937,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           isLoopEnabled={isLoopEnabled}
           phrases={song.phrases}
           beatsPerSecond={beatsPerSecond}
+          beatsPerMeasure={beatsPerMeasure}
           onSeek={jumpToTime}
           onLoopChange={handleLoopChange}
           onLoopToggle={handleLoopToggle}
@@ -954,6 +956,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
           feedbackMessages={feedbackMessages}
           allNotes={allNotes}
           beatsPerSecond={beatsPerSecond}
+          beatsPerMeasure={beatsPerMeasure}
           song={song}
           isLoopEnabled={isLoopEnabled}
           loopConfig={loopConfig}

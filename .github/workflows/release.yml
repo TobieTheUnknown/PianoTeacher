@@ -24,6 +24,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install pinned NDK and CMake
+        run: sdkmanager "ndk;30.0.14904198" "cmake;3.22.1"
+
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -36,7 +39,7 @@ jobs:
 
       - name: Build Release APK
         working-directory: android
-        run: gradle assembleRelease
+        run: ./gradlew testDebugUnitTest assembleRelease
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
@@ -57,21 +60,21 @@ jobs:
             --ks-pass "pass:${{ secrets.SIGNING_KEY_STORE_PASSWORD }}" \
             --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" \
             --key-pass "pass:${{ secrets.SIGNING_KEY_PASSWORD }}" \
-            --out android/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk \
+            --out android/app/build/outputs/apk/release/PianoTeacher-Android.apk \
             "$UNSIGNED"
 
           echo "Signed APK:"
-          ls -lh android/app/build/outputs/apk/release/piano-practice-*.apk
+          ls -lh android/app/build/outputs/apk/release/PianoTeacher-Android.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Piano Practice ${{ github.ref_name }}
+          name: Piano Teacher ${{ github.ref_name }}
           body: |
-            ## Piano Practice ${{ github.ref_name }}
+            ## Piano Teacher ${{ github.ref_name }}
 
             ### Installation
-            Télécharge `piano-practice-${{ github.ref_name }}.apk` ci-dessous et installe-le sur ton Android (active "Sources inconnues" si besoin).
-          files: android/app/build/outputs/apk/release/piano-practice-${{ github.ref_name }}.apk
+            Télécharge `PianoTeacher-Android.apk` ci-dessous et installe-le sur ton Android (active "Sources inconnues" si besoin).
+          files: android/app/build/outputs/apk/release/PianoTeacher-Android.apk
           draft: false
           prerelease: false

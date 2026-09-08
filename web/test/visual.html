@@ -1,0 +1,40 @@
+<!doctype html><html lang="fr"><meta charset="utf-8"><title>Audit visuel PianoTeacher</title>
+<div id="root"></div>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import '../src/index.css';
+import '../src/styles/tokens.css';
+import { LiveLearning } from '../src/components/LiveLearning.jsx';
+import { SheetMusicLearning } from '../src/components/SheetMusicLearning.jsx';
+const pitches = [60,64,65,60,64,65,60,64,65,64,65,64,65];
+const phrase = { id:'audit-phrase', name:'Motifs successifs', length:2, tracks: {
+ melody:pitches.map((pitch,i)=>({id:`r${i}`,pitch,startTime:i*.25,duration:.25})),
+ chords:pitches.map((pitch,i)=>({id:`l${i}`,pitch:pitch-12,startTime:i*.25,duration:.25}))
+}};
+const song = {id:'audit',title:'Do Mi Fa ×3 puis Mi Fa ×2',key:{note:'C',mode:'major'},tempo:90,timeSignature:{numerator:4,denominator:4},phrases:[phrase]};
+const engraving = {...song,title:'Sol majeur — Fa♯, Fa♮, Fa♮, Fa♯',key:{note:'G',mode:'major'},phrases:[{...phrase,tracks:{melody:[66,65,65,66].map((pitch,i)=>({id:`s${i}`,pitch,startTime:i,duration:1})),chords:[]}}]};
+const sheet = new URLSearchParams(location.search).has('sheet');
+createRoot(document.getElementById('root')).render(React.createElement(sheet ? SheetMusicLearning : LiveLearning, {song:sheet ? engraving : song}));
+</script></html>
+<script type="module">
+import { audioEngine } from '../src/services/AudioEngine.js';
+const test = document.createElement('button');
+test.textContent = 'Vérifier le signal audio';
+test.style.cssText = 'position:fixed;right:12px;top:12px;z-index:99999';
+const status = document.createElement('output');
+status.style.cssText = 'position:fixed;right:12px;top:50px;z-index:99999;background:#111;color:white;padding:8px';
+document.body.append(test,status);
+test.onclick = async () => {
+ try {
+  await audioEngine.start();
+  const Tone = audioEngine.getTone();
+  const meter = new Tone.Meter({normalRange:true});
+  audioEngine.masterVolume.connect(meter);
+  audioEngine.playNote(60,.7);
+  let peak=0;
+  const timer=setInterval(()=>{peak=Math.max(peak,...[meter.getValue()].flat());},20);
+  setTimeout(()=>{clearInterval(timer);meter.dispose();status.textContent=`Contexte ${Tone.context.state} ; samples ${audioEngine.samplerLoaded} ; signal ${peak.toFixed(4)}`;},1000);
+ } catch(error) { status.textContent=String(error); }
+};
+</script>

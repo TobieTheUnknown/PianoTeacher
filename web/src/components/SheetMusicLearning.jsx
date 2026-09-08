@@ -1,3 +1,4 @@
+import { quarterNotesPerMeasure } from '../utils/timing.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     flattenSongMeasures,
@@ -75,7 +76,7 @@ function useSheetTheme() {
 
 export function SheetMusicLearning({ song, isMobile = false }) {
     const sheetTheme = useSheetTheme();
-    const beatsPerMeasure = song?.timeSignature?.numerator || 4;
+    const beatsPerMeasure = quarterNotesPerMeasure(song?.timeSignature);
     const measures = useMemo(
         () => flattenSongMeasures(song, beatsPerMeasure),
         [song, beatsPerMeasure]
@@ -157,7 +158,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         const melody = [];
         const chords = [];
         let beatOffset = 0;
-        const bpm = song.timeSignature?.numerator || 4;
+        const bpm = quarterNotesPerMeasure(song.timeSignature);
         song.phrases.forEach((phrase) => {
             phrase.tracks.melody.forEach((n) => {
                 melody.push({ ...n, startTime: n.startTime + beatOffset });
@@ -203,7 +204,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
     const measuresLen = measures.length;
     useEffect(() => {
         if (!playing && !previewPlaying) return;
-        const beatsPerMeasureLocal = song?.timeSignature?.numerator || 4;
+        const beatsPerMeasureLocal = quarterNotesPerMeasure(song?.timeSignature);
         const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
         const secondsPerBeat = 60 / tempo;
         const secondsPerMeasure = secondsPerBeat * beatsPerMeasureLocal;
@@ -276,7 +277,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         audioEngine.playNotes(notes, tempo);
 
         // Compute measure duration so we can auto-clear the preview state.
-        const beatsPerMeasureLocal = song?.timeSignature?.numerator || 4;
+        const beatsPerMeasureLocal = quarterNotesPerMeasure(song?.timeSignature);
         const secondsPerBeat = 60 / tempo;
         const measureDurationSec = secondsPerBeat * beatsPerMeasureLocal;
 
@@ -310,7 +311,7 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         }
         if (!combinedPhrase) return;
 
-        const beatsPerMeasure = song?.timeSignature?.numerator || 4;
+        const beatsPerMeasure = quarterNotesPerMeasure(song?.timeSignature);
         const tempo = Math.max(20, Math.round((song?.tempo || 120) * (speed / 100)));
         let filteredAll = combinedPhrase;
         if (handMode === 'right') {
@@ -321,8 +322,8 @@ export function SheetMusicLearning({ song, isMobile = false }) {
 
         // Slice the phrase to a loop sub-range when looping is on.
         const buildPhrase = (startMeasure, endMeasure) => {
-            const startUnit = (startMeasure - 1) * 4;
-            const endUnit = endMeasure * 4;
+            const startUnit = (startMeasure - 1) * beatsPerMeasure;
+            const endUnit = endMeasure * beatsPerMeasure;
             const inRange = (n) => n.startTime >= startUnit && n.startTime < endUnit;
             return {
                 tracks: {
@@ -333,17 +334,14 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             };
         };
 
-        // Start the running metronome BEFORE playPhrase so it ticks
-        // through both the preroll and the music when enabled.
-        if (metronome) {
-            audioEngine.startMetronome(tempo, metronomeSubdivision);
-        }
-
         const playRange = (startMeasure, endMeasure, withPreroll) => {
+            // Natural completion disposes the old transport, including its
+            // metronome. Restore it for every loop iteration.
+            if (metronome) audioEngine.startMetronome(tempo, metronomeSubdivision);
             const phrase = buildPhrase(startMeasure, endMeasure);
             const startBeats = 0; // phrase already starts at 0 after slicing
             // Translate note times so the slice starts at 0 in the phrase.
-            const startUnit = (startMeasure - 1) * 4;
+            const startUnit = (startMeasure - 1) * beatsPerMeasure;
             const shifted = {
                 tracks: {
                     melody: phrase.tracks.melody.map((n) => ({ ...n, startTime: n.startTime - startUnit })),

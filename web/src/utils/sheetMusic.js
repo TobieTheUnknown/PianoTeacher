@@ -8,7 +8,7 @@
  * is `(topDiatonic - d) * (lineSpacing / 2)`.
  */
 
-import { getMidiNumber, normalizeKeySignature } from '../models/song.js';
+import { getMidiNumber, getEnharmonicNote, getNoteNameFromMidi, normalizeKeySignature } from '../models/song.js';
 
 // ─── Geometry constants (dp on Android, treated as px on web at 1× scale) ────
 
@@ -239,14 +239,16 @@ export const BASS_FLAT_POS    = [27, 30, 26, 29, 25, 28, 24];
  */
 export function keySignatureAccidentalCount(keySig) {
     if (!keySig) return 0;
-    const { root, isMinor, useFlats } = toKotlinKeySig(keySig);
+    const normalized = toKotlinKeySig(keySig);
+    if (!normalized) return 0;
+    const { root, isMinor, useFlats } = normalized;
     const majorRoot = isMinor ? ((root + 3) % 12) : root;
     if (useFlats) {
         // Flat major keys: F(5)=1, Bb(10)=2, Eb(3)=3, Ab(8)=4, Db(1)=5, Gb(6)=6
-        return ({ 5: 1, 10: 2, 3: 3, 8: 4, 1: 5, 6: 6 })[majorRoot] || 0;
+        return ({ 5: 1, 10: 2, 3: 3, 8: 4, 1: 5, 6: 6, 11: 7 })[majorRoot] || 0;
     }
     // Sharp major keys: G(7)=1, D(2)=2, A(9)=3, E(4)=4, B(11)=5, F#(6)=6
-    return ({ 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6 })[majorRoot] || 0;
+    return ({ 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: 7 })[majorRoot] || 0;
 }
 
 const NOTE_NAME_TO_PITCHCLASS = {
@@ -256,7 +258,7 @@ const NOTE_NAME_TO_PITCHCLASS = {
     'F': 5, 'F#': 6, 'Gb': 6,
     'G': 7, 'G#': 8, 'Ab': 8,
     'A': 9, 'A#': 10, 'Bb': 10,
-    'B': 11,
+    'B': 11, 'Cb': 11, 'Fb': 4, 'E#': 5, 'B#': 0,
 };
 
 const FLAT_KEYS_MAJOR = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb']);
@@ -275,6 +277,34 @@ export function toKotlinKeySig(keySig) {
     const isMinor = mode === 'minor';
     const useFlats = isMinor ? FLAT_KEYS_MINOR.has(note) : FLAT_KEYS_MAJOR.has(note);
     return { root, isMinor, useFlats, keyName: `${note}-${mode}` };
+}
+
+/** Key-aware spelling and per-measure accidental memory, independent of canvas. */
+export function spellMidiForStaff(midi, keySig, useFlats = false) {
+    const raw = getNoteNameFromMidi(midi).replace(/-?\d+$/, '');
+    const converted = toKotlinKeySig(keySig);
+    const webKey = converted?.keyName ? (() => {
+        const [note, mode] = converted.keyName.split('-');
+        return { note, mode };
+    })() : null;
+    const names = useFlats ? ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'] : null;
+    const name = webKey ? getEnharmonicNote(raw, webKey) : (names?.[midi % 12] || raw);
+    const offset = getMidiNumber(`${name}4`) - 60;
+    const octave = (midi - offset) / 12;
+    return { name, diatonic: octave * 7 + 'CDEFGAB'.indexOf(name[0]), accidental: name.includes('#') ? 1 : name.includes('b') ? -1 : 0 };
+}
+
+export function createAccidentalState(keySig) {
+    const converted = toKotlinKeySig(keySig);
+    const count = keySignatureAccidentalCount(keySig);
+    const order = converted?.useFlats ? 'BEADGCF' : 'FCGDAEB';
+    const defaults = new Map([...order.slice(0, count)].map(letter => [letter, converted?.useFlats ? -1 : 1]));
+    const state = new Map();
+    return spelled => {
+        const previous = state.get(spelled.diatonic) ?? defaults.get(spelled.name[0]) ?? 0;
+        state.set(spelled.diatonic, spelled.accidental);
+        return previous === spelled.accidental ? null : spelled.accidental === 0 ? '♮' : spelled.accidental > 0 ? '♯' : '♭';
+    };
 }
 
 // ─── Octave shift heuristics (Oct ±N labels) ─────────────────────────────────
@@ -318,29 +348,36 @@ export function octaveShiftLabel(shift) {
 // ─── Measure slicing ─────────────────────────────────────────────────────────
 
 /**
- * Slice a phrase's tracks into per-measure note lists. Notes are split by the
- * integer measure their startTime falls into. startTime is preserved (absolute
- * within the phrase) so callers can compute fraction-of-measure as
+ * Slice a phrase's tracks into per-measure note lists. Sustained notes are
+ * represented by clipped display fragments carrying tie flags. startTime is
+ * preserved (absolute within the phrase) so callers can compute fraction as
  * `(note.startTime - measureIndex * beatsPerMeasure) / beatsPerMeasure`.
  */
 export function slicePhraseIntoMeasures(phrase, beatsPerMeasure = 4) {
     if (!phrase) return [];
     const length = phrase.length || 1;
     const measures = [];
-    // Snap notes within EPSILON of a measure boundary forward to the next
-    // measure, mirroring measureUtils.getMeasuresFromPhrase. Without this, a
-    // downbeat stored as e.g. 27.99999999999996 (FP noise from legacy imports)
-    // would render at the very end of measure 6 instead of the start of 7.
-    const EPSILON = 0.001;
+    const EPSILON = 1e-9;
     for (let m = 0; m < length; m++) {
         const measureStart = m * beatsPerMeasure;
         const measureEnd = measureStart + beatsPerMeasure;
-        const inMeasure = (n) => {
-            const t = n.startTime ?? 0;
-            return t >= measureStart - EPSILON && t < measureEnd - EPSILON;
-        };
-        const melody = (phrase.tracks?.melody || []).filter(inMeasure);
-        const chords = (phrase.tracks?.chords || []).filter(inMeasure);
+        const fragments = notes => notes.flatMap(note => {
+            const noteStart = note.startTime ?? 0;
+            const noteEnd = noteStart + Math.max(0, note.duration ?? 0);
+            if (noteEnd <= measureStart + EPSILON || noteStart >= measureEnd - EPSILON) return [];
+            const start = Math.max(noteStart, measureStart);
+            const end = Math.min(noteEnd, measureEnd);
+            if (end - start <= EPSILON) return [];
+            return [{
+                ...note,
+                startTime: start,
+                duration: end - start,
+                tieFromPrevious: noteStart < measureStart - EPSILON,
+                tieToNext: noteEnd > measureEnd + EPSILON,
+            }];
+        });
+        const melody = fragments(phrase.tracks?.melody || []);
+        const chords = fragments(phrase.tracks?.chords || []);
         measures.push({ measureIndex: m, measureStart, melodyNotes: melody, chordNotes: chords });
     }
     return measures;
@@ -374,36 +411,37 @@ export function flattenSongMeasures(song, beatsPerMeasure = 4) {
  * Partition a time-ordered list of beamable chord-items (eighth or shorter,
  * i.e. dur.stem && dur.flags >= 1) into beam groups for a single staff.
  *
- * Android mirrors this — signature:
- *   computeBeamGroups(items, beatsPerMeasure) -> number[][]
+ * Android mirrors this — the time signature determines the musical pulse:
+ * simple meters beam by denominator beat, compound 6/8, 9/8 and 12/8 by
+ * dotted-quarter beat.
  * where each `item` exposes { startBeat, durationBeats, flags } and the result
  * is a list of groups, each an array of indices INTO `items` (ascending).
  *
  * Cut rules (a group ends — next item starts a new group — when any holds):
  *   (a) time gap: next.startBeat > cur.startBeat + cur.durationBeats + 0.03
  *       (a rest or non-adjacent note sits between them).
- *   (b) beat-pair boundary: floor(startBeat / 2) changes — groups never cross
- *       the 1-2 → 3-4 half-bar boundary in 4/4. For runs whose items are ALL
- *       sixteenths-or-shorter (flags >= 2), cut per single beat instead
- *       (floor(startBeat) changes).
+ *   (b) musical beat boundary determined by the time signature.
  * Non-beamable notes (quarter or longer) are simply not present in `items`, so
  * an intervening quarter manifests as a time gap (rule a) and cuts the group.
  *
  * @param {Array<{startBeat:number,durationBeats:number,flags:number}>} items
+ * @param {{numerator:number,denominator:number}} timeSignature
  * @returns {number[][]} groups of indices into `items`
  */
-export function computeBeamGroups(items) {
+export function computeBeamGroups(items, timeSignature = { numerator: 4, denominator: 4 }) {
     const groups = [];
     let cur = [];
+    const numerator = timeSignature?.numerator || 4;
+    const denominator = timeSignature?.denominator || 4;
+    const denominatorBeat = 4 / denominator;
+    const compound = denominator === 8 && numerator > 3 && numerator % 3 === 0;
+    const beatUnit = compound ? denominatorBeat * 3 : denominatorBeat;
     for (let i = 0; i < items.length; i++) {
         if (cur.length === 0) { cur = [i]; continue; }
         const prev = items[cur[cur.length - 1]];
         const it = items[i];
         // (a) time gap — a rest or a non-beamable note sits between.
         const gap = it.startBeat > prev.startBeat + prev.durationBeats + 0.03;
-        // (b) beat boundary. Sixteenth-only runs cut per beat, else per beat-pair.
-        const sixteenthRun = cur.every((idx) => items[idx].flags >= 2) && it.flags >= 2;
-        const beatUnit = sixteenthRun ? 1 : 2;
         const crossedBeat =
             Math.floor(it.startBeat / beatUnit) !== Math.floor(prev.startBeat / beatUnit);
         if (gap || crossedBeat) {
@@ -840,11 +878,13 @@ export function renderMeasure(ctx, opts) {
         // ── Pass 1: build one chord-item per onset (sorted bottom→top notes),
         // render noteheads / ledgers / dots / accidentals (always — both modes).
         const chordItems = [];
-        for (const [, chord] of groups) {
+        const accidentalFor = createAccidentalState(clefMode !== 'AUTO' ? keySig : null);
+        for (const [, chord] of [...groups].sort((a, b) => a[0] - b[0])) {
             const items = chord.map(({ note, midi }) => {
-                const d = midiToDiatonic(midi, useFlats) + octShift;
+                const spelled = spellMidiForStaff(midi, keySig, useFlats);
+                const d = spelled.diatonic + octShift;
                 return {
-                    note, midi, d,
+                    note, midi, d, spelled,
                     x: xForTime(note.startTime ?? 0),
                     y: yForDiatonic(d),
                     dur: classifyDuration(note.duration ?? 1),
@@ -902,16 +942,29 @@ export function renderMeasure(ctx, opts) {
                 drawLedgers(x, it.d, dx);
                 drawHead(x, it.y, it.dur.filled, dx);
                 if (showStems && it.dur.dotted) drawDot(x + dx, it.y, it.d);
-                if (isBlackKey(it.midi)) {
-                    // Accidental placed AFTER (right of) the altered note,
-                    // as a small SUPERSCRIPT hugging its notehead — clearly
-                    // above the staff line / ledger so it never reads as
-                    // sitting "between" two beamed notes.
+                if (it.note.tieFromPrevious || it.note.tieToNext) {
+                    const headX = x + dx;
+                    const y = it.y + headRy + dp(2);
+                    const fromX = it.note.tieFromPrevious
+                        ? Math.max(bracketX + dp(2), headX - dp(11))
+                        : headX + headRx;
+                    const toX = it.note.tieToNext ? noteAreaEnd : headX - headRx;
+                    if (toX > fromX + dp(2)) {
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = dp(1);
+                        ctx.beginPath();
+                        ctx.moveTo(fromX, y);
+                        ctx.quadraticCurveTo((fromX + toX) / 2, y + dp(5), toX, y);
+                        ctx.stroke();
+                    }
+                }
+                const accidental = accidentalFor(it.spelled);
+                if (accidental) {
                     ctx.fillStyle = color;
                     ctx.font = `${lineSpacing * 1.3}px "Noto Music", "Bravura", "Times New Roman", serif`;
-                    ctx.textAlign = 'left';
-                    ctx.textBaseline = 'alphabetic';
-                    ctx.fillText(useFlats ? '♭' : '♯', x + Math.max(0, dx) + headRx + dp(1), it.y - lineSpacing * 0.55);
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(accidental, x + Math.min(0, dx) - headRx - dp(3), it.y);
                 }
             }
 
@@ -936,6 +989,7 @@ export function renderMeasure(ctx, opts) {
                 durationBeats: ci.durationBeats,
                 flags: ci.maxFlags,
             })),
+            timeSignature || { numerator: beatsPerMeasure, denominator: 4 },
         );
 
         // Helper: draw a single (non-beamed) chord's shared stem.

@@ -35,12 +35,12 @@ async function loadTauriAPIs() {
 const isTauri = () => {
     if (typeof window === 'undefined') return false;
     // Check for Tauri v2 environment variables or internal object
-    return import.meta.env.TAURI_PLATFORM !== undefined ||
-           import.meta.env.TAURI_FAMILY !== undefined ||
+    return import.meta.env?.TAURI_PLATFORM !== undefined ||
+           import.meta.env?.TAURI_FAMILY !== undefined ||
            window.__TAURI_INTERNALS__ !== undefined;
 };
 
-class MidiInputService {
+export class MidiInputService {
     constructor() {
         this.midiAccess = null;
         this.activeDevice = null;
@@ -73,6 +73,12 @@ class MidiInputService {
         }
     }
 
+    _storedNumber(key, fallback, min, max) {
+        const raw = localStorage.getItem(key);
+        const value = raw === null ? NaN : Number(raw);
+        return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+    }
+
     _loadSettings() {
         const defaults = {
             selectedDeviceId: null,
@@ -87,8 +93,8 @@ class MidiInputService {
                 selectedDeviceId: localStorage.getItem('midi-selected-device') || null,
                 velocitySensitivity: parseFloat(localStorage.getItem('midi-velocity-sensitivity')) || 1.0,
                 latencyCompensation: parseInt(localStorage.getItem('midi-latency')) || 0,
-                noteOnThreshold: parseInt(localStorage.getItem('midi-note-on-threshold')) || 10,
-                midiVolume: parseInt(localStorage.getItem('midi-volume')) || 70,
+                noteOnThreshold: this._storedNumber('midi-note-on-threshold', 10, 0, 127),
+                midiVolume: this._storedNumber('midi-volume', 70, 0, 100),
                 enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
             };
         } catch (err) {
@@ -106,8 +112,8 @@ class MidiInputService {
         try {
             console.log('Initializing MIDI service...');
             console.log('Tauri detected:', isTauri());
-            console.log('TAURI_PLATFORM:', import.meta.env.TAURI_PLATFORM);
-            console.log('TAURI_FAMILY:', import.meta.env.TAURI_FAMILY);
+            console.log('TAURI_PLATFORM:', import.meta.env?.TAURI_PLATFORM);
+            console.log('TAURI_FAMILY:', import.meta.env?.TAURI_FAMILY);
 
             // Check if running in Tauri
             if (isTauri()) {
@@ -232,6 +238,8 @@ class MidiInputService {
             // Disconnect previous device
             if (this.activeDevice) {
                 await invoke('disconnect_midi_device');
+                this.activeDevice = null;
+                this.notifyListeners('deviceDisconnected', null);
             }
 
             // Connect to new device
@@ -257,63 +265,8 @@ class MidiInputService {
         }
     }
 
-    handleTauriMidiMessage(message) {
-        const { status, note, velocity, timestamp } = message;
-
-        // Validate MIDI data
-        if (status === undefined || note === undefined || velocity === undefined) {
-            return;
-        }
-
-        const command = status & 0xf0;
-        const channel = status & 0x0f;
-
-        // Filter by enabled channels
-        if (!this.settings.enabledChannels.includes(channel)) {
-            return;
-        }
-
-        const adjustedTimestamp = timestamp + this.settings.latencyCompensation;
-
-        let eventType = null;
-        let processedVelocity = velocity;
-
-        // Parse MIDI command
-        if (command === 144 && velocity > 0) {
-            // Note On
-            if (velocity < this.settings.noteOnThreshold) {
-                return;
-            }
-            eventType = 'noteOn';
-            processedVelocity = Math.min(127, Math.round(velocity * this.settings.velocitySensitivity));
-        } else if (command === 128 || (command === 144 && velocity === 0)) {
-            // Note Off
-            eventType = 'noteOff';
-        } else if (command === 176) {
-            // CC64 (damper/sustain pedal) gets its own event so useMidiAudio
-            // can suppress noteOffs while the pedal is held.
-            eventType = note === 64 ? 'sustainPedal' : 'controlChange';
-        } else if (command === 224) {
-            // Pitch Bend
-            eventType = 'pitchBend';
-        }
-
-        const midiEvent = {
-            type: eventType,
-            note,
-            velocity: processedVelocity,
-            channel,
-            timestamp: adjustedTimestamp,
-            raw: [status, note, velocity]
-        };
-
-        // Notify listeners
-        if (eventType) {
-            this.notifyListeners(eventType, midiEvent);
-        }
-
-        // Notify monitors
-        this.notifyMonitors(midiEvent);
+    handleTauriMidiMessage({ status, note, velocity, timestamp }) {
+        this.handleMidiMessage({ data: [status, note, velocity], timeStamp: timestamp });
     }
 
     refreshDevices() {
@@ -349,16 +302,14 @@ class MidiInputService {
 
         if (!this.midiAccess) return false;
 
-        // Disconnect previous device
-        if (this.activeDevice) {
-            this.activeDevice.onmidimessage = null;
-        }
-
         const input = this.midiAccess.inputs.get(deviceId);
-
         if (!input) {
             console.warn('Device not found:', deviceId);
             return false;
+        }
+        if (this.activeDevice) {
+            this.activeDevice.onmidimessage = null;
+            this.notifyListeners('deviceDisconnected', null);
         }
 
         this.activeDevice = input;
@@ -547,7 +498,7 @@ class MidiInputService {
 
     // Check if running on Android
     isAndroid() {
-        return import.meta.env.TAURI_PLATFORM === 'android' ||
+        return import.meta.env?.TAURI_PLATFORM === 'android' ||
                (typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent));
     }
 

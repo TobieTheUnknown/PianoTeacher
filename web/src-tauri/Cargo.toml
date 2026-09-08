@@ -1,8 +1,8 @@
 [package]
 name = "app"
-version = "4.2.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.0.0"
+description = "Piano Teacher desktop application"
+authors = ["TobieTheUnknown"]
 license = ""
 repository = ""
 edition = "2021"
@@ -25,10 +25,5 @@ tauri = { version = "2.9.5", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
-[target.'cfg(not(target_os = "android"))'.dependencies]
 midir = "0.9"
 parking_lot = "0.12"
-
-[target.'cfg(target_os = "android")'.dependencies]
-jni = "0.21"
-ndk-context = "0.1"

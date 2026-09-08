@@ -12,6 +12,7 @@ import { useMidiRecording } from '../../hooks/useMidiRecording';
 export function MidiRecorder({
     tempo = 120,
     phraseLength = 4,
+    timeSignature,
     onRecordingComplete,
     onNoteRecorded,
     onActiveNotesChange,
@@ -36,7 +37,7 @@ export function MidiRecorder({
         startRecording,
         stopRecording,
         clearRecordedNotes
-    } = useMidiRecording(tempo, phraseLength, quantization, snapToGrid, onNoteRecorded, onActiveNotesChange, onPreRollComplete);
+    } = useMidiRecording(tempo, phraseLength, quantization, snapToGrid, onNoteRecorded, onActiveNotesChange, onPreRollComplete, timeSignature);
 
     // Handle start recording
     const handleStartRecording = () => {

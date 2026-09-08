@@ -4,8 +4,6 @@ import './index.css'
 import './styles/tokens.css'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 
-const isMobilePlatform = import.meta.env.VITE_PLATFORM === 'mobile';
-
 // Apply design preset attributes (theme / accent / hands) from localStorage.
 // Defaults: dark, blue, classic. tokens.css resolves the actual CSS vars
 // from these attributes — no JS theme service needed.
@@ -31,9 +29,7 @@ try {
 } catch { /* localStorage not available yet on some Android WebViews */ }
 
 // Dynamic import sans top-level await (compatible es2020)
-const appImport = isMobilePlatform
-  ? import('./AppMobile.jsx')
-  : import('./AppDesktop.jsx');
+const appImport = import('./AppDesktop.jsx');
 
 // First visit with an empty library → preload the bundled demo songs so the
 // hosted web version isn't a blank page. One-shot (flag), resolves before the
@@ -65,4 +61,9 @@ Promise.all([appImport, demosReady]).then(([module]) => {
   );
   // Defer to the next frame so the first React paint has landed.
   requestAnimationFrame(() => requestAnimationFrame(removeSplash));
+}).catch((error) => {
+  console.error('[bootstrap] application startup failed:', error);
+  removeSplash();
+  const root = document.getElementById('root');
+  if (root) root.textContent = "PianoTeacher n'a pas pu démarrer. Rechargez la page.";
 });

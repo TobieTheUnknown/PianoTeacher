@@ -7,7 +7,7 @@ import { audioEngine } from '../services/AudioEngine';
  * Global MIDI Audio Hook
  *
  * Plays audio for MIDI input across the whole app. Mounted once near the
- * App root (AppMobile / AppDesktop).
+ * App root.
  *
  * Cold-start strategy: preload the sampler at mount (downloads MP3s while
  * the UI is rendering). The AudioContext stays suspended until any user
@@ -25,6 +25,7 @@ export function useMidiAudio() {
     const heldByPedal = useRef(new Set()); // MIDI notes waiting for pedal release
 
     useEffect(() => {
+        let active = true;
         // Capture toneRef as soon as Tone is loaded (preload imports the module).
         const flushPending = () => {
             const Tone = toneRef.current;
@@ -45,11 +46,14 @@ export function useMidiAudio() {
             }
         };
 
-        // Kick off the sample download immediately. Resolves when MP3s are decoded.
-        audioEngine.preload().then(() => {
+        // Stay subscribed through a failed preload so a successful retry from
+        // the loading indicator also restores MIDI monitoring and held notes.
+        const unsubscribeReady = audioEngine.onReady(() => {
+            if (!active) return;
             toneRef.current = audioEngine.getTone();
             flushPending();
-        }).catch((err) => {
+        });
+        audioEngine.preload().catch((err) => {
             console.error('[useMidiAudio] preload failed:', err);
         });
 
@@ -74,7 +78,7 @@ export function useMidiAudio() {
             }
 
             const midiSettings = midiInputService.getSettings();
-            const midiVolume = (midiSettings.midiVolume || 70) / 100;
+            const midiVolume = (midiSettings.midiVolume ?? 70) / 100;
             const adjustedVel = (velocity / 127) * midiVolume;
 
             // If a previous noteOff for this pitch is still deferred by the
@@ -83,9 +87,8 @@ export function useMidiAudio() {
 
             // Samples still loading → queue and bail.
             if (!audioEngine.samplerLoaded) {
-                if (pendingEvents.current.length < 64) {
-                    pendingEvents.current.push({ type: 'on', note, velocity: adjustedVel });
-                }
+                pendingEvents.current = pendingEvents.current.filter(ev => ev.note !== note);
+                pendingEvents.current.push({ type: 'on', note, velocity: adjustedVel });
                 return;
             }
 
@@ -119,9 +122,7 @@ export function useMidiAudio() {
             }
 
             if (!audioEngine.samplerLoaded) {
-                if (pendingEvents.current.length < 64) {
-                    pendingEvents.current.push({ type: 'off', note });
-                }
+                pendingEvents.current = pendingEvents.current.filter(ev => ev.note !== note);
                 return;
             }
 
@@ -147,7 +148,8 @@ export function useMidiAudio() {
             // On pedal lift, release every note whose noteOff we deferred.
             if (wasEngaged && !engaged) {
                 const Tone = toneRef.current;
-                if (!Tone || !audioEngine.sampler) {
+                if (!Tone || !audioEngine.samplerLoaded || !audioEngine.sampler) {
+                    pendingEvents.current = pendingEvents.current.filter(ev => !heldByPedal.current.has(ev.note));
                     heldByPedal.current.clear();
                     return;
                 }
@@ -165,7 +167,18 @@ export function useMidiAudio() {
         midiInputService.addEventListener('noteOff', handleNoteOff);
         midiInputService.addEventListener('sustainPedal', handleSustainPedal);
 
+        const disconnect = () => {
+            pendingEvents.current = [];
+            pedalEngaged.current = false;
+            heldByPedal.current.clear();
+            audioEngine.sampler?.releaseAll();
+        };
+        midiInputService.addEventListener('deviceDisconnected', disconnect);
         return () => {
+            active = false;
+            unsubscribeReady();
+            disconnect();
+            midiInputService.removeEventListener('deviceDisconnected', disconnect);
             midiInputService.removeEventListener('noteOn', handleNoteOn);
             midiInputService.removeEventListener('noteOff', handleNoteOff);
             midiInputService.removeEventListener('sustainPedal', handleSustainPedal);

@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.AudioFormat
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,9 +28,9 @@ class AudioEngine(private val context: Context? = null) {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
-    private var enabled = true
+    @Volatile private var enabled = true
     private var nativeAvailable = false
-    private var oboeReady = false
+    @Volatile private var oboeReady = false
 
     // Sustain pedal (MIDI CC64): when engaged, defer noteOff until released.
     private var pedalEngaged = false
@@ -98,11 +99,12 @@ class AudioEngine(private val context: Context? = null) {
     fun start(): Boolean = true  // Setup happens in init
 
     fun stop() {
-        if (nativeAvailable && oboeReady) try { nativeNoteOff(-1) } catch (_: Exception) { }
+        pedalEngaged = false
+        noteOff(-1)
     }
 
     fun noteOn(pitch: Int, velocity: Int = 80) {
-        if (!enabled) return
+        if (!enabled || pitch !in 0..127) return
         // A re-attack supersedes any pending pedal-deferred release for this pitch.
         heldByPedal.remove(pitch)
         if (nativeAvailable && oboeReady) {
@@ -124,7 +126,7 @@ class AudioEngine(private val context: Context? = null) {
             try { nativeNoteOff(pitch) } catch (_: Exception) { }
         } else {
             if (pitch >= 0) samplerEngine?.noteOff(pitch)
-            else samplerEngine?.let { for (n in 21..108) it.noteOff(n) }
+            else samplerEngine?.let { for (n in 0..127) it.noteOff(n) }
         }
     }
 
@@ -152,7 +154,7 @@ class AudioEngine(private val context: Context? = null) {
         enabled = value
         if (!value) {
             if (nativeAvailable && oboeReady) try { nativeNoteOff(-1) } catch (_: Exception) { }
-            else samplerEngine?.let { for (n in 21..108) it.noteOff(n) }
+            else samplerEngine?.let { for (n in 0..127) it.noteOff(n) }
         }
     }
 
@@ -175,6 +177,10 @@ class AudioEngine(private val context: Context? = null) {
                 Log.w(TAG, "Failed to load $name: ${e.message}")
             }
         }
+        if (loaded != SAMPLE_MAP.size) {
+            Log.w(TAG, "Oboe samples incomplete ($loaded/${SAMPLE_MAP.size}); keeping SoundPool")
+            return
+        }
         nativeSetReady()
         oboeReady = true
         Log.i(TAG, "Oboe sampler ready: $loaded/${SAMPLE_MAP.size} samples loaded")
@@ -196,72 +202,97 @@ class AudioEngine(private val context: Context? = null) {
     private fun decodeMp3Asset(context: Context, assetPath: String): PcmData {
         val afd = context.assets.openFd(assetPath)
         val extractor = MediaExtractor()
-        extractor.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+        var codec: MediaCodec? = null
+        var codecStarted = false
+        try {
+            extractor.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
 
-        var trackIndex = -1
-        var format: MediaFormat? = null
-        for (i in 0 until extractor.trackCount) {
-            val f = extractor.getTrackFormat(i)
-            if (f.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
-                trackIndex = i; format = f; break
+            var trackIndex = -1
+            var inputFormat: MediaFormat? = null
+            for (i in 0 until extractor.trackCount) {
+                val candidate = extractor.getTrackFormat(i)
+                if (candidate.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
+                    trackIndex = i
+                    inputFormat = candidate
+                    break
+                }
             }
-        }
-        check(trackIndex >= 0) { "No audio track in $assetPath" }
-        extractor.selectTrack(trackIndex)
+            check(trackIndex >= 0) { "No audio track in $assetPath" }
+            val format = checkNotNull(inputFormat) { "No audio format in $assetPath" }
+            extractor.selectTrack(trackIndex)
 
-        val sampleRate = format!!.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-        val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-        val mime = format.getString(MediaFormat.KEY_MIME)!!
-        val maxFrames = sampleRate * MAX_SAMPLE_SECONDS
+            var sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+            var pcmEncoding = AudioFormat.ENCODING_PCM_16BIT
+            val mime = format.getString(MediaFormat.KEY_MIME)!!
+            val maxFrames = sampleRate * MAX_SAMPLE_SECONDS
 
-        val codec = MediaCodec.createDecoderByType(mime)
-        codec.configure(format, null, null, 0)
-        codec.start()
+            codec = MediaCodec.createDecoderByType(mime)
+            codec.configure(format, null, null, 0)
+            codec.start()
+            codecStarted = true
 
-        // Raw bytes — no boxing, minimal GC pressure
-        val rawBytes = ByteArrayOutputStream(sampleRate * channels * 2 * 3)
-        val bufInfo = MediaCodec.BufferInfo()
-        var inputDone = false
-        var sawEOS = false
-        var framesDecoded = 0
+            val rawBytes = ByteArrayOutputStream(sampleRate * channels * 2 * 3)
+            val bufInfo = MediaCodec.BufferInfo()
+            var inputDone = false
+            var sawEOS = false
+            var framesDecoded = 0
 
-        while (!sawEOS && framesDecoded < maxFrames) {
-            if (!inputDone) {
-                val inIdx = codec.dequeueInputBuffer(10_000L)
-                if (inIdx >= 0) {
-                    val buf = codec.getInputBuffer(inIdx)!!
-                    val n = extractor.readSampleData(buf, 0)
-                    if (n < 0) {
-                        codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        inputDone = true
-                    } else {
-                        codec.queueInputBuffer(inIdx, 0, n, extractor.sampleTime, 0)
-                        extractor.advance()
+            while (!sawEOS && framesDecoded < maxFrames) {
+                if (!inputDone) {
+                    val inIdx = codec.dequeueInputBuffer(10_000L)
+                    if (inIdx >= 0) {
+                        val buffer = codec.getInputBuffer(inIdx)!!
+                        val count = extractor.readSampleData(buffer, 0)
+                        if (count < 0) {
+                            codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            inputDone = true
+                        } else {
+                            codec.queueInputBuffer(inIdx, 0, count, extractor.sampleTime, 0)
+                            extractor.advance()
+                        }
+                    }
+                }
+
+                when (val outIdx = codec.dequeueOutputBuffer(bufInfo, 10_000L)) {
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                        val output = codec.outputFormat
+                        sampleRate = output.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        channels = output.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                        if (output.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                            pcmEncoding = output.getInteger(MediaFormat.KEY_PCM_ENCODING)
+                        }
+                    }
+                    else -> if (outIdx >= 0) {
+                        val buffer = codec.getOutputBuffer(outIdx)!!
+                        buffer.position(bufInfo.offset)
+                        buffer.limit(bufInfo.offset + bufInfo.size)
+                        val bytes = ByteArray(bufInfo.size)
+                        buffer.get(bytes)
+                        rawBytes.write(bytes)
+                        val bytesPerSample = if (pcmEncoding == AudioFormat.ENCODING_PCM_FLOAT) 4 else 2
+                        framesDecoded += bufInfo.size / (bytesPerSample * channels)
+                        codec.releaseOutputBuffer(outIdx, false)
+                        if (bufInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawEOS = true
                     }
                 }
             }
-            val outIdx = codec.dequeueOutputBuffer(bufInfo, 10_000L)
-            if (outIdx >= 0) {
-                val buf = codec.getOutputBuffer(outIdx)!!
-                val bytes = ByteArray(bufInfo.size)
-                buf.get(bytes)
-                rawBytes.write(bytes)
-                framesDecoded += bufInfo.size / (2 * channels)
-                codec.releaseOutputBuffer(outIdx, false)
-                if (bufInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawEOS = true
+
+            val byteBuffer = java.nio.ByteBuffer.wrap(rawBytes.toByteArray()).order(ByteOrder.LITTLE_ENDIAN)
+            val floats = if (pcmEncoding == AudioFormat.ENCODING_PCM_FLOAT) {
+                val source = byteBuffer.asFloatBuffer()
+                FloatArray(source.remaining()) { source.get().coerceIn(-1f, 1f) }
+            } else {
+                val source = byteBuffer.asShortBuffer()
+                FloatArray(source.remaining()) { source.get() / 32768f }
             }
+            return PcmData(floats, sampleRate, channels)
+        } finally {
+            if (codecStarted) runCatching { codec?.stop() }
+            runCatching { codec?.release() }
+            extractor.release()
+            afd.close()
         }
-
-        codec.stop(); codec.release()
-        extractor.release(); afd.close()
-
-        // 16-bit LE PCM bytes → float [-1, 1], no boxing
-        val byteArr = rawBytes.toByteArray()
-        val shortBuf = java.nio.ByteBuffer.wrap(byteArr)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .asShortBuffer()
-        val floats = FloatArray(shortBuf.remaining()) { shortBuf.get() / 32768f }
-        return PcmData(floats, sampleRate, channels)
     }
 
     // ─── JNI declarations ─────────────────────────────────────────────────────

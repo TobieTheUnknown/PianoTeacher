@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
 import kotlinx.coroutines.*
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Salamander Grand Piano sampler using SoundPool.
@@ -28,10 +29,16 @@ class SamplerEngine(private val context: Context) {
         .build()
 
     // Map of MIDI note → SoundPool sound ID
-    private val soundIds = mutableMapOf<Int, Int>()
-    private val streamIds = mutableMapOf<Int, Int>()
-    private var loaded = false
+    private val soundIds = ConcurrentHashMap<Int, Int>()
+    private val streamIds = ConcurrentHashMap<Int, Int>()
+    @Volatile private var loaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val loadResult = CompletableDeferred<Boolean>()
+    private val loadLock = Any()
+    private var loadStarted = false
+    private var schedulingComplete = false
+    private var pendingLoads = 0
+    private var loadFailed = false
 
     // Sample definitions: name → MIDI note
     private val sampleMap = mapOf(
@@ -48,24 +55,55 @@ class SamplerEngine(private val context: Context) {
     // Sorted list of available MIDI notes for nearest-neighbor lookup
     private val availableNotes by lazy { sampleMap.values.sorted() }
 
-    fun loadAsync(): Deferred<Boolean> = scope.async {
-        val am = context.assets
-        var allLoaded = true
-
-        sampleMap.forEach { (name, midi) ->
-            try {
-                am.openFd("salamander/$name.mp3").use { fd ->
-                    val id = pool.load(fd, 1)
-                    soundIds[midi] = id
-                }
-            } catch (e: Exception) {
-                allLoaded = false
+    init {
+        pool.setOnLoadCompleteListener { _, _, status ->
+            synchronized(loadLock) {
+                if (status != 0) loadFailed = true
+                pendingLoads = (pendingLoads - 1).coerceAtLeast(0)
+                finishLoadingIfReady()
             }
         }
+    }
 
-        delay(500) // SoundPool loads async — give it a moment
-        loaded = true
-        allLoaded
+    fun loadAsync(): Deferred<Boolean> {
+        synchronized(loadLock) {
+            if (loadStarted) return loadResult
+            loadStarted = true
+        }
+        scope.launch {
+            sampleMap.forEach { (name, midi) ->
+                synchronized(loadLock) { pendingLoads++ }
+                try {
+                    context.assets.openFd("salamander/$name.mp3").use { fd ->
+                        val id = pool.load(fd, 1)
+                        if (id == 0) {
+                            synchronized(loadLock) {
+                                pendingLoads--
+                                loadFailed = true
+                            }
+                        } else {
+                            soundIds[midi] = id
+                        }
+                    }
+                } catch (_: Exception) {
+                    synchronized(loadLock) {
+                        pendingLoads--
+                        loadFailed = true
+                    }
+                }
+            }
+            synchronized(loadLock) {
+                schedulingComplete = true
+                finishLoadingIfReady()
+            }
+        }
+        return loadResult
+    }
+
+    private fun finishLoadingIfReady() {
+        if (!schedulingComplete || pendingLoads != 0 || loadResult.isCompleted) return
+        loaded = soundIds.isNotEmpty()
+        loadResult.complete(!loadFailed && soundIds.size == sampleMap.size)
     }
 
     fun noteOn(pitch: Int, velocity: Int = 80) {
@@ -98,6 +136,7 @@ class SamplerEngine(private val context: Context) {
         if (released) return
         released = true
         loaded = false
+        if (!loadResult.isCompleted) loadResult.complete(false)
         scope.cancel()
         pool.release()
     }

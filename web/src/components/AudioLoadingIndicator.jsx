@@ -11,10 +11,14 @@ const PULSE_KEYFRAMES = `
 export function AudioLoadingIndicator() {
     const [loaded, setLoaded] = useState(() => audioEngine.samplerLoaded);
 
+    const [failed, setFailed] = useState(false);
+    const [attempt, setAttempt] = useState(0);
     useEffect(() => {
-        if (audioEngine.samplerLoaded) return;
-        audioEngine.onReady(() => setLoaded(true));
-    }, []);
+        let active = true;
+        const unsubscribe = audioEngine.onReady(() => setLoaded(true));
+        audioEngine.preload().catch(() => { if (active) setFailed(true); });
+        return () => { active = false; unsubscribe(); };
+    }, [attempt]);
 
     if (loaded) return null;
 
@@ -40,7 +44,7 @@ export function AudioLoadingIndicator() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    pointerEvents: 'none',
+                    pointerEvents: failed ? 'auto' : 'none',
                     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
                 }}
             >
@@ -54,7 +58,7 @@ export function AudioLoadingIndicator() {
                         animation: 'audio-loading-pulse 1.2s ease-in-out infinite',
                     }}
                 />
-                <span>Chargement piano…</span>
+                {failed ? <button onClick={() => { setFailed(false); setAttempt(n => n + 1); }}>Piano indisponible — Réessayer</button> : <span>Chargement piano…</span>}
             </div>
         </>
     );

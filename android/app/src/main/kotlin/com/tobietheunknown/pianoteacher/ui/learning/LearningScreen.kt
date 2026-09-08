@@ -50,6 +50,12 @@ import com.tobietheunknown.pianoteacher.utils.displayCycleLen
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import com.tobietheunknown.pianoteacher.utils.midiToFrench
+import com.tobietheunknown.pianoteacher.utils.keySignatureAccidentalCount
+import com.tobietheunknown.pianoteacher.utils.spellMidiForStaff
+import com.tobietheunknown.pianoteacher.utils.AccidentalState
+import com.tobietheunknown.pianoteacher.utils.BeamItem
+import com.tobietheunknown.pianoteacher.utils.computeBeamGroups
+import com.tobietheunknown.pianoteacher.utils.StaffDisplayNote
 import kotlin.math.abs
 import androidx.compose.ui.graphics.drawscope.withTransform
 
@@ -64,9 +70,6 @@ private fun midiToDiatonic(pitch: Int, useFlats: Boolean = false): Int {
     val step = if (useFlats) CHROMATIC_TO_DIATONIC_FLAT[chroma] else CHROMATIC_TO_DIATONIC_SHARP[chroma]
     return octave * 7 + step
 }
-
-private fun isBlackKey(midi: Int): Boolean =
-    when (midi % 12) { 1, 3, 6, 8, 10 -> true else -> false }
 
 // ─── Duration engraving (ported from web/src/utils/sheetMusic.js) ─────────────
 //   filled — solid notehead (quarter and shorter) vs hollow (half / whole)
@@ -118,33 +121,6 @@ private fun classifyDuration(durationBeats: Double): NoteDuration {
 //   (b) beat-pair boundary: floor(startBeat / 2) changes — groups never cross
 //       the 1-2 → 3-4 half-bar boundary in 4/4. Runs whose items are ALL
 //       sixteenths-or-shorter (flags >= 2) cut per single beat instead.
-private data class BeamItem(val startBeat: Double, val durationBeats: Double, val flags: Int)
-
-private fun computeBeamGroups(items: List<BeamItem>): List<List<Int>> {
-    val groups = mutableListOf<List<Int>>()
-    var cur = mutableListOf<Int>()
-    for (i in items.indices) {
-        if (cur.isEmpty()) { cur = mutableListOf(i); continue }
-        val prev = items[cur.last()]
-        val it = items[i]
-        // (a) time gap.
-        val gap = it.startBeat > prev.startBeat + prev.durationBeats + 0.03
-        // (b) beat boundary. Sixteenth-only runs cut per beat, else per beat-pair.
-        val sixteenthRun = cur.all { items[it].flags >= 2 } && it.flags >= 2
-        val beatUnit = if (sixteenthRun) 1.0 else 2.0
-        val crossedBeat =
-            kotlin.math.floor(it.startBeat / beatUnit) != kotlin.math.floor(prev.startBeat / beatUnit)
-        if (gap || crossedBeat) {
-            groups.add(cur)
-            cur = mutableListOf(i)
-        } else {
-            cur.add(i)
-        }
-    }
-    if (cur.isNotEmpty()) groups.add(cur)
-    return groups
-}
-
 // ─── Staff clef configuration ────────────────────────────────────────────────
 
 private data class StaffClefConfig(
@@ -213,16 +189,6 @@ private val TREBLE_FLAT_POS = intArrayOf(41, 44, 40, 43, 39, 42, 38)
 // Bass = treble - 14 (two octaves lower)
 private val BASS_SHARP_POS = intArrayOf(31, 28, 32, 29, 26, 30, 27)
 private val BASS_FLAT_POS = intArrayOf(27, 30, 26, 29, 25, 28, 24)
-
-private fun keySignatureAccidentalCount(keySig: MusicKeySignature?): Int {
-    if (keySig == null) return 0
-    val majorRoot = if (keySig.isMinor) (keySig.root + 3) % 12 else keySig.root
-    return if (keySig.useFlats) {
-        when (majorRoot) { 5 -> 1; 10 -> 2; 3 -> 3; 8 -> 4; 1 -> 5; 6 -> 6; else -> 0 }
-    } else {
-        when (majorRoot) { 7 -> 1; 2 -> 2; 9 -> 3; 4 -> 4; 11 -> 5; 6 -> 6; else -> 0 }
-    }
-}
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -552,8 +518,8 @@ fun LearningScreen(
                                 r
                             }
                         },
-                        onPrev = { /* TODO: prev measure/phrase */ },
-                        onNext = { /* TODO: next measure/phrase */ },
+                        onPrev = vm::focusPreviousMeasure,
+                        onNext = vm::focusNextMeasure,
                         // Recommencer: stop playback and return to the first measure.
                         onRestart = {
                             vm.stop()
@@ -561,34 +527,6 @@ fun LearningScreen(
                         },
                     )
 
-                    /* OLD TransportBar — kept as fallback during dev */
-                    if (false) TransportBar(
-                        isPlaying = isPlaying,
-                        hand = hand,
-                        tempoPercent = tempoPercent,
-                        isLooping = isLooping,
-                        loopStart = loopStart,
-                        loopEnd = loopEnd,
-                        totalMeasures = allMeasures.size,
-                        isMetronomeEnabled = isMetronomeEnabled,
-                        onPlay = vm::play,
-                        onStop = vm::stop,
-                        onHandChange = vm::setHand,
-                        onTempoAdjust = vm::adjustTempo,
-                        onToggleLoop = vm::toggleLoop,
-                        onLoopRangeChange = vm::setLoopRange,
-                        onToggleMetronome = vm::toggleMetronome,
-                        onSplit = { showSplitDialog = focusedMeasure },
-                        isLandscape = isLandscape,
-                        showDetails = showDetails,
-                        onToggleDetails = vm::toggleDetails,
-                        clefMode = clefMode,
-                        onCycleClef = vm::cycleClefMode,
-                        waitMode = waitMode,
-                        onToggleWaitMode = vm::toggleWaitMode,
-                        listenMode = listenMode,
-                        onToggleListenMode = vm::toggleListenMode
-                    )
                 }
             }
         }
@@ -674,8 +612,8 @@ fun LearningScreen(
                         }
                         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                             GrandStaffCanvas(
-                                melodyNotes = measure.melodyNotes,
-                                chordNotes = measure.chordNotes,
+                                melodyNotes = measure.melodyStaffNotes,
+                                chordNotes = measure.chordStaffNotes,
                                 beatsPerMeasure = song!!.beatsPerMeasure,
                                 useFlats = useFlats,
                                 showClefs = showClefs,
@@ -709,7 +647,7 @@ fun LearningScreen(
                                     val start = android.os.SystemClock.elapsedRealtime()
                                     while (true) {
                                         val elapsed = android.os.SystemClock.elapsedRealtime() - start
-                                        value = ((elapsed.toFloat() / measureDurMs) % 1f).coerceIn(0f, 1f)
+                                        value = ((elapsed / measureDurMs) % 1.0).toFloat().coerceIn(0f, 1f)
                                         kotlinx.coroutines.delay(16)
                                     }
                                 }
@@ -951,7 +889,7 @@ fun LearningScreen(
 private fun TimelineBeatRow(
     notes: List<NoteEvent>,
     color: Color,
-    beatsPerMeasure: Int,
+    beatsPerMeasure: Double,
     showOctaves: Boolean,
     useFlats: Boolean = false
 ) {
@@ -959,7 +897,7 @@ private fun TimelineBeatRow(
         modifier = Modifier.fillMaxWidth().height(20.dp),
         horizontalArrangement = Arrangement.spacedBy(1.dp)
     ) {
-        for (beat in 0 until beatsPerMeasure) {
+        for (beat in 0 until kotlin.math.ceil(beatsPerMeasure).toInt()) {
             val beatNotes = notes.filter { it.startTime.toInt() == beat }
             Box(
                 modifier = Modifier
@@ -988,7 +926,7 @@ private fun TimelineBeatRow(
 @Composable
 private fun MiniMeasureCard(
     measure: MeasureData,
-    beatsPerMeasure: Int,
+    beatsPerMeasure: Double,
     isPlaying: Boolean,
     isFocused: Boolean,
     useFlats: Boolean,
@@ -1045,9 +983,9 @@ private const val STAFF_H_MAX_DP = 120f
 
 @Composable
 private fun GrandStaffCanvas(
-    melodyNotes: List<NoteEvent>,
-    chordNotes: List<NoteEvent>,
-    beatsPerMeasure: Int,
+    melodyNotes: List<StaffDisplayNote>,
+    chordNotes: List<StaffDisplayNote>,
+    beatsPerMeasure: Double,
     useFlats: Boolean,
     showClefs: Boolean,
     isPlaying: Boolean,
@@ -1129,8 +1067,8 @@ private fun GrandStaffCanvas(
         // ── Resolve clefs + note assignment per mode ──────────────────────
         val upperClef: StaffClefConfig
         val lowerClef: StaffClefConfig
-        val upperNotes: List<Pair<NoteEvent, Color>>
-        val lowerNotes: List<Pair<NoteEvent, Color>>
+        val upperNotes: List<Pair<StaffDisplayNote, Color>>
+        val lowerNotes: List<Pair<StaffDisplayNote, Color>>
 
         when (clefMode) {
             ClefMode.STANDARD -> {
@@ -1145,8 +1083,8 @@ private fun GrandStaffCanvas(
                 lowerNotes = chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
             }
             ClefMode.AUTO -> {
-                upperClef = selectClef(melodyNotes, useFlats)
-                lowerClef = selectClef(chordNotes, useFlats)
+                upperClef = selectClef(melodyNotes.map { it.note }, useFlats)
+                lowerClef = selectClef(chordNotes.map { it.note }, useFlats)
                 upperNotes = melodyNotes.map { it to CyanMelody.copy(alpha = 0.72f) }
                 lowerNotes = chordNotes.map { it to PinkChords.copy(alpha = 0.72f) }
             }
@@ -1310,14 +1248,15 @@ private fun GrandStaffCanvas(
             val midLineY = lineTop + 2 * lineSpacing  // middle (3rd) staff line
 
             // Per-note resolved geometry + duration class.
-            val resolved = staffNotesList[si].map { (note, color) ->
-                val d = midiToDiatonic(note.pitch, useFlats) + octShift
+            val resolved = staffNotesList[si].map { (displayNote, color) ->
+                val note = displayNote.note
+                val d = spellMidiForStaff(note.pitch, keySig, useFlats).diatonic + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
                 val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
                 // note.startTime is already measure-relative beats (0 ≤ t < beatsPerMeasure).
                 StaffNote(d, x, y, classifyDuration(note.duration), note.pitch, color,
-                    note.startTime, note.duration)
+                    note.startTime, note.duration, displayNote.tieFromPrevious, displayNote.tieToNext)
             }
 
             // Group notes sounding at the same beat into chords (shared stem).
@@ -1360,7 +1299,8 @@ private fun GrandStaffCanvas(
 
             val chordRenders = mutableListOf<ChordRender>()
 
-            groups.forEach { (_, chord) ->
+            val accidentalState = AccidentalState(if (clefMode != ClefMode.AUTO) keySig else null)
+            groups.toSortedMap().forEach { (_, chord) ->
                 val items = chord.sortedBy { it.d }  // bottom → top
                 val x = items.first().x
 
@@ -1408,6 +1348,23 @@ private fun GrandStaffCanvas(
                     // Each note of a chord uses its OWN duration's head style.
                     drawHead(hx, it2.y, it2.dur.filled, it2.color)  // rotated ellipse, web parity
 
+                    val tieY = it2.y + if (si == 0) headRy * 2.1f else -headRy * 2.1f
+                    val tieBend = if (si == 0) headRy * 0.9f else -headRy * 0.9f
+                    if (it2.tieFromPrevious) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(noteAreaStart, tieY)
+                            quadraticTo((noteAreaStart + hx - headRx) / 2f, tieY + tieBend, hx - headRx, tieY)
+                        }
+                        drawPath(path, it2.color.copy(alpha = 0.65f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.1.dp.toPx()))
+                    }
+                    if (it2.tieToNext) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(hx + headRx, tieY)
+                            quadraticTo((hx + headRx + noteAreaEnd) / 2f, tieY + tieBend, noteAreaEnd, tieY)
+                        }
+                        drawPath(path, it2.color.copy(alpha = 0.65f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.1.dp.toPx()))
+                    }
+
                     // Ledger lines (only when note is ≥2 diatonic steps outside
                     // staff). Web: lx0 = min(x, x+headDx) - headRx - dp(2),
                     //              lx1 = max(x, x+headDx) + headRx + dp(2)
@@ -1449,8 +1406,8 @@ private fun GrandStaffCanvas(
                     //   x = x + max(0,dx) + headRx + dp(1)
                     //   y = noteY − lineSpacing * 0.55  (alphabetic baseline)
                     //   font: lineSpacing * 1.3 px
-                    if (isBlackKey(it2.pitch)) {
-                        val accLabel = if (useFlats) "♭" else "♯"
+                    val accLabel = accidentalState.next(spellMidiForStaff(it2.pitch, keySig, useFlats))
+                    if (accLabel != null) {
                         val accStyle = TextStyle(
                             fontSize = (lineSpacing * 1.3f / density).sp,
                             color = it2.color,
@@ -1458,9 +1415,8 @@ private fun GrandStaffCanvas(
                         val accLayout = textMeasurer.measure(accLabel, accStyle)
                         // Web positions with textBaseline='alphabetic'; approximate:
                         // alphabetic baseline ≈ topLeft.y + height * 0.8 (ascent fraction).
-                        val baselineY = it2.y - lineSpacing * 0.55f
-                        val accTopY = baselineY - accLayout.size.height * 0.8f
-                        val accX = kotlin.math.max(hx, it2.x) + headRx + 1.dp.toPx()
+                        val accTopY = it2.y - accLayout.size.height / 2f
+                        val accX = kotlin.math.min(hx, it2.x) - headRx - 3.dp.toPx() - accLayout.size.width
                         drawText(accLayout, topLeft = Offset(accX, accTopY))
                     }
                 }
@@ -1510,6 +1466,8 @@ private fun GrandStaffCanvas(
                     flag6 = 6.dp.toPx(),
                     drawTopBound = drawTopBound,
                     drawBotBound = drawBotBound,
+                    timeSigNumerator = timeSigNumerator,
+                    timeSigDenominator = timeSigDenominator,
                 )
             }
         }
@@ -1532,6 +1490,7 @@ private data class StaffNote(
     val d: Int, val x: Float, val y: Float,
     val dur: NoteDuration, val pitch: Int, val color: Color,
     val startBeat: Double, val durBeats: Double,
+    val tieFromPrevious: Boolean, val tieToNext: Boolean,
 )
 
 // One shared-stem chord (notes quantised to the same x). Stem geometry is
@@ -1578,6 +1537,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     flag6: Float,
     drawTopBound: Float,  // anti-overlap: top of drawable zone (below measure-number label)
     drawBotBound: Float,  // anti-overlap: bottom of drawable zone (canvas bottom minus margin)
+    timeSigNumerator: Int,
+    timeSigDenominator: Int,
 ) {
     // Default stem direction per staff:
     //   upper staff (si=0, MD/melody) → UP
@@ -1647,7 +1608,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     if (beamable.isEmpty()) return
 
     val beamItems = beamable.map { BeamItem(it.startBeat, it.durBeats, it.flags) }
-    val groups = computeBeamGroups(beamItems)
+    val groups = computeBeamGroups(beamItems, timeSigNumerator, timeSigDenominator)
 
     // Web: beamTh = lineSpacing * 0.5 — aligned.
     val beamThickness = lineSpacing * 0.5f
@@ -2049,201 +2010,5 @@ private fun NoteChip(name: String, color: Color) {
         modifier = Modifier.clip(RoundedCornerShape(3.dp)).background(color.copy(alpha = 0.1f)).padding(horizontal = 4.dp, vertical = 1.dp)
     ) {
         Text(name, fontSize = 13.sp, color = color, fontWeight = FontWeight.Medium)
-    }
-}
-
-
-// ─── Transport bar ────────────────────────────────────────────────────────────
-
-@Composable
-private fun TransportBar(
-    isPlaying: Boolean,
-    hand: PlaybackHand,
-    tempoPercent: Float,
-    isLooping: Boolean,
-    loopStart: Int,
-    loopEnd: Int,
-    totalMeasures: Int,
-    isMetronomeEnabled: Boolean,
-    onPlay: () -> Unit,
-    onStop: () -> Unit,
-    onHandChange: (PlaybackHand) -> Unit,
-    onTempoAdjust: (Float) -> Unit,
-    onToggleLoop: () -> Unit,
-    onLoopRangeChange: (Int, Int) -> Unit,
-    onToggleMetronome: () -> Unit,
-    onSplit: () -> Unit = {},
-    isLandscape: Boolean = false,
-    showDetails: Boolean = false,
-    onToggleDetails: () -> Unit = {},
-    clefMode: ClefMode = ClefMode.STANDARD,
-    onCycleClef: () -> Unit = {},
-    waitMode: Boolean = false,
-    onToggleWaitMode: () -> Unit = {},
-    listenMode: Boolean = true,
-    onToggleListenMode: () -> Unit = {}
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Surface)
-            .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left: Hand selector + clef mode (landscape only)
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                HandButton("MG", hand == PlaybackHand.LEFT, PinkChords) { onHandChange(PlaybackHand.LEFT) }
-                HandButton(
-                    if (listenMode && hand == PlaybackHand.BOTH) "🔊" else "2🎹",
-                    hand == PlaybackHand.BOTH,
-                    if (listenMode && hand == PlaybackHand.BOTH) AmberWarning else IndigoAccent
-                ) {
-                    if (hand == PlaybackHand.BOTH) onToggleListenMode()
-                    else onHandChange(PlaybackHand.BOTH)
-                }
-                HandButton("MD", hand == PlaybackHand.RIGHT, CyanMelody) { onHandChange(PlaybackHand.RIGHT) }
-                if (isLandscape) {
-                    HandButton(
-                        when (clefMode) {
-                            ClefMode.STANDARD -> "Sol+Fa"
-                            ClefMode.TREBLE_X2 -> "Sol×2"
-                            ClefMode.AUTO -> "Auto"
-                        },
-                        selected = true, activeColor = IndigoAccent, onClick = onCycleClef
-                    )
-                }
-            }
-
-            // Center: Tempo control + métronome + loop + wait
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                IconButton(onClick = onToggleMetronome, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.MusicNote, "Métronome", tint = if (isMetronomeEnabled) IndigoAccent else TextMuted, modifier = Modifier.size(14.dp))
-                }
-                val tempoTint = if (isPlaying) TextMuted else TextSecondary
-                IconButton(onClick = { onTempoAdjust(-0.1f) }, enabled = !isPlaying, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Remove, null, tint = tempoTint, modifier = Modifier.size(14.dp))
-                }
-                Text(
-                    "${(tempoPercent * 100).toInt()}%",
-                    color = if (tempoPercent != 1.0f) IndigoAccent else TextPrimary,
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.widthIn(min = 36.dp), textAlign = TextAlign.Center
-                )
-                IconButton(onClick = { onTempoAdjust(0.1f) }, enabled = !isPlaying, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Add, null, tint = tempoTint, modifier = Modifier.size(14.dp))
-                }
-                IconButton(onClick = onToggleLoop, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Repeat, "Boucle", tint = if (isLooping) AmberWarning else TextMuted, modifier = Modifier.size(14.dp))
-                }
-                IconButton(onClick = onToggleWaitMode, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.PanTool, "Attente", tint = if (waitMode) Success else TextMuted, modifier = Modifier.size(14.dp))
-                }
-            }
-
-            // Right: Playback controls (no individual backgrounds except Play)
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isLandscape) {
-                    IconButton(
-                        onClick = onToggleDetails,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(Icons.Default.Info, "Détails", tint = if (showDetails) IndigoAccent else TextTertiary, modifier = Modifier.size(14.dp))
-                    }
-                }
-                IconButton(
-                    onClick = onStop,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(Icons.Default.Stop, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
-                }
-                IconButton(
-                    onClick = onPlay,
-                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(IndigoAccent)
-                ) {
-                    Icon(
-                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                IconButton(
-                    onClick = onSplit,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(Icons.Default.ContentCut, "Diviser", tint = TextTertiary, modifier = Modifier.size(14.dp))
-                }
-            }
-        }
-
-        if (isLooping) {
-            LoopRangeRow(loopStart, loopEnd, totalMeasures, onLoopRangeChange)
-        }
-    }
-}
-
-@Composable
-private fun HandButton(label: String, selected: Boolean, activeColor: Color, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) activeColor.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
-            .then(if (selected) Modifier.border(1.dp, activeColor, RoundedCornerShape(6.dp)) else Modifier)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, fontSize = 11.sp, color = if (selected) activeColor else TextTertiary, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun LoopRangeRow(loopStart: Int, loopEnd: Int, totalMeasures: Int, onRangeChange: (Int, Int) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-        Text("Boucle", fontSize = 10.sp, color = AmberWarning, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(8.dp))
-        Text("m.", fontSize = 10.sp, color = TextTertiary)
-        Spacer(Modifier.width(4.dp))
-        MeasureStepper(
-            value = loopStart + 1,
-            onDecrement = { if (loopStart > 0) onRangeChange(loopStart - 1, loopEnd) },
-            onIncrement = { if (loopStart < loopEnd) onRangeChange(loopStart + 1, loopEnd) }
-        )
-        Text("→", fontSize = 10.sp, color = TextTertiary, modifier = Modifier.padding(horizontal = 6.dp))
-        MeasureStepper(
-            value = loopEnd + 1,
-            onDecrement = { if (loopEnd > loopStart) onRangeChange(loopStart, loopEnd - 1) },
-            onIncrement = { if (loopEnd < totalMeasures - 1) onRangeChange(loopStart, loopEnd + 1) }
-        )
-        Spacer(Modifier.width(4.dp))
-        Text("/ $totalMeasures", fontSize = 10.sp, color = TextMuted)
-    }
-}
-
-@Composable
-private fun MeasureStepper(value: Int, onDecrement: () -> Unit, onIncrement: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onDecrement, modifier = Modifier.size(24.dp)) {
-            Icon(Icons.Default.Remove, null, tint = AmberWarning, modifier = Modifier.size(11.dp))
-        }
-        Text("$value", fontSize = 12.sp, color = AmberWarning, fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(min = 22.dp), textAlign = TextAlign.Center)
-        IconButton(onClick = onIncrement, modifier = Modifier.size(24.dp)) {
-            Icon(Icons.Default.Add, null, tint = AmberWarning, modifier = Modifier.size(11.dp))
-        }
     }
 }

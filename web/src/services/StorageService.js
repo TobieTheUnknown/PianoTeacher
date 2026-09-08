@@ -1,12 +1,18 @@
+import { quarterNotesPerMeasure } from '../utils/timing.js';
 import { getMidiNumber, normalizeKeySignature } from '../models/song.js';
+import * as MidiModule from '@tonejs/midi';
+import * as MidiFileModule from 'midi-file';
+
+const { Midi } = MidiModule.default ?? MidiModule;
+const MidiFile = MidiFileModule.default ?? MidiFileModule;
 
 // Detect if running in Tauri environment
 // In Tauri v2, check for TAURI_PLATFORM env variable instead of window.__TAURI__
 const isTauri = () => {
     if (typeof window === 'undefined') return false;
     // Check for Tauri v2 environment variables or internal object
-    return import.meta.env.TAURI_PLATFORM !== undefined ||
-           import.meta.env.TAURI_FAMILY !== undefined ||
+    return import.meta.env?.TAURI_PLATFORM !== undefined ||
+           import.meta.env?.TAURI_FAMILY !== undefined ||
            window.__TAURI_INTERNALS__ !== undefined;
 };
 
@@ -28,34 +34,17 @@ const migrateSong = (song) => {
     }
 
     migratedSong.phrases = (Array.isArray(song.phrases) ? song.phrases : []).map(phrase => {
-        const newPhrase = { ...phrase };
+        const newPhrase = { ...phrase, tracks: { ...phrase.tracks } };
 
-        // Migrate melody
-        if (newPhrase.tracks?.melody) {
-            newPhrase.tracks.melody = newPhrase.tracks.melody.map(note => ({
+        // Older exports stored hands directly on the phrase. Normalize the
+        // structure as well as pitches so every consumer sees the same tracks.
+        for (const hand of ['melody', 'chords']) {
+            const notes = newPhrase.tracks[hand] ?? newPhrase[hand] ?? [];
+            newPhrase.tracks[hand] = notes.map(note => ({
                 ...note,
                 pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
             }));
-        } else if (newPhrase.melody) {
-            // Legacy flat structure
-            newPhrase.melody = newPhrase.melody.map(note => ({
-                ...note,
-                pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
-            }));
-        }
-
-        // Migrate chords
-        if (newPhrase.tracks?.chords) {
-            newPhrase.tracks.chords = newPhrase.tracks.chords.map(note => ({
-                ...note,
-                pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
-            }));
-        } else if (newPhrase.chords) {
-            // Legacy flat structure
-            newPhrase.chords = newPhrase.chords.map(note => ({
-                ...note,
-                pitch: typeof note.pitch === 'string' ? getMidiNumber(note.pitch) : note.pitch
-            }));
+            delete newPhrase[hand];
         }
 
         // Migrate hand separators if they exist
@@ -72,13 +61,88 @@ const migrateSong = (song) => {
     return migratedSong;
 };
 
+// Reads used by mutations must fail closed: treating damaged JSON as an
+// empty library would overwrite the user's recoverable original data.
+const readSongs = () => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw === null ? [] : JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.some(song => !song || typeof song !== 'object')) {
+        throw new Error('Bibliothèque illisible : les données originales sont conservées.');
+    }
+    return parsed.map(migrateSong);
+};
+
+const KEY_SIGNATURE_COUNTS = Object.freeze({
+    C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F#': 6, 'C#': 7,
+    F: -1, Bb: -2, Eb: -3, Ab: -4, Db: -5, Gb: -6, Cb: -7,
+});
+const MINOR_RELATIVE_MAJORS = Object.freeze({
+    A: 'C', E: 'G', B: 'D', 'F#': 'A', 'C#': 'E', 'G#': 'B', 'D#': 'F#', 'A#': 'C#',
+    D: 'F', G: 'Bb', C: 'Eb', F: 'Ab', Bb: 'Db', Eb: 'Gb', Ab: 'Cb',
+});
+
+/** Build a standards-compliant MIDI byte array, independently of the download UI. */
+export const buildSongMidiBytes = (sourceSong) => {
+    const song = migrateSong(sourceSong);
+    const midi = new Midi();
+    const bpm = Number.isFinite(song.tempo) && song.tempo > 0 ? song.tempo : 120;
+    const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
+    const unitsPerMeasure = quarterNotesPerMeasure(timeSignature);
+    midi.header.setTempo(bpm);
+    midi.header.timeSignatures.push({
+        ticks: 0,
+        timeSignature: [timeSignature.numerator || 4, timeSignature.denominator || 4],
+    });
+    midi.header.update();
+
+    const melodyTrack = midi.addTrack();
+    melodyTrack.name = 'Mélodie';
+    const chordsTrack = midi.addTrack();
+    chordsTrack.name = 'Accords';
+    let phraseOffset = 0;
+    for (const phrase of song.phrases || []) {
+        for (const [hand, track, velocity] of [
+            ['melody', melodyTrack, 0.8],
+            ['chords', chordsTrack, 0.7],
+        ]) {
+            for (const note of phrase.tracks?.[hand] || []) {
+                if (Number.isInteger(note.pitch) && note.pitch >= 0 && note.pitch <= 127 &&
+                    Number.isFinite(note.startTime) && note.startTime >= 0 &&
+                    Number.isFinite(note.duration) && note.duration > 0) {
+                    track.addNote({
+                        midi: note.pitch,
+                        ticks: Math.round((phraseOffset + note.startTime) * midi.header.ppq),
+                        durationTicks: Math.max(1, Math.round(note.duration * midi.header.ppq)),
+                        velocity,
+                    });
+                }
+            }
+        }
+        phraseOffset += Math.max(1, phrase.length || 1) * unitsPerMeasure;
+    }
+
+    // @tonejs/midi 2.0.28 writes the signed key count with the wrong offset.
+    // Inject the raw event with midi-file until that upstream encoder is fixed.
+    const raw = MidiFile.parseMidi(midi.toArray());
+    const key = normalizeKeySignature(song.key);
+    const signatureName = key.mode === 'minor' ? MINOR_RELATIVE_MAJORS[key.note] : key.note;
+    const count = KEY_SIGNATURE_COUNTS[signatureName];
+    if (Number.isInteger(count)) {
+        raw.tracks[0].unshift({
+            deltaTime: 0,
+            meta: true,
+            type: 'keySignature',
+            key: count,
+            scale: key.mode === 'minor' ? 1 : 0,
+        });
+    }
+    return new Uint8Array(MidiFile.writeMidi(raw));
+};
+
 export const StorageService = {
     getSongs: () => {
         try {
-            const songs = localStorage.getItem(STORAGE_KEY);
-            const parsedSongs = songs ? JSON.parse(songs) : [];
-            // Migrate all loaded songs on the fly
-            return parsedSongs.map(migrateSong);
+            return readSongs();
         } catch (error) {
             console.error('Error loading songs:', error);
             return [];
@@ -87,7 +151,7 @@ export const StorageService = {
 
     saveSong: (song) => {
         try {
-            const songs = StorageService.getSongs();
+            const songs = readSongs();
             const existingIndex = songs.findIndex(s => s.id === song.id);
 
             // Update timestamp
@@ -108,13 +172,13 @@ export const StorageService = {
     },
 
     loadSong: (id) => {
-        const songs = StorageService.getSongs();
+        const songs = readSongs();
         return songs.find(s => s.id === id);
     },
 
     deleteSong: (id) => {
         try {
-            const songs = StorageService.getSongs();
+            const songs = readSongs();
             const newSongs = songs.filter(s => s.id !== id);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(newSongs));
             return true;
@@ -168,7 +232,7 @@ export const StorageService = {
 
     // Export entire library as JSON file
     exportLibrary: async () => {
-        const songs = StorageService.getSongs();
+        const songs = readSongs();
         const libraryJson = JSON.stringify(songs, null, 2);
         const defaultFilename = `bibliotheque_piano_${new Date().toISOString().split('T')[0]}.json`;
 
@@ -209,59 +273,19 @@ export const StorageService = {
 
     // Export a single song as a MIDI file
     exportSongAsMidi: async (song) => {
-        const { Midi } = await import('@tonejs/midi');
-
-        const midi = new Midi();
-        midi.header.setTempo(song.tempo || 120);
-
-        const timeNum = song.timeSignature?.numerator || 4;
-        const bpm = song.tempo || 120;
-        const secPerBeat = 60 / bpm;
-
-        const melodyTrack = midi.addTrack();
-        melodyTrack.name = 'Mélodie';
-        const chordsTrack = midi.addTrack();
-        chordsTrack.name = 'Accords';
-
-        let phraseOffset = 0; // in beats
-
-        for (const phrase of (song.phrases || [])) {
-            for (const note of (phrase.tracks?.melody || [])) {
-                if (note.pitch >= 0 && note.pitch <= 127 && note.duration > 0) {
-                    melodyTrack.addNote({
-                        midi: note.pitch,
-                        time: (phraseOffset + note.startTime) * secPerBeat,
-                        duration: Math.max(0.05, note.duration * secPerBeat),
-                        velocity: 0.8
-                    });
-                }
-            }
-            for (const note of (phrase.tracks?.chords || [])) {
-                if (note.pitch >= 0 && note.pitch <= 127 && note.duration > 0) {
-                    chordsTrack.addNote({
-                        midi: note.pitch,
-                        time: (phraseOffset + note.startTime) * secPerBeat,
-                        duration: Math.max(0.05, note.duration * secPerBeat),
-                        velocity: 0.7
-                    });
-                }
-            }
-            phraseOffset += (phrase.length || 4) * timeNum;
-        }
-
-        const midiArray = midi.toArray();
+        const midiArray = buildSongMidiBytes(song);
         const defaultFilename = `${(song.title || 'export').replace(/[^a-z0-9]/gi, '_')}.mid`;
 
         if (isTauri()) {
             try {
                 const { save } = await import('@tauri-apps/plugin-dialog');
-                const { writeBinaryFile } = await import('@tauri-apps/plugin-fs');
+                const { writeFile } = await import('@tauri-apps/plugin-fs');
                 const filePath = await save({
                     defaultPath: defaultFilename,
                     filters: [{ name: 'MIDI', extensions: ['mid', 'midi'] }]
                 });
                 if (filePath) {
-                    await writeBinaryFile(filePath, midiArray);
+                    await writeFile(filePath, midiArray);
                     return { success: true, path: filePath };
                 }
                 return { success: false, cancelled: true };
@@ -298,7 +322,7 @@ export const StorageService = {
 
             if (merge) {
                 // Merge with existing library
-                const existingSongs = StorageService.getSongs();
+                const existingSongs = readSongs();
                 const mergedSongs = [...existingSongs];
 
                 canonicalSongs.forEach(importedSong => {

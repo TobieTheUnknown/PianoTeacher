@@ -1,9 +1,9 @@
-import { getEnharmonicNote, normalizeKeySignature, NOTE_NAMES } from '../models/song.js';
+import { getEnharmonicNote, getMidiNumber, normalizeKeySignature, NOTE_NAMES } from '../models/song.js';
 
 // English note name → pitch class (used by getChordDegree)
 const EN_NOTE_TO_PC = {
     'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
-    'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+    'Cb': 11, 'Fb': 4, 'E#': 5, 'B#': 0, 'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
     'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11,
 };
 
@@ -99,16 +99,16 @@ export function identifyChord(midiPitches, keySignature) {
     const lowestPitch = Math.min(...midiPitches);
     const lowestPitchClass = lowestPitch % 12;
 
-    let bestMatch = null;
 
     // Try each pitch class as potential root, but prefer the lowest note
     const orderedRoots = [lowestPitchClass, ...pitchClasses.filter(pc => pc !== lowestPitchClass)];
 
+    for (const exact of [true, false]) {
     for (const root of orderedRoots) {
         const intervals = pitchClasses.map(pc => (pc - root + 12) % 12).sort((a, b) => a - b);
 
         for (const template of CHORD_TEMPLATES) {
-            if (intervalsMatch(intervals, template.intervals)) {
+            if ((!exact || intervals.length === template.intervals.length) && intervalsMatch(intervals, template.intervals)) {
                 const rootName = getRootName(root, keySignature);
                 const quality = template.quality;
                 const displayName = formatChordDisplayName(rootName, quality);
@@ -116,12 +116,9 @@ export function identifyChord(midiPitches, keySignature) {
             }
         }
 
-        // If lowest note already matched, we'd have returned above.
-        // Only continue to other roots if lowest didn't match.
-        if (root === lowestPitchClass && bestMatch) break;
     }
-
-    return bestMatch;
+    }
+    return null;
 }
 
 /**
@@ -161,7 +158,7 @@ export function arpeggioToChord(chordGroups, keySignature) {
         for (const note of group.notes) {
             const pitch = typeof note.pitch === 'number'
                 ? note.pitch
-                : getMidiFromName(note.pitch);
+                : getMidiNumber(note.pitch);
             if (pitch !== null) midiPitches.push(pitch);
         }
     }
@@ -209,7 +206,7 @@ export function detectArpeggioMotifs(chordGroups, keySignature) {
         for (const note of group.notes) {
             const pitch = typeof note.pitch === 'number'
                 ? note.pitch
-                : getMidiFromName(note.pitch);
+                : getMidiNumber(note.pitch);
             if (pitch !== null) midiPitches.push(pitch);
         }
     }
@@ -409,7 +406,7 @@ export function formatArpeggioBadge(chord, bassPitchClass, keySignature) {
  * @param {object} keySignature  { note, mode }
  * @returns {{ chord: {rootName,quality,displayName,rootPitchClass}, altered: boolean, alteredNoteName: string|null } | null}
  */
-export function identifyChordWithTolerance(pitches, keySignature) {
+export function identifyChordWithTolerance(pitches, keySignature, { allowIncomplete = true } = {}) {
     if (!pitches || pitches.length === 0) return null;
     const pitchClasses = [...new Set(pitches.map(p => p % 12))];
     if (pitchClasses.length < 3) return null;
@@ -423,9 +420,9 @@ export function identifyChordWithTolerance(pitches, keySignature) {
     // bass-first so a grounded reading wins ties.
     const pcSet = new Set(pitchClasses);
     const exactRoots = [pitches[0] % 12, ...pitchClasses.filter(pc => pc !== pitches[0] % 12)];
-    for (const template of CHORD_TEMPLATES) {
-        if (template.intervals.length !== pcSet.size) continue;
-        for (const root of exactRoots) {
+    for (const root of exactRoots) {
+        for (const template of CHORD_TEMPLATES) {
+            if (template.intervals.length !== pcSet.size) continue;
             const templatePcs = new Set(template.intervals.map(iv => (root + iv) % 12));
             if (templatePcs.size === pcSet.size
                 && [...pcSet].every(pc => templatePcs.has(pc))) {
@@ -441,7 +438,7 @@ export function identifyChordWithTolerance(pitches, keySignature) {
                     alteredNoteName: null,
                 };
             }
-        }
+    }
     }
 
     let chord = identifyChord(pitches, keySignature);
@@ -473,6 +470,8 @@ export function identifyChordWithTolerance(pitches, keySignature) {
         }
         return { chord, altered, alteredNoteName };
     }
+
+    if (!allowIncomplete) return null;
 
     // No direct match: try an INCOMPLETE 4-note chord — exactly 3 of a
     // 4-tone template's pitch classes, no foreign tone. Roots are tried
@@ -524,7 +523,10 @@ export function noteLabelForPitchClass(pc, keySignature) {
  */
 export function getMeasureHarmony(allPitches, keySignature) {
     if (!allPitches || allPitches.length === 0) return null;
-    const identified = identifyChordWithTolerance(allPitches, keySignature);
+    // A measure-level watermark must describe pitches that are actually
+    // present. Incomplete four-note hypotheses remain available to the
+    // explicit arpeggio analysis, where they are labelled as altered.
+    const identified = identifyChordWithTolerance(allPitches, keySignature, { allowIncomplete: false });
     if (!identified) return null;
     const { chord, altered } = identified;
 
@@ -556,7 +558,7 @@ export function qualifyOstinatoMeasure(chordGroups, keySignature) {
     const starts = [];
     for (const g of groups) {
         const note = g.notes[0];
-        const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiFromName(note.pitch);
+        const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiNumber(note.pitch);
         if (pitch === null) return null;
         pitches.push(pitch);
         starts.push(note.startTime ?? g.startTime);
@@ -631,7 +633,7 @@ export function qualifyPedalMeasure(chordGroups, unitsPerMeasure, keySignature) 
     for (const g of chordGroups) {
         const groupPitches = [];
         for (const note of g.notes) {
-            const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiFromName(note.pitch);
+            const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiNumber(note.pitch);
             if (pitch === null) return null;
             allPitches.push(pitch);
             groupPitches.push(pitch);
@@ -696,7 +698,7 @@ export function qualifyArpeggioMeasure(chordGroups, keySignature) {
     const durations = [];
     for (const g of groups) {
         const note = g.notes[0];
-        const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiFromName(note.pitch);
+        const pitch = typeof note.pitch === 'number' ? note.pitch : getMidiNumber(note.pitch);
         if (pitch === null) return null;
         pitches.push(pitch);
         starts.push(note.startTime ?? g.startTime);
@@ -748,28 +750,4 @@ export function qualifyArpeggioMeasure(chordGroups, keySignature) {
         alteredNoteName,
         badge: formatArpeggioBadge(chord, bassPitchClass, keySignature),
     };
-}
-
-/**
- * Simple note name to MIDI conversion for string pitches.
- */
-function getMidiFromName(name) {
-    if (!name) return null;
-    const noteToOffset = {
-        'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
-        'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
-        'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
-    };
-    let note, octave;
-    if (name.length >= 2 && isNaN(name[1])) {
-        note = name.slice(0, 2);
-        octave = parseInt(name.slice(2));
-    } else {
-        note = name[0];
-        octave = parseInt(name.slice(1));
-    }
-    if (noteToOffset[note] !== undefined && !isNaN(octave)) {
-        return 12 + (octave * 12) + noteToOffset[note];
-    }
-    return null;
 }
