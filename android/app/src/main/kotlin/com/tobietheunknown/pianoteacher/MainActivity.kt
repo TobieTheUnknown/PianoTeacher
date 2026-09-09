@@ -22,6 +22,7 @@ import com.tobietheunknown.pianoteacher.ui.theme.composeThemeColors
 import com.tobietheunknown.pianoteacher.ui.theme.getThemeColors
 import com.tobietheunknown.pianoteacher.ui.AppNavHost
 import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingState
+import com.tobietheunknown.pianoteacher.reminders.PracticeReminders
 
 class MainActivity : ComponentActivity() {
 
@@ -73,6 +74,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         currentIntent = intent
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Restores the next local reminder after app updates, time changes or a
+        // return from Android's notification settings.
+        PracticeReminders.reschedule(this)
     }
 
 }

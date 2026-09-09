@@ -21,10 +21,12 @@ import com.tobietheunknown.pianoteacher.utils.detectKeySignature
 import com.tobietheunknown.pianoteacher.utils.musicKeySignatureFromStored
 import com.tobietheunknown.pianoteacher.utils.StaffDisplayNote
 import com.tobietheunknown.pianoteacher.utils.sliceNotesForStaff
+import com.tobietheunknown.pianoteacher.audio.TimelineTransport
+import com.tobietheunknown.pianoteacher.audio.TransportSettings
+import com.tobietheunknown.pianoteacher.audio.songTimeline
+import com.tobietheunknown.pianoteacher.audio.audioPlaybackDispatcher
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
@@ -70,8 +72,11 @@ class LearningViewModel(
     private val repo: SongRepository,
     private val songId: String,
     private val audioEngine: AudioEngine,
-    private val midiManager: MidiManager
+    private val midiManager: MidiManager,
+    initialListenMode: Boolean = true,
 ) : ViewModel() {
+
+    val audioReady: StateFlow<Boolean> = audioEngine.ready
 
     private val _song = MutableStateFlow<Song?>(null)
     val song: StateFlow<Song?> = _song.asStateFlow()
@@ -131,7 +136,7 @@ class LearningViewModel(
     val waitMode: StateFlow<Boolean> = _waitMode.asStateFlow()
     fun toggleWaitMode() { _waitMode.value = !_waitMode.value }
 
-    private val _listenMode = MutableStateFlow(true)
+    private val _listenMode = MutableStateFlow(initialListenMode)
     val listenMode: StateFlow<Boolean> = _listenMode.asStateFlow()
     fun toggleListenMode() { _listenMode.value = !_listenMode.value }
 
@@ -249,8 +254,10 @@ class LearningViewModel(
         }
         @Suppress("NAME_SHADOWING")
         val total = allMeasures.value.size
-        _loopStart.value = start.coerceIn(0, total - 1)
-        _loopEnd.value = end.coerceIn(start, total - 1)
+        if (total <= 0) return
+        val clampedStart = start.coerceIn(0, total - 1)
+        _loopStart.value = clampedStart
+        _loopEnd.value = end.coerceIn(clampedStart, total - 1)
     }
 
     fun toggleDetails() { _showDetails.value = !_showDetails.value }
@@ -272,257 +279,103 @@ class LearningViewModel(
 
     // ─── Playback ─────────────────────────────────────────────────────────────
 
-    /** Global Play/Pause: plays from the beginning of the song (loops if enabled) */
+    @Volatile private var playbackGeneration = 0
+
+    /** The complete MIDI timeline drives playback; measures are position snapshots. */
     fun play() {
         if (_isPlaying.value) { pause(); return }
         val s = song.value ?: return
-        val measures = allMeasures.value
-        if (measures.isEmpty()) return
-
-        cancelPlayback()
-        _isPlaying.value = true
-
-        playbackJob = viewModelScope.launch {
-            val beatMs = (60_000.0 / (s.tempo * _tempoPercent.value)).toLong()
-
-            // Preroll — one bar of metronome ticks before the music starts
-            // when the metronome is enabled. Matches the web flow.
-            if (_metronomeEnabled.value) {
-                for (i in 0 until kotlin.math.ceil(s.beatsPerMeasure).toInt()) {
-                    audioEngine.playClick(isAccent = i == 0)
-                    delay(beatMs)
-                }
-            }
-
-            // Continuous metronome during music: concurrent child coroutine
-            if (_metronomeEnabled.value) {
-                launch {
-                    var beat = 0
-                    while (isActive) {
-                        audioEngine.playClick(isAccent = beat % s.beatsPerMeasure == 0.0)
-                        beat++
-                        delay(beatMs)
-                    }
-                }
-            }
-
-            // Start from the focused measure, not always 0.
-            var idx = _focusedMeasureIndex.value.coerceIn(0, measures.size - 1)
-
-            while (isActive) {
-                val lo = _loopStart.value
-                val hi = _loopEnd.value.coerceAtMost(measures.size - 1)
-
-                if (_isLooping.value && (idx < lo || idx > hi)) idx = lo
-                if (idx >= measures.size) break
-
-                _playingMeasureIndex.value = idx
-                _focusedMeasureIndex.value = idx
-
-                playMeasureAudio(s, measures[idx])
-
-                if (_isLooping.value && idx >= hi) {
-                    idx = lo
-                } else {
-                    idx++
-                }
-            }
-
-            _isPlaying.value = false
-            _playingMeasureIndex.value = -1
-        }
+        if (s.totalMeasures == 0) return
+        startTimeline(_focusedMeasureIndex.value.coerceIn(0, s.totalMeasures - 1), s.totalMeasures, allowLoop = true, preroll = true)
     }
 
-    fun pause() {
-        cancelPlayback()
-        audioEngine.noteOff(-1)
-    }
+    fun pause() { cancelPlayback() }
 
     fun stop() {
         cancelPlayback()
         _focusedMeasureIndex.value = 0
-        audioEngine.noteOff(-1)
     }
 
-    /** Tap on measure card → plays just that single measure, then stops */
     fun playMeasureSingle(globalIdx: Int) {
         val s = song.value ?: return
-        val measures = allMeasures.value
-        if (globalIdx !in measures.indices) return
-
-        cancelPlayback()
-        _isPlaying.value = true
-        _focusedMeasureIndex.value = globalIdx
-
-        playbackJob = viewModelScope.launch {
-            _playingMeasureIndex.value = globalIdx
-            playMeasureAudio(s, measures[globalIdx])
-            _isPlaying.value = false
-            _playingMeasureIndex.value = -1
-        }
+        if (globalIdx !in 0 until s.totalMeasures) return
+        startTimeline(globalIdx, globalIdx + 1)
     }
 
-    /** Tap on per-hand button → plays only one hand for that measure */
     fun playMeasureHandSingle(globalIdx: Int, playRight: Boolean) {
         val s = song.value ?: return
-        val measures = allMeasures.value
-        if (globalIdx !in measures.indices) return
-
-        cancelPlayback()
-        _isPlaying.value = true
-
-        playbackJob = viewModelScope.launch {
-            _playingMeasureIndex.value = globalIdx
-            _focusedMeasureIndex.value = globalIdx
-            val measure = measures[globalIdx]
-            val beatMs = 60_000.0 / (s.tempo * _tempoPercent.value)
-            val measureDurationMs = (s.beatsPerMeasure * beatMs).toLong()
-            val startTime = System.currentTimeMillis()
-
-            val notes = if (playRight) measure.melodyNotes else measure.chordNotes
-
-            data class AudioEvent(val timeMs: Long, val pitch: Int, val isOn: Boolean)
-            val events = mutableListOf<AudioEvent>()
-            for (n in notes) {
-                val onMs = (n.startTime * beatMs).toLong()
-                val offMs = ((n.startTime + n.duration) * beatMs).toLong().coerceAtMost(measureDurationMs)
-                events.add(AudioEvent(onMs, n.pitch, true))
-                events.add(AudioEvent(offMs, n.pitch, false))
-            }
-            events.sortBy { it.timeMs }
-
-            try {
-                for (ev in events) {
-                    val elapsed = System.currentTimeMillis() - startTime
-                    val wait = ev.timeMs - elapsed
-                    if (wait > 0) delay(wait)
-                    if (ev.isOn) audioEngine.noteOn(ev.pitch, 80) else audioEngine.noteOff(ev.pitch)
-                }
-                val elapsed = System.currentTimeMillis() - startTime
-                val hold = (measureDurationMs - elapsed).coerceAtLeast(0)
-                if (hold > 0) delay(hold)
-            } finally {
-                audioEngine.noteOff(-1)
-            }
-
-            _isPlaying.value = false
-            _playingMeasureIndex.value = -1
-        }
+        if (globalIdx !in 0 until s.totalMeasures) return
+        startTimeline(globalIdx, globalIdx + 1, forcedRightHand = playRight)
     }
 
-    /** Play button on phrase header → plays the full phrase then stops */
     fun playPhrase(phraseIdx: Int) {
         val s = song.value ?: return
-        val secs = sections.value
-        if (phraseIdx !in secs.indices) return
+        if (phraseIdx !in s.phrases.indices) return
+        val start = s.phrases.take(phraseIdx).sumOf { it.length }
+        startTimeline(start, start + s.phrases[phraseIdx].length)
+    }
 
+    private fun startTimeline(
+        startMeasure: Int,
+        endMeasure: Int,
+        allowLoop: Boolean = false,
+        preroll: Boolean = false,
+        forcedRightHand: Boolean? = null,
+    ) {
+        val s = song.value ?: return
         cancelPlayback()
+        val generation = playbackGeneration
         _isPlaying.value = true
-
-        playbackJob = viewModelScope.launch {
-            val measures = allMeasures.value
-            val section = secs[phraseIdx]
-            val globalStart = section.measures.firstOrNull()?.globalIndex ?: return@launch
-            val globalEnd = section.measures.lastOrNull()?.globalIndex ?: return@launch
-
-            _focusedMeasureIndex.value = globalStart
-
-            for (idx in globalStart..globalEnd) {
-                if (!isActive) break
-                _playingMeasureIndex.value = idx
-                _focusedMeasureIndex.value = idx
-                playMeasureAudio(s, measures.getOrNull(idx) ?: break)
+        _focusedMeasureIndex.value = startMeasure
+        playbackJob = viewModelScope.launch(audioPlaybackDispatcher) {
+            try {
+                TimelineTransport(audioEngine, songTimeline(s), s.beatsPerMeasure).run(
+                    initialBeat = startMeasure * s.beatsPerMeasure,
+                    settings = {
+                        val loop = allowLoop && _isLooping.value
+                        TransportSettings(
+                            beatsPerSecond = s.tempo / 60.0 * _tempoPercent.value,
+                            startBeat = if (loop) _loopStart.value * s.beatsPerMeasure else startMeasure * s.beatsPerMeasure,
+                            endBeat = if (loop) (_loopEnd.value + 1).coerceAtMost(s.totalMeasures) * s.beatsPerMeasure else endMeasure * s.beatsPerMeasure,
+                            loop = loop,
+                            wait = forcedRightHand == null && _waitMode.value && !_listenMode.value,
+                            metronomeSubdivision = if (_metronomeEnabled.value) 1 else 0,
+                        )
+                    },
+                    autoPlay = { note ->
+                        when {
+                            forcedRightHand != null -> note.rightHand == forcedRightHand
+                            _listenMode.value && _playbackHand.value == PlaybackHand.BOTH -> true
+                            _playbackHand.value == PlaybackHand.LEFT -> note.rightHand
+                            _playbackHand.value == PlaybackHand.RIGHT -> !note.rightHand
+                            else -> false
+                        }
+                    },
+                    pressedKeys = { _pressedKeys.value },
+                    publish = { beat, _ ->
+                        if (generation == playbackGeneration) {
+                            val index = kotlin.math.floor(beat / s.beatsPerMeasure).toInt().coerceIn(0, s.totalMeasures - 1)
+                            _playingMeasureIndex.value = index
+                            _focusedMeasureIndex.value = index
+                        }
+                    },
+                    preroll = preroll,
+                )
+            } finally {
+                if (generation == playbackGeneration) {
+                    _isPlaying.value = false
+                    _playingMeasureIndex.value = -1
+                }
             }
-
-            _isPlaying.value = false
-            _playingMeasureIndex.value = -1
         }
     }
 
     private fun cancelPlayback() {
+        playbackGeneration++
         playbackJob?.cancel()
         playbackJob = null
         _isPlaying.value = false
         _playingMeasureIndex.value = -1
-    }
-
-    private suspend fun playMeasureAudio(song: Song, measure: MeasureData) {
-        val beatMs = 60_000.0 / (song.tempo * _tempoPercent.value)
-        val measureDurationMs = (song.beatsPerMeasure * beatMs).toLong()
-        val startTime = System.currentTimeMillis()
-
-        // Build note list based on hand + listen mode:
-        // Listen mode (BOTH) → play everything (user listens)
-        // 2 mains (BOTH, !listen) → play nothing (user plays everything)
-        // LEFT → play melody (right hand backing, user plays left)
-        // RIGHT → play chords (left hand backing, user plays right)
-        data class PlayNote(val note: NoteEvent, val velocity: Int)
-
-        val hand = _playbackHand.value
-        val listen = _listenMode.value
-        val notes = when {
-            listen && hand == PlaybackHand.BOTH ->
-                (measure.melodyNotes + measure.chordNotes).map { PlayNote(it, 80) }
-            hand == PlaybackHand.LEFT ->
-                measure.melodyNotes.map { PlayNote(it, 80) }
-            hand == PlaybackHand.RIGHT ->
-                measure.chordNotes.map { PlayNote(it, 80) }
-            else -> emptyList() // 2 mains: app plays nothing
-        }.sortedBy { it.note.startTime }
-
-        // Build a merged timeline of noteOn and noteOff events for precise timing
-        data class AudioEvent(val timeMs: Long, val pitch: Int, val velocity: Int, val isOn: Boolean)
-        val events = mutableListOf<AudioEvent>()
-        for (pn in notes) {
-            val onMs = (pn.note.startTime * beatMs).toLong()
-            val offMs = ((pn.note.startTime + pn.note.duration) * beatMs).toLong()
-                .coerceAtMost(measureDurationMs)
-            events.add(AudioEvent(onMs, pn.note.pitch, pn.velocity, true))
-            events.add(AudioEvent(offMs, pn.note.pitch, 0, false))
-        }
-        events.sortBy { it.timeMs }
-
-        // Pre-compute expected pitches for wait mode (only notes the USER should play)
-        val userNotes = when {
-            listen -> emptyList() // listen mode: no waiting
-            hand == PlaybackHand.LEFT -> measure.chordNotes   // user plays left hand
-            hand == PlaybackHand.RIGHT -> measure.melodyNotes // user plays right hand
-            else -> measure.melodyNotes + measure.chordNotes  // 2 mains: user plays all
-        }
-        val noteOnsByTime = if (_waitMode.value && userNotes.isNotEmpty()) {
-            data class WaitEvent(val timeMs: Long, val pitch: Int)
-            userNotes.map { n ->
-                WaitEvent((n.startTime * beatMs).toLong(), n.pitch)
-            }.groupBy { it.timeMs }.mapValues { (_, evs) -> evs.map { it.pitch }.toSet() }
-        } else emptyMap()
-
-        try {
-            for (ev in events) {
-                // Wait mode: pause until user plays expected notes at this beat
-                if (_waitMode.value && ev.isOn && noteOnsByTime.containsKey(ev.timeMs)) {
-                    val expected = noteOnsByTime[ev.timeMs]!!
-                    while (_waitMode.value && !expected.all { it in _pressedKeys.value }) {
-                        delay(30)
-                    }
-                }
-                val elapsed = System.currentTimeMillis() - startTime
-                val wait = ev.timeMs - elapsed
-                if (wait > 0) delay(wait)
-                if (ev.isOn) {
-                    audioEngine.noteOn(ev.pitch, ev.velocity)
-                } else {
-                    audioEngine.noteOff(ev.pitch)
-                }
-            }
-
-            // Hold until end of measure
-            val elapsed = System.currentTimeMillis() - startTime
-            val hold = (measureDurationMs - elapsed).coerceAtLeast(0)
-            if (hold > 0) delay(hold)
-        } finally {
-            // Always release remaining notes, even if the coroutine is cancelled
-            audioEngine.noteOff(-1)
-        }
     }
 
     // ─── Song & Phrase editing ───────────────────────────────────────────────
@@ -712,7 +565,10 @@ class LearningViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val engine = AudioEngine.getInstance(context.applicationContext)
             val midi = MidiManager.getInstance(context.applicationContext)
-            return LearningViewModel(SongRepository(context), songId, engine, midi) as T
+            return LearningViewModel(
+                SongRepository(context), songId, engine, midi,
+                initialListenMode = true, // Partition already defaults to both-hand listening, with or without MIDI.
+            ) as T
         }
     }
 }

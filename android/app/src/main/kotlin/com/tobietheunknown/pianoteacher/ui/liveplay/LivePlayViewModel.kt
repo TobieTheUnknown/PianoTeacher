@@ -5,7 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.tobietheunknown.pianoteacher.audio.AudioEngine
-import com.tobietheunknown.pianoteacher.audio.MetronomeEngine
+import com.tobietheunknown.pianoteacher.audio.TimelineNote
+import com.tobietheunknown.pianoteacher.audio.TimelineTransport
+import com.tobietheunknown.pianoteacher.audio.TransportSettings
+import com.tobietheunknown.pianoteacher.audio.scrubAuditionNotes
+import com.tobietheunknown.pianoteacher.audio.songTimeline
+import com.tobietheunknown.pianoteacher.audio.audioPlaybackDispatcher
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Phrase
 import com.tobietheunknown.pianoteacher.data.model.Song
@@ -14,6 +19,7 @@ import com.tobietheunknown.pianoteacher.midi.MidiEvent
 import com.tobietheunknown.pianoteacher.midi.MidiManager
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
+import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingPreferences
 import com.tobietheunknown.pianoteacher.utils.detectKeySignature
 import com.tobietheunknown.pianoteacher.utils.musicKeySignatureFromStored
 import kotlinx.coroutines.*
@@ -60,23 +66,31 @@ class LivePlayViewModel(
     private val initialPhraseIndex: Int,
     private val midiManager: MidiManager,
     private val audioEngine: AudioEngine,
-    private val initialMetronomeVolume: Int = 1
+    private val initialMetronomeVolume: Int = 1,
+    initialListenMode: Boolean = false,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(LivePlayUiState())
+    val audioReady: StateFlow<Boolean> = audioEngine.ready
+
+    private val _state = MutableStateFlow(LivePlayUiState(isListenMode = initialListenMode))
     val state: StateFlow<LivePlayUiState> = _state.asStateFlow()
 
-    private val metronome = MetronomeEngine().apply { setVolume(initialMetronomeVolume) }
     private var playbackJob: Job? = null
     private var pausedAtBeat: Double = 0.0
-    private var startTimeMs: Long = 0L
-    private var lastMetronomeBeat = -1
+    @Volatile private var playbackGeneration = 0
 
     // Cached flattened note lists for full-song mode (Phase 2 perf)
     private var cachedAllMelody: List<NoteEvent>? = null
     private var cachedAllChords: List<NoteEvent>? = null
 
     init {
+        viewModelScope.launch {
+            state.map { listOf(it.currentBeat, it.currentPhraseIndex, it.selectedHand, it.visibleBeats, it.isListenMode) }
+                .distinctUntilChanged().collect {
+                    updateVisibleNotes(_state.value.currentBeat)
+                    updateExpectedKeys(_state.value.currentBeat)
+                }
+        }
         viewModelScope.launch {
             val song = repo.getSong(songId) ?: return@launch
             // initialPhraseIndex < 0 = full song view
@@ -188,138 +202,139 @@ class LivePlayViewModel(
         if (_state.value.isPlaying) pause() else play()
     }
 
-    private fun play() {
+    private fun timelineNotes(): List<TimelineNote> {
+        val state = _state.value
+        val phrase = state.currentPhrase
+        return if (phrase == null) state.song?.let(::songTimeline).orEmpty() else {
+            var occurrence = 0
+            (phrase.tracks.melody.map { TimelineNote(occurrence++, it, true) } +
+                phrase.tracks.chords.map { TimelineNote(occurrence++, it, false) }).sortedBy { it.note.startTime }
+        }
+    }
+
+    private fun shouldAutoPlay(note: TimelineNote): Boolean {
+        val state = _state.value
+        return state.isListenMode || when (state.selectedHand) {
+            PlaybackHand.BOTH -> false
+            PlaybackHand.RIGHT -> !note.rightHand
+            PlaybackHand.LEFT -> note.rightHand
+        }
+    }
+
+    private fun play(preroll: Boolean = true) {
+        if (_state.value.isPlaying) return
+        val song = _state.value.song ?: return
+        if (_state.value.totalBeats <= 0) return
+        if (_state.value.currentBeat >= _state.value.totalBeats) seekToBeat(0.0)
         pausedAtBeat = _state.value.currentBeat
-        lastMetronomeBeat = -1
-
-        playbackJob = viewModelScope.launch {
-            // Metronome preroll: play 1 measure of clicks before starting
-            if (_state.value.metronomeSubdivision > 0) {
-                val bpm = _state.value.song?.tempo ?: 120
-                val speed = _state.value.playbackSpeed
-                val beatMs = (60_000.0 / bpm / speed).toLong()
-                val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4.0
-                for (i in 0 until kotlin.math.ceil(beatsPerMeasure).toInt()) {
-                    audioEngine.playClick(i == 0, amplitude = 0.7f)
-                    delay(beatMs)
-                }
-            }
-
-            startTimeMs = System.currentTimeMillis()
-            _state.update { it.copy(isPlaying = true, isWaiting = false) }
-
-            while (isActive) {
-                val bpm = _state.value.song?.tempo ?: 120
-                val speed = _state.value.playbackSpeed
-                val beatsPerMs = bpm / 60_000.0 * speed
-
-                // Wait mode: pause when expected keys aren't all pressed
-                val inWaitMode = _state.value.isWaitMode
-                val expected = _state.value.expectedKeys
-                val pressed = _state.value.pressedKeys
-                val shouldWait = inWaitMode && expected.isNotEmpty() && !pressed.containsAll(expected)
-
-                if (shouldWait) {
-                    if (!_state.value.isWaiting) _state.update { it.copy(isWaiting = true) }
-                    // Reset clock so beat resumes smoothly when keys are pressed
-                    startTimeMs = System.currentTimeMillis()
-                    pausedAtBeat = _state.value.currentBeat
-                    delay(8)
-                    continue
-                }
-
-                if (_state.value.isWaiting) _state.update { it.copy(isWaiting = false) }
-
-                val elapsedMs = System.currentTimeMillis() - startTimeMs
-                val currentBeat = pausedAtBeat + elapsedMs * beatsPerMs
-                val totalBeats = _state.value.totalBeats
-
-                val loopEnd = if (_state.value.isLooping && _state.value.loopEndBeat > 0) _state.value.loopEndBeat else totalBeats
-                if (currentBeat >= loopEnd) {
-                    if (_state.value.isLooping) {
-                        pausedAtBeat = _state.value.loopStartBeat
-                        startTimeMs = System.currentTimeMillis()
-                        triggeredNotes.clear()
-        lastCheckedBeat = -1.0
-                        pendingNoteOffs.clear()
-                    } else {
-                        _state.update { it.copy(currentBeat = totalBeats, isPlaying = false, isWaiting = false) }
-                        // Auto-advance to next phrase if in phrase-per-phrase mode
-                        val song = _state.value.song
-                        val nextIdx = _state.value.currentPhraseIndex + 1
-                        if (song != null && _state.value.currentPhraseIndex >= 0 && nextIdx < song.phrases.size) {
-                            viewModelScope.launch {
-                                delay(600) // small gap between phrases
-                                goToPhrase(nextIdx)
-                            }
-                        }
-                        break
-                    }
-                } else {
-                    _state.update { it.copy(currentBeat = currentBeat) }
-                    updateVisibleNotes(currentBeat)
-                    updateExpectedKeys(currentBeat)
-                    triggerAutoNotes(currentBeat)
-
-                    // Metronome
-                    val subdivision = _state.value.metronomeSubdivision
-                    if (subdivision > 0) {
-                        val multiplier = if (subdivision == 2) 2 else 1
-                        val tickIndex = kotlin.math.floor(currentBeat * multiplier).toInt()
-                        if (tickIndex != lastMetronomeBeat && tickIndex >= 0) {
-                            lastMetronomeBeat = tickIndex
-                            val beatsPerMeasure = _state.value.song?.beatsPerMeasure ?: 4.0
-                            val isAccent = tickIndex % (beatsPerMeasure * multiplier) == 0.0
-                            audioEngine.playClick(isAccent)
-                        }
+        val generation = ++playbackGeneration
+        _state.update { it.copy(isPlaying = true, isWaiting = false) }
+        val notes = timelineNotes()
+        playbackJob = viewModelScope.launch(audioPlaybackDispatcher) {
+            try {
+                TimelineTransport(audioEngine, notes, song.beatsPerMeasure).run(
+                    initialBeat = pausedAtBeat,
+                    settings = {
+                        val state = _state.value
+                        TransportSettings(
+                            beatsPerSecond = song.tempo / 60.0 * state.playbackSpeed,
+                            startBeat = if (state.isLooping) state.loopStartBeat else 0.0,
+                            endBeat = if (state.isLooping && state.loopEndBeat > 0) state.loopEndBeat else state.totalBeats,
+                            loop = state.isLooping,
+                            wait = state.isWaitMode && !state.isListenMode,
+                            metronomeSubdivision = state.metronomeSubdivision,
+                            metronomeAmplitude = when (initialMetronomeVolume) { 0 -> 0.25f; 2 -> 0.70f; else -> 0.45f },
+                        )
+                    },
+                    autoPlay = ::shouldAutoPlay,
+                    pressedKeys = { _state.value.pressedKeys },
+                    publish = { beat, waiting ->
+                        if (generation == playbackGeneration) _state.update { it.copy(currentBeat = beat, isWaiting = waiting) }
+                    },
+                    preroll = preroll,
+                )
+                // Phrase-only views retain their next-phrase navigation after playback.
+                if (generation == playbackGeneration) withContext(Dispatchers.Main) {
+                    _state.update { it.copy(isPlaying = false, isWaiting = false) }
+                    val index = _state.value.currentPhraseIndex
+                    if (index >= 0 && index + 1 < song.phrases.size) {
+                        delay(600)
+                        if (generation == playbackGeneration) goToPhrase(index + 1)
                     }
                 }
-                // Yield then short delay for smooth ~60fps without busy-waiting
-                // Wall-clock timing handles accurate beat positioning
-                yield()
-                delay(8)
+            } finally {
+                if (generation == playbackGeneration) _state.update { it.copy(isPlaying = false, isWaiting = false) }
             }
         }
     }
 
     private fun pause() {
+        playbackGeneration++
         playbackJob?.cancel()
+        playbackJob = null
         pausedAtBeat = _state.value.currentBeat
-        lastMetronomeBeat = -1
         _state.update { it.copy(isPlaying = false, isWaiting = false) }
-        _state.value.visibleNotes.filter { it.isActive }.forEach {
-            audioEngine.noteOff(it.note.pitch)
-        }
     }
 
-    fun restart() {
-        pause()
-        triggeredNotes.clear()
-        lastCheckedBeat = -1.0
-        pendingNoteOffs.clear()
-        lastMetronomeBeat = -1
-        _state.update { it.copy(currentBeat = 0.0) }
-        pausedAtBeat = 0.0
-        updateVisibleNotes(0.0)
-    }
+    fun restart() { pause(); seekToBeat(0.0) }
 
     fun seekToBeat(beat: Double) {
         val wasPlaying = _state.value.isPlaying
         pause()
-        triggeredNotes.clear()
-        lastCheckedBeat = -1.0
-        pendingNoteOffs.clear()
-        pausedAtBeat = beat
-        _state.update { it.copy(currentBeat = beat) }
-        updateVisibleNotes(beat)
-        if (wasPlaying) play()
+        pausedAtBeat = beat.coerceIn(0.0, _state.value.totalBeats)
+        _state.update { it.copy(currentBeat = pausedAtBeat) }
+        updateVisibleNotes(pausedAtBeat)
+        updateExpectedKeys(pausedAtBeat)
+        if (wasPlaying) play(preroll = false)
     }
 
     fun setSpeed(speed: Float) {
-        val wasPlaying = _state.value.isPlaying
-        if (wasPlaying) pause()
-        _state.update { it.copy(playbackSpeed = speed) }
-        if (wasPlaying) play()
+        // The monotone clock integrates the new rate without replaying a preroll.
+        _state.update { it.copy(playbackSpeed = speed.coerceIn(0.3f, 1.5f)) }
+    }
+
+    private var scrubWasPlaying = false
+    private var scrubbing = false
+    private var scrubNotes = emptyList<TimelineNote>()
+    private val scrubbedOccurrences = mutableSetOf<Int>()
+    private var lastAuditionNanos = 0L
+
+    fun beginScrub() {
+        if (scrubbing) return
+        scrubbing = true
+        scrubWasPlaying = _state.value.isPlaying
+        pause()
+        scrubNotes = timelineNotes()
+        scrubbedOccurrences.clear()
+        lastAuditionNanos = 0L
+    }
+
+    fun scrubToBeat(beat: Double, audition: Boolean = true) {
+        if (!scrubbing) beginScrub()
+        val target = beat.coerceIn(0.0, _state.value.totalBeats)
+        val from = _state.value.currentBeat
+        val now = System.nanoTime()
+        if (audition && _state.value.audioEnabled && now - lastAuditionNanos >= 45_000_000L) {
+            val chord = scrubAuditionNotes(scrubNotes, from, target, _state.value.audioEnabled, scrubbedOccurrences)
+            if (chord.isNotEmpty()) {
+                lastAuditionNanos = now
+                scrubbedOccurrences.addAll(chord.map { it.occurrence })
+                val voices = chord.map { audioEngine.playVoice(it.note.pitch, 65) }
+                viewModelScope.launch { delay(110); voices.forEach(audioEngine::stopVoice) }
+            }
+        }
+        pausedAtBeat = target
+        _state.update { it.copy(currentBeat = target) }
+        updateVisibleNotes(target)
+        updateExpectedKeys(target)
+    }
+
+    fun endScrub(resumePlayback: Boolean = true) {
+        if (!scrubbing) return
+        scrubbing = false
+        scrubNotes = emptyList()
+        if (resumePlayback && scrubWasPlaying) play(preroll = false)
+        scrubWasPlaying = false
     }
 
     fun toggleLoop() {
@@ -334,10 +349,10 @@ class LivePlayViewModel(
     }
 
     fun setLoopRange(startBeat: Double, endBeat: Double) {
-        _state.update { it.copy(
-            loopStartBeat = startBeat.coerceIn(0.0, it.totalBeats),
-            loopEndBeat = endBeat.coerceIn(startBeat, it.totalBeats)
-        )}
+        _state.update {
+            val start = startBeat.coerceIn(0.0, it.totalBeats)
+            it.copy(loopStartBeat = start, loopEndBeat = endBeat.coerceIn(start, it.totalBeats))
+        }
     }
 
     fun toggleWaitMode() {
@@ -387,83 +402,19 @@ class LivePlayViewModel(
         val song = _state.value.song ?: return
         val phrase = song.phrases.getOrNull(index) ?: return
         pause()
-        triggeredNotes.clear()
-        lastCheckedBeat = -1.0
-        pendingNoteOffs.clear()
         val totalBeats = phrase.length.toDouble() * song.beatsPerMeasure
         _state.update {
             it.copy(
                 currentPhraseIndex = index,
                 currentPhrase = phrase,
                 totalBeats = totalBeats,
-                currentBeat = 0.0
+                currentBeat = 0.0,
+                loopStartBeat = 0.0,
+                loopEndBeat = totalBeats,
             )
         }
         pausedAtBeat = 0.0
         updateVisibleNotes(0.0)
-    }
-
-    // ─── Auto-note triggering ─────────────────────────────────────────────────
-
-    private val triggeredNotes = mutableSetOf<String>()
-
-    /** Pending note-offs: (pitch, endBeat) — processed in the main playback loop */
-    private data class PendingNoteOff(val pitch: Int, val endBeat: Double)
-    private val pendingNoteOffs = mutableListOf<PendingNoteOff>()
-
-    /**
-     * Last beat checked by triggerAutoNotes. We trigger any note whose startTime
-     * fell into (lastCheckedBeat, currentBeat], which is robust to coroutine
-     * delay jitter — a 20–30ms hiccup that would have skipped over a ±0.02-beat
-     * tolerance window now still fires every note in the gap. -1.0 = uninit.
-     */
-    private var lastCheckedBeat = -1.0
-
-    private fun triggerAutoNotes(currentBeat: Double) {
-        if (!_state.value.audioEnabled) return
-
-        // Process pending note-offs in the main loop instead of per-note coroutines
-        val iterator = pendingNoteOffs.iterator()
-        while (iterator.hasNext()) {
-            val pending = iterator.next()
-            if (currentBeat >= pending.endBeat) {
-                audioEngine.noteOff(pending.pitch)
-                iterator.remove()
-            }
-        }
-
-        // Window since last tick — opens just past lastCheckedBeat so the same
-        // beat isn't double-fired, closes at currentBeat (inclusive).
-        val windowStart = if (lastCheckedBeat < 0.0) currentBeat - 0.05 else lastCheckedBeat
-        lastCheckedBeat = currentBeat
-
-        val state = _state.value
-        val notes = state.visibleNotes
-        for (i in notes.indices) {
-            val noteWithHand = notes[i]
-            val note = noteWithHand.note
-            val noteKey = note.id
-
-            // Skip notes at or past loop end when looping
-            if (state.isLooping && state.loopEndBeat > 0 && note.startTime >= state.loopEndBeat) continue
-
-            // Listen mode: auto-play ALL notes
-            // Normal mode: only auto-trigger backing track notes (isAutoPlay)
-            val shouldTrigger = state.isListenMode || noteWithHand.isAutoPlay
-
-            if (shouldTrigger && !triggeredNotes.contains(noteKey) &&
-                note.startTime > windowStart && note.startTime <= currentBeat) {
-                // Listen mode: all notes at 80. LivePlay mode: backing track at 60
-                val velocity = if (state.isListenMode) 80 else if (noteWithHand.isAutoPlay) 60 else 80
-                audioEngine.noteOn(note.pitch, velocity)
-                triggeredNotes.add(noteKey)
-                pendingNoteOffs.add(PendingNoteOff(note.pitch, note.startTime + note.duration))
-            }
-
-            if (note.startTime + note.duration < currentBeat - 1.0) {
-                triggeredNotes.remove(noteKey)
-            }
-        }
     }
 
     // ─── State updates ────────────────────────────────────────────────────────
@@ -480,8 +431,8 @@ class LivePlayViewModel(
         val chordNotes: List<NoteEvent>
 
         if (phrase != null) {
-            melodyNotes = phrase.tracks.melody
-            chordNotes = phrase.tracks.chords
+            melodyNotes = phrase.tracks.melody.sortedBy { it.startTime }
+            chordNotes = phrase.tracks.chords.sortedBy { it.startTime }
         } else {
             // Use cached lists for full-song mode
             melodyNotes = cachedAllMelody ?: return
@@ -552,6 +503,7 @@ class LivePlayViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        pause()
         // MidiManager is shared (singleton via getInstance) — do not stop it, other
         // screens may still want events. AudioEngine is also a singleton: silence
         // ringing notes and pedal state but leave the engine warm.
@@ -574,7 +526,8 @@ class LivePlayViewModel(
                 initialPhraseIndex = phraseIndex,
                 midiManager = MidiManager.getInstance(context),
                 audioEngine = engine,
-                initialMetronomeVolume = ThemePrefs.getMetronomeVolume(context)
+                initialMetronomeVolume = ThemePrefs.getMetronomeVolume(context),
+                initialListenMode = !OnboardingPreferences.profile(context).wantsMidi,
             ) as T
         }
     }

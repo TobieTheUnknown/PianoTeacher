@@ -10,7 +10,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +39,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +60,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import kotlin.math.roundToInt
+import kotlin.math.abs
 
 private data class HitEffect(val x: Float, val color: Color, val timestamp: Long)
 
@@ -74,6 +78,7 @@ fun LivePlayScreen(
     )
 ) {
     val state by vm.state.collectAsState()
+    val audioReady by vm.audioReady.collectAsState()
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -139,6 +144,7 @@ fun LivePlayScreen(
         val loopEndMeasure = (state.loopEndBeat / beatsPerMeasure).toInt().coerceAtLeast(loopStartMeasure)
         com.tobietheunknown.pianoteacher.ui.common.PlaybackDock(
             playing = state.isPlaying,
+            preparing = state.isPlaying && !audioReady,
             onPlayPause = vm::togglePlayPause,
             speed = (state.playbackSpeed * 100).toInt(),
             onSpeed = { vm.setSpeed(it / 100f) },
@@ -247,7 +253,10 @@ fun LivePlayScreen(
                     LivePlayCanvas(
                         state = state,
                         hitEffects = hitEffects,
-                        onVisibleBeatsChange = vm::setVisibleBeats
+                        onVisibleBeatsChange = vm::setVisibleBeats,
+                        onScrubStart = vm::beginScrub,
+                        onScrub = vm::scrubToBeat,
+                        onScrubEnd = { vm.endScrub() },
                     )
 
                     // Empty state overlay
@@ -316,7 +325,10 @@ fun LivePlayScreen(
 private fun LivePlayCanvas(
     state: LivePlayUiState,
     hitEffects: SnapshotStateList<HitEffect> = mutableStateListOf(),
-    onVisibleBeatsChange: (Double) -> Unit = {}
+    onVisibleBeatsChange: (Double) -> Unit = {},
+    onScrubStart: () -> Unit = {},
+    onScrub: (Double) -> Unit = {},
+    onScrubEnd: () -> Unit = {},
 ) {
     // Pre-allocate Paint object outside the draw loop to avoid per-frame allocation
     val noteTextPaint = remember {
@@ -343,15 +355,63 @@ private fun LivePlayCanvas(
     val thickStroke = with(density) { 2.dp.toPx() }
 
     val currentBeats by rememberUpdatedState(state.visibleBeats)
+    val currentBeat by rememberUpdatedState(state.currentBeat)
+    val totalBeats by rememberUpdatedState(state.totalBeats)
+    val currentOnScrubStart by rememberUpdatedState(onScrubStart)
+    val currentOnScrub by rememberUpdatedState(onScrub)
+    val currentOnScrubEnd by rememberUpdatedState(onScrubEnd)
+    val currentOnVisibleBeatsChange by rememberUpdatedState(onVisibleBeatsChange)
     Canvas(
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
             .graphicsLayer { }
             .pointerInput(Unit) {
-                detectTransformGestures { _, _, zoom, _ ->
-                    val newBeats = (currentBeats / zoom.toDouble()).coerceIn(3.0, 12.0)
-                    onVisibleBeatsChange(newBeats)
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var scrubbing = false
+                    var pinching = false
+                    var dragDistance = 0f
+                    var scrubBeat = currentBeat
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.filter { it.pressed }
+                        if (pressed.isEmpty()) break
+
+                        if (pressed.size >= 2) {
+                            // A second finger turns this gesture into zoom only.
+                            // An already-started scrub stays paused and receives no
+                            // movement until every finger is lifted.
+                            pinching = true
+                            val zoom = event.calculateZoom()
+                            if (zoom.isFinite() && abs(zoom - 1f) > 0.001f) {
+                                currentOnVisibleBeatsChange(
+                                    (currentBeats / zoom.toDouble()).coerceIn(3.0, 12.0),
+                                )
+                            }
+                        } else if (!pinching) {
+                            val change = pressed.first()
+                            val dy = change.positionChange().y
+                            dragDistance += dy
+                            if (!scrubbing && abs(dragDistance) >= viewConfiguration.touchSlop) {
+                                scrubbing = true
+                                scrubBeat = currentBeat
+                                currentOnScrubStart()
+                            }
+                            if (scrubbing && size.height > 0) {
+                                // Drag the falling track: up advances, down rewinds.
+                                scrubBeat = (scrubBeat - dy.toDouble() / size.height.toDouble() * currentBeats)
+                                    .coerceIn(0.0, totalBeats)
+                                currentOnScrub(scrubBeat)
+                            }
+                        }
+
+                        event.changes.forEach { change ->
+                            if (change.positionChange() != Offset.Zero) change.consume()
+                        }
+                    }
+                    if (scrubbing) currentOnScrubEnd()
                 }
             }
     ) {

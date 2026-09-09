@@ -8,6 +8,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -24,6 +25,8 @@ import com.tobietheunknown.pianoteacher.ui.learning.LearningScreen
 import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingScreen
 import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingState
 import com.tobietheunknown.pianoteacher.ui.settings.SettingsScreen
+import com.tobietheunknown.pianoteacher.ui.settings.AppPrefs
+import com.tobietheunknown.pianoteacher.ui.settings.appPreferences
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
@@ -48,12 +51,14 @@ sealed class Screen(val route: String) {
 
 @Composable
 fun AppNavHost(intent: Intent? = null) {
+    val context = LocalContext.current
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val onboardingComplete by OnboardingState.isComplete
     var pendingImportUri by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSongId by rememberSaveable { mutableStateOf<String?>(null) }
+    val appPrefs by context.appPreferences.collectAsState(initial = AppPrefs())
 
     LaunchedEffect(intent) {
         intent?.data?.toString()?.let { pendingImportUri = it }
@@ -72,8 +77,7 @@ fun AppNavHost(intent: Intent? = null) {
             currentRoute?.startsWith("liveplay") == true -> AppTab.LIVEPLAY
             currentRoute?.startsWith("learning") == true -> AppTab.PARTITION
             currentRoute?.startsWith("livelearning") == true -> AppTab.LEARN
-            currentRoute?.startsWith("editor") == true -> AppTab.LIBRARY
-            currentRoute == Screen.Settings.route -> AppTab.SETTINGS
+            currentRoute?.startsWith("editor") == true -> AppTab.EDITOR
             else -> AppTab.LIBRARY
         }
     }
@@ -100,12 +104,18 @@ fun AppNavHost(intent: Intent? = null) {
     AdaptiveNavigationFrame(
         active = activeTab,
         showNavigation = showNavigation,
+        showEditor = appPrefs.showEditorTab,
         onSelect = { tab ->
             when (tab) {
                 AppTab.LIBRARY -> navController.popBackStack(Screen.Library.route, inclusive = false)
                 AppTab.LEARN -> requireSong { id ->
                     if (currentRoute?.startsWith("livelearning") != true) {
                         navigateTopLevel(Screen.LiveLearning.route(id))
+                    }
+                }
+                AppTab.EDITOR -> requireSong { id ->
+                    if (currentRoute?.startsWith("editor") != true) {
+                        navigateTopLevel(Screen.Editor.route(id))
                     }
                 }
                 AppTab.PARTITION -> requireSong { id ->
@@ -117,9 +127,6 @@ fun AppNavHost(intent: Intent? = null) {
                     if (currentRoute?.startsWith("liveplay") != true) {
                         navigateTopLevel(Screen.LivePlay.route(id))
                     }
-                }
-                AppTab.SETTINGS -> if (currentRoute != Screen.Settings.route) {
-                    navigateTopLevel(Screen.Settings.route)
                 }
             }
         },

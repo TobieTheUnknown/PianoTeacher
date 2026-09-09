@@ -37,6 +37,7 @@ data class PhraseRange(val name: String, val startMeasure: Int, val endMeasure: 
 @Composable
 fun PlaybackDock(
     playing: Boolean,
+    preparing: Boolean = false,
     onPlayPause: () -> Unit,
     speed: Int = 100,
     onSpeed: (Int) -> Unit = {},
@@ -91,7 +92,7 @@ fun PlaybackDock(
                 contentAlignment = Alignment.Center,
             ) {
                 // Play button at the exact horizontal center of the bar.
-                PlayPauseButton(playing = playing, onClick = onPlayPause)
+                PlayPauseButton(playing = playing, preparing = preparing, onClick = onPlayPause)
 
                 // Left-side controls: retour au début + mesure précédente (anchored to the left edge).
                 Row(
@@ -239,7 +240,7 @@ private fun TransportBtn(onClick: () -> Unit, icon: ImageVector, contentDescript
 }
 
 @Composable
-private fun PlayPauseButton(playing: Boolean, onClick: () -> Unit) {
+private fun PlayPauseButton(playing: Boolean, preparing: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(52.dp)
@@ -248,12 +249,20 @@ private fun PlayPauseButton(playing: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-            null,
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(24.dp)
-        )
+        if (preparing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(23.dp),
+                color = MaterialTheme.colorScheme.onPrimary,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Icon(
+                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                if (playing) "Pause" else "Lecture",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }
 
@@ -398,7 +407,7 @@ private fun PhrasePicker(
                 shape = RoundedCornerShape(6.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .menuAnchor(),
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
             ) {
                 Row(
                     modifier = Modifier

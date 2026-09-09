@@ -18,6 +18,7 @@ data class AppPrefs(
     val usbMidiEnabled: Boolean = true,
     val handColorsEnabled: Boolean = true,
     val showExpectedKeys: Boolean = true,
+    val showEditorTab: Boolean = true,
 )
 
 private object Keys {
@@ -26,6 +27,7 @@ private object Keys {
     val USB_MIDI = booleanPreferencesKey("usb_midi_enabled")
     val HAND_COLORS = booleanPreferencesKey("hand_colors_enabled")
     val EXPECTED_KEYS = booleanPreferencesKey("show_expected_keys")
+    val SHOW_EDITOR_TAB = booleanPreferencesKey("show_editor_tab")
 }
 
 val Context.appPreferences: Flow<AppPrefs>
@@ -37,6 +39,7 @@ val Context.appPreferences: Flow<AppPrefs>
                 usbMidiEnabled = p[Keys.USB_MIDI] ?: true,
                 handColorsEnabled = p[Keys.HAND_COLORS] ?: true,
                 showExpectedKeys = p[Keys.EXPECTED_KEYS] ?: true,
+                showEditorTab = p[Keys.SHOW_EDITOR_TAB] ?: true,
             )
         }
 
@@ -51,6 +54,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setUsbMidiEnabled(v: Boolean) = set(Keys.USB_MIDI, v)
     fun setHandColorsEnabled(v: Boolean) = set(Keys.HAND_COLORS, v)
     fun setShowExpectedKeys(v: Boolean) = set(Keys.EXPECTED_KEYS, v)
+    fun setShowEditorTab(v: Boolean) = set(Keys.SHOW_EDITOR_TAB, v)
 
     private fun set(key: androidx.datastore.preferences.core.Preferences.Key<Boolean>, value: Boolean) {
         viewModelScope.launch { context.dataStore.edit { it[key] = value } }

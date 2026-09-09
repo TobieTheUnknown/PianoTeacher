@@ -30,3 +30,12 @@ Graphe depuis `main.jsx` et recherche de références : suppression des anciens 
 ## Réglages et sauvegardes
 
 Les interrupteurs MIDI Android ne pilotaient pas le scanner : ils écrivaient seulement les préférences. Le cycle de vie de MainActivity applique maintenant USB/BLE et le résultat des permissions. Les autres réglages demandent encore une vérification de leur utilisation effective. Les défauts de sauvegarde et les migrations sont détaillés dans `02-music.md`.
+
+## Navigation, introduction et pratique Android
+
+- Réglages reste accessible dans l'en-tête de la bibliothèque et a été retiré des onglets.
+- Éditeur précède Partition dans la navigation ; un réglage permet de masquer cet onglet. Son ancien dock sans playback réel a été retiré : l'écran se concentre sur découper et fusionner les phrases.
+- Les choix onboarding « cap » et « rythme » étaient seulement stockés puis réaffichés. Ce code a été retiré au profit d'explications concrètes sur la barre de transport, les mains, la boucle, le découpage/fusion et les gestes Live.
+- Si l'utilisateur indique ne pas prévoir de clavier MIDI, Live démarre en écoute des deux mains ; Partition et Coach conservent aussi ce défaut.
+- Live accepte un glissement à un doigt pour parcourir la piste avec préécoute. Dès qu'un second doigt participe, le déplacement temporel est gelé et seul le zoom est appliqué.
+- Les rappels de pratique locaux acceptent plusieurs jours, une heure et une durée. Ils se reprogramment après déclenchement, redémarrage, changement d'heure/fuseau et mise à jour ; Android peut décaler une alarme inexacte pour économiser la batterie.

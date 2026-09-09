@@ -28,8 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.tobietheunknown.pianoteacher.ui.common.PlaybackDock
-import com.tobietheunknown.pianoteacher.ui.common.HandMode
 import com.tobietheunknown.pianoteacher.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,13 +38,6 @@ fun EditorScreen(
     vm: EditorViewModel = viewModel(factory = EditorViewModel.Factory(LocalContext.current, songId)),
 ) {
     val song by vm.song.collectAsState()
-
-    var playing by remember { mutableStateOf(false) }
-    var speed by remember { mutableStateOf(100) }
-    var handMode by remember { mutableStateOf(HandMode.BOTH) }
-    var metronome by remember { mutableStateOf(false) }
-    var loop by remember { mutableStateOf(false) }
-    var loopEditorOpen by remember { mutableStateOf(false) }
 
     // Split-mode state: which phrase is being split + at which measure
     var splitFor by remember { mutableStateOf<Int?>(null) }
@@ -59,8 +50,7 @@ fun EditorScreen(
             Column(modifier = Modifier
                 .align(Alignment.TopCenter)
                 .widthIn(max = 980.dp)
-                .fillMaxSize()
-                .padding(bottom = 130.dp)) {
+                .fillMaxSize()) {
                 // Header
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) {
@@ -140,30 +130,6 @@ fun EditorScreen(
                 }
             }
 
-            // Sticky dock at bottom
-            Box(modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .widthIn(max = 980.dp)
-                .fillMaxWidth()) {
-                PlaybackDock(
-                    playing = playing,
-                    onPlayPause = { playing = !playing },
-                    speed = speed,
-                    onSpeed = { speed = it },
-                    handMode = handMode,
-                    onHandMode = { handMode = it },
-                    metronome = metronome,
-                    onMetronome = { metronome = !metronome },
-                    loop = loop,
-                    onLoop = { loop = !loop },
-                    loopRange = 1..(song?.phrases?.size ?: 1),
-                    loopEditorOpen = loopEditorOpen,
-                    onToggleLoopEditor = { loopEditorOpen = !loopEditorOpen },
-                    totalMeasures = song?.totalMeasures ?: 1,
-                    // Recommencer: stop preview playback (back to start).
-                    onRestart = { playing = false },
-                )
-            }
         }
     }
 }

@@ -250,6 +250,7 @@ fun LearningScreen(
     val pressedKeys by vm.pressedKeys.collectAsState()
     val waitMode by vm.waitMode.collectAsState()
     val listenMode by vm.listenMode.collectAsState()
+    val audioReady by vm.audioReady.collectAsState()
     val useFlats = keySignature?.useFlats ?: false
 
     val listState = rememberLazyListState()
@@ -464,6 +465,7 @@ fun LearningScreen(
                     var loopEditorOpen by remember { mutableStateOf(false) }
                     com.tobietheunknown.pianoteacher.ui.common.PlaybackDock(
                         playing = isPlaying,
+                        preparing = isPlaying && !audioReady,
                         onPlayPause = { if (isPlaying) vm.stop() else vm.play() },
                         speed = (tempoPercent * 100).toInt(),
                         onSpeed = { pct ->

@@ -29,9 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tobietheunknown.pianoteacher.audio.AudioEngine
 import com.tobietheunknown.pianoteacher.audio.MetronomeEngine
 import com.tobietheunknown.pianoteacher.ui.theme.*
-import com.tobietheunknown.pianoteacher.ui.onboarding.ExperienceLevel
 import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingPreferences
-import com.tobietheunknown.pianoteacher.ui.onboarding.PracticeGoal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,11 +82,15 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             StudioProfileCard(
-                goal = learnerProfile.goal,
-                experience = learnerProfile.experience,
                 wantsMidi = learnerProfile.wantsMidi,
                 onReviewIntro = onReviewIntro,
             )
+
+            SettingsSection(title = "Pratique") {
+                com.tobietheunknown.pianoteacher.ui.common.PracticeReminderControls(
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
 
             // Apparence — design picker (mirrors web's DesignAppearance section)
             SettingsSection(title = "Apparence") {
@@ -248,6 +250,16 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsSection(title = "Navigation") {
+                ToggleSetting(
+                    label = "Afficher l’éditeur",
+                    subtitle = "Ajoute l’éditeur avant Partition dans la barre de navigation",
+                    icon = Icons.Default.EditNote,
+                    checked = prefs.showEditorTab,
+                    onToggle = vm::setShowEditorTab,
+                )
+            }
+
             Spacer(Modifier.height(32.dp))
 
             Box(
@@ -267,21 +279,9 @@ fun SettingsScreen(
 
 @Composable
 private fun StudioProfileCard(
-    goal: PracticeGoal,
-    experience: ExperienceLevel,
     wantsMidi: Boolean,
     onReviewIntro: () -> Unit,
 ) {
-    val goalLabel = when (goal) {
-        PracticeGoal.READ -> "Lire"
-        PracticeGoal.TECHNIQUE -> "Technique"
-        PracticeGoal.CREATE -> "Créer"
-    }
-    val levelLabel = when (experience) {
-        ExperienceLevel.STARTING -> "Je commence"
-        ExperienceLevel.RETURNING -> "Je reprends"
-        ExperienceLevel.REGULAR -> "Pratique régulière"
-    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -308,8 +308,7 @@ private fun StudioProfileCard(
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text("Mon parcours", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("Objectif $goalLabel · $levelLabel", color = TextSecondary, fontSize = 12.sp)
+                Text("Introduction et pratique", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text(
                     if (wantsMidi) "Piano MIDI prévu" else "Pratique sans MIDI",
                     color = TextTertiary,

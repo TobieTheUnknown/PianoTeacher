@@ -6,6 +6,9 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.AudioFormat
 import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,16 +17,8 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.nio.ByteOrder
 
-/**
- * Audio engine backed by Oboe (C++/NDK) + Salamander Grand Piano samples.
- *
- * Strategy:
- *  1. SamplerEngine (SoundPool) starts immediately → user hears audio right away
- *  2. Oboe native engine loads Salamander samples in background via MediaCodec
- *  3. Once Oboe is ready, it takes over (lower latency, better quality)
- *  4. If native library fails to load, SamplerEngine is the permanent backend
- */
-class AudioEngine(private val context: Context? = null) {
+/** One stable, fully loaded backend per session. Playback waits for actual readiness. */
+class AudioEngine(private val context: Context? = null) : PlaybackAudio {
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -32,12 +27,17 @@ class AudioEngine(private val context: Context? = null) {
     private var nativeAvailable = false
     @Volatile private var oboeReady = false
 
-    // Sustain pedal (MIDI CC64): when engaged, defer noteOff until released.
+    private val readiness = CompletableDeferred<Boolean>()
+    private val _ready = MutableStateFlow(false)
+    val ready = _ready.asStateFlow()
+    private val voiceLock = Any()
+    private val nextVoice = java.util.concurrent.atomic.AtomicLong(1)
+    private val activeVoices = mutableSetOf<Long>()
+    private val midiVoices = mutableMapOf<Int, java.util.ArrayDeque<Long>>()
     private var pedalEngaged = false
-    private val heldByPedal = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
-
-    // SoundPool bridge: plays immediately while Oboe loads, and permanent fallback if Oboe unavailable
-    private val samplerEngine: SamplerEngine? = context?.let { SamplerEngine(it) }
+    private val heldByPedal = mutableSetOf<Long>()
+    // Construct SoundPool only if Oboe cannot initialise. There is no mid-song switch.
+    private var samplerEngine: SamplerEngine? = null
 
     companion object {
         private const val TAG = "AudioEngine"
@@ -80,93 +80,83 @@ class AudioEngine(private val context: Context? = null) {
             false
         }
 
-        if (context != null) {
-            scope.launch {
-                // Step 1: Load SamplerEngine immediately (fast, works right away)
-                samplerEngine?.loadAsync()?.await()
-                Log.i(TAG, "SamplerEngine ready — audio available immediately")
+        scope.launch {
+            val nativeLoaded = context != null && nativeAvailable && runCatching { loadOboe(context) }.getOrDefault(false)
+            val success = if (nativeLoaded) true else if (context != null) {
+                samplerEngine = SamplerEngine(context)
+                samplerEngine!!.loadAsync().await()
+            } else false
+            _ready.value = success
+            readiness.complete(success)
+            Log.i(TAG, "Audio ready=$success, backend=${if (oboeReady) "Oboe" else "SoundPool"}")
+        }
+    }
 
-                // Step 2: Load Oboe samples in background (lower latency, better quality)
-                if (nativeAvailable) {
-                    loadOboe(context)
-                }
+    fun start(): Boolean = true // Initialisation is eager and asynchronous.
+    override suspend fun awaitReady(): Boolean = readiness.await()
+
+    /** Each score occurrence owns a distinct voice, including overlapping equal pitches. */
+    override fun playVoice(pitch: Int, velocity: Int): Long = synchronized(voiceLock) {
+        if (!enabled || !_ready.value || pitch !in 0..127) return@synchronized 0L
+        val id = nextVoice.getAndIncrement()
+        activeVoices.add(id)
+        if (oboeReady) nativePlayVoice(id, pitch, velocity.coerceIn(1, 127))
+        else samplerEngine?.playVoice(id, pitch, velocity)
+        id
+    }
+
+    override fun stopVoice(id: Long) = synchronized(voiceLock) {
+        if (id != 0L && activeVoices.remove(id)) {
+            heldByPedal.remove(id)
+            if (oboeReady) nativeStopVoice(id) else samplerEngine?.stopVoice(id)
+        }
+    }
+
+    fun noteOn(pitch: Int, velocity: Int = 80) = synchronized(voiceLock) {
+        val id = playVoice(pitch, velocity)
+        if (id != 0L) midiVoices.getOrPut(pitch) { java.util.ArrayDeque() }.addLast(id)
+    }
+
+    fun noteOff(pitch: Int) = synchronized(voiceLock) {
+        if (pitch < 0) {
+            activeVoices.toList().forEach(::stopVoice)
+            midiVoices.clear()
+            heldByPedal.clear()
+        } else {
+            val queue = midiVoices[pitch]
+            val id = queue?.pollFirst()
+            if (queue?.isEmpty() == true) midiVoices.remove(pitch)
+            if (id != null) {
+                if (pedalEngaged) heldByPedal.add(id) else stopVoice(id)
             }
         }
     }
 
-    // ─── Public API ───────────────────────────────────────────────────────────
-
-    fun start(): Boolean = true  // Setup happens in init
-
     fun stop() {
-        pedalEngaged = false
+        setSustainPedal(false)
         noteOff(-1)
     }
 
-    fun noteOn(pitch: Int, velocity: Int = 80) {
-        if (!enabled || pitch !in 0..127) return
-        // A re-attack supersedes any pending pedal-deferred release for this pitch.
-        heldByPedal.remove(pitch)
-        if (nativeAvailable && oboeReady) {
-            nativeNoteOn(pitch, velocity)
-        } else {
-            samplerEngine?.noteOn(pitch, velocity)
-        }
-    }
-
-    fun noteOff(pitch: Int) {
-        // Pedal down → defer the release. pitch == -1 is the "stop all" sentinel and
-        // must always run, regardless of pedal state.
-        if (pedalEngaged && pitch >= 0) {
-            heldByPedal.add(pitch)
-            return
-        }
-        if (pitch < 0) heldByPedal.clear()
-        if (nativeAvailable && oboeReady) {
-            try { nativeNoteOff(pitch) } catch (_: Exception) { }
-        } else {
-            if (pitch >= 0) samplerEngine?.noteOff(pitch)
-            else samplerEngine?.let { for (n in 0..127) it.noteOff(n) }
-        }
-    }
-
-    /**
-     * MIDI CC64 (damper/sustain pedal). value ≥ 64 = pressed (MIDI 1.0 spec).
-     * On release, every note whose noteOff we deferred is flushed.
-     */
-    fun setSustainPedal(engaged: Boolean) {
-        val wasEngaged = pedalEngaged
+    fun setSustainPedal(engaged: Boolean) = synchronized(voiceLock) {
         pedalEngaged = engaged
-        if (wasEngaged && !engaged) {
-            val toRelease = heldByPedal.toList()
-            heldByPedal.clear()
-            for (pitch in toRelease) {
-                if (nativeAvailable && oboeReady) {
-                    try { nativeNoteOff(pitch) } catch (_: Exception) { }
-                } else {
-                    samplerEngine?.noteOff(pitch)
-                }
-            }
-        }
+        if (!engaged) heldByPedal.toList().forEach(::stopVoice)
     }
 
     fun setEnabled(value: Boolean) {
         enabled = value
-        if (!value) {
-            if (nativeAvailable && oboeReady) try { nativeNoteOff(-1) } catch (_: Exception) { }
-            else samplerEngine?.let { for (n in 0..127) it.noteOff(n) }
-        }
+        if (!value) noteOff(-1)
     }
 
     fun release() {
         job.cancel()
+        stop()
         samplerEngine?.release()
         if (nativeAvailable) try { nativeStop() } catch (_: Exception) { }
     }
 
     // ─── Oboe sample loading ──────────────────────────────────────────────────
 
-    private fun loadOboe(context: Context) {
+    private fun loadOboe(context: Context): Boolean {
         var loaded = 0
         SAMPLE_MAP.forEach { (name, midiNote) ->
             try {
@@ -178,18 +168,14 @@ class AudioEngine(private val context: Context? = null) {
             }
         }
         if (loaded != SAMPLE_MAP.size) {
-            Log.w(TAG, "Oboe samples incomplete ($loaded/${SAMPLE_MAP.size}); keeping SoundPool")
-            return
+            Log.w(TAG, "Oboe samples incomplete ($loaded/${SAMPLE_MAP.size}); using SoundPool")
+            return false
         }
         nativeSetReady()
         oboeReady = true
         Log.i(TAG, "Oboe sampler ready: $loaded/${SAMPLE_MAP.size} samples loaded")
 
-        // Oboe is now the active backend — release SoundPool resources so the
-        // OS audio service doesn't keep ~30 decoded MP3s warm in RAM forever.
-        // (noteOn/noteOff/pedal etc. all route through the native path once
-        // oboeReady is true, so the sampler is provably unreachable.)
-        samplerEngine?.release()
+        return true
     }
 
     private data class PcmData(val samples: FloatArray, val sampleRate: Int, val channels: Int)
@@ -299,8 +285,8 @@ class AudioEngine(private val context: Context? = null) {
 
     private external fun nativeStart(): Boolean
     private external fun nativeStop()
-    private external fun nativeNoteOn(pitch: Int, velocity: Int)
-    private external fun nativeNoteOff(pitch: Int)
+    private external fun nativePlayVoice(id: Long, pitch: Int, velocity: Int)
+    private external fun nativeStopVoice(id: Long)
     private external fun nativeLoadSample(midiNote: Int, pcm: FloatArray, sampleRate: Int, channels: Int)
     private external fun nativeSetReady()
     private external fun nativeSetRelease(releasePer: Float)
@@ -314,7 +300,7 @@ class AudioEngine(private val context: Context? = null) {
     }
 
     /** Play a metronome click via the native Oboe audio callback (zero Java AudioTrack overhead) */
-    fun playClick(isAccent: Boolean, amplitude: Float = 0.45f) {
+    override fun playClick(isAccent: Boolean, amplitude: Float) {
         if (nativeAvailable && oboeReady) {
             try { nativePlayClick(isAccent, amplitude) } catch (_: Exception) { }
         }

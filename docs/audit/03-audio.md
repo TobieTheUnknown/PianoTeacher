@@ -24,11 +24,20 @@ Ne retirer un repli que si toutes les plateformes concernées disposent du chemi
 
 Web : chargement rejetable/rejouable, reprise du contexte avant le téléchargement, `initialize` sans cache de déverrouillage périmé, arrêt manuel distinct de fin naturelle, nettoyage avant rappel de boucle, mute fini/persistant, indication d'échec et bouton réessayer. Injection du chargeur Tone pour tests du cycle de vie. MIDI : volume zéro respecté, notes relâchées pendant le chargement retirées de l'attente, nettoyage au démontage et débranchement, double monitoring de l'enregistrement retiré.
 
-Android : `stop` coupe aussi SoundPool et remet la pédale à zéro ; Oboe ne remplace plus SoundPool si les samples sont incomplets ; publication du statut volatile. C++ : commande de clic publiée atomiquement ; les paramètres/position du clic ne sont plus modifiés concurremment par JNI et le callback audio.
+Android : `stop` remet la pédale à zéro et ne coupe que les voix appartenant à la session concernée. Le playback attend un backend entièrement prêt : Oboe reste stable pendant la session ; SoundPool ne sert que si le chemin natif échoue avant la lecture. C++ : commande de clic publiée atomiquement ; les paramètres/position du clic ne sont plus modifiés concurremment par JNI et le callback audio.
 
-**À ne pas déclarer impeccable** sans écoute/device : mutex bloquant dans le callback Oboe ; récupération après changement de route audio absente ; bascule de backend pendant une note tenue ; horloge Android fondée sur les jobs/callbacks UI ; pédales et notes superposées sur plusieurs canaux.
+**À ne pas déclarer impeccable** sans écoute/device : mutex bloquant dans le callback Oboe ; récupération après changement de route audio absente ; pédales et notes MIDI superposées sur plusieurs canaux. L'ordonnanceur est monotone à cadence 4 ms, pas calé à l'échantillon dans le callback Oboe.
 
 SoundPool attend maintenant ses callbacks réels au lieu d'un délai fixe. Le décodage MediaCodec libère codec, extracteur et asset même en erreur, respecte offset/limite des buffers et accepte les sorties PCM 16 bits ou float.
+
+## Troisième lot : audio maître, rendu suiveur
+
+- `PlaybackTimeline` transforme le morceau entier en événements ordonnés et identifie chaque occurrence séparément, y compris deux notes simultanées de même hauteur.
+- `TimelineTransport` tourne sur le thread dédié `PianoPlayback`, mesure le temps avec `System.nanoTime`, absorbe le jitter en drainant tous les événements franchis et publie la position visuelle à environ 60 Hz.
+- Les changements de carte/mesure n'arrêtent plus les voix : une note longue traverse la barre et chaque note-off cible sa propre occurrence.
+- Live joue depuis la timeline complète ; `visibleNotes` devient une projection du temps audio et ne décide plus quelles attaques sont entendues.
+- Le scrub Live parcourt la timeline dans les deux sens, auditionne au plus le dernier accord traversé et déduplique les attaques pendant un geste.
+- L'indicateur du bouton Lecture rend visible l'attente du chargement initial au lieu de lancer une session SoundPool puis de changer d'enveloppe en cours de morceau.
 
 ## Vérification sur Pixel 8 Pro
 

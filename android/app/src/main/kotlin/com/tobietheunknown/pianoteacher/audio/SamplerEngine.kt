@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
 class SamplerEngine(private val context: Context) {
 
     private val pool = SoundPool.Builder()
-        .setMaxStreams(64) // 10 fingers + sustain pedal tails; was 12 (voice stealing)
+        .setMaxStreams(32) // Android SoundPool's supported maximum.
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -30,7 +30,7 @@ class SamplerEngine(private val context: Context) {
 
     // Map of MIDI note → SoundPool sound ID
     private val soundIds = ConcurrentHashMap<Int, Int>()
-    private val streamIds = ConcurrentHashMap<Int, Int>()
+    private val streamIds = ConcurrentHashMap<Long, Int>()
     @Volatile private var loaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val loadResult = CompletableDeferred<Boolean>()
@@ -106,7 +106,7 @@ class SamplerEngine(private val context: Context) {
         loadResult.complete(!loadFailed && soundIds.size == sampleMap.size)
     }
 
-    fun noteOn(pitch: Int, velocity: Int = 80) {
+    fun playVoice(id: Long, pitch: Int, velocity: Int = 80) {
         if (!loaded) return
         val nearestNote = findNearestSample(pitch)
         val soundId = soundIds[nearestNote] ?: return
@@ -115,16 +115,12 @@ class SamplerEngine(private val context: Context) {
         val rate = 2f.pow(semitoneOffset / 12f).coerceIn(0.5f, 2.0f)
         val vol = (velocity / 127f) * 0.85f
 
-        // Stop any previous stream for the same pitch first, otherwise we orphan
-        // it and silently leak into the maxStreams pool.
-        streamIds.remove(pitch)?.let { pool.stop(it) }
-
         val streamId = pool.play(soundId, vol, vol, 1, 0, rate)
-        if (streamId != 0) streamIds[pitch] = streamId
+        if (streamId != 0) streamIds[id] = streamId
     }
 
-    fun noteOff(pitch: Int) {
-        streamIds.remove(pitch)?.let { pool.stop(it) }
+    fun stopVoice(id: Long) {
+        streamIds.remove(id)?.let { pool.stop(it) }
     }
 
     private fun findNearestSample(pitch: Int): Int {

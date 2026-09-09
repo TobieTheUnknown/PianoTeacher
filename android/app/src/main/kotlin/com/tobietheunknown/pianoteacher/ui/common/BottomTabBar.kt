@@ -13,7 +13,7 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Piano
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,24 +31,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tobietheunknown.pianoteacher.ui.theme.*
 
-/** Stable top-level destinations. Editor remains a contextual song action. */
-enum class AppTab { LIBRARY, LEARN, PARTITION, LIVEPLAY, SETTINGS }
+/** Stable top-level destinations. Settings stays available from the Library header. */
+enum class AppTab { LIBRARY, EDITOR, PARTITION, LEARN, LIVEPLAY }
 
 data class TabItem(val tab: AppTab, val label: String, val icon: ImageVector)
 
-private val TABS = listOf(
-    TabItem(AppTab.LIBRARY, "Bibliothèque", Icons.AutoMirrored.Filled.LibraryBooks),
-    TabItem(AppTab.PARTITION, "Partition", Icons.Default.QueueMusic),
-    TabItem(AppTab.LEARN, "Coach", Icons.Default.School),
-    TabItem(AppTab.LIVEPLAY, "Live", Icons.Default.GraphicEq),
-    TabItem(AppTab.SETTINGS, "Réglages", Icons.Default.Settings),
-)
+private fun tabs(showEditor: Boolean) = buildList {
+    add(TabItem(AppTab.LIBRARY, "Bibliothèque", Icons.AutoMirrored.Filled.LibraryBooks))
+    if (showEditor) add(TabItem(AppTab.EDITOR, "Éditeur", Icons.Default.EditNote))
+    add(TabItem(AppTab.PARTITION, "Partition", Icons.Default.QueueMusic))
+    add(TabItem(AppTab.LEARN, "Coach", Icons.Default.School))
+    add(TabItem(AppTab.LIVEPLAY, "Live", Icons.Default.GraphicEq))
+}
 
 @Composable
 fun AdaptiveNavigationFrame(
     active: AppTab,
     onSelect: (AppTab) -> Unit,
     showNavigation: Boolean = true,
+    showEditor: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -61,12 +62,13 @@ fun AdaptiveNavigationFrame(
                     active = active,
                     onSelect = onSelect,
                     compact = compactRail,
+                    showEditor = showEditor,
                 )
                 Box(Modifier.weight(1f).fillMaxHeight(), content = content)
             }
             else -> Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), content = content)
-                BottomTabBar(active = active, onSelect = onSelect)
+                BottomTabBar(active = active, onSelect = onSelect, showEditor = showEditor)
             }
         }
     }
@@ -78,6 +80,7 @@ fun BottomTabBar(
     active: AppTab,
     onSelect: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
+    showEditor: Boolean = true,
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -93,7 +96,7 @@ fun BottomTabBar(
                 .padding(horizontal = 4.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            TABS.forEach { item ->
+            tabs(showEditor).forEach { item ->
                 NavigationItem(
                     item = item,
                     selected = item.tab == active,
@@ -107,7 +110,7 @@ fun BottomTabBar(
 }
 
 @Composable
-private fun StudioNavigationRail(active: AppTab, onSelect: (AppTab) -> Unit, compact: Boolean) {
+private fun StudioNavigationRail(active: AppTab, onSelect: (AppTab) -> Unit, compact: Boolean, showEditor: Boolean) {
     Column(
         modifier = Modifier
             .width(96.dp)
@@ -131,7 +134,7 @@ private fun StudioNavigationRail(active: AppTab, onSelect: (AppTab) -> Unit, com
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center,
         ) {
-            TABS.forEach { item ->
+            tabs(showEditor).forEach { item ->
                 NavigationItem(
                     item = item,
                     selected = item.tab == active,

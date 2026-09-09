@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tobietheunknown.pianoteacher.ui.theme.*
 
-private const val LAST_PAGE = 3
+private const val LAST_PAGE = 4
 
 @Composable
 fun OnboardingScreen(
@@ -47,14 +49,12 @@ fun OnboardingScreen(
     val context = LocalContext.current
     val saved = remember { OnboardingPreferences.profile(context) }
     var page by rememberSaveable { mutableIntStateOf(0) }
-    var goal by rememberSaveable { mutableStateOf(saved.goal) }
-    var experience by rememberSaveable { mutableStateOf(saved.experience) }
     var wantsMidi by rememberSaveable { mutableStateOf(saved.wantsMidi) }
 
     fun finish() {
         OnboardingState.complete(
             context,
-            LearnerProfile(goal = goal, experience = experience, wantsMidi = wantsMidi),
+            LearnerProfile(wantsMidi = wantsMidi),
         )
         onFinished()
     }
@@ -81,11 +81,7 @@ fun OnboardingScreen(
                 OnboardingPanel(
                     page = page,
                     isReplay = isReplay,
-                    goal = goal,
-                    experience = experience,
                     wantsMidi = wantsMidi,
-                    onGoal = { goal = it },
-                    onExperience = { experience = it },
                     onMidi = { wantsMidi = it },
                     onBack = { page = (page - 1).coerceAtLeast(0) },
                     onNext = { if (page == LAST_PAGE) finish() else page++ },
@@ -103,11 +99,7 @@ fun OnboardingScreen(
                 OnboardingPanel(
                     page = page,
                     isReplay = isReplay,
-                    goal = goal,
-                    experience = experience,
                     wantsMidi = wantsMidi,
-                    onGoal = { goal = it },
-                    onExperience = { experience = it },
                     onMidi = { wantsMidi = it },
                     onBack = { page = (page - 1).coerceAtLeast(0) },
                     onNext = { if (page == LAST_PAGE) finish() else page++ },
@@ -123,11 +115,7 @@ fun OnboardingScreen(
 private fun OnboardingPanel(
     page: Int,
     isReplay: Boolean,
-    goal: PracticeGoal,
-    experience: ExperienceLevel,
     wantsMidi: Boolean,
-    onGoal: (PracticeGoal) -> Unit,
-    onExperience: (ExperienceLevel) -> Unit,
     onMidi: (Boolean) -> Unit,
     onBack: () -> Unit,
     onNext: () -> Unit,
@@ -184,14 +172,10 @@ private fun OnboardingPanel(
             ) {
                 when (current) {
                     0 -> WelcomeStep()
-                    1 -> OrganizeStep()
-                    2 -> LearnStep(
-                        goal = goal,
-                        experience = experience,
-                        onGoal = onGoal,
-                        onExperience = onExperience,
-                    )
-                    else -> ConnectStep(wantsMidi = wantsMidi, onMidi = onMidi)
+                    1 -> TransportStep()
+                    2 -> PhraseStep()
+                    3 -> ConnectStep(wantsMidi = wantsMidi, onMidi = onMidi)
+                    else -> ReminderStep()
                 }
             }
         }
@@ -210,7 +194,7 @@ private fun OnboardingPanel(
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.ArrowForward, null, tint = onAccent, modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = onAccent, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -248,49 +232,28 @@ private fun WelcomeStep() {
 }
 
 @Composable
-private fun OrganizeStep() {
+private fun TransportStep() {
     StepHeading(
-        eyebrow = "Organiser",
-        title = "Toute votre musique, enfin lisible.",
-        body = "Importez un MIDI ou un projet JSON. Les morceaux sont classés par tonalité, difficulté et phrases de travail.",
+        eyebrow = "Transport",
+        title = "Pilotez chaque séance.",
+        body = "La barre de transport reste cohérente dans le Coach, la Partition et Live.",
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        InfoPill("Do majeur", CyanMelody)
-        InfoPill("Intermédiaire", IndigoAccent)
-        InfoPill("6 phrases", PinkChords)
-    }
-    Spacer(Modifier.height(18.dp))
-    FeatureLine(Icons.Default.Search, "Retrouver", "Recherche par titre, artiste ou tonalité.")
-    FeatureLine(Icons.Default.ContentCut, "Structurer", "Découpez et regroupez les phrases sans altérer les notes.")
+    FeatureLine(Icons.Default.PlayArrow, "Lire et se déplacer", "Lecture au centre ; les flèches passent à la mesure précédente ou suivante.")
+    FeatureLine(Icons.Default.Speed, "Ralentir sans réécrire", "Réglez le pourcentage du tempo pour travailler un passage proprement.")
+    FeatureLine(Icons.Default.Hearing, "Choisir les mains", "Écoute joue les deux mains ; MG ou MD garde l’autre main en accompagnement.")
+    FeatureLine(Icons.Default.Repeat, "Boucler et compter", "La boucle répète une plage de mesures ; le métronome garde la pulsation.")
 }
 
 @Composable
-private fun LearnStep(
-    goal: PracticeGoal,
-    experience: ExperienceLevel,
-    onGoal: (PracticeGoal) -> Unit,
-    onExperience: (ExperienceLevel) -> Unit,
-) {
+private fun PhraseStep() {
     StepHeading(
-        eyebrow = "Apprendre",
-        title = "Quel est votre cap ?",
-        body = "Enregistrez votre intention de pratique pour garder un cap clair. Vous pourrez la modifier depuis les réglages.",
+        eyebrow = "Phrases",
+        title = "Travaillez des passages qui ont du sens.",
+        body = "Une phrase est un bloc musical que vous pouvez répéter sans repartir du début du morceau.",
     )
-    Text("MON OBJECTIF", color = TextTertiary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-    Spacer(Modifier.height(8.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GoalChoice("Lire", Icons.Default.MenuBook, goal == PracticeGoal.READ, { onGoal(PracticeGoal.READ) }, Modifier.weight(1f))
-        GoalChoice("Technique", Icons.Default.FitnessCenter, goal == PracticeGoal.TECHNIQUE, { onGoal(PracticeGoal.TECHNIQUE) }, Modifier.weight(1f))
-        GoalChoice("Créer", Icons.Default.EditNote, goal == PracticeGoal.CREATE, { onGoal(PracticeGoal.CREATE) }, Modifier.weight(1f))
-    }
-    Spacer(Modifier.height(18.dp))
-    Text("MON RYTHME ACTUEL", color = TextTertiary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-    Spacer(Modifier.height(8.dp))
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ExperienceChoice("Je commence", "Je découvre la lecture ou le clavier", experience == ExperienceLevel.STARTING) { onExperience(ExperienceLevel.STARTING) }
-        ExperienceChoice("Je reprends", "J’ai déjà joué et je retrouve mes repères", experience == ExperienceLevel.RETURNING) { onExperience(ExperienceLevel.RETURNING) }
-        ExperienceChoice("Je pratique régulièrement", "Je veux travailler plus précisément", experience == ExperienceLevel.REGULAR) { onExperience(ExperienceLevel.REGULAR) }
-    }
+    FeatureLine(Icons.Default.ContentCut, "Découper", "Placez la coupe entre deux mesures : les notes et leurs silences restent à leur position musicale.")
+    FeatureLine(Icons.AutoMirrored.Filled.MergeType, "Fusionner", "Recollez une phrase à la précédente lorsque la coupure n’aide plus votre travail.")
+    FeatureLine(Icons.Default.Repeat, "Pourquoi découper ?", "Une boucle courte rend les répétitions ciblées et les changements de tempo plus simples.")
 }
 
 @Composable
@@ -314,7 +277,12 @@ private fun ConnectStep(wantsMidi: Boolean, onMidi: (Boolean) -> Unit) {
         Icon(Icons.Default.Piano, null, tint = CyanMelody, modifier = Modifier.size(28.dp))
         Column(Modifier.weight(1f)) {
             Text("Je prévois d’utiliser un piano MIDI", color = TextPrimary, fontWeight = FontWeight.SemiBold)
-            Text("Vous pourrez le sélectionner dans les réglages MIDI", color = TextTertiary, fontSize = 12.sp)
+            Text(
+                if (wantsMidi) "Vous pourrez le sélectionner dans les réglages MIDI"
+                else "Écoute des deux mains sera sélectionnée par défaut",
+                color = TextTertiary,
+                fontSize = 12.sp,
+            )
         }
         Switch(
             checked = wantsMidi,
@@ -323,6 +291,9 @@ private fun ConnectStep(wantsMidi: Boolean, onMidi: (Boolean) -> Unit) {
         )
     }
     Spacer(Modifier.height(18.dp))
+    FeatureLine(Icons.Default.Swipe, "Faire défiler Live", "Glissez la piste avec un doigt ; les notes traversées peuvent être préécoutées.")
+    FeatureLine(Icons.Default.ZoomIn, "Changer l’échelle", "Pincez avec deux doigts. Pendant ce geste, la piste ne défile pas.")
+    Spacer(Modifier.height(10.dp))
     Text("APPARENCE", color = TextTertiary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
     Spacer(Modifier.height(10.dp))
     ThemeChoices()
@@ -338,6 +309,16 @@ private fun ConnectStep(wantsMidi: Boolean, onMidi: (Boolean) -> Unit) {
         Box(Modifier.size(10.dp).clip(CircleShape).background(CyanMelody))
         Text("  Main droite", color = TextSecondary, fontSize = 12.sp)
     }
+}
+
+@Composable
+private fun ReminderStep() {
+    StepHeading(
+        eyebrow = "Régularité",
+        title = "Gardez un rendez-vous avec le piano.",
+        body = "Activez un rappel un ou plusieurs jours par semaine, puis choisissez son heure et la durée de la séance.",
+    )
+    com.tobietheunknown.pianoteacher.ui.common.PracticeReminderControls()
 }
 
 @Composable
@@ -432,49 +413,6 @@ private fun InfoPill(text: String, color: Color) {
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.clip(CircleShape).background(color.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 6.dp),
     )
-}
-
-@Composable
-private fun GoalChoice(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    Column(
-        modifier = modifier
-            .heightIn(min = 86.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (selected) IndigoAccent.copy(alpha = 0.14f) else Surface2)
-            .border(1.dp, if (selected) IndigoAccent else BorderColor, RoundedCornerShape(15.dp))
-            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
-            .padding(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, null, tint = if (selected) IndigoAccent else TextTertiary, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.height(7.dp))
-        Text(label, color = if (selected) IndigoAccent else TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-private fun ExperienceChoice(label: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) IndigoAccent.copy(alpha = 0.10f) else Surface2)
-            .border(1.dp, if (selected) IndigoAccent else BorderColor, RoundedCornerShape(14.dp))
-            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.size(20.dp).clip(CircleShape).border(2.dp, if (selected) IndigoAccent else TextMuted, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { if (selected) Box(Modifier.size(10.dp).clip(CircleShape).background(IndigoAccent)) }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(label, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-            Text(subtitle, color = TextTertiary, fontSize = 11.sp)
-        }
-    }
 }
 
 @Composable

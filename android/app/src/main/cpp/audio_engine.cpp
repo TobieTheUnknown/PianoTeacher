@@ -42,6 +42,7 @@ static ClickState gClick;
 static int gClickDurationMs = 25; // short click
 
 struct Voice {
+    int64_t id = 0;
     int pitch = -1;
     int sampleMidi = -1;       // index into mSampleByMidi
     double pos = 0.0;          // playback position in frames
@@ -216,7 +217,7 @@ public:
         }
     }
 
-    void noteOn(int pitch, int velocity) {
+    void noteOn(int64_t id, int pitch, int velocity) {
         if (pitch < 0) {  // -1 = stop all (instant; no release)
             std::lock_guard<std::mutex> lock(mVoiceMutex);
             for (auto& v : mVoices) v.active = false;
@@ -239,20 +240,25 @@ public:
 
         std::lock_guard<std::mutex> vLock(mVoiceMutex);
 
-        // Voice slot selection: reuse same-pitch voice → free voice → round-robin steal.
-        // Prefer same-pitch reuse so retriggers don't accumulate orphaned voices.
+        // Equal pitches may belong to different hands or overlap. Never reuse a
+        // sounding voice solely because its pitch matches a new attack.
         int slot = -1;
         for (int i = 0; i < MAX_VOICES; i++) {
-            if (mVoices[i].pitch == pitch) { slot = i; break; }
+            if (!mVoices[i].active) { slot = i; break; }
         }
         if (slot < 0) {
+            float quietest = 2.0f;
             for (int i = 0; i < MAX_VOICES; i++) {
-                if (!mVoices[i].active) { slot = i; break; }
+                if (mVoices[i].releasing && mVoices[i].releaseMult < quietest) {
+                    quietest = mVoices[i].releaseMult;
+                    slot = i;
+                }
             }
         }
-        if (slot < 0) slot = mNextVoice++ % MAX_VOICES;  // steal (round-robin)
+        if (slot < 0) slot = mNextVoice++ % MAX_VOICES;
 
         Voice& v = mVoices[slot];
+        v.id = id;
         v.pitch = pitch;
         v.sampleMidi = nearestMidi;
         v.pos = 0.0;
@@ -263,18 +269,10 @@ public:
         v.active = true;
     }
 
-    void noteOff(int pitch) {
+    void noteOff(int64_t id) {
         std::lock_guard<std::mutex> lock(mVoiceMutex);
-        if (pitch < 0) {  // -1 = release all (lets them decay naturally)
-            for (auto& v : mVoices) {
-                if (v.active && !v.releasing) { v.releasing = true; }
-            }
-            return;
-        }
         for (auto& v : mVoices) {
-            if (v.active && v.pitch == pitch && !v.releasing) {
-                v.releasing = true;
-            }
+            if (v.active && v.id == id && !v.releasing) v.releasing = true;
         }
     }
 
@@ -337,13 +335,13 @@ Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeStop(JNIEnv*, jobj
 }
 
 JNIEXPORT void JNICALL
-Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeNoteOn(JNIEnv*, jobject, jint pitch, jint velocity) {
-    if (gEngine) gEngine->noteOn(pitch, velocity);
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativePlayVoice(JNIEnv*, jobject, jlong id, jint pitch, jint velocity) {
+    if (gEngine) gEngine->noteOn(id, pitch, velocity);
 }
 
 JNIEXPORT void JNICALL
-Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeNoteOff(JNIEnv*, jobject, jint pitch) {
-    if (gEngine) gEngine->noteOff(pitch);
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeStopVoice(JNIEnv*, jobject, jlong id) {
+    if (gEngine) gEngine->noteOff(id);
 }
 
 JNIEXPORT void JNICALL
