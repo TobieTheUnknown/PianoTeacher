@@ -30,6 +30,10 @@ Android : `stop` coupe aussi SoundPool et remet la pédale à zéro ; Oboe ne re
 
 SoundPool attend maintenant ses callbacks réels au lieu d'un délai fixe. Le décodage MediaCodec libère codec, extracteur et asset même en erreur, respecte offset/limite des buffers et accepte les sorties PCM 16 bits ou float.
 
+## Vérification sur Pixel 8 Pro
+
+Installation debug avec conservation des données, démarrage à froid puis redémarrage contrôlé réussis. Oboe a ouvert un flux à 48 kHz avec un burst de 96 frames ; les 30 samples ont été chargés et le sampler s'est déclaré prêt, sans crash Android observé. Ce contrôle valide l'initialisation et le chargement, pas encore la qualité sonore perçue, les notes simultanées, le sustain ni les périphériques MIDI physiques.
+
 ## Deuxième lot : cycle MIDI et reprises
 
 - Web : `useMidiAudio` reste abonné à la disponibilité des samples même après un premier échec ; un essai réussi rétablit le monitoring. `SheetMusicLearning` recrée le métronome à chaque tour de boucle ; les aperçus `playNotes` se terminent désormais automatiquement.
