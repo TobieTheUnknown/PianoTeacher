@@ -137,7 +137,12 @@ fun LiveLearningScreen(
 
     val focusedMeasureData = allMeasures.getOrNull(focusedMeasure)
 
-    Scaffold(containerColor = Background) { padding ->
+    Scaffold(
+        containerColor = Background,
+        // AdaptiveNavigationFrame already owns the navigation-bar inset. Keeping
+        // Scaffold's default inset here created an empty strip above the tab dock.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { padding ->
         BoxWithConstraints(modifier = Modifier
             .fillMaxSize()
             .padding(padding)) {
@@ -223,7 +228,9 @@ fun LiveLearningScreen(
                                 val rowCount = (group.size + columnCount - 1) / columnCount
                                 for (row in 0 until rowCount) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(IntrinsicSize.Max),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
                                         for (col in 0 until columnCount) {
@@ -246,10 +253,16 @@ fun LiveLearningScreen(
                                                     showDetails = showDetails,
                                                     keySignature = keySignature,
                                                     onClick = onCellClick,
-                                                    modifier = Modifier.weight(1f),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight(),
                                                 )
                                             } else {
-                                                Box(modifier = Modifier.weight(1f))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight(),
+                                                )
                                             }
                                         }
                                     }
@@ -435,7 +448,7 @@ private fun MeasureCardCompact(
                 !showDetails && leftRole != null ->
                     HandRoleBadge(leftRole, hand = HandSide.LEFT, keySignature = keySignature)
                 !showDetails && measure.chordNotes.isNotEmpty() ->
-                    LeftHandChips(measure.chordNotes, keySignature = keySignature)
+                    NotesRow(measure.chordNotes, color = PinkChords, keySignature = keySignature)
                 !showDetails ->
                     Box(modifier = Modifier.fillMaxWidth().height(18.dp))
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -695,45 +708,6 @@ private fun PedalGlyph(tone: Color) {
 }
 
 /**
- * Détail-OFF fallback for a left hand with notes but no role badge: up to 4
- * note chips + a trailing "…" when truncated. Mirrors the web LH fallback.
- */
-@Composable
-private fun LeftHandChips(notes: List<NoteEvent>, keySignature: MusicKeySignature? = null) {
-    val labels = remember(notes, keySignature) {
-        notes.sortedBy { it.startTime }.map { noteName(it.pitch, keySignature) }
-    }
-    val tone = PinkChords  // HandLeft
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.heightIn(min = 18.dp),
-    ) {
-        labels.take(4).forEach { lab ->
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(tone.copy(alpha = 0.22f))
-                    .border(1.dp, tone.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
-            ) {
-                Text(lab, color = tone, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-        if (labels.size > 4) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .border(1.dp, tone.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
-            ) {
-                Text("…", color = TextTertiary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-/**
  * Détail-ON note chips for an ostinato hand, grouped BY MOTIF OCCURRENCE — one
  * Row per repetition; the last row may be the truncated prefix. Mirrors web
  * MotifRows.
@@ -898,10 +872,9 @@ private fun RepeatedMotifRows(segments: List<RepeatedMotif>, tone: Color, keySig
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         segments.forEach { segment ->
             val motif = segment.groups.joinToString(" ") { group -> group.joinToString(" + ") { noteName(it.pitch, keySignature) } }
-            Text(
-                text = motif + if (segment.repetitions > 1) " ×${segment.repetitions}" else "",
-                color = tone,
-                fontSize = 12.sp,
+            NoteChip(
+                label = motif + if (segment.repetitions > 1) " ×${segment.repetitions}" else "",
+                tone = tone,
             )
         }
     }

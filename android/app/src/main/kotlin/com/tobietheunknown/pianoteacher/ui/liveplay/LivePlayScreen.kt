@@ -400,8 +400,9 @@ private fun LivePlayCanvas(
                                 currentOnScrubStart()
                             }
                             if (scrubbing && size.height > 0) {
-                                // Drag the falling track: up advances, down rewinds.
-                                scrubBeat = (scrubBeat - dy.toDouble() / size.height.toDouble() * currentBeats)
+                                // The track follows the finger: dragging down advances
+                                // the score, while dragging up rewinds it.
+                                scrubBeat = (scrubBeat + dy.toDouble() / size.height.toDouble() * currentBeats)
                                     .coerceIn(0.0, totalBeats)
                                 currentOnScrub(scrubBeat)
                             }

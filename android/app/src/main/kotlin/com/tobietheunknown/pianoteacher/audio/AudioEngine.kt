@@ -5,6 +5,11 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.AudioFormat
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import java.io.ByteArrayOutputStream
 import java.nio.ByteOrder
 
@@ -36,6 +43,35 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     private val midiVoices = mutableMapOf<Int, java.util.ArrayDeque<Long>>()
     private var pedalEngaged = false
     private val heldByPedal = mutableSetOf<Long>()
+    private var idleReleaseJob: Job? = null
+    private val audioManager = context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private val focusRequest: AudioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+        .setAudioAttributes(AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+        .setWillPauseWhenDucked(true)
+        .setAcceptsDelayedFocusGain(false)
+        .setOnAudioFocusChangeListener({ change ->
+            if (change != AudioManager.AUDIOFOCUS_GAIN) {
+                Log.i(TAG, "Audio focus interrupted ($change); waiting for explicit playback")
+                sessions.interrupt()
+            }
+        }, Handler(Looper.getMainLooper()))
+        .build()
+    private val sessions: AudioSessionController = AudioSessionController(
+        lock = voiceLock,
+        requestFocus = { audioManager?.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED },
+        abandonFocus = { audioManager?.abandonAudioFocusRequest(focusRequest); Unit },
+        openOutput = { if (oboeReady) nativeStart() else samplerEngine != null },
+        silenceAndCloseOutput = {
+            activeVoices.clear()
+            midiVoices.clear()
+            heldByPedal.clear()
+            pedalEngaged = false
+            if (nativeAvailable) nativeSuspend()
+            samplerEngine?.stopAll()
+        },
+    )
     // Construct SoundPool only if Oboe cannot initialise. There is no mid-song switch.
     private var samplerEngine: SamplerEngine? = null
 
@@ -74,7 +110,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
 
     init {
         nativeAvailable = try {
-            nativeStart()
+            nativeInitialize()
         } catch (e: UnsatisfiedLinkError) {
             Log.w(TAG, "Native start failed, using SamplerEngine permanently")
             false
@@ -95,9 +131,43 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     fun start(): Boolean = true // Initialisation is eager and asynchronous.
     override suspend fun awaitReady(): Boolean = readiness.await()
 
+    /** Resuming a page does not steal focus from music playing in another app. */
+    fun onForeground() = sessions.setForeground(true)
+    fun onBackground() = sessions.setForeground(false)
+
+    override fun beginPlayback(): Long = synchronized(voiceLock) {
+        if (!_ready.value) return@synchronized 0L
+        idleReleaseJob?.cancel()
+        sessions.beginPlayback()
+    }
+
+    override fun isPlaybackActive(session: Long): Boolean = synchronized(voiceLock) {
+        if (!sessions.isActive(session)) return@synchronized false
+        if (oboeReady && !nativeIsRunning()) {
+            sessions.interrupt()
+            return@synchronized false
+        }
+        true
+    }
+
+    override fun endPlayback(session: Long) = synchronized(voiceLock) {
+        sessions.endPlayback(session)
+        scheduleIdleRelease()
+    }
+
+    private fun scheduleIdleRelease() {
+        idleReleaseJob?.cancel()
+        idleReleaseJob = scope.launch {
+            delay(1_200) // Let the release envelope finish before returning focus.
+            synchronized(voiceLock) { sessions.releaseIfIdle(activeVoices.isNotEmpty()) }
+        }
+    }
+
     /** Each score occurrence owns a distinct voice, including overlapping equal pitches. */
     override fun playVoice(pitch: Int, velocity: Int): Long = synchronized(voiceLock) {
         if (!enabled || !_ready.value || pitch !in 0..127) return@synchronized 0L
+        if (!sessions.prepareOutput()) return@synchronized 0L
+        idleReleaseJob?.cancel()
         val id = nextVoice.getAndIncrement()
         activeVoices.add(id)
         if (oboeReady) nativePlayVoice(id, pitch, velocity.coerceIn(1, 127))
@@ -109,10 +179,12 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         if (id != 0L && activeVoices.remove(id)) {
             heldByPedal.remove(id)
             if (oboeReady) nativeStopVoice(id) else samplerEngine?.stopVoice(id)
+            if (activeVoices.isEmpty()) scheduleIdleRelease()
         }
     }
 
     fun noteOn(pitch: Int, velocity: Int = 80) = synchronized(voiceLock) {
+        if (!enabled || !_ready.value || !sessions.prepareOutput(explicit = true)) return@synchronized
         val id = playVoice(pitch, velocity)
         if (id != 0L) midiVoices.getOrPut(pitch) { java.util.ArrayDeque() }.addLast(id)
     }
@@ -150,6 +222,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     fun release() {
         job.cancel()
         stop()
+        sessions.interrupt()
         samplerEngine?.release()
         if (nativeAvailable) try { nativeStop() } catch (_: Exception) { }
     }
@@ -283,7 +356,10 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
 
     // ─── JNI declarations ─────────────────────────────────────────────────────
 
+    private external fun nativeInitialize(): Boolean
     private external fun nativeStart(): Boolean
+    private external fun nativeSuspend()
+    private external fun nativeIsRunning(): Boolean
     private external fun nativeStop()
     private external fun nativePlayVoice(id: Long, pitch: Int, velocity: Int)
     private external fun nativeStopVoice(id: Long)
@@ -300,8 +376,8 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     }
 
     /** Play a metronome click via the native Oboe audio callback (zero Java AudioTrack overhead) */
-    override fun playClick(isAccent: Boolean, amplitude: Float) {
-        if (nativeAvailable && oboeReady) {
+    override fun playClick(isAccent: Boolean, amplitude: Float) = synchronized(voiceLock) {
+        if (enabled && nativeAvailable && oboeReady && sessions.prepareOutput()) {
             try { nativePlayClick(isAccent, amplitude) } catch (_: Exception) { }
         }
     }

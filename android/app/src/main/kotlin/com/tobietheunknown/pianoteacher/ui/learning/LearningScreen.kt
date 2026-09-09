@@ -1012,15 +1012,7 @@ private fun GrandStaffCanvas(
 ) {
     val textMeasurer = rememberTextMeasurer()
 
-    Canvas(
-        modifier = modifier.background(
-            when {
-                isPlaying -> IndigoAccent.copy(alpha = 0.10f)
-                isFocused -> Color.White.copy(alpha = 0.03f)
-                else -> Color.Transparent
-            }
-        )
-    ) {
+    Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
 
@@ -1065,6 +1057,22 @@ private fun GrandStaffCanvas(
         val barPad   = 10.dp.toPx()
         // dotR: web uses lineSpacing * (landscape ? 0.45 : 0.42) — aligned.
         val dotR     = lineSpacing * (if (isLandscape) 0.45f else 0.42f)
+
+        // The clef and key signature introduce the system; they are not part of
+        // the timed measure. Excluding that header gives every highlighted
+        // measure in the row the same musical width.
+        val highlightColor = when {
+            isPlaying -> IndigoAccent.copy(alpha = 0.10f)
+            isFocused -> Color.White.copy(alpha = 0.03f)
+            else -> Color.Transparent
+        }
+        if (highlightColor != Color.Transparent) {
+            drawRect(
+                color = highlightColor,
+                topLeft = Offset(headerWidth, 0f),
+                size = Size((w - headerWidth).coerceAtLeast(0f), h),
+            )
+        }
 
         // ── Resolve clefs + note assignment per mode ──────────────────────
         val upperClef: StaffClefConfig

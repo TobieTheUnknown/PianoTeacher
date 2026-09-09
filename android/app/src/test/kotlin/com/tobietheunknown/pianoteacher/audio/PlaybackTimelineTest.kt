@@ -138,4 +138,37 @@ class PlaybackTimelineTest {
         }
         assertEquals(listOf("on" to 1L, "off" to 1L, "on" to 2L, "off" to 2L, "on" to 3L, "off" to 3L), audio.events)
     }
+
+    @Test fun `audio interruption exits wait mode without advancing to the next phrase`() = runBlocking {
+        val audio = FakeAudio()
+        var focused = true
+        var waiting = false
+        var ended = false
+        val focusAudio = object : PlaybackAudio by audio {
+            override fun isPlaybackActive(session: Long) = focused
+            override fun endPlayback(session: Long) { ended = true }
+        }
+        val result = async {
+            TimelineTransport(focusAudio, listOf(note(0, 60, 0.0, 1.0)), 4.0).run(
+                0.0, { TransportSettings(1.0, 0.0, 4.0, wait = true) }, { false }, { emptySet() },
+                { _, isWaiting -> waiting = isWaiting },
+            )
+        }
+        withTimeout(2000) { while (!waiting) delay(2) }
+        focused = false
+        assertFalse(withTimeout(2000) { result.await() })
+        assertTrue(ended)
+        assertTrue(audio.events.isEmpty())
+    }
+
+    @Test fun `focus denied leaves transport stopped without note or click`() = runBlocking {
+        val audio = FakeAudio()
+        val deniedAudio = object : PlaybackAudio by audio {
+            override fun beginPlayback() = 0L
+        }
+        assertFalse(TimelineTransport(deniedAudio, listOf(note(0, 60, 0.0, 1.0)), 4.0).run(
+            0.0, { TransportSettings(1.0, 0.0, 4.0) }, { true }, { emptySet() }, { _, _ -> },
+        ))
+        assertTrue(audio.events.isEmpty())
+    }
 }

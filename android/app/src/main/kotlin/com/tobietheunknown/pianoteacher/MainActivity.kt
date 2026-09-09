@@ -78,9 +78,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        AudioEngine.getInstance(applicationContext).onForeground()
         // Restores the next local reminder after app updates, time changes or a
         // return from Android's notification settings.
         PracticeReminders.reschedule(this)
+    }
+
+    override fun onStop() {
+        if (!isChangingConfigurations) AudioEngine.getInstance(applicationContext).onBackground()
+        super.onStop()
     }
 
 }

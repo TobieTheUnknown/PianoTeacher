@@ -37,5 +37,8 @@ Les interrupteurs MIDI Android ne pilotaient pas le scanner : ils écrivaient se
 - Éditeur précède Partition dans la navigation ; un réglage permet de masquer cet onglet. Son ancien dock sans playback réel a été retiré : l'écran se concentre sur découper et fusionner les phrases.
 - Les choix onboarding « cap » et « rythme » étaient seulement stockés puis réaffichés. Ce code a été retiré au profit d'explications concrètes sur la barre de transport, les mains, la boucle, le découpage/fusion et les gestes Live.
 - Si l'utilisateur indique ne pas prévoir de clavier MIDI, Live démarre en écoute des deux mains ; Partition et Coach conservent aussi ce défaut.
-- Live accepte un glissement à un doigt pour parcourir la piste avec préécoute. Dès qu'un second doigt participe, le déplacement temporel est gelé et seul le zoom est appliqué.
+- Live accepte un glissement à un doigt pour parcourir la piste avec préécoute ; la piste suit le doigt, donc descendre avance et monter recule. Dès qu'un second doigt participe, le déplacement temporel est gelé et seul le zoom est appliqué.
+- Le dock d'onglets reste visible dans Live en portrait et disparaît en paysage. Coach ne cumule plus son inset système avec celui du dock.
+- Les deux mains du Coach utilisent le même rendu de notes et les cartes d'une même rangée prennent la même hauteur.
+- Dans Partition, le surlignage temporel de la première mesure commence après la clef et l'armure ; sa largeur musicale est identique aux mesures suivantes de la rangée.
 - Les rappels de pratique locaux acceptent plusieurs jours, une heure et une durée. Ils se reprogramment après déclenchement, redémarrage, changement d'heure/fuseau et mise à jour ; Android peut décaler une alarme inexacte pour économiser la batterie.

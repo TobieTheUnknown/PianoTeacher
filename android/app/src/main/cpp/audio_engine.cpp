@@ -55,7 +55,7 @@ struct Voice {
 
 // ─── AudioEngine ─────────────────────────────────────────────────────────────
 
-class AudioEngine : public oboe::AudioStreamDataCallback {
+class AudioEngine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErrorCallback {
 public:
     // Sample storage indexed by MIDI note 0..127. nullptr = no sample loaded.
     // Owned via unique_ptr; raw pointers below are non-owning views.
@@ -175,6 +175,9 @@ public:
     }
 
     bool start() {
+        std::lock_guard<std::mutex> streamLock(mStreamMutex);
+        if (isRunningLocked()) return true;
+        closeStreamLocked();
         oboe::AudioStreamBuilder builder;
         builder.setDirection(oboe::Direction::Output)
                ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
@@ -183,7 +186,8 @@ public:
                ->setChannelCount(2)
                ->setUsage(oboe::Usage::Media)
                ->setContentType(oboe::ContentType::Music)
-               ->setDataCallback(this);
+               ->setDataCallback(this)
+               ->setErrorCallback(this);
 
         auto result = builder.openStream(mStream);
         if (result != oboe::Result::OK) {
@@ -202,6 +206,7 @@ public:
         result = mStream->requestStart();
         if (result != oboe::Result::OK) {
             LOGE("Failed to start stream: %s", oboe::convertToText(result));
+            closeStreamLocked();
             return false;
         }
 
@@ -210,11 +215,26 @@ public:
     }
 
     void stop() {
-        if (mStream) {
-            mStream->stop();
-            mStream->close();
-            mStream.reset();
-        }
+        std::lock_guard<std::mutex> streamLock(mStreamMutex);
+        closeStreamLocked();
+    }
+
+    bool isRunning() {
+        std::lock_guard<std::mutex> streamLock(mStreamMutex);
+        return isRunningLocked();
+    }
+
+    bool onError(oboe::AudioStream* stream, oboe::Result error) override {
+        // Oboe invokes this on its error thread, never the realtime callback.
+        // Own closing here so lifecycle/start cannot race Oboe's default close.
+        std::lock_guard<std::mutex> streamLock(mStreamMutex);
+        if (!mStream || mStream.get() != stream) return true; // Already closed by lifecycle.
+        LOGE("Oboe output interrupted: %s", oboe::convertToText(error));
+        stream->stop();
+        stream->close();
+        // Keep the shared owner alive until the next explicit start/stop. Samples
+        // and their immutable lookup table survive output device replacement.
+        return true;
     }
 
     void noteOn(int64_t id, int pitch, int velocity) {
@@ -311,7 +331,29 @@ public:
     int mOutputSampleRate = 48000;
 
 private:
+    bool isRunningLocked() const {
+        if (!mStream) return false;
+        const auto state = mStream->getState();
+        return state == oboe::StreamState::Started || state == oboe::StreamState::Starting;
+    }
+
+    void closeStreamLocked() {
+        if (mStream) {
+            if (mStream->getState() != oboe::StreamState::Closed) {
+                mStream->stop();
+                mStream->close();
+            }
+            mStream.reset();
+        }
+        // The data callback is stopped; no stale release or click survives resume.
+        std::lock_guard<std::mutex> voiceLock(mVoiceMutex);
+        for (auto& voice : mVoices) voice.active = false;
+        gClick.active = false;
+        gClick.request.store(-1, std::memory_order_release);
+    }
+
     std::shared_ptr<oboe::AudioStream> mStream;
+    std::mutex mStreamMutex;
     Voice mVoices[MAX_VOICES] = {};
     std::mutex mVoiceMutex;
     int mNextVoice = 0;
@@ -324,9 +366,25 @@ static AudioEngine* gEngine = nullptr;
 extern "C" {
 
 JNIEXPORT jboolean JNICALL
-Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeStart(JNIEnv*, jobject) {
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeInitialize(JNIEnv*, jobject) {
     if (!gEngine) gEngine = new AudioEngine();
+    return JNI_TRUE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeStart(JNIEnv*, jobject) {
+    if (!gEngine) return JNI_FALSE;
     return gEngine->start() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeIsRunning(JNIEnv*, jobject) {
+    return gEngine && gEngine->isRunning() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSuspend(JNIEnv*, jobject) {
+    if (gEngine) gEngine->stop();
 }
 
 JNIEXPORT void JNICALL

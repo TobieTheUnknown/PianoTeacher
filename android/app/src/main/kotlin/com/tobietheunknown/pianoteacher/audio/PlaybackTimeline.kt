@@ -78,6 +78,9 @@ data class TransportSettings(
  */
 interface PlaybackAudio {
     suspend fun awaitReady(): Boolean
+    fun beginPlayback(): Long = 1L
+    fun isPlaybackActive(session: Long): Boolean = true
+    fun endPlayback(session: Long) = Unit
     fun playVoice(pitch: Int, velocity: Int = 80): Long
     fun stopVoice(id: Long)
     fun playClick(isAccent: Boolean, amplitude: Float = 0.45f)
@@ -95,8 +98,10 @@ class TimelineTransport(
         pressedKeys: () -> Set<Int>,
         publish: (Double, Boolean) -> Unit,
         preroll: Boolean = false,
-    ) {
-        if (!audio.awaitReady()) return
+    ): Boolean {
+        if (!audio.awaitReady()) return false
+        val session = audio.beginPlayback()
+        if (session == 0L) return false
         val voices = mutableMapOf<Int, Long>()
         fun silence() { voices.values.forEach(audio::stopVoice); voices.clear() }
         val events = timelineEvents(notes)
@@ -116,6 +121,7 @@ class TimelineTransport(
                 val countIn = MonotonicBeatClock(0.0, System.nanoTime())
                 var previousTick = -1L
                 while (currentCoroutineContext().isActive) {
+                    if (!audio.isPlaybackActive(session)) return false
                     val config = settings()
                     val beat = countIn.advance(System.nanoTime(), config.beatsPerSecond)
                     if (beat >= beatsPerMeasure) break
@@ -130,6 +136,7 @@ class TimelineTransport(
             clock.seek(initialBeat, System.nanoTime())
             resumeHeld(initialBeat)
             while (currentCoroutineContext().isActive) {
+                if (!audio.isPlaybackActive(session)) return false
                 val config = settings()
                 if (config.endBeat <= config.startBeat) break
                 if (config.loop && clock.beat < config.startBeat) {
@@ -141,6 +148,7 @@ class TimelineTransport(
                 }
                 var beat = clock.advance(System.nanoTime(), config.beatsPerSecond).coerceAtMost(config.endBeat)
                 while (cursor.peek()?.let { it.beat <= beat && (!it.isOn || it.beat < config.endBeat) } == true) {
+                    if (!audio.isPlaybackActive(session)) return false
                     val event = cursor.peek()!!
                     if (event.isOn && settings().wait) {
                         val expected = expectedAt(event.beat)
@@ -148,7 +156,10 @@ class TimelineTransport(
                             // Freeze at the attack, including accompaniment/metronome.
                             clock.seek(event.beat, System.nanoTime())
                             publish(event.beat, true)
-                            while (settings().wait && !pressedKeys().containsAll(expectedAt(event.beat))) delay(4)
+                            while (settings().wait && !pressedKeys().containsAll(expectedAt(event.beat))) {
+                                if (!audio.isPlaybackActive(session)) return false
+                                delay(4)
+                            }
                             clock.seek(event.beat, System.nanoTime())
                             beat = event.beat
                             publish(beat, false)
@@ -189,7 +200,9 @@ class TimelineTransport(
         } finally {
             // Release only this transport's occurrences, never MIDI or a newer session.
             silence()
+            audio.endPlayback(session)
         }
+        return true
     }
 }
 

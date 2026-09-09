@@ -26,7 +26,9 @@ Web : chargement rejetable/rejouable, reprise du contexte avant le téléchargem
 
 Android : `stop` remet la pédale à zéro et ne coupe que les voix appartenant à la session concernée. Le playback attend un backend entièrement prêt : Oboe reste stable pendant la session ; SoundPool ne sert que si le chemin natif échoue avant la lecture. C++ : commande de clic publiée atomiquement ; les paramètres/position du clic ne sont plus modifiés concurremment par JNI et le callback audio.
 
-**À ne pas déclarer impeccable** sans écoute/device : mutex bloquant dans le callback Oboe ; récupération après changement de route audio absente ; pédales et notes MIDI superposées sur plusieurs canaux. L'ordonnanceur est monotone à cadence 4 ms, pas calé à l'échantillon dans le callback Oboe.
+Le focus audio appartient maintenant à une action sonore explicite. Passer en arrière-plan ou perdre le focus invalide les transports en cours, ferme le flux et libère le focus ; revenir dans l'application reste silencieux. Le prochain appui sur Lecture redemande le focus et rouvre Oboe sans recharger les samples. Un flux interrompu par Android est détecté comme inactif au lieu de laisser l'interface croire que la lecture continue.
+
+**À ne pas déclarer impeccable** sans écoute/device : mutex bloquant dans le callback Oboe ; la réouverture après changement de route est codée mais demande encore une écoute matérielle ; pédales et notes MIDI superposées sur plusieurs canaux. L'ordonnanceur est monotone à cadence 4 ms, pas calé à l'échantillon dans le callback Oboe.
 
 SoundPool attend maintenant ses callbacks réels au lieu d'un délai fixe. Le décodage MediaCodec libère codec, extracteur et asset même en erreur, respecte offset/limite des buffers et accepte les sorties PCM 16 bits ou float.
 

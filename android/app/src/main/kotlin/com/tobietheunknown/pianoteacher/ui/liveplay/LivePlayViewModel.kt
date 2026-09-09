@@ -232,7 +232,7 @@ class LivePlayViewModel(
         val notes = timelineNotes()
         playbackJob = viewModelScope.launch(audioPlaybackDispatcher) {
             try {
-                TimelineTransport(audioEngine, notes, song.beatsPerMeasure).run(
+                val completed = TimelineTransport(audioEngine, notes, song.beatsPerMeasure).run(
                     initialBeat = pausedAtBeat,
                     settings = {
                         val state = _state.value
@@ -254,7 +254,7 @@ class LivePlayViewModel(
                     preroll = preroll,
                 )
                 // Phrase-only views retain their next-phrase navigation after playback.
-                if (generation == playbackGeneration) withContext(Dispatchers.Main) {
+                if (completed && generation == playbackGeneration) withContext(Dispatchers.Main) {
                     _state.update { it.copy(isPlaying = false, isWaiting = false) }
                     val index = _state.value.currentPhraseIndex
                     if (index >= 0 && index + 1 < song.phrases.size) {
@@ -319,8 +319,16 @@ class LivePlayViewModel(
             if (chord.isNotEmpty()) {
                 lastAuditionNanos = now
                 scrubbedOccurrences.addAll(chord.map { it.occurrence })
-                val voices = chord.map { audioEngine.playVoice(it.note.pitch, 65) }
-                viewModelScope.launch { delay(110); voices.forEach(audioEngine::stopVoice) }
+                val session = audioEngine.beginPlayback()
+                if (session != 0L) {
+                    val voices = chord.map { audioEngine.playVoice(it.note.pitch, 65) }
+                    viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                        try { delay(110) } finally {
+                            voices.forEach(audioEngine::stopVoice)
+                            audioEngine.endPlayback(session)
+                        }
+                    }
+                }
             }
         }
         pausedAtBeat = target

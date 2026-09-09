@@ -123,6 +123,10 @@ class SamplerEngine(private val context: Context) {
         streamIds.remove(id)?.let { pool.stop(it) }
     }
 
+    fun stopAll() {
+        streamIds.keys.toList().forEach(::stopVoice)
+    }
+
     private fun findNearestSample(pitch: Int): Int {
         return availableNotes.minByOrNull { kotlin.math.abs(it - pitch) } ?: pitch
     }

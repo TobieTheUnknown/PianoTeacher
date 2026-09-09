@@ -4,18 +4,23 @@ Généré par `python3 scripts/update-source-index.py`. Les symboles indiquent l
 
 ## android/app/src/main/cpp/audio_engine.cpp
 
-381 lignes.
+439 lignes.
 Symboles : AudioEngine
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/MainActivity.kt
 
-86 lignes.
-Symboles : MainActivity, onCreate, onNewIntent, onResume
+92 lignes.
+Symboles : MainActivity, onCreate, onNewIntent, onResume, onStop
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioEngine.kt
 
-308 lignes.
-Symboles : AudioEngine, getInstance, start, awaitReady, playVoice, stopVoice, noteOn, noteOff, stop, setSustainPedal, setEnabled, release, loadOboe, PcmData, decodeMp3Asset, setRelease, playClick
+384 lignes.
+Symboles : AudioEngine, getInstance, start, awaitReady, onForeground, onBackground, beginPlayback, isPlaybackActive, endPlayback, scheduleIdleRelease, playVoice, stopVoice, noteOn, noteOff, stop, setSustainPedal, setEnabled, release, loadOboe, PcmData, decodeMp3Asset, setRelease, playClick
+
+## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioSessionController.kt
+
+70 lignes.
+Symboles : AudioSessionController, setForeground, beginPlayback, isActive, endPlayback, prepareOutput, interrupt, releaseIfIdle
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/MetronomeEngine.kt
 
@@ -24,13 +29,13 @@ Symboles : MetronomeEngine, generateClick, createStaticTrack, rebuildTracks, pla
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/PlaybackTimeline.kt
 
-214 lignes.
-Symboles : TimelineNote, songTimeline, TimelineEvent, timelineEvents, MonotonicBeatClock, advance, seek, TimelineCursor, peek, pop, drainThrough, TransportSettings, PlaybackAudio, awaitReady, playVoice, stopVoice, playClick, TimelineTransport, run, silence, resumeHeld, expectedAt, crossedNotes, scrubAuditionNotes
+227 lignes.
+Symboles : TimelineNote, songTimeline, TimelineEvent, timelineEvents, MonotonicBeatClock, advance, seek, TimelineCursor, peek, pop, drainThrough, TransportSettings, PlaybackAudio, awaitReady, beginPlayback, isPlaybackActive, endPlayback, playVoice, stopVoice, playClick, TimelineTransport, run, silence, resumeHeld, expectedAt, crossedNotes, scrubAuditionNotes
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/SamplerEngine.kt
 
-141 lignes.
-Symboles : SamplerEngine, loadAsync, finishLoadingIfReady, playVoice, stopVoice, findNearestSample, release, Float.pow
+145 lignes.
+Symboles : SamplerEngine, loadAsync, finishLoadingIfReady, playVoice, stopVoice, stopAll, findNearestSample, release, Float.pow
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/data/model/Song.kt
 
@@ -79,7 +84,7 @@ Symboles : PracticeReminders, preferences, load, save, notificationsAllowed, res
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/AppNavHost.kt
 
-240 lignes.
+243 lignes.
 Symboles : Screen, Onboarding, route, Library, LivePlay, route, Learning, route, Editor, route, LiveLearning, route, Settings, AppNavHost, requireSong, navigateTopLevel
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/common/BottomTabBar.kt
@@ -134,7 +139,7 @@ Symboles : EditorViewModel, splitPhrase, mergePhraseWithPrevious, renamePhrase, 
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/learning/LearningScreen.kt
 
-2016 lignes.
+2024 lignes.
 Symboles : midiToDiatonic, NoteDuration, classifyDuration, Base, StaffClefConfig, selectClef, LearningScreen, MeasureCard, TimelineBeatRow, MiniMeasureCard, GrandStaffCanvas, drawHead, StaffNote, ChordRender, androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams, attachY, stemX, nominalTip, resolveDirection, drawPlainStem, drawFlags, beamYAt, NoteLabelsStrip, LearningPianoKeyboard, OctaveKeys, ChordChip, CycleNoteRows, ArpeggioChordBadge, NoteChip
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/learning/LearningViewModel.kt
@@ -154,17 +159,17 @@ Symboles : ImportState, Idle, Loading, Success, Error, LibraryViewModel, importF
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/livelearning/LiveLearningScreen.kt
 
-908 lignes.
-Symboles : noteName, LiveLearningScreen, MeasureCardCompact, chordCycleLen, handSideColor, DetailToggle, HandRoleBadge, RoleChip, OstinatoRoleBadge, PedalRoleBadge, OstinatoGlyph, wave, PedalGlyph, LeftHandChips, MotifRows, NoteChip, NotesRow, BeatStrip, RepeatedMotifRows
+881 lignes.
+Symboles : noteName, LiveLearningScreen, MeasureCardCompact, chordCycleLen, handSideColor, DetailToggle, HandRoleBadge, RoleChip, OstinatoRoleBadge, PedalRoleBadge, OstinatoGlyph, wave, PedalGlyph, MotifRows, NoteChip, NotesRow, BeatStrip, RepeatedMotifRows
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayScreen.kt
 
-949 lignes.
+950 lignes.
 Symboles : HitEffect, LivePlayScreen, controlsBlock, LivePlayCanvas, PianoKeyboard, isBlackKey, LivePlayTopBar, SpeedBadge, LivePlayControls, LivePlayHandButton
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayViewModel.kt
 
-534 lignes.
+542 lignes.
 Symboles : NoteWithHand, LivePlayUiState, LivePlayViewModel, handleMidiNoteOn, handleMidiNoteOff, togglePlayPause, timelineNotes, shouldAutoPlay, play, pause, restart, seekToBeat, setSpeed, beginScrub, scrubToBeat, endScrub, toggleLoop, setLoopRange, toggleWaitMode, toggleAudio, toggleMetronome, toggleListenMode, setVisibleBeats, setHand, nextPhrase, prevPhrase, goToPhrase, updateVisibleNotes, addVisibleNotes, updateExpectedKeys, onCleared, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/onboarding/OnboardingPreferences.kt

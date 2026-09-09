@@ -1,6 +1,7 @@
 package com.tobietheunknown.pianoteacher.ui
 
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHost
@@ -9,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -59,6 +61,7 @@ fun AppNavHost(intent: Intent? = null) {
     var pendingImportUri by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSongId by rememberSaveable { mutableStateOf<String?>(null) }
     val appPrefs by context.appPreferences.collectAsState(initial = AppPrefs())
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     LaunchedEffect(intent) {
         intent?.data?.toString()?.let { pendingImportUri = it }
@@ -81,8 +84,8 @@ fun AppNavHost(intent: Intent? = null) {
             else -> AppTab.LIBRARY
         }
     }
-    val showNavigation = currentRoute?.startsWith("liveplay") != true &&
-        currentRoute?.startsWith("onboarding") != true
+    val showNavigation = currentRoute?.startsWith("onboarding") != true &&
+        !(currentRoute?.startsWith("liveplay") == true && isLandscape)
 
     fun requireSong(action: (String) -> Unit) {
         val songId = lastSongId
