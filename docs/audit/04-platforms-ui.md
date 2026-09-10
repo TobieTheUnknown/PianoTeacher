@@ -40,7 +40,7 @@ Deux autres préférences sans effet ont été raccordées : « Son activé » p
 - Les choix onboarding « cap » et « rythme » étaient seulement stockés puis réaffichés. Ce code a été retiré au profit d'explications concrètes sur la barre de transport, les mains, la boucle, le découpage/fusion et les gestes Live.
 - Si l'utilisateur indique ne pas prévoir de clavier MIDI, Live démarre en écoute des deux mains ; Partition et Coach conservent aussi ce défaut.
 - Live accepte un glissement à un doigt pour parcourir la piste avec préécoute ; la piste suit le doigt, donc descendre avance et monter recule. Dès qu'un second doigt participe, le déplacement temporel est gelé et seul le zoom est appliqué.
-- Le dock d'onglets reste visible dans Live en portrait et disparaît en paysage. Coach ne cumule plus son inset système avec celui du dock.
+- Le dock d'onglets reste visible dans Live en portrait et disparaît en paysage. Coach applique l'inset de barre d'état en haut ; le dock reste seul responsable de l'inset de navigation en bas, sans bande vide intermédiaire.
 - Les deux mains du Coach utilisent le même rendu de notes et les cartes d'une même rangée prennent la même hauteur.
 - Dans Partition, le surlignage temporel de la première mesure commence après la clef et l'armure ; sa largeur musicale est identique aux mesures suivantes de la rangée.
 - Les rappels de pratique locaux acceptent plusieurs jours, une heure et une durée. Ils se reprogramment après déclenchement, redémarrage, changement d'heure/fuseau et mise à jour ; Android peut décaler une alarme inexacte pour économiser la batterie.

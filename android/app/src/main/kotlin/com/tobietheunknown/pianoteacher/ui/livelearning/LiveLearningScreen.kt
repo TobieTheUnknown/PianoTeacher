@@ -139,9 +139,9 @@ fun LiveLearningScreen(
 
     Scaffold(
         containerColor = Background,
-        // AdaptiveNavigationFrame already owns the navigation-bar inset. Keeping
-        // Scaffold's default inset here created an empty strip above the tab dock.
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        // Keep the header below the status bar. AdaptiveNavigationFrame owns the
+        // bottom navigation inset, so only the top system inset belongs here.
+        contentWindowInsets = WindowInsets.statusBars,
     ) { padding ->
         BoxWithConstraints(modifier = Modifier
             .fillMaxSize()
