@@ -307,7 +307,7 @@ const MeasureCard = React.memo(function MeasureCard({
         borderRadius: 'var(--r-lg)',
         padding: '10px 11px',
         textAlign: 'left',
-        transition: 'all var(--t-med)',
+        transition: 'background-color var(--t-med), border-color var(--t-med), box-shadow var(--t-med)',
         boxShadow: accentBorder
             ? `0 0 0 3px var(--accent-dim), 0 4px 14px -4px var(--accent-dim)`
             : 'none',
@@ -595,7 +595,7 @@ function SmallToggleBtn({ label, active, onClick }) {
                 color: active ? 'var(--accent)' : 'var(--text-secondary)',
                 cursor: 'pointer',
                 minHeight: 0,
-                transition: 'all var(--t-fast)',
+                transition: 'background-color var(--t-fast), border-color var(--t-fast), color var(--t-fast)',
             }}
         >
             {label}

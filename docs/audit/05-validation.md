@@ -5,6 +5,7 @@
 - `npm --prefix web test` : **46 tests réussis**, aucun échec. Musique, motifs, gravure pure, voix et silences, MIDI aller-retour, migration et protection des sauvegardes, cycle audio simulé, cohérence MIDI navigateur/Tauri, découpe en 6/8, projection des tenues et reprise audio après seek.
 - `npm --prefix web run lint` : passé. Avertissement de fraîcheur de la base `baseline-browser-mapping` ; ne pas le confondre avec une erreur ESLint.
 - `npm --prefix web run build:pages` : passé, base `/PianoTeacher/app/`. Build normal également passé lors du premier lot ; ne remplace pas un test Tauri natif.
+- Après le passage accessibilité/styles : lint, les **46 tests Web** et le build Pages repassent. Recherche statique : aucun `transition: all` restant dans `web/src` et aucun `<label>` non associé dans `Settings.jsx` ou `SongEditor.jsx`.
 - `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home ANDROID_HOME=/Users/TobieRaggi/Library/Android/sdk android/gradlew -p android :app:testDebugUnitTest :app:assembleDebug` : passé après l'intégration audio/UI/gravure. **58 tests JVM**, C++ arm64/x86_64 compilé, APK debug produit. Huit tests couvrent focus refusé/perdu, arrière-plan, reprise explicite, libération différée et interruption d'un transport ; les nouveaux cas couvrent aussi projection de tenue, découpe 6/8 et ordre des sauvegardes éditeur.
 - Compatibilité Android 16 Ko : Oboe 1.10.0, DataStore 1.2.1 et Graphics Path 1.1.0. `zipalign -c -P 16 -v 4` valide l'APK ; `llvm-readelf -l` donne `Align 0x4000` pour les cinq bibliothèques arm64 (`libc++`, DataStore, Oboe, PianoTeacher et Graphics Path).
 - Onze tests ciblent la timeline audio : jitter, note traversant une mesure, occurrences de même pitch, attente MIDI sans accompagnement, seek/cancel, scrub bidirectionnel et préécoute des deux mains. Dix tests couvrent la prochaine date des rappels selon jours, heure, minute et fuseau.
@@ -29,6 +30,7 @@ Les bancs visuels sont servis en développement et ne font pas partie du bundle 
 ## Non vérifié / non terminé
 
 - `e4fe67b` a été poussé sur `codex/progressive-audit` puis sur `main`. GitHub Pages utilise désormais le workflow Web unifié ; compilation et déploiement réussis, landing et `/PianoTeacher/app/` répondent HTTP 200.
+- Le checkpoint `4c9daea` a été poussé sur la branche d'audit et `main` ; les workflows Android et Web/GitHub Pages sont tous deux terminés avec succès.
 - Pas encore d'écoute manuelle ni d'essai avec clavier USB/BLE, pédale physique ou changement de sortie audio sur le Pixel.
 - Pas de compilation/installation Tauri macOS/Windows/Linux dans ce lot.
 - Préservation des métadonnées Room assurée par transaction dans le code ; pas encore de test instrumenté de base Android.

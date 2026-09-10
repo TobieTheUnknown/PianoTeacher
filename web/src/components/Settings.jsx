@@ -249,7 +249,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                             color: 'var(--text-secondary)',
                             padding: '0.25rem 0.5rem',
                             borderRadius: 'var(--radius-md)',
-                            transition: 'all var(--transition-fast)'
+                            transition: 'background-color var(--transition-fast), color var(--transition-fast)'
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'var(--bg-tertiary)';
@@ -355,7 +355,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                 </h3>
 
                                 <div style={{ marginBottom: '1.5rem' }}>
-                                    <label style={{
+                                    <label htmlFor="settings-font-family" style={{
                                         display: 'block',
                                         fontSize: '0.9rem',
                                         fontWeight: '500',
@@ -365,6 +365,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                         Famille de police
                                     </label>
                                     <select
+                                        id="settings-font-family"
                                         value={fontFamily}
                                         onChange={(e) => handleFontFamilyChange(e.target.value)}
                                         style={{
@@ -390,7 +391,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                 </div>
 
                                 <div>
-                                    <label style={{
+                                    <label htmlFor="settings-font-size" style={{
                                         display: 'block',
                                         fontSize: '0.9rem',
                                         fontWeight: '500',
@@ -400,6 +401,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                         Taille de base : {fontSize}px
                                     </label>
                                     <input
+                                        id="settings-font-size"
                                         type="range"
                                         min="12"
                                         max="20"
@@ -495,7 +497,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             gap: '0.5rem',
-                                            transition: 'all var(--transition-fast)',
+                                            transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
                                             boxShadow: 'var(--shadow-md)'
                                         }}
                                         onMouseEnter={(e) => {
@@ -533,7 +535,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             gap: '0.5rem',
-                                            transition: 'all var(--transition-fast)'
+                                            transition: 'background-color var(--transition-fast), border-color var(--transition-fast)'
                                         }}
                                         onMouseEnter={(e) => {
                                             e.currentTarget.style.background = 'var(--bg-secondary)';
@@ -598,7 +600,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                 ) : (
                                     <>
                                         <div style={{ marginBottom: '1.5rem' }}>
-                                            <label style={{
+                                            <label htmlFor="settings-midi-device" style={{
                                                 display: 'block',
                                                 fontSize: '0.9rem',
                                                 fontWeight: '500',
@@ -609,6 +611,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                             </label>
                                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                                 <select
+                                                    id="settings-midi-device"
                                                     value={selectedMidiDevice?.id || ''}
                                                     onChange={(e) => handleMidiDeviceSelect(e.target.value)}
                                                     style={{
@@ -631,6 +634,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                 </select>
                                                 <button
                                                     onClick={handleRefreshMidiDevices}
+                                                    aria-label="Actualiser la liste des périphériques MIDI"
                                                     style={{
                                                         padding: '0.75rem 1rem',
                                                         background: 'var(--bg-tertiary)',
@@ -705,7 +709,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                 {/* Velocity Sensitivity */}
                                                 <div>
-                                                    <label style={{
+                                                    <label htmlFor="settings-velocity" style={{
                                                         display: 'block',
                                                         fontSize: '0.85rem',
                                                         fontWeight: '500',
@@ -715,6 +719,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                         Sensibilité de vélocité : {midiSettings.velocitySensitivity.toFixed(2)}x
                                                     </label>
                                                     <input
+                                                        id="settings-velocity"
                                                         type="range"
                                                         min="0.5"
                                                         max="2.0"
@@ -742,7 +747,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
 
                                                 {/* Latency Compensation */}
                                                 <div>
-                                                    <label style={{
+                                                    <label htmlFor="settings-midi-latency" style={{
                                                         display: 'block',
                                                         fontSize: '0.85rem',
                                                         fontWeight: '500',
@@ -752,6 +757,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                         Compensation de latence : {midiSettings.latencyCompensation}ms
                                                     </label>
                                                     <input
+                                                        id="settings-midi-latency"
                                                         type="range"
                                                         min="-100"
                                                         max="100"
@@ -789,7 +795,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                                 cursor: 'pointer',
                                                                 fontSize: '0.85rem',
                                                                 fontWeight: '500',
-                                                                transition: 'all 0.2s ease'
+                                                                transition: 'opacity 0.2s ease'
                                                             }}
                                                             onMouseEnter={(e) => {
                                                                 e.currentTarget.style.opacity = '0.9';
@@ -811,7 +817,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
 
                                                 {/* A/V latency calibration (sound vs picture) */}
                                                 <div>
-                                                    <label style={{
+                                                    <div style={{
                                                         display: 'block',
                                                         fontSize: '0.85rem',
                                                         fontWeight: '500',
@@ -819,7 +825,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                         marginBottom: '0.5rem'
                                                     }}>
                                                         Synchronisation son / image (LivePlay)
-                                                    </label>
+                                                    </div>
                                                     <p style={{
                                                         fontSize: '0.75rem',
                                                         color: 'var(--text-secondary)',
@@ -853,7 +859,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
 
                                                 {/* Note On Threshold */}
                                                 <div>
-                                                    <label style={{
+                                                    <label htmlFor="settings-note-threshold" style={{
                                                         display: 'block',
                                                         fontSize: '0.85rem',
                                                         fontWeight: '500',
@@ -863,6 +869,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                         Seuil de note minimum : {midiSettings.noteOnThreshold}
                                                     </label>
                                                     <input
+                                                        id="settings-note-threshold"
                                                         type="range"
                                                         min="1"
                                                         max="50"
@@ -890,7 +897,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
 
                                                 {/* MIDI Volume */}
                                                 <div>
-                                                    <label style={{
+                                                    <label htmlFor="settings-midi-volume" style={{
                                                         display: 'block',
                                                         fontSize: '0.85rem',
                                                         fontWeight: '500',
@@ -900,6 +907,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                         Volume MIDI : {midiSettings.midiVolume}%
                                                     </label>
                                                     <input
+                                                        id="settings-midi-volume"
                                                         type="range"
                                                         min="0"
                                                         max="100"
@@ -966,7 +974,7 @@ function TabButton({ active, onClick, label }) {
                 cursor: 'pointer',
                 fontSize: '0.875rem',
                 fontWeight: active ? '600' : '400',
-                transition: 'all var(--transition-fast)',
+                transition: 'background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast)',
                 whiteSpace: 'nowrap'
             }}
             onMouseEnter={(e) => {

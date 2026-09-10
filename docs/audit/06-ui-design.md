@@ -9,19 +9,20 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 - La recherche et le tri de la bibliothèque ont un nom de contrôle ; la recherche désactive l'autocomplétion sans rapport avec l'identité.
 - Les transitions globales ne ciblent plus `all`, ce qui évite d'animer involontairement dimensions et mise en page.
 - Le dock mobile web conserve un contour de focus visible ; les dernières transitions `all` de l'import/export de bibliothèque ont été remplacées par les propriétés réellement animées.
+- Les champs de Réglages et les métadonnées de l'Éditeur sont reliés à leurs libellés. Les commandes de déplacement/renommage de phrase ont un nom accessible et fonctionnent au clavier ; la fenêtre d'import/export expose son rôle de dialogue.
+- Le passage sur les 93 fichiers JS/JSX/CSS actifs ne trouve plus aucune transition `all` : chaque animation cible maintenant couleur, bordure, ombre, opacité ou transformation selon le contrôle.
 - Les préférences de réduction des animations sont déjà prises en compte globalement et sur l'onboarding/la vitrine.
 
 ## Dette d'accessibilité à reprendre
 
-- `Settings.jsx` et `SongEditor.jsx` utilisent souvent un texte `<label>` sans `htmlFor`, donc le texte ne cible pas toujours le champ. Ajouter des identifiants stables et des noms aux contrôles.
 - Plusieurs boutons avec une icône et un `title` seulement doivent recevoir un `aria-label`. Faire un passage composant par composant, sans attribuer automatiquement le même nom à des actions différentes.
 - Les modales doivent toutes piéger le focus, rendre le fond inerte et restaurer le focus au bouton d'ouverture. `Settings`, l'onboarding et la bibliothèque ont chacun une implémentation partielle différente à unifier.
 - Le changement de morceau, de filtre et de mode reste entièrement dans l'état React. Des URL partageables pour les pages principales rendraient retour navigateur, favoris et liens directs prévisibles.
 
 ## Pourquoi l'interface paraît chargée
 
-- Les cinq composants principaux totalisent plus de 5 000 lignes (`LiveLearning`, `Settings`, `SongEditor`, `PlaybackDock`, `LivePlayViewOptimized`) et combinent logique, rendu, variantes responsive et styles ponctuels. Cette structure favorise l'accumulation de contrôles.
-- Au moins 40 règles utilisent du texte de 8 à 10 px. Cette densité fait tenir davantage d'informations mais affaiblit la hiérarchie et la lisibilité.
+- Les huit plus gros composants JSX totalisent plus de 8 400 lignes. `SongEditor`, `LiveLearning`, `PianoRollCanvas`, `LivePlayViewOptimized`, `PianoRollEditor`, `Settings`, `LivePlayCanvas` et `SheetMusicLearning` combinent logique, rendu, variantes responsive et styles ponctuels. Cette structure favorise l'accumulation de contrôles.
+- Le relevé statique compte 82 déclarations de texte entre 8 et 11 px, 479 blocs de styles JSX et 760 couleurs littérales (`#…`, `rgb`, `rgba`) dans 93 fichiers JS/JSX/CSS. Les mockups d'introduction expliquent une partie des petites tailles, mais Coach, dock, bibliothèque et éditeur en contiennent aussi.
 - Les cartes du Coach superposent mesure, rôle, motif, notes, harmonie, degré, rythme et état de lecture. L'information musicale utile doit varier selon l'intention : mémoriser, comprendre ou jouer.
 - Le dock rassemble mains, écoute, tempo, métronome, boucle, navigation, lecture et options de boucle. Les réglages secondaires peuvent apparaître après activation ou dans un panneau contextuel.
 
@@ -37,3 +38,5 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 ## Ordre recommandé pour une future refonte
 
 Faire d'abord un prototype statique du Coach avec une vraie pièce dense, puis le dock, puis Réglages. Valider portrait, paysage, clavier et réduction des animations avant de reporter les mêmes décisions dans Compose. Ne pas commencer par déplacer des couleurs : la surcharge vient surtout du nombre d'informations simultanées.
+
+Le prochain passage de code doit extraire les styles répétés de `SongEditor` et `Settings` vers des composants nommés, puis unifier le piège/restauration de focus des dialogues. Changer la taille ou masquer des informations attendra le brainstorming afin de préserver les choix produit.

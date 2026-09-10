@@ -176,7 +176,7 @@ function CircleSwatch({ title, selected, onClick, color }) {
             boxShadow: selected ? `0 0 0 1px ${color}` : 'none',
             cursor: 'pointer',
             outline: 'none',
-            transition: 'all 120ms ease',
+            transition: 'border-color 120ms ease, box-shadow 120ms ease',
             padding: 0,
         }} />
     );

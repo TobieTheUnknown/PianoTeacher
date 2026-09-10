@@ -53,7 +53,7 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 1.1rem;
-  transition: all var(--transition-normal);
+  transition: background-color var(--transition-normal), border-color var(--transition-normal), color var(--transition-normal);
 }
 
 .metronomeButton.active {
@@ -78,7 +78,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   min-width: 45px;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .divisionButton.active {
@@ -201,7 +201,7 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 0.875rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .resetButton {
@@ -224,7 +224,7 @@
   cursor: pointer;
   font-weight: 500;
   font-size: 0.875rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .modeButton.active {

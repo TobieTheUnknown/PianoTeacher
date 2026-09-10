@@ -759,7 +759,7 @@ function ToggleHandPill({ hand, label, active, onClick }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
-                transition: 'all var(--t-fast)',
+                transition: 'background-color var(--t-fast), border-color var(--t-fast), color var(--t-fast)',
                 cursor: 'pointer',
                 minHeight: 0,
             }}

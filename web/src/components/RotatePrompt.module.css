@@ -50,7 +50,7 @@
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 400;
-  transition: all var(--transition-normal);
+  transition: background-color var(--transition-normal), border-color var(--transition-normal), color var(--transition-normal);
   margin-top: 1rem;
 }
 

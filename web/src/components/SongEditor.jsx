@@ -426,7 +426,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     gap: '1.5rem'
                 }}>
                     <div>
-                        <label style={{
+                        <label htmlFor="song-title" style={{
                             display: 'block',
                             marginBottom: '0.5rem',
                             color: 'var(--text-primary)',
@@ -436,6 +436,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             Titre
                         </label>
                         <input
+                            id="song-title"
                             type="text"
                             value={song.title}
                             onChange={(e) => onUpdateMetadata({ title: e.target.value })}
@@ -443,7 +444,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         />
                     </div>
                     <div>
-                        <label style={{
+                        <label htmlFor="song-tempo" style={{
                             display: 'block',
                             marginBottom: '0.5rem',
                             color: 'var(--text-primary)',
@@ -453,6 +454,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             Tempo (BPM)
                         </label>
                         <input
+                            id="song-tempo"
                             type="number"
                             value={song.tempo}
                             onChange={(e) => onUpdateMetadata({ tempo: parseInt(e.target.value) })}
@@ -460,7 +462,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         />
                     </div>
                     <div>
-                        <label style={{
+                        <div style={{
                             display: 'block',
                             marginBottom: '0.5rem',
                             color: 'var(--text-primary)',
@@ -468,9 +470,10 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             fontSize: '0.875rem'
                         }}>
                             Signature rythmique
-                        </label>
+                        </div>
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                             <input
+                                aria-label="Numérateur de la signature rythmique"
                                 type="number"
                                 value={song.timeSignature?.numerator || 4}
                                 onChange={(e) => onUpdateMetadata({
@@ -485,6 +488,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             />
                             <span style={{ fontSize: '1.25rem', color: 'var(--text-secondary)' }}>/</span>
                             <select
+                                aria-label="Dénominateur de la signature rythmique"
                                 value={song.timeSignature?.denominator || 4}
                                 onChange={(e) => onUpdateMetadata({
                                     timeSignature: {
@@ -502,7 +506,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         </div>
                     </div>
                     <div>
-                        <label style={{
+                        <label htmlFor="song-key" style={{
                             display: 'block',
                             marginBottom: '0.5rem',
                             color: 'var(--text-primary)',
@@ -512,6 +516,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             Tonalité
                         </label>
                         <select
+                            id="song-key"
                             value={(() => {
                                 // Handle both object format {note, mode} and string format
                                 if (!song.key) return 'C';
@@ -666,6 +671,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                             justifyContent: 'center'
                                         }}
                                         title="Monter"
+                                        aria-label={`Monter la phrase ${phrase.name}`}
                                     >
                                         ▲
                                     </button>
@@ -688,6 +694,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                             justifyContent: 'center'
                                         }}
                                         title="Descendre"
+                                        aria-label={`Descendre la phrase ${phrase.name}`}
                                     >
                                         ▼
                                     </button>
@@ -695,6 +702,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
 
                                 {editingPhraseId === phrase.id ? (
                                     <input
+                                        aria-label="Nom de la phrase"
                                         type="text"
                                         value={editingPhraseName}
                                         onChange={(e) => setEditingPhraseName(e.target.value)}
@@ -718,6 +726,14 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 ) : (
                                     <h3
                                         onClick={() => handleStartRename(phrase)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                handleStartRename(phrase);
+                                            }
+                                        }}
+                                        role="button"
+                                        tabIndex={0}
                                         style={{
                                             margin: 0,
                                             fontSize: '1.25rem',
@@ -810,7 +826,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                     flexWrap: 'wrap'
                                 }}>
                                     <div style={{ flex: '1', minWidth: '150px' }}>
-                                        <label style={{
+                                        <label htmlFor={`split-measure-${phrase.id}`} style={{
                                             display: 'block',
                                             marginBottom: '0.5rem',
                                             fontSize: '0.8125rem',
@@ -820,6 +836,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                             {isBatchSplit ? "Intervalle" : "Mesure"}
                                         </label>
                                         <input
+                                            id={`split-measure-${phrase.id}`}
                                             type="number"
                                             value={splitTime}
                                             onChange={(e) => setSplitTime(e.target.value)}
@@ -951,9 +968,13 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                     padding: '2rem'
                 }}
                 onClick={() => setShowImportExportModal(false)}
+                role="presentation"
                 >
                     <div
                         className="card"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="import-export-title"
                         style={{
                             maxWidth: '800px',
                             width: '100%',
@@ -963,7 +984,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h2 style={{
+                        <h2 id="import-export-title" style={{
                             marginBottom: '2rem',
                             fontSize: '1.5rem',
                             fontWeight: '400'
@@ -996,6 +1017,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                             </p>
                             <div style={{ position: 'relative', display: 'inline-block' }}>
                                 <input
+                                    aria-label="Choisir un fichier MIDI à importer"
                                     type="file"
                                     accept=".mid,.midi"
                                     onChange={handleFileChange}
@@ -1064,6 +1086,7 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                                 </button>
                                 <div style={{ position: 'relative', display: 'inline-block' }}>
                                     <input
+                                        aria-label="Choisir un fichier JSON à importer"
                                         type="file"
                                         accept=".json"
                                         onChange={handleImportJson}

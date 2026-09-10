@@ -98,7 +98,7 @@ export function MidiVisualizer({ compact = false }) {
             marginRight: isBlack ? '-15px' : '0',
             zIndex: isBlack ? 2 : 1,
             cursor: 'default',
-            transition: 'all 0.1s ease',
+            transition: 'background-color 0.1s ease, box-shadow 0.1s ease',
             boxShadow: isActive ? '0 0 10px rgba(59, 130, 246, 0.6)' : 'none',
             display: 'flex',
             flexDirection: 'column',

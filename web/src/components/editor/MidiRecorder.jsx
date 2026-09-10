@@ -71,7 +71,7 @@ export function MidiRecorder({
             background: isRecording || isPreRoll ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-elevated)',
             border: `1px solid ${isRecording || isPreRoll ? '#ef4444' : 'var(--border-light)'}`,
             borderRadius: 'var(--radius-md)',
-            transition: 'all 0.2s'
+            transition: 'background-color 0.2s, border-color 0.2s'
         }}>
             <div style={{
                 display: 'flex',

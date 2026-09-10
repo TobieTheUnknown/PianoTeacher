@@ -154,7 +154,7 @@ Symboles :
 
 ## web/src/components/Settings.jsx
 
-986 lignes ; accessible depuis main.jsx
+994 lignes ; accessible depuis main.jsx
 Dépendances locales : services/StorageService.js, services/MidiInputService.js, services/AudioEngine.js, components/MidiVisualizer.jsx, components/MidiLatencyCalibration.jsx, components/LatencyWizard.jsx, components/DesignAppearance.jsx, services/OnboardingService.js, hooks/useDeviceContext.js, components/Settings.module.css
 Symboles : Settings, TabButton
 
@@ -178,7 +178,7 @@ Symboles :
 
 ## web/src/components/SongEditor.jsx
 
-1278 lignes ; accessible depuis main.jsx
+1301 lignes ; accessible depuis main.jsx
 Dépendances locales : utils/timing.js, utils/playbackRange.js, components/PianoRoll.jsx, services/AudioEngine.js, services/MidiService.js, services/StorageService.js, models/song.js, components/MobileHeader.jsx, components/PlaybackDock.jsx
 Symboles : SongEditor, EditorBottomBar
 
