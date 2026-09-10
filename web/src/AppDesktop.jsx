@@ -129,6 +129,7 @@ function App() {
             onLoadSongToLivePlay={handleLoadSongToLivePlay}
             onNewSong={handleNewSong}
             isMobile={isMobile}
+            onOpenSettings={() => setShowSettings(true)}
           />
         )}
         <Suspense fallback={<PageLoadingFallback />}>
@@ -172,8 +173,6 @@ function App() {
         activeMode={mode}
         onChangeMode={handleChangeMode}
         visible={!isLivePlayFullscreen}
-        onOpenSettings={() => setShowSettings(true)}
-        showSettings={showSettings}
       />
 
       {/* Settings Modal */}

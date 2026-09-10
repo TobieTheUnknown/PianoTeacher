@@ -237,7 +237,7 @@
 .transferIcon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: var(--accent-hover); background: var(--accent-dim); }
 .transferCard h3 { margin: 0; font-size: 14px; font-weight: 680; }
 .transferCard > div > p { margin: 5px 0 0; color: var(--text-tertiary); font-size: 10.5px; line-height: 1.55; }
-.fileButton,.transferActions button { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 11px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-1); color: var(--text-secondary); font-size: 10.5px; font-weight: 650; cursor: pointer; transition: all var(--t-fast); }
+.fileButton,.transferActions button { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 11px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-1); color: var(--text-secondary); font-size: 10.5px; font-weight: 650; cursor: pointer; transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
 .fileButton:hover,.transferActions button:hover { color: var(--text-primary); border-color: var(--accent); background: var(--accent-dim); }
 .fileButton input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .transferActions { align-self: end; }

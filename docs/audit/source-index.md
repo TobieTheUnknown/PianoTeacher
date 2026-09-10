@@ -4,7 +4,7 @@ Généré par `python3 scripts/update-source-index.py`. Imports locaux littérau
 
 ## web/src/AppDesktop.jsx
 
-189 lignes ; accessible depuis main.jsx
+188 lignes ; accessible depuis main.jsx
 Dépendances locales : components/Layout.jsx, components/SongLibrary.jsx, components/Settings.jsx, components/TopNavBar.jsx, components/BottomTabBar.jsx, components/AudioLoadingIndicator.jsx, components/LoadingFallback.jsx, components/Onboarding.jsx, services/OnboardingService.js, services/StorageService.js, hooks/useDeviceContext.js, useSong.js, hooks/useMidiAudio.js, components/SongEditor.jsx, components/LiveLearning.jsx, components/SheetMusicLearning.jsx, components/LivePlayViewOptimized.jsx
 Symboles : App
 
@@ -16,13 +16,13 @@ Symboles : AudioLoadingIndicator
 
 ## web/src/components/BottomTabBar.jsx
 
-53 lignes ; accessible depuis main.jsx
-Dépendances locales : components/icons/LibraryIcon.jsx, components/icons/PartitionIcon.jsx, components/icons/LearnIcon.jsx, components/icons/LivePlayIcon.jsx, components/icons/SettingsIcon.jsx, components/BottomTabBar.module.css
+41 lignes ; accessible depuis main.jsx
+Dépendances locales : components/icons/LibraryIcon.jsx, components/icons/PartitionIcon.jsx, components/icons/LearnIcon.jsx, components/icons/LivePlayIcon.jsx, components/BottomTabBar.module.css
 Symboles : BottomTabBar
 
 ## web/src/components/BottomTabBar.module.css
 
-91 lignes ; accessible depuis main.jsx
+96 lignes ; accessible depuis main.jsx
 Dépendances locales : 
 Symboles : 
 
@@ -34,9 +34,9 @@ Symboles : readPref, writePref, applyAttr, DesignAppearance, SectionTitle, Picke
 
 ## web/src/components/ErrorBoundary.jsx
 
-234 lignes ; accessible depuis main.jsx
+220 lignes ; accessible depuis main.jsx
 Dépendances locales : 
-Symboles : ErrorBoundary, withErrorBoundary
+Symboles : ErrorBoundary
 
 ## web/src/components/LatencyWizard.jsx
 
@@ -94,9 +94,9 @@ Symboles : LivePlayViewOptimized, zoomBtnStyle
 
 ## web/src/components/LoadingFallback.jsx
 
-204 lignes ; accessible depuis main.jsx
+68 lignes ; accessible depuis main.jsx
 Dépendances locales : 
-Symboles : LoadingSpinner, PageLoadingFallback, ComponentLoadingFallback, SkeletonLoader, CardSkeleton, ListSkeleton, ProgressLoadingFallback
+Symboles : LoadingSpinner, PageLoadingFallback
 
 ## web/src/components/MidiLatencyCalibration.jsx
 
@@ -166,8 +166,8 @@ Symboles :
 
 ## web/src/components/SheetMusicLearning.jsx
 
-842 lignes ; accessible depuis main.jsx
-Dépendances locales : utils/timing.js, utils/sheetMusic.js, components/PlaybackDock.jsx, services/AudioEngine.js, components/SheetMusicLearning.module.css
+833 lignes ; accessible depuis main.jsx
+Dépendances locales : utils/timing.js, utils/playbackRange.js, utils/sheetMusic.js, components/PlaybackDock.jsx, services/AudioEngine.js, components/SheetMusicLearning.module.css
 Symboles : useSheetTheme, SheetMusicLearning, SheetSystem, SystemMeasure, ToggleHandPill, HandIcon, EmptyState
 
 ## web/src/components/SheetMusicLearning.module.css
@@ -178,14 +178,14 @@ Symboles :
 
 ## web/src/components/SongEditor.jsx
 
-1297 lignes ; accessible depuis main.jsx
-Dépendances locales : utils/timing.js, components/PianoRoll.jsx, services/AudioEngine.js, services/MidiService.js, services/StorageService.js, models/song.js, components/MobileHeader.jsx, components/PlaybackDock.jsx
+1278 lignes ; accessible depuis main.jsx
+Dépendances locales : utils/timing.js, utils/playbackRange.js, components/PianoRoll.jsx, services/AudioEngine.js, services/MidiService.js, services/StorageService.js, models/song.js, components/MobileHeader.jsx, components/PlaybackDock.jsx
 Symboles : SongEditor, EditorBottomBar
 
 ## web/src/components/SongLibrary.jsx
 
-490 lignes ; accessible depuis main.jsx
-Dépendances locales : services/StorageService.js, models/song.js, components/ui/index.js, components/SongLibrary.module.css, services/MidiService.js
+495 lignes ; accessible depuis main.jsx
+Dépendances locales : services/StorageService.js, models/song.js, components/ui/index.js, components/icons/SettingsIcon.jsx, components/SongLibrary.module.css, services/MidiService.js
 Symboles : useDialogFocus, SongLibrary, SongCard, EmptyLibrary, SongDetailDialog, LibraryTransferDialog, Icon, normalizeText, getTimestamp, formatRelativeDate
 
 ## web/src/components/SongLibrary.module.css
@@ -238,7 +238,7 @@ Symboles :
 
 ## web/src/components/editor/canvas/canvasUtils.js
 
-367 lignes ; accessible depuis main.jsx
+277 lignes ; accessible depuis main.jsx
 Dépendances locales : 
 Symboles : 
 
@@ -362,34 +362,10 @@ Symboles : LearnSidebar, fixedKeyboardRange, uniquePitchLabels, HandGuide, HandI
 Dépendances locales : 
 Symboles : gradientForId, Cover
 
-## web/src/components/ui/HandBadge.jsx
-
-78 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : HandRightIcon, HandLeftIcon, HandBadge
-
-## web/src/components/ui/LevelPill.jsx
-
-30 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : LevelPill
-
-## web/src/components/ui/MonoStat.jsx
-
-41 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : MonoStat
-
-## web/src/components/ui/Pill.jsx
-
-25 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : Pill
-
 ## web/src/components/ui/index.js
 
-9 lignes ; accessible depuis main.jsx
-Dépendances locales : components/ui/Cover.jsx, components/ui/LevelPill.jsx, components/ui/Pill.jsx, components/ui/HandBadge.jsx, components/ui/MonoStat.jsx
+5 lignes ; accessible depuis main.jsx
+Dépendances locales : components/ui/Cover.jsx
 Symboles : 
 
 ## web/src/hooks/useCanvasLayers.js
@@ -466,13 +442,13 @@ Symboles : removeSplash
 
 ## web/src/models/song.js
 
-304 lignes ; accessible depuis main.jsx
+301 lignes ; accessible depuis main.jsx
 Dépendances locales : 
 Symboles : 
 
 ## web/src/services/AudioEngine.js
 
-549 lignes ; accessible depuis main.jsx
+538 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js
 Symboles : loadTone, AudioEngine
 
@@ -532,9 +508,9 @@ Symboles : analyzeSong
 
 ## web/src/utils/chordDetection.js
 
-753 lignes ; accessible depuis main.jsx
+731 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js
-Symboles : getChordDegree, identifyChord, intervalsMatch, getRootName, arpeggioToChord, capitalizeNote, formatChordDisplayName, detectArpeggioMotifs, formatArpeggioBadge, identifyChordWithTolerance, noteLabelForPitchClass, getMeasureHarmony, qualifyOstinatoMeasure, qualifyPedalMeasure, qualifyArpeggioMeasure
+Symboles : getChordDegree, identifyChord, intervalsMatch, getRootName, capitalizeNote, formatChordDisplayName, detectArpeggioMotifs, formatArpeggioBadge, identifyChordWithTolerance, noteLabelForPitchClass, getMeasureHarmony, qualifyOstinatoMeasure, qualifyPedalMeasure, qualifyArpeggioMeasure
 
 ## web/src/utils/measureUtils.js
 
@@ -544,9 +520,15 @@ Symboles : getMeasuresFromPhrase, groupNotesByTime
 
 ## web/src/utils/phraseEditing.js
 
-58 lignes ; accessible depuis main.jsx
+61 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js
 Symboles : separatorAt, splitPhraseAtMeasure, mergePhrases
+
+## web/src/utils/playbackRange.js
+
+42 lignes ; accessible depuis main.jsx
+Dépendances locales : utils/timing.js
+Symboles : notesInPlaybackRange, phrasePlaybackRange
 
 ## web/src/utils/repeatedMotifs.js
 

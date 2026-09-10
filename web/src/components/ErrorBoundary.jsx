@@ -155,7 +155,7 @@ export class ErrorBoundary extends React.Component {
                   fontSize: '1rem',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  transition: 'all var(--transition-normal)'
+                  transition: 'transform var(--transition-normal), box-shadow var(--transition-normal)'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-2px)';
@@ -180,7 +180,7 @@ export class ErrorBoundary extends React.Component {
                   fontSize: '1rem',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  transition: 'all var(--transition-normal)'
+                  transition: 'background-color var(--transition-normal)'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'var(--bg-hover)';
@@ -217,18 +217,4 @@ export class ErrorBoundary extends React.Component {
 
     return this.props.children;
   }
-}
-
-/**
- * Wrapper fonctionnel pour ErrorBoundary
- * Permet d'utiliser des hooks dans le parent
- */
-export function withErrorBoundary(Component, errorBoundaryProps = {}) {
-  return function WithErrorBoundaryComponent(props) {
-    return (
-      <ErrorBoundary {...errorBoundaryProps}>
-        <Component {...props} />
-      </ErrorBoundary>
-    );
-  };
 }

@@ -40,6 +40,8 @@ SoundPool attend maintenant ses callbacks réels au lieu d'un délai fixe. Le d�
 - Live joue depuis la timeline complète ; `visibleNotes` devient une projection du temps audio et ne décide plus quelles attaques sont entendues.
 - Le scrub Live parcourt la timeline dans les deux sens, auditionne au plus le dernier accord traversé et déduplique les attaques pendant un geste.
 - L'indicateur du bouton Lecture rend visible l'attente du chargement initial au lieu de lancer une session SoundPool puis de changer d'enveloppe en cours de morceau.
+- Une reprise au milieu d'une note tenue la réattaque pour sa durée restante sur Web et Android. Une position située à la fin termine immédiatement la lecture, et une reprise hors de la plage d'une boucle revient à son début avant toute émission sonore.
+- L'écoute isolée d'une phrase ou d'une plage de mesures projette temporairement les notes commencées avant la coupe et encore tenues. Les données du morceau gardent une seule attaque : une lecture complète ne crée donc aucun redoublement à la frontière.
 
 ## Vérification sur Pixel 8 Pro
 

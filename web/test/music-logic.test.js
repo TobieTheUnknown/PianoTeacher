@@ -345,6 +345,28 @@ test('split and merge preserve measure positions, trailing silence and hand sepa
     assert.deepEqual(merged.handSeparators, phrase.handSeparators);
 });
 
+test('compound-meter split keeps crossing holds without clipping or duplicate attacks', () => {
+    const phrase = {
+        id: 'p', name: 'P', length: 4,
+        tracks: {
+            melody: [{ id: 'held', pitch: 60, startTime: 5, duration: 4 }, { id: 'edge', pitch: 64, startTime: 6, duration: 1 }],
+            chords: [{ id: 'bass', pitch: 48, startTime: 0, duration: 10 }, { id: 'later', pitch: 52, startTime: 8, duration: 1 }],
+        },
+        handSeparators: [{ fromMeasure: 0, pitch: 59 }],
+    };
+    const [before, after] = splitPhraseAtMeasure(phrase, 2, 3, 'B');
+    assert.equal(before.tracks.melody[0].duration, 4);
+    assert.equal(before.tracks.chords[0].duration, 10);
+    assert.equal(after.tracks.melody[0].startTime, 0);
+    assert.equal(after.tracks.chords[0].startTime, 2);
+    assert.deepEqual(after.handSeparators, [{ fromMeasure: 0, pitch: 59 }]);
+    assert.deepEqual(mergePhrases(before, after, 3).tracks, phrase.tracks);
+    assert.equal(mergePhrases(before, after, 3).length, 4);
+    for (const units of [0, -1, NaN, Infinity]) {
+        assert.equal(splitPhraseAtMeasure(phrase, 2, units, 'B'), null);
+    }
+});
+
 test('damaged library survives save, delete and merge attempts', () => {
     const previousStorage = globalThis.localStorage;
     globalThis.localStorage = new MemoryStorage();

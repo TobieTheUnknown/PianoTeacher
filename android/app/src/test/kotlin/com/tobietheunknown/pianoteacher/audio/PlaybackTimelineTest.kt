@@ -4,6 +4,8 @@ import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Phrase
 import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.data.model.Tracks
+import com.tobietheunknown.pianoteacher.data.model.TimeSignature
+import com.tobietheunknown.pianoteacher.utils.splitPhraseAtMeasure
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -43,6 +45,24 @@ class PlaybackTimelineTest {
         assertEquals(6.5, timelineEvents(notes).first { !it.isOn }.beat, 1e-9)
     }
 
+    @Test fun `isolated compound-meter phrase restores holds without adding full-score attacks`() {
+        val originalPhrase = Phrase("p", "P", 4, Tracks(
+            melody = listOf(NoteEvent("held", 60, 5.0, 4.0), NoteEvent("edge", 64, 6.0, 1.0)),
+            chords = listOf(NoteEvent("bass", 48, 0.0, 10.0)),
+        ))
+        val (before, after) = splitPhraseAtMeasure(originalPhrase, 2, 3.0)!!
+        val song = Song("s", "S", timeSignature = TimeSignature(6, 8), phrases = listOf(before, after))
+        val isolated = phraseTimeline(song, 1)
+        assertEquals(listOf(48, 60, 64), isolated.map { it.note.pitch })
+        assertEquals(listOf(0.0, 0.0, 0.0), isolated.map { it.note.startTime })
+        assertEquals(listOf(4.0, 3.0, 1.0), isolated.map { it.note.duration })
+        val unsplit = songTimeline(song.copy(phrases = listOf(originalPhrase))).map { it.note }
+        assertEquals(unsplit, songTimeline(song).map { it.note })
+        assertEquals(3, timelineEvents(songTimeline(song)).count { it.isOn })
+        assertEquals(4.0, before.tracks.melody.single().duration, 0.0)
+        assertEquals(1, after.tracks.melody.size)
+    }
+
     @Test fun `scrub attacks work in both directions without reauditioning boundary`() {
         val notes = listOf(note(0, 60, 1.0, 1.0), note(1, 64, 2.0, 1.0), note(2, 67, 3.0, 1.0))
         assertEquals(listOf(1, 2), crossedNotes(notes, 1.0, 3.0).map { it.occurrence })
@@ -60,9 +80,10 @@ class PlaybackTimelineTest {
 
     private class FakeAudio : PlaybackAudio {
         val events = mutableListOf<Pair<String, Long>>()
+        val pitches = mutableListOf<Int>()
         var nextId = 1L
         override suspend fun awaitReady() = true
-        override fun playVoice(pitch: Int, velocity: Int): Long = nextId++.also { events += "on" to it }
+        override fun playVoice(pitch: Int, velocity: Int): Long = nextId++.also { events += "on" to it; pitches += pitch }
         override fun stopVoice(id: Long) { events += "off" to id }
         override fun playClick(isAccent: Boolean, amplitude: Float) = Unit
     }
@@ -169,6 +190,33 @@ class PlaybackTimelineTest {
         assertFalse(TimelineTransport(deniedAudio, listOf(note(0, 60, 0.0, 1.0)), 4.0).run(
             0.0, { TransportSettings(1.0, 0.0, 4.0) }, { true }, { emptySet() }, { _, _ -> },
         ))
+        assertTrue(audio.events.isEmpty())
+    }
+
+    @Test fun `seek outside a loop resumes only notes held or attacked at loop start`() = runBlocking {
+        for (initialBeat in listOf(0.5, 8.0)) {
+            val audio = FakeAudio()
+            withTimeout(2000) {
+                TimelineTransport(audio, listOf(
+                    note(0, 48, 0.0, 1.0),
+                    note(1, 60, 1.0, 2.0),
+                    note(2, 64, 2.0, 1.0),
+                    note(3, 72, 7.0, 2.0),
+                ), 4.0).run(
+                    initialBeat, { TransportSettings(20.0, 2.0, 4.0, loop = audio.nextId == 1L) },
+                    { true }, { emptySet() }, { _, _ -> },
+                )
+            }
+            assertEquals(listOf(60, 64), audio.pitches)
+            assertEquals(2, audio.events.count { it.first == "off" })
+        }
+    }
+
+    @Test fun `seek at score end does not briefly attack a note extending beyond it`() = runBlocking {
+        val audio = FakeAudio()
+        TimelineTransport(audio, listOf(note(0, 60, 3.0, 4.0)), 4.0).run(
+            4.0, { TransportSettings(1.0, 0.0, 4.0) }, { true }, { emptySet() }, { _, _ -> },
+        )
         assertTrue(audio.events.isEmpty())
     }
 }

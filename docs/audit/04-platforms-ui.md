@@ -27,6 +27,10 @@ Android = Kotlin/Compose autonome. Desktop = React/Tauri. Web et Pages = le mêm
 
 Graphe depuis `main.jsx` et recherche de références : suppression des anciens contrôles LivePlay, cartes/guides/barres learn, styles et barrel obsolètes, icône éditeur inutilisée, définitions locales non appelées de LiveLearning et ancienne cible mobile Tauri.
 
+Le passage Éditeur/Live a aussi retiré le logo de démarrage Vite, quatre primitives React exportées mais jamais importées (`HandBadge`, `LevelPill`, `MonoStat`, `Pill`), les imports Compose inutilisés de l'éditeur et des paramètres UI sans consommateur.
+
+Les helpers de canvas non importés, le HOC d'erreur sans consommateur, les exports de notes/octaves inutilisés et l'ancien convertisseur arpège-vers-accord ont également été retirés. Chaque retrait a été précédé d'une recherche dans les points d'entrée et les tests.
+
 ## Réglages et sauvegardes
 
 Les interrupteurs MIDI Android ne pilotaient pas le scanner : ils écrivaient seulement les préférences. Le cycle de vie de MainActivity applique maintenant USB/BLE et le résultat des permissions. Les autres réglages demandent encore une vérification de leur utilisation effective. Les défauts de sauvegarde et les migrations sont détaillés dans `02-music.md`.
@@ -36,7 +40,10 @@ Deux autres préférences sans effet ont été raccordées : « Son activé » p
 ## Navigation, introduction et pratique Android
 
 - Réglages reste accessible dans l'en-tête de la bibliothèque et a été retiré des onglets.
+- Même règle sur le front web responsive : Réglages se trouve dans l'en-tête de Bibliothèque et n'occupe plus un cinquième emplacement du dock mobile.
 - Éditeur précède Partition dans la navigation ; un réglage permet de masquer cet onglet. Son ancien dock sans playback réel a été retiré : l'écran se concentre sur découper et fusionner les phrases.
+- Les sauvegardes successives de l'éditeur Android passent par un écrivain ordonné : deux coupes/fusions rapides ne peuvent plus être persistées dans l'ordre inverse. Une fusion dont l'index est devenu périmé est ignorée proprement.
+- Couper une phrase déplace les attaques situées après la coupe sans tronquer une tenue commencée avant elle. L'écoute isolée restaure cette tenue par une projection non persistée, sur Web et Android.
 - Les choix onboarding « cap » et « rythme » étaient seulement stockés puis réaffichés. Ce code a été retiré au profit d'explications concrètes sur la barre de transport, les mains, la boucle, le découpage/fusion et les gestes Live.
 - Si l'utilisateur indique ne pas prévoir de clavier MIDI, Live démarre en écoute des deux mains ; Partition et Coach conservent aussi ce défaut.
 - Live accepte un glissement à un doigt pour parcourir la piste avec préécoute ; la piste suit le doigt, donc descendre avance et monter recule. Dès qu'un second doigt participe, le déplacement temporel est gelé et seul le zoom est appliqué.

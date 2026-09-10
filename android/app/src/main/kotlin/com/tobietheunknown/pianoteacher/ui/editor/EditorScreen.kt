@@ -10,9 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCut
@@ -24,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -303,7 +302,7 @@ private fun PhraseCard(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(horizontal = 12.dp)
-                                .clickable { editing = true },
+                                .clickable(role = Role.Button) { editing = true },
                         )
                     }
                     StepperBtn("+", enabled = splitAtMeasure < length - 1) { onSplitAtChange(splitAtMeasure + 1) }
@@ -426,7 +425,7 @@ private fun StepperBtn(label: String, enabled: Boolean, onClick: () -> Unit) {
             .clip(RoundedCornerShape(6.dp))
             .background(SurfaceVariant)
             .border(1.dp, BorderColor, RoundedCornerShape(6.dp))
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(label, color = TextSecondary, fontWeight = FontWeight.Bold, fontSize = 16.sp)

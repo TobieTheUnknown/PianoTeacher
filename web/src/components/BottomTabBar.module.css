@@ -56,9 +56,14 @@
   background: transparent;
 }
 
-.tab:focus,
-.tab:focus-visible {
+.tab:focus {
   outline: none;
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: var(--focus-ring);
 }
 
 .tabActive {

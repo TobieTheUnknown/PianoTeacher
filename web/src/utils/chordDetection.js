@@ -144,28 +144,6 @@ function getRootName(pitchClass, keySignature) {
     return NOTE_NAMES[correctedName] || correctedName;
 }
 
-/**
- * Wrapper: extract MIDI pitches from chord groups and identify the chord.
- * @param {Array<{notes: Array<{pitch: number|string}>}>} chordGroups
- * @param {object} keySignature
- * @returns {{ rootName: string, quality: string, displayName: string } | null}
- */
-export function arpeggioToChord(chordGroups, keySignature) {
-    if (!chordGroups || chordGroups.length === 0) return null;
-
-    const midiPitches = [];
-    for (const group of chordGroups) {
-        for (const note of group.notes) {
-            const pitch = typeof note.pitch === 'number'
-                ? note.pitch
-                : getMidiNumber(note.pitch);
-            if (pitch !== null) midiPitches.push(pitch);
-        }
-    }
-
-    return identifyChord(midiPitches, keySignature);
-}
-
 /** Capitalize the first letter only: "mib"/"MIB" → "Mib". */
 function capitalizeNote(name) {
     if (!name) return name;

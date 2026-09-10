@@ -1,4 +1,5 @@
 import { quarterNotesPerMeasure } from '../utils/timing.js';
+import { phrasePlaybackRange } from '../utils/playbackRange.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
@@ -85,11 +86,20 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
         const timeSignature = song.timeSignature || { numerator: 4, denominator: 4 };
         const beatsPerMeasure = quarterNotesPerMeasure(timeSignature);
         const tempo = Math.max(20, Math.round((song.tempo || 120) * (dockSpeed / 100)));
+        const startPhraseIndex = song.phrases.findIndex(p => p.id === phrase.id);
+        const playbackPhrase = phrasePlaybackRange(song, startPhraseIndex, !dockLoop) || phrase;
+        const combinedPhrase = {
+            ...playbackPhrase,
+            tracks: {
+                melody: dockHandMode === 'left' ? [] : playbackPhrase.tracks.melody,
+                chords: dockHandMode === 'right' ? [] : playbackPhrase.tracks.chords,
+            },
+        };
 
         if (dockLoop) {
             // Loop mode: play only the active phrase on a loop (existing behaviour).
             audioEngine.playPhrase(
-                phrase,
+                combinedPhrase,
                 tempo,
                 null,
                 true,
@@ -102,35 +112,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
             );
             return;
         }
-
-        // Non-loop mode: build a combined phrase from the active phrase
-        // through the end of the song so playback continues seamlessly.
-        const startPhraseIndex = song.phrases.findIndex(p => p.id === phrase.id);
-        const phrasesToPlay = startPhraseIndex >= 0
-            ? song.phrases.slice(startPhraseIndex)
-            : [phrase];
-
-        const melody = [];
-        const chords = [];
-        let beatOffset = 0;
-        phrasesToPlay.forEach((p) => {
-            p.tracks.melody.forEach((n) => {
-                melody.push({ ...n, startTime: n.startTime + beatOffset });
-            });
-            p.tracks.chords.forEach((n) => {
-                chords.push({ ...n, startTime: n.startTime + beatOffset });
-            });
-            beatOffset += p.length * beatsPerMeasure;
-        });
-
-        // Apply hand-mode filter.
-        const filteredMelody = dockHandMode === 'left' ? [] : melody;
-        const filteredChords = dockHandMode === 'right' ? [] : chords;
-
-        const combinedPhrase = {
-            tracks: { melody: filteredMelody, chords: filteredChords },
-            length: phrasesToPlay.reduce((s, p) => s + p.length, 0),
-        };
 
         // Track which phrase the playhead is currently in during playback
         // by watching audioEngine transport position.

@@ -9,8 +9,10 @@ fun splitPhraseAtMeasure(
     unitsPerMeasure: Double,
     newName: String = "${phrase.name} bis",
 ): Pair<Phrase, Phrase>? {
-    if (splitMeasure <= 0 || splitMeasure >= phrase.length) return null
+    if (splitMeasure <= 0 || splitMeasure >= phrase.length || !unitsPerMeasure.isFinite() || unitsPerMeasure <= 0) return null
     val splitTime = splitMeasure * unitsPerMeasure
+    // Keep crossing holds with their attack: splitting must not add a reattack
+    // or shorten a note when playing the complete song or merging it again.
     fun partition(notes: List<NoteEvent>) = notes.filter { it.startTime < splitTime } to
         notes.filter { it.startTime >= splitTime }.map { it.copy(startTime = it.startTime - splitTime) }
     val (melodyBefore, melodyAfter) = partition(phrase.tracks.melody)

@@ -1,4 +1,5 @@
 import { quarterNotesPerMeasure } from '../utils/timing.js';
+import { notesInPlaybackRange } from '../utils/playbackRange.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     flattenSongMeasures,
@@ -324,11 +325,10 @@ export function SheetMusicLearning({ song, isMobile = false }) {
         const buildPhrase = (startMeasure, endMeasure) => {
             const startUnit = (startMeasure - 1) * beatsPerMeasure;
             const endUnit = endMeasure * beatsPerMeasure;
-            const inRange = (n) => n.startTime >= startUnit && n.startTime < endUnit;
             return {
                 tracks: {
-                    melody: filteredAll.tracks.melody.filter(inRange),
-                    chords: filteredAll.tracks.chords.filter(inRange),
+                    melody: notesInPlaybackRange(filteredAll.tracks.melody, startUnit, endUnit),
+                    chords: notesInPlaybackRange(filteredAll.tracks.chords, startUnit, endUnit),
                 },
                 length: endMeasure - startMeasure + 1,
             };
@@ -340,17 +340,8 @@ export function SheetMusicLearning({ song, isMobile = false }) {
             if (metronome) audioEngine.startMetronome(tempo, metronomeSubdivision);
             const phrase = buildPhrase(startMeasure, endMeasure);
             const startBeats = 0; // phrase already starts at 0 after slicing
-            // Translate note times so the slice starts at 0 in the phrase.
-            const startUnit = (startMeasure - 1) * beatsPerMeasure;
-            const shifted = {
-                tracks: {
-                    melody: phrase.tracks.melody.map((n) => ({ ...n, startTime: n.startTime - startUnit })),
-                    chords: phrase.tracks.chords.map((n) => ({ ...n, startTime: n.startTime - startUnit })),
-                },
-                length: phrase.length,
-            };
             audioEngine.playPhrase(
-                shifted,
+                phrase,
                 tempo,
                 startBeats,
                 true,

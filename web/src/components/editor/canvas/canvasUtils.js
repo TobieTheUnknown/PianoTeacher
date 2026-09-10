@@ -215,70 +215,6 @@ export const calculateResizeDuration = (originalNote, deltaX, {
 };
 
 /**
- * Throttle function for performance
- */
-export const throttle = (fn, delay) => {
-    let lastCall = 0;
-    let timeoutId = null;
-
-    return (...args) => {
-        const now = Date.now();
-        const remaining = delay - (now - lastCall);
-
-        if (remaining <= 0) {
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
-            }
-            lastCall = now;
-            fn(...args);
-        } else if (!timeoutId) {
-            timeoutId = setTimeout(() => {
-                lastCall = Date.now();
-                timeoutId = null;
-                fn(...args);
-            }, remaining);
-        }
-    };
-};
-
-/**
- * Debounce function for resize/scroll events
- */
-export const debounce = (fn, delay) => {
-    let timeoutId = null;
-
-    return (...args) => {
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-        }
-        timeoutId = setTimeout(() => {
-            fn(...args);
-            timeoutId = null;
-        }, delay);
-    };
-};
-
-/**
- * Get cursor style based on interaction state
- */
-export const getCursorStyle = (state) => {
-    if (state.isDragging) {
-        return state.dragType === 'resize' ? 'ew-resize' : 'grabbing';
-    }
-    if (state.isOverNote) {
-        return state.isOverResizeHandle ? 'ew-resize' : 'grab';
-    }
-    if (state.isOverPianoKey) {
-        return 'pointer';
-    }
-    if (state.isOverHeader) {
-        return 'pointer';
-    }
-    return 'crosshair';
-};
-
-/**
  * Calculate scroll position to center on a beat
  */
 export const calculateScrollToCenter = (beat, {
@@ -338,30 +274,4 @@ export const calculateAutoScroll = (mouseX, mouseY, {
     }
 
     return { dx, dy };
-};
-
-/**
- * Format beat position for display
- */
-export const formatBeatPosition = (beat, beatsPerMeasure) => {
-    const measure = Math.floor(beat / beatsPerMeasure) + 1;
-    const beatInMeasure = (beat % beatsPerMeasure) + 1;
-    const tick = Math.round((beatInMeasure % 1) * 480); // Standard MIDI ticks
-
-    if (tick === 0) {
-        return `${measure}.${Math.floor(beatInMeasure)}`;
-    }
-    return `${measure}.${Math.floor(beatInMeasure)}.${tick}`;
-};
-
-/**
- * Format duration for display
- */
-export const formatDuration = (duration) => {
-    if (duration >= 4) return `${duration / 4} mesure${duration >= 8 ? 's' : ''}`;
-    if (duration >= 1) return `${duration} temps`;
-    if (duration >= 0.5) return `${duration * 2}/2`;
-    if (duration >= 0.25) return `${duration * 4}/4`;
-    if (duration >= 0.125) return `${duration * 8}/8`;
-    return `${duration * 16}/16`;
 };

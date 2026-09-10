@@ -8,6 +8,7 @@ import com.tobietheunknown.pianoteacher.data.model.Song
 import com.tobietheunknown.pianoteacher.data.repository.SongRepository
 import com.tobietheunknown.pianoteacher.utils.mergePhrases
 import com.tobietheunknown.pianoteacher.utils.splitPhraseAtMeasure
+import com.tobietheunknown.pianoteacher.utils.OrderedSongSaver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,7 @@ class EditorViewModel(
 
     private val _song = MutableStateFlow<Song?>(null)
     val song: StateFlow<Song?> = _song.asStateFlow()
+    private val songSaver = OrderedSongSaver(viewModelScope, repo::updateSong)
 
     init {
         viewModelScope.launch {
@@ -48,15 +50,15 @@ class EditorViewModel(
 
         val updated = s.copy(phrases = phrases)
         _song.value = updated
-        viewModelScope.launch { repo.updateSong(updated) }
+        songSaver.enqueue(updated)
     }
 
     fun mergePhraseWithPrevious(phraseIndex: Int) {
         if (phraseIndex <= 0) return
         val s = _song.value ?: return
         val phrases = s.phrases.toMutableList()
-        val prev = phrases[phraseIndex - 1]
-        val cur = phrases[phraseIndex]
+        val prev = phrases.getOrNull(phraseIndex - 1) ?: return
+        val cur = phrases.getOrNull(phraseIndex) ?: return
 
         val beatsPerMeasure = s.beatsPerMeasure
         val combined = mergePhrases(prev, cur, beatsPerMeasure)
@@ -66,18 +68,7 @@ class EditorViewModel(
 
         val updated = s.copy(phrases = phrases)
         _song.value = updated
-        viewModelScope.launch { repo.updateSong(updated) }
-    }
-
-    fun renamePhrase(phraseIndex: Int, newName: String) {
-        val s = _song.value ?: return
-        val phrases = s.phrases.toMutableList()
-        val target = phrases.getOrNull(phraseIndex) ?: return
-        phrases[phraseIndex] = target.copy(name = newName.ifBlank { target.name })
-
-        val updated = s.copy(phrases = phrases)
-        _song.value = updated
-        viewModelScope.launch { repo.updateSong(updated) }
+        songSaver.enqueue(updated)
     }
 
     class Factory(private val context: Context, private val songId: String) : ViewModelProvider.Factory {

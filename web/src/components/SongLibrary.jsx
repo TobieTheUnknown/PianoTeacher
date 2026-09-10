@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StorageService } from '../services/StorageService';
 import { getFrenchKeyName } from '../models/song';
 import { Cover } from './ui';
+import { SettingsIcon } from './icons/SettingsIcon';
 import styles from './SongLibrary.module.css';
 
 const FILTERS = [
@@ -52,12 +53,12 @@ function useDialogFocus() {
 }
 
 export function SongLibrary({
-    onLoadSong,
     onLearnSong,
     onEditSong,
     onViewSheet,
     onNewSong,
     onLoadSongToLivePlay,
+    onOpenSettings,
     isMobile = false,
 }) {
     const [songs, setSongs] = useState([]);
@@ -133,7 +134,7 @@ export function SongLibrary({
             .sort((a, b) => getTimestamp(b.song) - getTimestamp(a.song))[0]
     ), [enrichedSongs]);
 
-    const learnSong = onLearnSong || onLoadSong;
+    const learnSong = onLearnSong;
 
     const handleDelete = (song) => {
         if (!window.confirm(`Supprimer « ${song.title || 'Sans titre'} » de la bibliothèque ?`)) return;
@@ -201,6 +202,10 @@ export function SongLibrary({
                     <p className={styles.subtitle}>Votre répertoire de travail</p>
                 </div>
                 <div className={styles.headerActions}>
+                    <button aria-label="Ouvrir les réglages" className={styles.secondaryButton} onClick={onOpenSettings}>
+                        <SettingsIcon size={18} strokeWidth={1.7} aria-hidden="true" focusable="false" />
+                        <span>Réglages</span>
+                    </button>
                     <button aria-label="Importer ou exporter" className={styles.secondaryButton} onClick={() => setShowLibraryModal(true)}>
                         <Icon kind="transfer" />
                         <span>Importer</span>

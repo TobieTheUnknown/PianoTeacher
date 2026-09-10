@@ -10,6 +10,7 @@ import com.tobietheunknown.pianoteacher.audio.TimelineTransport
 import com.tobietheunknown.pianoteacher.audio.TransportSettings
 import com.tobietheunknown.pianoteacher.audio.scrubAuditionNotes
 import com.tobietheunknown.pianoteacher.audio.songTimeline
+import com.tobietheunknown.pianoteacher.audio.phraseTimeline
 import com.tobietheunknown.pianoteacher.audio.audioPlaybackDispatcher
 import com.tobietheunknown.pianoteacher.data.model.NoteEvent
 import com.tobietheunknown.pianoteacher.data.model.Phrase
@@ -213,12 +214,9 @@ class LivePlayViewModel(
 
     private fun timelineNotes(): List<TimelineNote> {
         val state = _state.value
-        val phrase = state.currentPhrase
-        return if (phrase == null) state.song?.let(::songTimeline).orEmpty() else {
-            var occurrence = 0
-            (phrase.tracks.melody.map { TimelineNote(occurrence++, it, true) } +
-                phrase.tracks.chords.map { TimelineNote(occurrence++, it, false) }).sortedBy { it.note.startTime }
-        }
+        val song = state.song ?: return emptyList()
+        return if (state.currentPhrase == null) songTimeline(song)
+            else phraseTimeline(song, state.currentPhraseIndex)
     }
 
     private fun shouldAutoPlay(note: TimelineNote): Boolean {

@@ -134,9 +134,6 @@ export const getFrenchKeyName = (key) => {
     return 'Do Majeur'; // Default
 };
 
-export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-export const OCTAVES = [2, 3, 4, 5];
-
 // Get the correct enharmonic spelling for a note based on key signature
 export const getEnharmonicNote = (note, keySignature) => {
     const normalizedKey = normalizeKeySignature(keySignature, null);

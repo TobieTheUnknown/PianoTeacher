@@ -26,6 +26,23 @@ fun songTimeline(song: Song): List<TimelineNote> {
     }.sortedBy { it.note.startTime }
 }
 
+/** Audition-only projection restores incoming holds without duplicating stored attacks. */
+fun phraseTimeline(song: Song, phraseIndex: Int): List<TimelineNote> {
+    val phrase = song.phrases.getOrNull(phraseIndex) ?: return emptyList()
+    val start = song.phrases.take(phraseIndex).sumOf { it.length } * song.beatsPerMeasure
+    val end = start + phrase.length * song.beatsPerMeasure
+    if (end <= start) return emptyList()
+    return songTimeline(song).filter {
+        it.note.startTime < end && it.note.startTime + it.note.duration > start
+    }.map {
+        val onset = maxOf(start, it.note.startTime)
+        it.copy(note = it.note.copy(
+            startTime = onset - start,
+            duration = minOf(end, it.note.startTime + it.note.duration) - onset,
+        ))
+    }
+}
+
 data class TimelineEvent(val beat: Double, val note: TimelineNote, val isOn: Boolean)
 
 /** Off-before-on ordering preserves a reattack at exactly the previous release. */
@@ -105,12 +122,18 @@ class TimelineTransport(
         val voices = mutableMapOf<Int, Long>()
         fun silence() { voices.values.forEach(audio::stopVoice); voices.clear() }
         val events = timelineEvents(notes)
-        var cursor = TimelineCursor(events, initialBeat)
-        val clock = MonotonicBeatClock(initialBeat, System.nanoTime())
+        val initialConfig = settings()
+        // Seeking beyond either loop edge resumes at its start, never by briefly
+        // restoring notes at the unrelated seek position or carrying it as drift.
+        val startBeat = if (initialConfig.loop &&
+            (initialBeat < initialConfig.startBeat || initialBeat >= initialConfig.endBeat)
+        ) initialConfig.startBeat else initialBeat.coerceAtMost(initialConfig.endBeat)
+        var cursor = TimelineCursor(events, startBeat)
+        val clock = MonotonicBeatClock(startBeat, System.nanoTime())
         var lastPublish = 0L
         var lastClick = -1L
         fun resumeHeld(beat: Double) {
-            notes.filter { it.note.startTime < beat && it.note.startTime + it.note.duration > beat && autoPlay(it) }
+            notes.filter { it.note.pitch in 0..127 && it.note.startTime < beat && it.note.startTime + it.note.duration > beat && autoPlay(it) }
                 .forEach { voices[it.occurrence] = audio.playVoice(it.note.pitch, 80) }
         }
         fun expectedAt(beat: Double) = notes.asSequence()
@@ -133,13 +156,13 @@ class TimelineTransport(
                     delay(4)
                 }
             }
-            clock.seek(initialBeat, System.nanoTime())
-            resumeHeld(initialBeat)
+            clock.seek(startBeat, System.nanoTime())
+            if (startBeat < settings().endBeat) resumeHeld(startBeat)
             while (currentCoroutineContext().isActive) {
                 if (!audio.isPlaybackActive(session)) return false
                 val config = settings()
                 if (config.endBeat <= config.startBeat) break
-                if (config.loop && clock.beat < config.startBeat) {
+                if (config.loop && (clock.beat < config.startBeat || clock.beat >= config.endBeat)) {
                     silence()
                     clock.seek(config.startBeat, System.nanoTime())
                     cursor = TimelineCursor(events, config.startBeat)

@@ -8,6 +8,7 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 - La zone plein écran de LivePlay mobile et son bouton retour ont un nom accessible.
 - La recherche et le tri de la bibliothèque ont un nom de contrôle ; la recherche désactive l'autocomplétion sans rapport avec l'identité.
 - Les transitions globales ne ciblent plus `all`, ce qui évite d'animer involontairement dimensions et mise en page.
+- Le dock mobile web conserve un contour de focus visible ; les dernières transitions `all` de l'import/export de bibliothèque ont été remplacées par les propriétés réellement animées.
 - Les préférences de réduction des animations sont déjà prises en compte globalement et sur l'onboarding/la vitrine.
 
 ## Dette d'accessibilité à reprendre

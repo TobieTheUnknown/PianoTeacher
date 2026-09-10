@@ -3,7 +3,3 @@
  * Tokens live in src/styles/tokens.css.
  */
 export { Cover } from './Cover';
-export { LevelPill } from './LevelPill';
-export { Pill } from './Pill';
-export { HandBadge, HandRightIcon, HandLeftIcon } from './HandBadge';
-export { MonoStat } from './MonoStat';

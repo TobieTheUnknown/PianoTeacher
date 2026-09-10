@@ -418,12 +418,12 @@ private fun MeasureCardCompact(
                 rightSegments.any { it.repetitions > 1 } ->
                     RepeatedMotifRows(rightSegments, CyanMelody, keySignature)
                 !showDetails && rightRole != null ->
-                    HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
+                    HandRoleBadge(rightRole, hand = HandSide.RIGHT)
                 !showDetails ->
                     NotesRow(measure.melodyNotes, color = CyanMelody, keySignature = keySignature)
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (rightRole != null) {
-                        HandRoleBadge(rightRole, hand = HandSide.RIGHT, keySignature = keySignature)
+                        HandRoleBadge(rightRole, hand = HandSide.RIGHT)
                     }
                     when {
                         measure.rightOstinato != null && measure.melodyNotes.isNotEmpty() ->
@@ -446,14 +446,14 @@ private fun MeasureCardCompact(
                 leftSegments.any { it.repetitions > 1 } ->
                     RepeatedMotifRows(leftSegments, PinkChords, keySignature)
                 !showDetails && leftRole != null ->
-                    HandRoleBadge(leftRole, hand = HandSide.LEFT, keySignature = keySignature)
+                    HandRoleBadge(leftRole, hand = HandSide.LEFT)
                 !showDetails && measure.chordNotes.isNotEmpty() ->
                     NotesRow(measure.chordNotes, color = PinkChords, keySignature = keySignature)
                 !showDetails ->
                     Box(modifier = Modifier.fillMaxWidth().height(18.dp))
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (leftRole != null) {
-                        HandRoleBadge(leftRole, hand = HandSide.LEFT, keySignature = keySignature)
+                        HandRoleBadge(leftRole, hand = HandSide.LEFT)
                     }
                     when {
                         measure.leftOstinato != null && measure.chordNotes.isNotEmpty() ->
@@ -566,7 +566,6 @@ private fun DetailToggle(active: Boolean, onClick: () -> Unit) {
 private fun HandRoleBadge(
     role: com.tobietheunknown.pianoteacher.utils.HandRole,
     hand: HandSide,
-    keySignature: MusicKeySignature? = null,
 ) {
     when (role) {
         is com.tobietheunknown.pianoteacher.utils.HandRole.Ostinato ->

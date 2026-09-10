@@ -7,8 +7,11 @@ function separatorAt(separators, measure) {
 }
 
 export function splitPhraseAtMeasure(phrase, splitMeasure, unitsPerMeasure, newName) {
-    if (!Number.isInteger(splitMeasure) || splitMeasure <= 0 || splitMeasure >= phrase.length) return null;
+    if (!Number.isInteger(splitMeasure) || splitMeasure <= 0 || splitMeasure >= phrase.length ||
+        !Number.isFinite(unitsPerMeasure) || unitsPerMeasure <= 0) return null;
     const splitTime = splitMeasure * unitsPerMeasure;
+    // A phrase boundary moves attacks, not releases: retain crossing holds in
+    // their original phrase so full-score playback and merging stay lossless.
     const partition = notes => ({
         before: notes.filter(note => note.startTime < splitTime),
         after: notes.filter(note => note.startTime >= splitTime)

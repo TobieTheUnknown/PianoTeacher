@@ -308,39 +308,29 @@ export class AudioEngine {
         ];
 
         const quarterDuration = this._tone.Time('4n').toSeconds();
+        const phraseLengthBeats = phrase.length * beatsPerMeasure;
+        const startBeat = Number.isFinite(startPositionBeats)
+            ? Math.max(0, Math.min(startPositionBeats, phraseLengthBeats))
+            : 0;
+        const startSeconds = startBeat * quarterDuration;
+
+        if (stopAtEnd && startBeat >= phraseLengthBeats) {
+            this.stop({ notify: true });
+            return;
+        }
 
         this._currentPart = new this._tone.Part((time, note) => {
             const pitch = typeof note.pitch === 'number' ? getNoteNameFromMidi(note.pitch) : note.pitch;
             this.sampler.triggerAttackRelease(pitch, note.duration * quarterDuration, time);
-        }, allNotes.map(n => ({
-            // Schedule notes after the preroll
-            time: n.startTime * quarterDuration + prerollSec,
+        }, allNotes.filter(n => n.startTime + n.duration > startBeat).map(n => ({
+            // A seek restores a held note for its remaining duration, including
+            // notes that cross an editor phrase boundary.
+            time: Math.max(0, n.startTime - startBeat) * quarterDuration + prerollSec,
             pitch: n.pitch,
-            duration: n.duration
+            duration: n.duration - Math.max(0, startBeat - n.startTime)
         })));
 
-        // Set transport position FIRST (before starting Part). With preroll,
-        // we want Transport.seconds = 0 at the start of the preroll and
-        // = prerollSec at the start of the music. So the requested start
-        // becomes startPositionBeats AFTER the preroll.
-        let startSeconds = 0;
-        if (startPositionBeats !== null && startPositionBeats > 0) {
-            startSeconds = (startPositionBeats * 60) / tempo;
-        }
-        // Always start at 0 (= beginning of preroll if any). The startSeconds
-        // shift is folded into the Part schedule (subtract the start offset).
-        if (startSeconds > 0) {
-            this._currentPart.clear();
-            allNotes.forEach((n) => {
-                const noteSec = n.startTime * quarterDuration + prerollSec;
-                if (n.startTime * quarterDuration >= startSeconds) {
-                    this._currentPart.add(noteSec - startSeconds, {
-                        pitch: n.pitch,
-                        duration: n.duration,
-                    });
-                }
-            });
-        }
+        // Notes are relative to the requested position; preroll starts at zero.
         this._tone.Transport.seconds = 0;
 
         // THEN start Part and Transport
@@ -373,7 +363,6 @@ export class AudioEngine {
         this.isPlaying = true;
 
         if (stopAtEnd) {
-            const phraseLengthBeats = phrase.length * beatsPerMeasure;
             const phraseDurationSeconds = (phraseLengthBeats * 60) / tempo;
             const remainingSeconds = phraseDurationSeconds - startSeconds + prerollSec;
 
