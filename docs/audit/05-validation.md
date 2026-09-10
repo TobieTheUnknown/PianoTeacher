@@ -32,7 +32,7 @@ Les bancs visuels sont servis en développement et ne font pas partie du bundle 
 
 - `e4fe67b` a été poussé sur `codex/progressive-audit` puis sur `main`. GitHub Pages utilise désormais le workflow Web unifié ; compilation et déploiement réussis, landing et `/PianoTeacher/app/` répondent HTTP 200.
 - Le checkpoint `4c9daea` a été poussé sur la branche d'audit et `main` ; les workflows Android et Web/GitHub Pages sont tous deux terminés avec succès.
-- Après `07ccfd2`, GitHub a signalé l'exécution forcée sous Node 24 d'actions encore fondées sur Node 20. Web/Pages passe avec les versions officielles Node 24 (`checkout` v7, `setup-node` v7, `upload-pages-artifact` v5 et `deploy-pages` v5). Android passe avec `checkout` v7 et `upload-artifact` v7, puis son journal a révélé les mêmes avertissements pour `setup-java`, `cache` et `setup-android` ; ils passent respectivement en v6, v6 et v4 avant un dernier rejeu.
+- Après `07ccfd2`, GitHub a signalé l'exécution forcée sous Node 24 d'actions encore fondées sur Node 20. Web/Pages passe avec `checkout` v7, `setup-node` v7, `upload-pages-artifact` v5 et `deploy-pages` v5. Android passe sans annotation Node 20 avec `checkout` v7, `setup-java` v6, `setup-android` v4, `cache` v6 et `upload-artifact` v7 ; l'APK est bien publiée comme artefact du job.
 - Pas encore d'écoute manuelle ni d'essai avec clavier USB/BLE, pédale physique ou changement de sortie audio sur le Pixel.
 - Pas de compilation/installation Tauri macOS/Windows/Linux dans ce lot.
 - Préservation des métadonnées Room assurée par transaction dans le code ; pas encore de test instrumenté de base Android.
