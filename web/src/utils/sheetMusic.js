@@ -9,6 +9,7 @@
  */
 
 import { getMidiNumber, getEnharmonicNote, getNoteNameFromMidi, normalizeKeySignature } from '../models/song.js';
+import { buildStaffVoices, splitStaffRests } from './staffVoices.js';
 
 // ─── Geometry constants (dp on Android, treated as px on web at 1× scale) ────
 
@@ -99,6 +100,8 @@ export function classifyDuration(durationBeats) {
         { beats: 0.5, filled: true, stem: true, flags: 1 }, // eighth
         { beats: 0.25, filled: true, stem: true, flags: 2 },// sixteenth
         { beats: 0.125, filled: true, stem: true, flags: 3 },
+        { beats: 0.0625, filled: true, stem: true, flags: 4 },
+        { beats: 0.03125, filled: true, stem: true, flags: 5 },
     ];
     let best = BASES[2];
     let bestErr = Infinity;
@@ -112,6 +115,53 @@ export function classifyDuration(durationBeats) {
         if (err < bestErr) { bestErr = err; best = base; dotted = true; }
     }
     return { ...best, dotted };
+}
+
+function drawRestSymbol(ctx, x, y, duration, fullMeasure, color, lineSpacing) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.72;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (fullMeasure || !duration.filled) {
+        const half = !fullMeasure && duration.stem;
+        const top = half ? y - lineSpacing * 0.30 : y;
+        ctx.fillRect(x - lineSpacing * 0.45, top, lineSpacing * 0.9, lineSpacing * 0.30);
+    } else if (duration.flags === 0) {
+        // Quarter rest: compact engraved zigzag, independent of music fonts.
+        ctx.lineWidth = lineSpacing * 0.22;
+        ctx.beginPath();
+        ctx.moveTo(x + lineSpacing * 0.12, y - lineSpacing * 0.85);
+        ctx.lineTo(x - lineSpacing * 0.16, y - lineSpacing * 0.25);
+        ctx.lineTo(x + lineSpacing * 0.18, y + lineSpacing * 0.10);
+        ctx.lineTo(x - lineSpacing * 0.08, y + lineSpacing * 0.62);
+        ctx.lineTo(x + lineSpacing * 0.14, y + lineSpacing * 0.82);
+        ctx.stroke();
+    } else {
+        // Eighth and shorter rests: one curved flag per subdivision.
+        ctx.lineWidth = lineSpacing * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(x + lineSpacing * 0.12, y - lineSpacing * 0.70);
+        ctx.lineTo(x - lineSpacing * 0.08, y + lineSpacing * 0.75);
+        ctx.stroke();
+        for (let flag = 0; flag < duration.flags; flag++) {
+            const fy = y - lineSpacing * 0.55 + flag * lineSpacing * 0.38;
+            ctx.beginPath();
+            ctx.arc(x - lineSpacing * 0.18, fy, lineSpacing * 0.16, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(x - lineSpacing * 0.04, fy);
+            ctx.quadraticCurveTo(
+                x + lineSpacing * 0.30,
+                fy + lineSpacing * 0.08,
+                x + lineSpacing * 0.05,
+                fy + lineSpacing * 0.45,
+            );
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
 }
 
 // ─── Diatonic mapping ────────────────────────────────────────────────────────
@@ -430,29 +480,38 @@ export function flattenSongMeasures(song, beatsPerMeasure = 4) {
  */
 export function computeBeamGroups(items, timeSignature = { numerator: 4, denominator: 4 }) {
     const groups = [];
-    let cur = [];
     const numerator = timeSignature?.numerator || 4;
     const denominator = timeSignature?.denominator || 4;
     const denominatorBeat = 4 / denominator;
     const compound = denominator === 8 && numerator > 3 && numerator % 3 === 0;
     const beatUnit = compound ? denominatorBeat * 3 : denominatorBeat;
-    for (let i = 0; i < items.length; i++) {
+    const voices = new Map();
+    items.forEach((item, index) => {
+        const voice = item.voice ?? 0;
+        if (!voices.has(voice)) voices.set(voice, []);
+        voices.get(voice).push(index);
+    });
+    for (const indices of voices.values()) {
+      let cur = [];
+      for (const i of indices) {
         if (cur.length === 0) { cur = [i]; continue; }
         const prev = items[cur[cur.length - 1]];
         const it = items[i];
         // (a) time gap — a rest or a non-beamable note sits between.
         const gap = it.startBeat > prev.startBeat + prev.durationBeats + 0.03;
+        const overlap = it.startBeat < prev.startBeat + prev.durationBeats - 1e-9;
         const crossedBeat =
             Math.floor(it.startBeat / beatUnit) !== Math.floor(prev.startBeat / beatUnit);
-        if (gap || crossedBeat) {
+        if (gap || overlap || crossedBeat) {
             groups.push(cur);
             cur = [i];
         } else {
             cur.push(i);
         }
+      }
+      if (cur.length) groups.push(cur);
     }
-    if (cur.length) groups.push(cur);
-    return groups;
+    return groups.sort((a, b) => a[0] - b[0]);
 }
 
 // ─── Header (clef + armure + time signature) geometry ───────────────────────
@@ -808,15 +867,11 @@ export function renderMeasure(ctx, opts) {
         };
         const yForDiatonic = (d) => lineTop + (topDiatonic - d) * (lineSpacing / 2);
 
-        // Group notes sounding at the same time into chords (shared stem).
-        const groups = new Map();
-        for (const note of staffNotes[si].map((s) => s.note)) {
-            const midi = normalizePitch(note.pitch);
-            if (midi == null) continue;
-            const key = Math.round((note.startTime ?? 0) * 1000) / 1000;
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push({ note, midi });
-        }
+        // Infer musical voices before converting time to pixels. A shared stem
+        // requires the same onset and duration; zoom must never merge voices.
+        const voices = buildStaffVoices(staffNotes[si].map((item) => item.note), measureStart, beatsPerMeasure);
+        const voiceChords = voices.flatMap((voice) => voice.chords.map((chord) => ({ voice: voice.index, chord })))
+            .sort((a, b) => a.chord.startTime - b.chord.startTime || a.voice - b.voice);
 
         const drawLedgers = (x, d, headDx = 0) => {
             ctx.strokeStyle = T.ledger;
@@ -879,8 +934,10 @@ export function renderMeasure(ctx, opts) {
         // render noteheads / ledgers / dots / accidentals (always — both modes).
         const chordItems = [];
         const accidentalFor = createAccidentalState(clefMode !== 'AUTO' ? keySig : null);
-        for (const [, chord] of [...groups].sort((a, b) => a[0] - b[0])) {
-            const items = chord.map(({ note, midi }) => {
+        for (const { voice, chord } of voiceChords) {
+            const items = chord.notes.map((note) => {
+                const midi = normalizePitch(note.pitch);
+                if (midi == null) return null;
                 const spelled = spellMidiForStaff(midi, keySig, useFlats);
                 const d = spelled.diatonic + octShift;
                 return {
@@ -889,12 +946,13 @@ export function renderMeasure(ctx, opts) {
                     y: yForDiatonic(d),
                     dur: classifyDuration(note.duration ?? 1),
                 };
-            }).sort((a, b) => a.d - b.d); // bottom → top
+            }).filter(Boolean).sort((a, b) => a.d - b.d); // bottom → top
+            if (!items.length) continue;
 
             const x = items[0].x;
             // DEFAULT stem direction: upper staff (si===0, melody/MD) → stems UP;
             // lower staff (si===1, chords/MG) → stems DOWN.
-            let stemUp = si === 0;
+            let stemUp = voice % 2 === 0 ? si === 0 : si !== 0;
             const anyStem = items.some((it) => it.dur.stem);
             const maxFlags = items.reduce((m, it) => Math.max(m, it.dur.flags), 0);
             const topY = items[items.length - 1].y; // smallest y (highest note)
@@ -970,9 +1028,39 @@ export function renderMeasure(ctx, opts) {
 
             chordItems.push({
                 x, stemUp, anyStem, maxFlags, topY, botY, color,
+                voice,
                 startBeat: (items[0].note.startTime ?? 0) - measureStart,
                 durationBeats: items[0].note.duration ?? 1,
             });
+        }
+
+        // Rests are derived per inferred voice. Render only exact standard or
+        // dotted values; expressive residuals are preserved in data and omitted
+        // rather than rounded into a false rhythm.
+        if (showStems) {
+            for (const voice of voices) {
+                const rests = splitStaffRests(voice.rests, timeSignature || { numerator: beatsPerMeasure, denominator: 4 }, measureStart)
+                    .filter((rest) => rest.notatable);
+                for (const rest of rests) {
+                    const dur = classifyDuration(rest.duration);
+                    const centerBeat = rest.fullMeasure
+                        ? measureStart + beatsPerMeasure / 2
+                        : rest.startTime + rest.duration / 2;
+                    const rx = xForTime(centerBeat);
+                    const voiceOffset = voice.index % 2 === 0 ? -lineSpacing * 0.25 : lineSpacing * 0.55;
+                    const ry = lineTop + 2 * lineSpacing + voiceOffset;
+                    drawRestSymbol(ctx, rx, ry, dur, rest.fullMeasure, color, lineSpacing);
+                    if (dur.dotted && !rest.fullMeasure) {
+                        ctx.save();
+                        ctx.fillStyle = color;
+                        ctx.globalAlpha = 0.72;
+                        ctx.beginPath();
+                        ctx.arc(rx + lineSpacing * 0.8, ry, dp(1.3), 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+            }
         }
 
         // ── Pass 2: stems + flags + beams (detailed mode only).
@@ -988,6 +1076,7 @@ export function renderMeasure(ctx, opts) {
                 startBeat: ci.startBeat,
                 durationBeats: ci.durationBeats,
                 flags: ci.maxFlags,
+                voice: ci.voice,
             })),
             timeSignature || { numerator: beatsPerMeasure, denominator: 4 },
         );
@@ -1043,7 +1132,7 @@ export function renderMeasure(ctx, opts) {
             // flip the whole group if the beam tips would exit the drawable zone.
             //   - Top guard: stavesOriginY − dp(4)
             //   - Bottom guard: h − dp(4)
-            let grpStemUp = si === 0;
+            let grpStemUp = members[0].voice % 2 === 0 ? si === 0 : si !== 0;
 
             // Helper: compute beam geometry (slope-clamped + shoved) for a given direction.
             const computeBeam = (stemUpDir) => {

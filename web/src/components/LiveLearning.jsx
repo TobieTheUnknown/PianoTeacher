@@ -77,20 +77,22 @@ const OstinatoBadge = React.memo(function OstinatoBadge({ ostInfo, hand = 'left'
     }
 
     return (
-        <span
-            title={titleText}
-            style={{
-                ...ROLE_BADGE_STYLE,
-                background: t.bg, border: `2px solid ${t.border}`, color: t.fg,
-                maxWidth: '100%', minWidth: 0,
-            }}
-        >
-            <OstinatoGlyph />
-            <span style={{
-                minWidth: 0,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-                {displayLabel}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%', minWidth: 0 }}>
+            <span
+                title={titleText}
+                style={{
+                    ...ROLE_BADGE_STYLE,
+                    background: t.bg, border: `2px solid ${t.border}`, color: t.fg,
+                    maxWidth: '100%', minWidth: 0,
+                }}
+            >
+                <OstinatoGlyph />
+                <span style={{
+                    minWidth: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                    {displayLabel}
+                </span>
             </span>
             {repsEl}
         </span>

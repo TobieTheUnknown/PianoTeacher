@@ -58,7 +58,7 @@ Symboles :
 
 ## web/src/components/LiveLearning.jsx
 
-1181 lignes ; accessible depuis main.jsx
+1183 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js, utils/analyzeSong.js, utils/timing.js, services/AudioEngine.js, hooks/useDeviceContext.js, components/learn/CoordinationTimeline.jsx, components/PlaybackDock.jsx, components/MobileHeader.jsx, components/learn/LearnSidebar.jsx
 Symboles : handTokens, OstinatoGlyph, PedalGlyph, RepeatedMotifRows, MotifRows, HandRoleBadge, ArpeggioNotePills, SmallToggleBtn, LiveLearning
 
@@ -562,9 +562,15 @@ Symboles : createScaleContext
 
 ## web/src/utils/sheetMusic.js
 
-1209 lignes ; accessible depuis main.jsx
+1298 lignes ; accessible depuis main.jsx
+Dépendances locales : models/song.js, utils/staffVoices.js
+Symboles : resolveSheetTheme, classifyDuration, drawRestSymbol, midiToDiatonic, isBlackKey, normalizePitch, selectClef, keySignatureAccidentalCount, toKotlinKeySig, spellMidiForStaff, createAccidentalState, suggestUpperOctaveShift, suggestLowerOctaveShift, medianOctaveShift, octaveShiftLabel, slicePhraseIntoMeasures, flattenSongMeasures, computeBeamGroups, accStepPx, keySigBlockWidth, clefGlyphZoneWidth, timeSigZoneWidth, computeHeaderWidth, computeLineSpacing, renderMeasure
+
+## web/src/utils/staffVoices.js
+
+105 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js
-Symboles : resolveSheetTheme, classifyDuration, midiToDiatonic, isBlackKey, normalizePitch, selectClef, keySignatureAccidentalCount, toKotlinKeySig, spellMidiForStaff, createAccidentalState, suggestUpperOctaveShift, suggestLowerOctaveShift, medianOctaveShift, octaveShiftLabel, slicePhraseIntoMeasures, flattenSongMeasures, computeBeamGroups, accStepPx, keySigBlockWidth, clefGlyphZoneWidth, timeSigZoneWidth, computeHeaderWidth, computeLineSpacing, renderMeasure
+Symboles : splitStaffRests, buildStaffVoices
 
 ## web/src/utils/timing.js
 

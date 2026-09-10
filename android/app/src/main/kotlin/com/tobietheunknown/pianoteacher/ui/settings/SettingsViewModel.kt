@@ -16,7 +16,6 @@ data class AppPrefs(
     val audioEnabled: Boolean = true,
     val bleMidiEnabled: Boolean = true,
     val usbMidiEnabled: Boolean = true,
-    val handColorsEnabled: Boolean = true,
     val showExpectedKeys: Boolean = true,
     val showEditorTab: Boolean = true,
 )
@@ -25,7 +24,6 @@ private object Keys {
     val AUDIO = booleanPreferencesKey("audio_enabled")
     val BLE_MIDI = booleanPreferencesKey("ble_midi_enabled")
     val USB_MIDI = booleanPreferencesKey("usb_midi_enabled")
-    val HAND_COLORS = booleanPreferencesKey("hand_colors_enabled")
     val EXPECTED_KEYS = booleanPreferencesKey("show_expected_keys")
     val SHOW_EDITOR_TAB = booleanPreferencesKey("show_editor_tab")
 }
@@ -37,7 +35,6 @@ val Context.appPreferences: Flow<AppPrefs>
                 audioEnabled = p[Keys.AUDIO] ?: true,
                 bleMidiEnabled = p[Keys.BLE_MIDI] ?: true,
                 usbMidiEnabled = p[Keys.USB_MIDI] ?: true,
-                handColorsEnabled = p[Keys.HAND_COLORS] ?: true,
                 showExpectedKeys = p[Keys.EXPECTED_KEYS] ?: true,
                 showEditorTab = p[Keys.SHOW_EDITOR_TAB] ?: true,
             )
@@ -52,7 +49,6 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setAudioEnabled(v: Boolean) = set(Keys.AUDIO, v)
     fun setBleMidiEnabled(v: Boolean) = set(Keys.BLE_MIDI, v)
     fun setUsbMidiEnabled(v: Boolean) = set(Keys.USB_MIDI, v)
-    fun setHandColorsEnabled(v: Boolean) = set(Keys.HAND_COLORS, v)
     fun setShowExpectedKeys(v: Boolean) = set(Keys.EXPECTED_KEYS, v)
     fun setShowEditorTab(v: Boolean) = set(Keys.SHOW_EDITOR_TAB, v)
 

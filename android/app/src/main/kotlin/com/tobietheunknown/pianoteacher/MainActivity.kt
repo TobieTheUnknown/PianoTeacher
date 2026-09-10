@@ -20,6 +20,7 @@ import com.tobietheunknown.pianoteacher.ui.theme.PianoTeacherTheme
 import com.tobietheunknown.pianoteacher.ui.theme.ThemeState
 import com.tobietheunknown.pianoteacher.ui.theme.composeThemeColors
 import com.tobietheunknown.pianoteacher.ui.theme.getThemeColors
+import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
 import com.tobietheunknown.pianoteacher.ui.AppNavHost
 import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingState
 import com.tobietheunknown.pianoteacher.reminders.PracticeReminders
@@ -40,18 +41,20 @@ class MainActivity : ComponentActivity() {
         // and starts decoding Oboe samples in the background so the Library →
         // LivePlay/Learning transition has a sampler ready instead of dropping
         // the first key presses.
-        AudioEngine.getInstance(applicationContext)
+        AudioEngine.getInstance(applicationContext).setRelease(ThemePrefs.getReleaseLevel(this))
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 val midi = MidiManager.getInstance(applicationContext)
+                val audio = AudioEngine.getInstance(applicationContext)
                 try {
                     applicationContext.appPreferences.collect { prefs ->
                         midi.configure(usb = prefs.usbMidiEnabled, ble = prefs.bleMidiEnabled)
+                        audio.setEnabled(prefs.audioEnabled)
                     }
                 } finally {
                     midi.stop()
-                    AudioEngine.getInstance(applicationContext).setSustainPedal(false)
-                    AudioEngine.getInstance(applicationContext).noteOff(-1)
+                    audio.setSustainPedal(false)
+                    audio.noteOff(-1)
                 }
             }
         }

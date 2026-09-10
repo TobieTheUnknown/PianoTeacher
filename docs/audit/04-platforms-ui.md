@@ -31,6 +31,8 @@ Graphe depuis `main.jsx` et recherche de références : suppression des anciens 
 
 Les interrupteurs MIDI Android ne pilotaient pas le scanner : ils écrivaient seulement les préférences. Le cycle de vie de MainActivity applique maintenant USB/BLE et le résultat des permissions. Les autres réglages demandent encore une vérification de leur utilisation effective. Les défauts de sauvegarde et les migrations sont détaillés dans `02-music.md`.
 
+Deux autres préférences sans effet ont été raccordées : « Son activé » pilote le moteur partagé et « Touches attendues » masque réellement les touches suggérées de Live, y compris si le réglage change pendant que l'écran reste dans la pile. Le volume du métronome s'applique maintenant aussi à Partition/Coach, et la résonance est restaurée dès le lancement. L'ancienne préférence interne `handColorsEnabled`, sans contrôle ni consommateur, a été supprimée.
+
 ## Navigation, introduction et pratique Android
 
 - Réglages reste accessible dans l'en-tête de la bibliothèque et a été retiré des onglets.

@@ -56,6 +56,8 @@ import com.tobietheunknown.pianoteacher.utils.AccidentalState
 import com.tobietheunknown.pianoteacher.utils.BeamItem
 import com.tobietheunknown.pianoteacher.utils.computeBeamGroups
 import com.tobietheunknown.pianoteacher.utils.StaffDisplayNote
+import com.tobietheunknown.pianoteacher.utils.buildStaffVoices
+import com.tobietheunknown.pianoteacher.utils.splitStaffRests
 import kotlin.math.abs
 import androidx.compose.ui.graphics.drawscope.withTransform
 
@@ -1257,21 +1259,28 @@ private fun GrandStaffCanvas(
             val noteAreaEnd = w - barPad - dotR
             val midLineY = lineTop + 2 * lineSpacing  // middle (3rd) staff line
 
-            // Per-note resolved geometry + duration class.
-            val resolved = staffNotesList[si].map { (displayNote, color) ->
+            // Per-note resolved geometry + duration class. Keep identity keys so
+            // the pure voice model can hand the exact display fragments back.
+            val resolvedByDisplay = java.util.IdentityHashMap<StaffDisplayNote, StaffNote>()
+            staffNotesList[si].forEach { (displayNote, color) ->
                 val note = displayNote.note
                 val d = spellMidiForStaff(note.pitch, keySig, useFlats).diatonic + octShift
                 val frac = (note.startTime / beatsPerMeasure).toFloat().coerceIn(0f, 1f)
                 val x = noteAreaStart + frac * (noteAreaEnd - noteAreaStart)
                 val y = lineTop + (topDiatonic - d) * (lineSpacing / 2f)
                 // note.startTime is already measure-relative beats (0 ≤ t < beatsPerMeasure).
-                StaffNote(d, x, y, classifyDuration(note.duration), note.pitch, color,
-                    note.startTime, note.duration, displayNote.tieFromPrevious, displayNote.tieToNext)
+                resolvedByDisplay[displayNote] = StaffNote(
+                    d, x, y, classifyDuration(note.duration), note.pitch, color,
+                    note.startTime, note.duration, displayNote.tieFromPrevious, displayNote.tieToNext,
+                )
             }
 
-            // Group notes sounding at the same beat into chords (shared stem).
-            // Quantise x to a pixel so FP startTime noise still groups cleanly.
-            val groups = resolved.groupBy { kotlin.math.round(it.x).toInt() }
+            // Musical voices are inferred before drawing. Notes share a stem only
+            // when onset and duration both match; canvas width cannot alter it.
+            val staffVoices = buildStaffVoices(
+                staffNotesList[si].map { it.first },
+                beatsPerMeasure,
+            )
 
             // On small Android cards the staff can compress to <8px line
             // spacing; scale the stem factor down like the web so stems don't
@@ -1310,8 +1319,12 @@ private fun GrandStaffCanvas(
             val chordRenders = mutableListOf<ChordRender>()
 
             val accidentalState = AccidentalState(if (clefMode != ClefMode.AUTO) keySig else null)
-            groups.toSortedMap().forEach { (_, chord) ->
-                val items = chord.sortedBy { it.d }  // bottom → top
+            staffVoices
+                .flatMap { voice -> voice.chords.map { chord -> voice.index to chord } }
+                .sortedBy { it.second.startTime }
+                .forEach { (voiceIndex, chord) ->
+                val items = chord.notes.mapNotNull { resolvedByDisplay[it] }.sortedBy { it.d }
+                if (items.isEmpty()) return@forEach
                 val x = items.first().x
 
                 // ── Stem direction (decided up-front so chord-second offsets
@@ -1323,7 +1336,7 @@ private fun GrandStaffCanvas(
                 //  drawStemsAndBeams does the full check.)
                 val anyStem = items.any { it.dur.stem }
                 val centerY = items.map { it.y }.average().toFloat()
-                val up = si == 0  // MD default UP; MG default DOWN
+                val up = if (voiceIndex % 2 == 0) si == 0 else si != 0
 
                 // ── Chord-second resolution. Two noteheads on ADJACENT
                 // diatonic steps (|Δd| == 1) collide if drawn at the same x.
@@ -1449,8 +1462,95 @@ private fun GrandStaffCanvas(
                         centerY = centerY,
                         topY = refItems.maxByOrNull { it.d }!!.y,  // highest stemmed (smallest y)
                         botY = refItems.minByOrNull { it.d }!!.y,  // lowest stemmed (largest y)
+                        voice = voiceIndex,
                     )
                 )
+            }
+
+            // Draw inferred silences by voice. Exact binary/dotted values are
+            // shown; expressive residuals stay silent instead of being rounded
+            // into a false rhythm. Full-measure rests remain centered.
+            if (showDetails) {
+                staffVoices.forEach { voice ->
+                    splitStaffRests(voice.rests, timeSigNumerator, timeSigDenominator)
+                        .filter { it.notatable }
+                        .forEach { rest ->
+                            val duration = classifyDuration(rest.duration)
+                            val restColor = (if (si == 0) CyanMelody else PinkChords).copy(alpha = 0.72f)
+                            val centerBeat = if (rest.fullMeasure) {
+                                beatsPerMeasure / 2.0
+                            } else {
+                                rest.startTime + rest.duration / 2.0
+                            }
+                            val rx = noteAreaStart + (centerBeat / beatsPerMeasure).toFloat() * (noteAreaEnd - noteAreaStart)
+                            val ry = midLineY + if (voice.index % 2 == 0) -lineSpacing * 0.25f else lineSpacing * 0.55f
+                            when {
+                                rest.fullMeasure || !duration.filled -> {
+                                    val top = if (!rest.fullMeasure && duration.stem) ry - lineSpacing * 0.30f else ry
+                                    drawRect(
+                                        color = restColor,
+                                        topLeft = Offset(rx - lineSpacing * 0.45f, top),
+                                        size = Size(lineSpacing * 0.9f, lineSpacing * 0.30f),
+                                    )
+                                }
+                                duration.flags == 0 -> {
+                                    val path = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(rx + lineSpacing * 0.12f, ry - lineSpacing * 0.85f)
+                                        lineTo(rx - lineSpacing * 0.16f, ry - lineSpacing * 0.25f)
+                                        lineTo(rx + lineSpacing * 0.18f, ry + lineSpacing * 0.10f)
+                                        lineTo(rx - lineSpacing * 0.08f, ry + lineSpacing * 0.62f)
+                                        lineTo(rx + lineSpacing * 0.14f, ry + lineSpacing * 0.82f)
+                                    }
+                                    drawPath(
+                                        path,
+                                        color = restColor,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = lineSpacing * 0.22f,
+                                            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                                        ),
+                                    )
+                                }
+                                else -> {
+                                    drawLine(
+                                        color = restColor,
+                                        start = Offset(rx + lineSpacing * 0.12f, ry - lineSpacing * 0.70f),
+                                        end = Offset(rx - lineSpacing * 0.08f, ry + lineSpacing * 0.75f),
+                                        strokeWidth = lineSpacing * 0.15f,
+                                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                    )
+                                    repeat(duration.flags) { flag ->
+                                        val fy = ry - lineSpacing * 0.55f + flag * lineSpacing * 0.38f
+                                        drawCircle(restColor, lineSpacing * 0.16f, Offset(rx - lineSpacing * 0.18f, fy))
+                                        val flagPath = androidx.compose.ui.graphics.Path().apply {
+                                            moveTo(rx - lineSpacing * 0.04f, fy)
+                                            quadraticTo(
+                                                rx + lineSpacing * 0.30f,
+                                                fy + lineSpacing * 0.08f,
+                                                rx + lineSpacing * 0.05f,
+                                                fy + lineSpacing * 0.45f,
+                                            )
+                                        }
+                                        drawPath(
+                                            flagPath,
+                                            restColor,
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                                width = lineSpacing * 0.15f,
+                                                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                            if (duration.dotted && !rest.fullMeasure) {
+                                drawCircle(
+                                    color = restColor,
+                                    radius = 1.3.dp.toPx(),
+                                    center = Offset(rx + lineSpacing * 0.8f, ry),
+                                )
+                            }
+                        }
+                }
             }
 
             // ── Stems, flags & BEAMS — Détail layer only. ─────────────────
@@ -1516,6 +1616,7 @@ private data class ChordRender(
     val centerY: Float,   // avg notehead y — used for the majority vote
     val topY: Float,      // highest note (smallest y)
     val botY: Float,      // lowest note (largest y)
+    val voice: Int,
 )
 
 /**
@@ -1607,8 +1708,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
     }
 
     // ── Non-beamable stemmed chords (flags == 0): plain stems. ──
+    fun preferredDirection(c: ChordRender): Boolean =
+        if (c.voice % 2 == 0) defaultUp else !defaultUp
+
     chords.filter { it.anyStem && it.flags == 0 }.forEach { c ->
-        val up = resolveDirection(c, defaultUp)
+        val up = resolveDirection(c, preferredDirection(c))
         drawPlainStem(c, up, nominalTip(c, up))
     }
 
@@ -1617,7 +1721,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
         .sortedBy { it.startBeat }
     if (beamable.isEmpty()) return
 
-    val beamItems = beamable.map { BeamItem(it.startBeat, it.durBeats, it.flags) }
+    val beamItems = beamable.map { BeamItem(it.startBeat, it.durBeats, it.flags, it.voice) }
     val groups = computeBeamGroups(beamItems, timeSigNumerator, timeSigDenominator)
 
     // Web: beamTh = lineSpacing * 0.5 — aligned.
@@ -1629,7 +1733,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
         if (gChords.size == 1) {
             // Singleton — keep the flag.
             val c = gChords[0]
-            val up = resolveDirection(c, defaultUp)
+            val up = resolveDirection(c, preferredDirection(c))
             val tip = nominalTip(c, up)
             drawPlainStem(c, up, tip)
             drawFlags(c, up, tip)
@@ -1641,12 +1745,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams(
         // (after slope clamping) and flip the whole group if the beam exits bounds.
         val up: Boolean
         run {
+            val preferredUp = preferredDirection(gChords.first())
             val c0 = gChords.first(); val cN = gChords.last()
-            val tip0 = nominalTip(c0, defaultUp); val tipN = nominalTip(cN, defaultUp)
+            val tip0 = nominalTip(c0, preferredUp); val tipN = nominalTip(cN, preferredUp)
             val beamMin = minOf(tip0, tipN); val beamMax = maxOf(tip0, tipN)
-            val wouldExitTop = defaultUp && beamMin < drawTopBound
-            val wouldExitBot = !defaultUp && beamMax > drawBotBound
-            up = if (wouldExitTop || wouldExitBot) !defaultUp else defaultUp
+            val wouldExitTop = preferredUp && beamMin < drawTopBound
+            val wouldExitBot = !preferredUp && beamMax > drawBotBound
+            up = if (wouldExitTop || wouldExitBot) !preferredUp else preferredUp
         }
         val dir = if (up) -1f else 1f         // beam offset direction from notehead
 
@@ -2003,14 +2108,18 @@ private fun CycleNoteRows(pitches: List<Int>, showOctaves: Boolean, useFlats: Bo
 @Composable
 private fun ArpeggioChordBadge(cwr: ChordWithReps) {
     Row(
-        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(PinkChords.copy(alpha = 0.12f))
-            .border(1.dp, PinkChords.copy(alpha = 0.3f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(cwr.name, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
-        if (cwr.suffix.isNotEmpty()) Text(cwr.suffix, fontSize = 9.sp, color = PinkChords.copy(alpha = 0.7f))
-        if (cwr.bassNote != null) Text("/${cwr.bassNote}", fontSize = 10.sp, color = PinkChords.copy(alpha = 0.6f))
-        if (cwr.repetitions > 1) Text("x${cwr.repetitions}", fontSize = 9.sp, color = PinkChords.copy(alpha = 0.5f))
+        Row(
+            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(PinkChords.copy(alpha = 0.12f))
+                .border(1.dp, PinkChords.copy(alpha = 0.3f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(cwr.name, fontSize = 11.sp, color = PinkChords, fontWeight = FontWeight.SemiBold)
+            if (cwr.suffix.isNotEmpty()) Text(cwr.suffix, fontSize = 9.sp, color = PinkChords.copy(alpha = 0.7f))
+            if (cwr.bassNote != null) Text("/${cwr.bassNote}", fontSize = 10.sp, color = PinkChords.copy(alpha = 0.6f))
+        }
+        if (cwr.repetitions > 1) Text("×${cwr.repetitions}", fontSize = 9.sp, color = PinkChords.copy(alpha = 0.7f))
     }
 }
 

@@ -216,7 +216,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
 
     fun setEnabled(value: Boolean) {
         enabled = value
-        if (!value) noteOff(-1)
+        if (!value) sessions.interrupt()
     }
 
     fun release() {

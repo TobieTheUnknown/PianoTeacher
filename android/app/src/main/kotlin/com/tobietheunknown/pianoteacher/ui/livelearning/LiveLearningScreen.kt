@@ -619,29 +619,30 @@ private fun OstinatoRoleBadge(
         desc = "Ostinato — motif répété ${role.ostinato.repetitions}× ($notes)"
         reps = role.ostinato.repetitions
     }
-    // The note list ellipsizes on narrow cards but the ×N never clips: it sits
-    // as a non-shrinking suffix outside the weighted/ellipsized text. The chip
-    // fills the card width so the weighted text actually has a bound to shrink to.
-    RoleChip(tone, desc, modifier = Modifier.fillMaxWidth()) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OstinatoGlyph(tone)
-            Text(
-                label,
-                color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = 0.2.sp, maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (reps > 1) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RoleChip(tone, desc, modifier = Modifier.weight(1f, fill = false)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OstinatoGlyph(tone)
                 Text(
-                    "×$reps",
-                    color = tone.copy(alpha = 0.8f), fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
+                    label,
+                    color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.2.sp, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
+        }
+        if (reps > 1) {
+            Text(
+                "×$reps",
+                color = tone.copy(alpha = 0.8f), fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -872,10 +873,20 @@ private fun RepeatedMotifRows(segments: List<RepeatedMotif>, tone: Color, keySig
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         segments.forEach { segment ->
             val motif = segment.groups.joinToString(" ") { group -> group.joinToString(" + ") { noteName(it.pitch, keySignature) } }
-            NoteChip(
-                label = motif + if (segment.repetitions > 1) " ×${segment.repetitions}" else "",
-                tone = tone,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NoteChip(label = motif, tone = tone)
+                if (segment.repetitions > 1) {
+                    Text(
+                        text = "×${segment.repetitions}",
+                        color = tone.copy(alpha = 0.82f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
     }
 }

@@ -20,6 +20,7 @@ import com.tobietheunknown.pianoteacher.midi.MidiManager
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
 import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
 import com.tobietheunknown.pianoteacher.ui.onboarding.OnboardingPreferences
+import com.tobietheunknown.pianoteacher.ui.settings.appPreferences
 import com.tobietheunknown.pianoteacher.utils.detectKeySignature
 import com.tobietheunknown.pianoteacher.utils.musicKeySignatureFromStored
 import kotlinx.coroutines.*
@@ -68,6 +69,7 @@ class LivePlayViewModel(
     private val audioEngine: AudioEngine,
     private val initialMetronomeVolume: Int = 1,
     initialListenMode: Boolean = false,
+    private val expectedKeysPreference: Flow<Boolean> = flowOf(true),
 ) : ViewModel() {
 
     val audioReady: StateFlow<Boolean> = audioEngine.ready
@@ -78,12 +80,19 @@ class LivePlayViewModel(
     private var playbackJob: Job? = null
     private var pausedAtBeat: Double = 0.0
     @Volatile private var playbackGeneration = 0
+    @Volatile private var showExpectedKeys = true
 
     // Cached flattened note lists for full-song mode (Phase 2 perf)
     private var cachedAllMelody: List<NoteEvent>? = null
     private var cachedAllChords: List<NoteEvent>? = null
 
     init {
+        viewModelScope.launch {
+            expectedKeysPreference.distinctUntilChanged().collect { enabled ->
+                showExpectedKeys = enabled
+                updateExpectedKeys(_state.value.currentBeat)
+            }
+        }
         viewModelScope.launch {
             state.map { listOf(it.currentBeat, it.currentPhraseIndex, it.selectedHand, it.visibleBeats, it.isListenMode) }
                 .distinctUntilChanged().collect {
@@ -491,7 +500,7 @@ class LivePlayViewModel(
     }
 
     private fun updateExpectedKeys(currentBeat: Double) {
-        if (_state.value.isListenMode) {
+        if (!showExpectedKeys || _state.value.isListenMode) {
             if (_state.value.expectedKeys.isNotEmpty()) {
                 _state.update { it.copy(expectedKeys = emptySet()) }
             }
@@ -536,6 +545,8 @@ class LivePlayViewModel(
                 audioEngine = engine,
                 initialMetronomeVolume = ThemePrefs.getMetronomeVolume(context),
                 initialListenMode = !OnboardingPreferences.profile(context).wantsMidi,
+                expectedKeysPreference = context.applicationContext.appPreferences
+                    .map { it.showExpectedKeys },
             ) as T
         }
     }

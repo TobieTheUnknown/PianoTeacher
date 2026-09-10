@@ -7,6 +7,7 @@ import '../src/index.css';
 import '../src/styles/tokens.css';
 import { LiveLearning } from '../src/components/LiveLearning.jsx';
 import { SheetMusicLearning } from '../src/components/SheetMusicLearning.jsx';
+import { renderMeasure } from '../src/utils/sheetMusic.js';
 const pitches = [60,64,65,60,64,65,60,64,65,64,65,64,65];
 const phrase = { id:'audit-phrase', name:'Motifs successifs', length:2, tracks: {
  melody:pitches.map((pitch,i)=>({id:`r${i}`,pitch,startTime:i*.25,duration:.25})),
@@ -15,7 +16,20 @@ const phrase = { id:'audit-phrase', name:'Motifs successifs', length:2, tracks: 
 const song = {id:'audit',title:'Do Mi Fa ×3 puis Mi Fa ×2',key:{note:'C',mode:'major'},tempo:90,timeSignature:{numerator:4,denominator:4},phrases:[phrase]};
 const engraving = {...song,title:'Sol majeur — Fa♯, Fa♮, Fa♮, Fa♯',key:{note:'G',mode:'major'},phrases:[{...phrase,tracks:{melody:[66,65,65,66].map((pitch,i)=>({id:`s${i}`,pitch,startTime:i,duration:1})),chords:[]}}]};
 const sheet = new URLSearchParams(location.search).has('sheet');
-createRoot(document.getElementById('root')).render(React.createElement(sheet ? SheetMusicLearning : LiveLearning, {song:sheet ? engraving : song}));
+const voices = new URLSearchParams(location.search).has('voices');
+if (voices) {
+ const canvas=document.createElement('canvas'); canvas.width=900; canvas.height=480;
+ canvas.style.cssText='width:900px;height:480px;background:#121722;margin:24px';
+ document.getElementById('root').append(canvas);
+ renderMeasure(canvas.getContext('2d'),{width:900,height:480,measureNumber:1,beatsPerMeasure:4,measureStart:0,
+  melodyNotes:[
+   {pitch:60,startTime:0,duration:2},
+   {pitch:72,startTime:0,duration:.5},{pitch:74,startTime:.5,duration:.5},{pitch:76,startTime:1,duration:.5},
+   {pitch:79,startTime:3,duration:.5},
+  ],chordNotes:[],showClefs:true,showStems:true,keySig:{note:'C',mode:'major'},timeSignature:{numerator:4,denominator:4},showTimeSig:true});
+} else {
+ createRoot(document.getElementById('root')).render(React.createElement(sheet ? SheetMusicLearning : LiveLearning, {song:sheet ? engraving : song}));
+}
 </script></html>
 <script type="module">
 import { audioEngine } from '../src/services/AudioEngine.js';

@@ -9,7 +9,7 @@ Symboles : AudioEngine
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/MainActivity.kt
 
-92 lignes.
+95 lignes.
 Symboles : MainActivity, onCreate, onNewIntent, onResume, onStop
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioEngine.kt
@@ -139,12 +139,12 @@ Symboles : EditorViewModel, splitPhrase, mergePhraseWithPrevious, renamePhrase, 
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/learning/LearningScreen.kt
 
-2024 lignes.
-Symboles : midiToDiatonic, NoteDuration, classifyDuration, Base, StaffClefConfig, selectClef, LearningScreen, MeasureCard, TimelineBeatRow, MiniMeasureCard, GrandStaffCanvas, drawHead, StaffNote, ChordRender, androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams, attachY, stemX, nominalTip, resolveDirection, drawPlainStem, drawFlags, beamYAt, NoteLabelsStrip, LearningPianoKeyboard, OctaveKeys, ChordChip, CycleNoteRows, ArpeggioChordBadge, NoteChip
+2133 lignes.
+Symboles : midiToDiatonic, NoteDuration, classifyDuration, Base, StaffClefConfig, selectClef, LearningScreen, MeasureCard, TimelineBeatRow, MiniMeasureCard, GrandStaffCanvas, drawHead, StaffNote, ChordRender, androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams, attachY, stemX, nominalTip, resolveDirection, drawPlainStem, drawFlags, preferredDirection, beamYAt, NoteLabelsStrip, LearningPianoKeyboard, OctaveKeys, ChordChip, CycleNoteRows, ArpeggioChordBadge, NoteChip
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/learning/LearningViewModel.kt
 
-574 lignes.
+582 lignes.
 Symboles : MeasureData, PhraseSectionData, LearningViewModel, toggleMetronome, toggleWaitMode, toggleListenMode, cycleClefMode, toggleMastered, setHand, adjustTempo, toggleLoop, setLoopRange, toggleDetails, toggleOctaves, focusMeasure, focusPreviousMeasure, focusNextMeasure, play, pause, stop, playMeasureSingle, playMeasureHandSingle, playPhrase, startTimeline, cancelPlayback, renameSong, renamePhrase, deletePhrase, splitPhraseAtMeasure, onCleared, buildSections, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/library/LibraryScreen.kt
@@ -159,7 +159,7 @@ Symboles : ImportState, Idle, Loading, Success, Error, LibraryViewModel, importF
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/livelearning/LiveLearningScreen.kt
 
-881 lignes.
+892 lignes.
 Symboles : noteName, LiveLearningScreen, MeasureCardCompact, chordCycleLen, handSideColor, DetailToggle, HandRoleBadge, RoleChip, OstinatoRoleBadge, PedalRoleBadge, OstinatoGlyph, wave, PedalGlyph, MotifRows, NoteChip, NotesRow, BeatStrip, RepeatedMotifRows
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayScreen.kt
@@ -169,7 +169,7 @@ Symboles : HitEffect, LivePlayScreen, controlsBlock, LivePlayCanvas, PianoKeyboa
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayViewModel.kt
 
-542 lignes.
+553 lignes.
 Symboles : NoteWithHand, LivePlayUiState, LivePlayViewModel, handleMidiNoteOn, handleMidiNoteOff, togglePlayPause, timelineNotes, shouldAutoPlay, play, pause, restart, seekToBeat, setSpeed, beginScrub, scrubToBeat, endScrub, toggleLoop, setLoopRange, toggleWaitMode, toggleAudio, toggleMetronome, toggleListenMode, setVisibleBeats, setHand, nextPhrase, prevPhrase, goToPhrase, updateVisibleNotes, addVisibleNotes, updateExpectedKeys, onCleared, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/onboarding/OnboardingPreferences.kt
@@ -189,8 +189,8 @@ Symboles : SettingsScreen, StudioProfileCard, SettingsSection, ThemeCard, Toggle
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/settings/SettingsViewModel.kt
 
-68 lignes.
-Symboles : AppPrefs, Keys, SettingsViewModel, setAudioEnabled, setBleMidiEnabled, setUsbMidiEnabled, setHandColorsEnabled, setShowExpectedKeys, setShowEditorTab, set, Factory
+64 lignes.
+Symboles : AppPrefs, Keys, SettingsViewModel, setAudioEnabled, setBleMidiEnabled, setUsbMidiEnabled, setShowExpectedKeys, setShowEditorTab, set, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/theme/DesignAppearance.kt
 
@@ -229,5 +229,5 @@ Symboles : RepeatedMotif, segmentRepeatedMotifs, Choice
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/utils/StaffNotation.kt
 
-93 lignes.
-Symboles : keySignatureAccidentalCount, SpelledPitch, spellMidiForStaff, offset, AccidentalState, next, BeamItem, StaffDisplayNote, sliceNotesForStaff, computeBeamGroups
+186 lignes.
+Symboles : keySignatureAccidentalCount, SpelledPitch, spellMidiForStaff, offset, AccidentalState, next, BeamItem, StaffDisplayNote, StaffChord, StaffRest, StaffVoice, NotatedStaffRest, splitStaffRests, buildStaffVoices, VoiceBuilder, averagePitch, sliceNotesForStaff, computeBeamGroups

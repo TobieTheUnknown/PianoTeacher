@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 import com.tobietheunknown.pianoteacher.ui.common.PlaybackHand
+import com.tobietheunknown.pianoteacher.ui.theme.ThemePrefs
 
 enum class ClefMode { STANDARD, TREBLE_X2, AUTO }
 
@@ -74,6 +75,7 @@ class LearningViewModel(
     private val audioEngine: AudioEngine,
     private val midiManager: MidiManager,
     initialListenMode: Boolean = true,
+    private val metronomeVolume: Int = 1,
 ) : ViewModel() {
 
     val audioReady: StateFlow<Boolean> = audioEngine.ready
@@ -340,6 +342,11 @@ class LearningViewModel(
                             loop = loop,
                             wait = forcedRightHand == null && _waitMode.value && !_listenMode.value,
                             metronomeSubdivision = if (_metronomeEnabled.value) 1 else 0,
+                            metronomeAmplitude = when (metronomeVolume) {
+                                0 -> 0.25f
+                                2 -> 0.70f
+                                else -> 0.45f
+                            },
                         )
                     },
                     autoPlay = { note ->
@@ -568,6 +575,7 @@ class LearningViewModel(
             return LearningViewModel(
                 SongRepository(context), songId, engine, midi,
                 initialListenMode = true, // Partition already defaults to both-hand listening, with or without MIDI.
+                metronomeVolume = ThemePrefs.getMetronomeVolume(context),
             ) as T
         }
     }

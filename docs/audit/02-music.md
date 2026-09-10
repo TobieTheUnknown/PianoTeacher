@@ -43,7 +43,9 @@
 - Mesures et édition : tolérance ramenée à une erreur numérique, scission seulement sur une barre, fusion sans perte du silence terminal et séparateurs de mains transférés.
 - Ligatures : groupes par pulsation réelle, dont 3+3 en 6/8. Le web découpe maintenant une note tenue sur plusieurs mesures et affiche ses liaisons.
 - Android découpe maintenant aussi les notes tenues en fragments d'affichage liés, sans modifier les événements employés par la lecture.
-- Points non clos : silences, voix de durées différentes et métriques/tempos variables. Le modèle ne représente encore qu'un tempo et un chiffrage globaux.
+- Voix et silences : web et Android regroupent sur une même hampe uniquement les notes de même départ **et** même durée. Les lignes simultanées de durées différentes gardent leurs voix, leurs hampes et leurs ligatures. Les silences initiaux et internes sont calculés par voix puis découpés sur les pulsations, dont 3+3 en 6/8 ; un reliquat expressif impossible à noter exactement n'est pas arrondi vers une durée fausse.
+- Rendu : les silences utilisent des formes vectorielles locales plutôt que des glyphes Unicode dépendants de la police. Le banc visuel couvre une basse tenue, une mélodie mobile et des silences sur les deux portées.
+- Point non clos : le modèle ne représente encore qu'un tempo et un chiffrage globaux ; les changements internes de tempo/métrique nécessitent une évolution de données avant le rendu.
 
 ## Persistance — deuxième lot
 

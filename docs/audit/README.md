@@ -1,6 +1,6 @@
 # Audit progressif PianoTeacher
 
-État : en cours — logique musicale, persistance, import/export et cartes vérifiés ; gravure et audio natif restent ouverts. Chaque domaine possède sa fiche ; lire l'index puis seulement la fiche concernée.
+État : en cours — logique musicale, persistance, import/export, cartes et premier lot de gravure polyphonique vérifiés ; validation matérielle audio et audit UI détaillé restent ouverts. Chaque domaine possède sa fiche ; lire l'index puis seulement la fiche concernée.
 Les cases ne sont cochées qu'après examen et vérification ; une compilation seule ne valide ni le son ni la gravure.
 
 ## Ordre de travail
@@ -9,7 +9,7 @@ Les cases ne sont cochées qu'après examen et vérification ; une compilation s
 2. [x] Modèle, unités de temps, import/export MIDI, persistance. Définir les invariants avant les corrections de rendu.
 3. [x] Gammes, orthographe enharmonique, accords, motifs et arpèges répétés ; tests ciblés sans UI.
 4. [x] Découpage des mesures et cartes d'apprentissage ; vérifier le passage analyse → présentation.
-5. [ ] Partitions : clefs, armures, altérations, durées, ligatures et notes liées ; comparer web et Android.
+5. [x] Partitions : clefs, armures, altérations, durées, ligatures, notes liées, voix indépendantes et silences ; comparer web et Android. Les changements internes de métrique/tempo restent une évolution du modèle.
 6. [ ] Audio/MIDI : chargement, premier geste, lecture, pause, reprise, boucles, changements de morceau, nettoyage et erreurs.
 7. [ ] Éditeur et LivePlay : interactions, synchronisation, partage des états.
 8. [x] Web/Pages et desktop, puis Android natif distinct : comportements, builds et chemins d'assets cohérents.
