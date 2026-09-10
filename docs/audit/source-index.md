@@ -23,19 +23,19 @@ Symboles : BottomTabBar
 ## web/src/components/BottomTabBar.module.css
 
 96 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/DesignAppearance.jsx
 
 217 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : readPref, writePref, applyAttr, DesignAppearance, SectionTitle, PickerRow, SquareSwatch, CircleSwatch, HandSwatch
 
 ## web/src/components/ErrorBoundary.jsx
 
 220 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : ErrorBoundary
 
 ## web/src/components/LatencyWizard.jsx
@@ -53,8 +53,8 @@ Symboles : Layout
 ## web/src/components/Layout.module.css
 
 62 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/LiveLearning.jsx
 
@@ -66,7 +66,7 @@ Symboles : handTokens, OstinatoGlyph, PedalGlyph, RepeatedMotifRows, MotifRows, 
 
 896 lignes ; accessible depuis main.jsx
 Dépendances locales : hooks/useCanvasLayers.js, models/song.js, services/ThemeService.js, components/LivePlayView.module.css
-Symboles : 
+Symboles : aucun
 
 ## web/src/components/LivePlayMobileOverlay.jsx
 
@@ -77,14 +77,14 @@ Symboles : formatTime, LivePlayMobileOverlay
 ## web/src/components/LivePlayMobileOverlay.module.css
 
 137 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/LivePlayView.module.css
 
 501 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/LivePlayViewOptimized.jsx
 
@@ -95,7 +95,7 @@ Symboles : LivePlayViewOptimized, zoomBtnStyle
 ## web/src/components/LoadingFallback.jsx
 
 68 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : LoadingSpinner, PageLoadingFallback
 
 ## web/src/components/MidiLatencyCalibration.jsx
@@ -113,7 +113,7 @@ Symboles : MidiVisualizer, isBlackKey
 ## web/src/components/MobileHeader.jsx
 
 64 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : MobileHeader
 
 ## web/src/components/Onboarding.jsx
@@ -125,8 +125,8 @@ Symboles : Onboarding, StepContent, ChoiceCard, Promise, BrandLockup, StepVisual
 ## web/src/components/Onboarding.module.css
 
 275 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/PianoRoll.jsx
 
@@ -137,7 +137,7 @@ Symboles : PianoRoll
 ## web/src/components/PlaybackDock.jsx
 
 639 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : PlaybackDock, pillStyle, TransportBtn, PixelBtn, MetronomeButton, ToggleIconBtn, LoopRangeEditor, RangeStepper
 
 ## web/src/components/RotatePrompt.jsx
@@ -149,20 +149,20 @@ Symboles : RotatePrompt
 ## web/src/components/RotatePrompt.module.css
 
 62 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/Settings.jsx
 
-994 lignes ; accessible depuis main.jsx
-Dépendances locales : services/StorageService.js, services/MidiInputService.js, services/AudioEngine.js, components/MidiVisualizer.jsx, components/MidiLatencyCalibration.jsx, components/LatencyWizard.jsx, components/DesignAppearance.jsx, services/OnboardingService.js, hooks/useDeviceContext.js, components/Settings.module.css
+960 lignes ; accessible depuis main.jsx
+Dépendances locales : services/StorageService.js, services/MidiInputService.js, services/AudioEngine.js, components/MidiVisualizer.jsx, components/MidiLatencyCalibration.jsx, components/LatencyWizard.jsx, components/DesignAppearance.jsx, services/OnboardingService.js, hooks/useDeviceContext.js, hooks/useDialogFocus.js, components/Settings.module.css
 Symboles : Settings, TabButton
 
 ## web/src/components/Settings.module.css
 
 69 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/SheetMusicLearning.jsx
 
@@ -173,26 +173,26 @@ Symboles : useSheetTheme, SheetMusicLearning, SheetSystem, SystemMeasure, Toggle
 ## web/src/components/SheetMusicLearning.module.css
 
 139 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/SongEditor.jsx
 
-1301 lignes ; accessible depuis main.jsx
-Dépendances locales : utils/timing.js, utils/playbackRange.js, components/PianoRoll.jsx, services/AudioEngine.js, services/MidiService.js, services/StorageService.js, models/song.js, components/MobileHeader.jsx, components/PlaybackDock.jsx
+1308 lignes ; accessible depuis main.jsx
+Dépendances locales : utils/timing.js, utils/playbackRange.js, components/PianoRoll.jsx, services/AudioEngine.js, services/MidiService.js, services/StorageService.js, models/song.js, components/MobileHeader.jsx, components/PlaybackDock.jsx, hooks/useDialogFocus.js
 Symboles : SongEditor, EditorBottomBar
 
 ## web/src/components/SongLibrary.jsx
 
-495 lignes ; accessible depuis main.jsx
-Dépendances locales : services/StorageService.js, models/song.js, components/ui/index.js, components/icons/SettingsIcon.jsx, components/SongLibrary.module.css, services/MidiService.js
-Symboles : useDialogFocus, SongLibrary, SongCard, EmptyLibrary, SongDetailDialog, LibraryTransferDialog, Icon, normalizeText, getTimestamp, formatRelativeDate
+449 lignes ; accessible depuis main.jsx
+Dépendances locales : services/StorageService.js, models/song.js, components/ui/index.js, components/icons/SettingsIcon.jsx, hooks/useDialogFocus.js, components/SongLibrary.module.css, services/MidiService.js
+Symboles : SongLibrary, SongCard, EmptyLibrary, SongDetailDialog, LibraryTransferDialog, Icon, normalizeText, getTimestamp, formatRelativeDate
 
 ## web/src/components/SongLibrary.module.css
 
 318 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/TimelineNavigator.jsx
 
@@ -209,8 +209,8 @@ Symboles : TopNavBar
 ## web/src/components/TopNavBar.module.css
 
 197 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/editor/MidiRecorder.jsx
 
@@ -227,26 +227,26 @@ Symboles : PianoRollEditor
 ## web/src/components/editor/PianoRollEditor.module.css
 
 380 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/editor/canvas/PianoRollCanvas.jsx
 
 1129 lignes ; accessible depuis main.jsx
 Dépendances locales : hooks/useCanvasLayers.js, services/ThemeService.js, components/editor/canvas/drawFunctions.js, components/editor/canvas/canvasUtils.js
-Symboles : 
+Symboles : aucun
 
 ## web/src/components/editor/canvas/canvasUtils.js
 
 277 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/editor/canvas/drawFunctions.js
 
 757 lignes ; accessible depuis main.jsx
 Dépendances locales : services/ThemeService.js
-Symboles : 
+Symboles : aucun
 
 ## web/src/components/editor/controls/ContextMenu.jsx
 
@@ -306,7 +306,7 @@ Symboles : ShortcutsHint
 
 252 lignes ; accessible depuis main.jsx
 Dépendances locales : components/editor/controls/ZoomControls.jsx, components/editor/controls/GridControls.jsx, components/editor/controls/PlaybackControls.jsx, components/editor/controls/MetronomeControls.jsx, components/editor/controls/LoopControls.jsx, components/editor/controls/MeasureControls.jsx, components/editor/controls/SelectionActions.jsx, components/editor/PianoRollEditor.module.css
-Symboles : 
+Symboles : aucun
 
 ## web/src/components/editor/controls/ZoomControls.jsx
 
@@ -317,38 +317,38 @@ Symboles : ZoomControls
 ## web/src/components/icons/LearnIcon.jsx
 
 16 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : LearnIcon
 
 ## web/src/components/icons/LibraryIcon.jsx
 
 12 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : LibraryIcon
 
 ## web/src/components/icons/LivePlayIcon.jsx
 
 19 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : LivePlayIcon
 
 ## web/src/components/icons/PartitionIcon.jsx
 
 17 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : PartitionIcon
 
 ## web/src/components/icons/SettingsIcon.jsx
 
 10 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : SettingsIcon
 
 ## web/src/components/learn/CoordinationTimeline.jsx
 
 196 lignes ; accessible depuis main.jsx
 Dépendances locales : services/ThemeService.js
-Symboles : 
+Symboles : aucun
 
 ## web/src/components/learn/LearnSidebar.jsx
 
@@ -359,31 +359,37 @@ Symboles : LearnSidebar, fixedKeyboardRange, uniquePitchLabels, HandGuide, HandI
 ## web/src/components/ui/Cover.jsx
 
 69 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : gradientForId, Cover
 
 ## web/src/components/ui/index.js
 
 5 lignes ; accessible depuis main.jsx
 Dépendances locales : components/ui/Cover.jsx
-Symboles : 
+Symboles : aucun
 
 ## web/src/hooks/useCanvasLayers.js
 
 148 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/hooks/useDeviceContext.js
 
 69 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : useDeviceContext
+
+## web/src/hooks/useDialogFocus.js
+
+51 lignes ; accessible depuis main.jsx
+Dépendances locales : aucune
+Symboles : useDialogFocus
 
 ## web/src/hooks/useFullscreen.js
 
 49 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : useFullscreen
 
 ## web/src/hooks/useMidiAudio.js
@@ -419,20 +425,20 @@ Symboles : useScaleContext
 ## web/src/hooks/useTimelineInteraction.js
 
 139 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : useTimelineInteraction
 
 ## web/src/hooks/useWakeLock.js
 
 54 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : useWakeLock
 
 ## web/src/index.css
 
 367 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/main.jsx
 
@@ -443,8 +449,8 @@ Symboles : removeSplash
 ## web/src/models/song.js
 
 301 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/services/AudioEngine.js
 
@@ -461,38 +467,38 @@ Symboles : preloadDemoSongsIfEmpty
 ## web/src/services/MidiInputService.js
 
 534 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : loadTauriAPIs, MidiInputService
 
 ## web/src/services/MidiService.js
 
 174 lignes ; accessible depuis main.jsx
 Dépendances locales : utils/timing.js, models/song.js
-Symboles : 
+Symboles : aucun
 
 ## web/src/services/OnboardingService.js
 
 51 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : readState
 
 ## web/src/services/StorageService.js
 
 351 lignes ; accessible depuis main.jsx
 Dépendances locales : utils/timing.js, models/song.js
-Symboles : 
+Symboles : aucun
 
 ## web/src/services/ThemeService.js
 
 457 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : ThemeService
 
 ## web/src/styles/tokens.css
 
 198 lignes ; accessible depuis main.jsx
-Dépendances locales : 
-Symboles : 
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/useSong.js
 
@@ -557,5 +563,5 @@ Symboles : splitStaffRests, buildStaffVoices
 ## web/src/utils/timing.js
 
 7 lignes ; accessible depuis main.jsx
-Dépendances locales : 
+Dépendances locales : aucune
 Symboles : quarterNotesPerMeasure

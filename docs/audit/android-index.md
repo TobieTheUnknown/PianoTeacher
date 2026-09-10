@@ -115,7 +115,7 @@ Symboles : PhraseRange, PlaybackDock, HandPill, HandSegment, SpeedCluster, Pixel
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/common/PlaybackHand.kt
 
 3 lignes.
-Symboles : 
+Symboles : aucun
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/common/PracticeReminderControls.kt
 

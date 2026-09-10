@@ -8,6 +8,7 @@ import { StorageService } from '../services/StorageService';
 import { getFrenchNoteName, normalizeKeySignature } from '../models/song';
 import { MobileHeader } from './MobileHeader';
 import { PlaybackDock } from './PlaybackDock';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 
 export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases, readOnly = false, isMobile = false }) {
@@ -46,6 +47,10 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
     const phraseTrackingRafRef = useRef(null);
+    const importExportDialogRef = useDialogFocus({
+        active: showImportExportModal,
+        onEscape: () => setShowImportExportModal(false),
+    });
 
     useEffect(() => {
         audioEngine.initialize().catch(error => {
@@ -971,6 +976,8 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 role="presentation"
                 >
                     <div
+                        ref={importExportDialogRef}
+                        tabIndex="-1"
                         className="card"
                         role="dialog"
                         aria-modal="true"

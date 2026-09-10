@@ -3,6 +3,7 @@ import { StorageService } from '../services/StorageService';
 import { getFrenchKeyName } from '../models/song';
 import { Cover } from './ui';
 import { SettingsIcon } from './icons/SettingsIcon';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import styles from './SongLibrary.module.css';
 
 const FILTERS = [
@@ -16,41 +17,6 @@ const SORTS = [
     { id: 'title', label: 'Titre A–Z' },
     { id: 'tempo', label: 'Tempo' },
 ];
-
-function useDialogFocus() {
-    const dialogRef = useRef(null);
-    useEffect(() => {
-        const previousFocus = document.activeElement;
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        dialogRef.current?.focus({ preventScroll: true });
-
-        const trapFocus = (event) => {
-            if (event.key !== 'Tab') return;
-            const focusable = [...(dialogRef.current?.querySelectorAll(
-                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
-            ) || [])].filter((element) => element.offsetParent !== null);
-            if (!focusable.length) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
-                event.preventDefault();
-                first.focus();
-            }
-        };
-
-        window.addEventListener('keydown', trapFocus);
-        return () => {
-            document.body.style.overflow = previousOverflow;
-            window.removeEventListener('keydown', trapFocus);
-            if (previousFocus instanceof HTMLElement) previousFocus.focus({ preventScroll: true });
-        };
-    }, []);
-    return dialogRef;
-}
 
 export function SongLibrary({
     onLearnSong,
@@ -73,18 +39,6 @@ export function SongLibrary({
 
     const loadSongs = useCallback(() => setSongs(StorageService.getSongs()), []);
     useEffect(() => { loadSongs(); }, [loadSongs]);
-
-    useEffect(() => {
-        if (!showLibraryModal && !detailSong) return undefined;
-        const handleEscape = (event) => {
-            if (event.key === 'Escape') {
-                setShowLibraryModal(false);
-                setDetailSong(null);
-            }
-        };
-        window.addEventListener('keydown', handleEscape);
-        return () => window.removeEventListener('keydown', handleEscape);
-    }, [showLibraryModal, detailSong]);
 
     useEffect(() => {
         const focusSearch = (event) => {
@@ -391,7 +345,7 @@ function EmptyLibrary({ onNewSong, onImport }) {
 }
 
 function SongDetailDialog({ song, data, onClose, onLearn, onLive, onEdit, onSheet, onExport, onDelete }) {
-    const dialogRef = useDialogFocus();
+    const dialogRef = useDialogFocus({ onEscape: onClose });
     return (
         <div className={styles.dialogOverlay} onMouseDown={onClose}>
             <section ref={dialogRef} tabIndex="-1" className={styles.detailDialog} role="dialog" aria-modal="true" aria-labelledby="song-detail-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -418,7 +372,7 @@ function SongDetailDialog({ song, data, onClose, onLearn, onLive, onEdit, onShee
 }
 
 function LibraryTransferDialog({ merge, setMerge, midiStatus, onClose, onImportMidi, onImportLibrary, onExportLibrary }) {
-    const dialogRef = useDialogFocus();
+    const dialogRef = useDialogFocus({ onEscape: onClose });
     return (
         <div className={styles.dialogOverlay} onMouseDown={onClose}>
             <section ref={dialogRef} tabIndex="-1" className={styles.transferDialog} role="dialog" aria-modal="true" aria-labelledby="transfer-title" onMouseDown={(event) => event.stopPropagation()}>

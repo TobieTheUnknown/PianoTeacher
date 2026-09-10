@@ -16,7 +16,7 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 ## Dette d'accessibilité à reprendre
 
 - Plusieurs boutons avec une icône et un `title` seulement doivent recevoir un `aria-label`. Faire un passage composant par composant, sans attribuer automatiquement le même nom à des actions différentes.
-- Les modales doivent toutes piéger le focus, rendre le fond inerte et restaurer le focus au bouton d'ouverture. `Settings`, l'onboarding et la bibliothèque ont chacun une implémentation partielle différente à unifier.
+- Le hook partagé `useDialogFocus` gère maintenant Réglages, les deux dialogues de Bibliothèque et Import/Export de l'Éditeur : focus initial, cycle Tab, fermeture Échap, blocage du scroll de fond et restitution au bouton d'ouverture. L'onboarding garde encore son cycle propre et le fond n'utilise pas encore l'attribut `inert`.
 - Le changement de morceau, de filtre et de mode reste entièrement dans l'état React. Des URL partageables pour les pages principales rendraient retour navigateur, favoris et liens directs prévisibles.
 
 ## Pourquoi l'interface paraît chargée
@@ -39,4 +39,4 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 
 Faire d'abord un prototype statique du Coach avec une vraie pièce dense, puis le dock, puis Réglages. Valider portrait, paysage, clavier et réduction des animations avant de reporter les mêmes décisions dans Compose. Ne pas commencer par déplacer des couleurs : la surcharge vient surtout du nombre d'informations simultanées.
 
-Le prochain passage de code doit extraire les styles répétés de `SongEditor` et `Settings` vers des composants nommés, puis unifier le piège/restauration de focus des dialogues. Changer la taille ou masquer des informations attendra le brainstorming afin de préserver les choix produit.
+Le prochain passage de code doit extraire les styles répétés de `SongEditor` et `Settings` vers des composants nommés, puis évaluer `inert` pour les fonds de dialogue. Changer la taille ou masquer des informations attendra le brainstorming afin de préserver les choix produit.

@@ -32,10 +32,12 @@ lines = ['# Index des sources web', '',
 for path in files:
     source = path.read_text()
     symbols = re.findall(r'^(?:export\s+)?(?:async\s+)?(?:function|class)\s+(\w+)', source, re.M)
+    dependencies = ', '.join(str(p.relative_to(web)) for p in imports[path]) or 'aucune'
+    symbol_list = ', '.join(symbols) or 'aucun'
     lines += [f'## {path.relative_to(root)}', '',
               f'{len(source.splitlines())} lignes ; ' + ('accessible depuis main.jsx' if path in reachable else 'sans chemin depuis main.jsx'),
-              'Dépendances locales : ' + ', '.join(str(p.relative_to(web)) for p in imports[path]),
-              'Symboles : ' + ', '.join(symbols), '']
+              'Dépendances locales : ' + dependencies,
+              'Symboles : ' + symbol_list, '']
 (root / 'docs/audit/source-index.md').write_text('\n'.join(lines))
 lines = ['# Index Android natif', '', 'Généré par `python3 scripts/update-source-index.py`. Les symboles indiquent les points de lecture ; cet inventaire ne constitue pas une validation.', '']
 for path in sorted((root / 'android/app/src/main').rglob('*')):
@@ -43,5 +45,5 @@ for path in sorted((root / 'android/app/src/main').rglob('*')):
         continue
     source = path.read_text()
     symbols = re.findall(r'^\s*(?:(?:private|internal|public|data|sealed|abstract|open|suspend|override|inline)\s+)*(?:class|object|interface|fun)\s+([\w.]+)', source, re.M)
-    lines += [f'## {path.relative_to(root)}', '', f'{len(source.splitlines())} lignes.', 'Symboles : ' + ', '.join(symbols), '']
+    lines += [f'## {path.relative_to(root)}', '', f'{len(source.splitlines())} lignes.', 'Symboles : ' + (', '.join(symbols) or 'aucun'), '']
 (root / 'docs/audit/android-index.md').write_text('\n'.join(lines))

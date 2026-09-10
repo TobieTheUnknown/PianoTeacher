@@ -8,6 +8,7 @@ import { LatencyWizard } from './LatencyWizard';
 import { DesignAppearance } from './DesignAppearance';
 import { OnboardingService } from '../services/OnboardingService';
 import { useDeviceContext } from '../hooks/useDeviceContext';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import styles from './Settings.module.css';
 
 export function Settings({ isOpen, onClose, onRestartOnboarding }) {
@@ -16,7 +17,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
     const [fontSize, setFontSize] = useState(localStorage.getItem('piano-teacher-font-size') || '16');
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
     const fileInputRef = useRef(null);
-    const modalRef = useRef(null);
+    const modalRef = useDialogFocus({ active: isOpen, onEscape: onClose });
     const learnerProfile = OnboardingService.getPreferences();
     const learnerGoal = { read: 'Lire avec fluidité', technique: 'Renforcer ma technique', create: 'Créer et arranger' }[learnerProfile.goal] || 'Lire avec fluidité';
     const learnerLevel = { beginner: 'Je débute', intermediate: 'Je progresse', advanced: 'Je me perfectionne' }[learnerProfile.level] || 'Je débute';
@@ -73,41 +74,6 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
         };
     }, [isOpen]);
     /* eslint-enable react-hooks/set-state-in-effect */
-
-    useEffect(() => {
-        if (!isOpen) return undefined;
-        const previousFocus = document.activeElement;
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        modalRef.current?.focus({ preventScroll: true });
-
-        const handleKeyDown = (event) => {
-            if (event.key === 'Escape') {
-                onClose();
-                return;
-            }
-            if (event.key !== 'Tab') return;
-            const focusable = [...(modalRef.current?.querySelectorAll(
-                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
-            ) || [])].filter((element) => element.offsetParent !== null);
-            if (!focusable.length) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && (document.activeElement === first || document.activeElement === modalRef.current)) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === modalRef.current)) {
-                event.preventDefault();
-                first.focus();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            document.body.style.overflow = previousOverflow;
-            window.removeEventListener('keydown', handleKeyDown);
-            if (previousFocus instanceof HTMLElement) previousFocus.focus({ preventScroll: true });
-        };
-    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
