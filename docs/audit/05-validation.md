@@ -98,3 +98,20 @@ Résultats : tests ciblés passés, **63 tests JVM passés** au complet, aucun �
 Les nouveaux tests couvrent les interleavings précis (route notifiée ou notification retardée après réouverture MIDI, interruption pendant ouverture, émission tardive après réacquisition) et le transfert du propriétaire par le vrai transport lors d'une attaque/restauration de tenue. Les callbacks de fermeture JNI sur un vrai appareil, les routes Bluetooth/USB, le focus concurrent et la qualité audio ne sont pas validés matériellement ici. Pas d'installation effectuée.
 
 Après retrait de la méthode historique `AudioEngine.start()` et de ses deux appels sans effet, `:app:testDebugUnitTest :app:assembleDebug` repasse : **63 tests JVM**, compilation Oboe arm64-v8a/x86_64 et APK debug réussies.
+
+## Checkpoint fermeture Oboe hors du main
+
+Depuis `android/`, après ajout des tests de régression :
+
+```sh
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ANDROID_HOME='/Users/TobieRaggi/Library/Android/sdk' ./gradlew :app:testDebugUnitTest --tests '*AudioOutputLifecycleTest' --tests '*AudioSessionControllerTest' --tests '*PlaybackTimelineTest' --offline
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ANDROID_HOME='/Users/TobieRaggi/Library/Android/sdk' ./gradlew :app:testDebugUnitTest :app:assembleDebug --offline
+```
+
+Résultats : tests ciblés passés ; **70 tests JVM passés**, aucun échec ni test ignoré. APK debug construit avec les bibliothèques arm64-v8a/x86_64. CTest du mixeur natif et `git diff --check` restent passants. L'avertissement de version XML du SDK était déjà présent.
+
+`AudioOutputLifecycleTest` injecte un exécuteur manuel et un vrai worker avec une fermeture bloquée par latch : `interrupt()` rend la main et le verrou des voix reste accessible avant déblocage du pilote simulé. Les tests couvrent aussi stop→start, background pendant ouverture, notification retardée, annulation, note MIDI relâchée avant disponibilité et ownership de hauteurs identiques. Les tests antérieurs de sessions et de transport restent actifs.
+
+APK installée sur le Pixel 8 Pro avec `adb install -r` : succès et données conservées. Le démarrage à froid de `MainActivity` a réussi en **1,022 s** ; l'activité est restée `topResumedActivity` et les journaux confirment **30/30 samples**, `Audio ready=true`, backend Oboe, sans `FATAL EXCEPTION`. Aucun flux n'est ouvert avant une action sonore, conformément au cycle de focus. L'écoute, la reprise après une autre application audio et les routes Bluetooth/USB restent à valider manuellement.
+
+Un pilote qui ne termine pas peut bloquer le worker de sortie ; ce checkpoint garantit l'invalidation immédiate et retire les attentes Oboe du main/voiceLock, pas un délai maximal du pilote. Le chemin dormant `release()` est volontairement inchangé, comme le choix de fallback et l'ordonnanceur musical.

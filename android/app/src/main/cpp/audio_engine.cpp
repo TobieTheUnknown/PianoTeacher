@@ -135,11 +135,6 @@ public:
         closeStreamLocked();
     }
 
-    bool isRunning() {
-        std::lock_guard<std::mutex> streamLock(mStreamMutex);
-        return isRunningLocked();
-    }
-
     bool onError(oboe::AudioStream* stream, oboe::Result error) override {
         // Oboe invokes this on its error thread, never the realtime callback.
         // Own closing here so lifecycle/start cannot race Oboe's default close.
@@ -294,11 +289,6 @@ Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeStart(JNIEnv*, job
     return gEngine->start() ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT jboolean JNICALL
-Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeIsRunning(JNIEnv*, jobject) {
-    return gEngine && gEngine->isRunning() ? JNI_TRUE : JNI_FALSE;
-}
-
 JNIEXPORT jlong JNICALL
 Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeOutputRevision(JNIEnv*, jobject) {
     return gEngine ? gEngine->outputRevision() : 0;
@@ -307,6 +297,12 @@ Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeOutputRevision(JNI
 JNIEXPORT void JNICALL
 Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSuspend(JNIEnv*, jobject) {
     if (gEngine) gEngine->stop();
+}
+
+JNIEXPORT void JNICALL
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSilence(JNIEnv*, jobject) {
+    // Panic is only a command generation change: never wait for the stream mutex.
+    if (gEngine) gEngine->noteOn(0, -1, 0);
 }
 
 JNIEXPORT void JNICALL

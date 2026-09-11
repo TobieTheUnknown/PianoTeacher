@@ -95,7 +95,7 @@ data class TransportSettings(
  */
 interface PlaybackAudio {
     suspend fun awaitReady(): Boolean
-    fun beginPlayback(): Long = 1L
+    suspend fun beginPlayback(): Long = 1L
     fun isPlaybackActive(session: Long): Boolean = true
     fun endPlayback(session: Long) = Unit
     fun playVoice(session: Long, pitch: Int, velocity: Int = 80): Long

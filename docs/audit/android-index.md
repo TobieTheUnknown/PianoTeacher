@@ -4,7 +4,7 @@ Généré par `python3 scripts/update-source-index.py`. Les symboles indiquent l
 
 ## android/app/src/main/cpp/audio_engine.cpp
 
-360 lignes.
+356 lignes.
 Symboles : AudioEngine
 
 ## android/app/src/main/cpp/voice_mixer.h
@@ -19,18 +19,23 @@ Symboles : MainActivity, onCreate, onNewIntent, onResume, onStop
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioEngine.kt
 
-400 lignes.
+423 lignes.
 Symboles : AudioEngine, getInstance, awaitReady, onForeground, onBackground, beginPlayback, isPlaybackActive, endPlayback, scheduleIdleRelease, playVoice, createVoice, stopVoice, noteOn, noteOff, stop, setSustainPedal, setEnabled, release, loadOboe, PcmData, decodeMp3Asset, setRelease, onNativeOutputInterrupted, playClick
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioSessionController.kt
 
-90 lignes.
-Symboles : AudioSessionController, reconcileOutput, setForeground, beginPlayback, isActive, endPlayback, prepareOutput, interrupt, releaseIfIdle
+118 lignes.
+Symboles : AudioSessionController, reconcileOutput, setForeground, beginPlayback, isActive, endPlayback, prepareOutput, prepare, interrupt, releaseIfIdle
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/MetronomeEngine.kt
 
 71 lignes.
 Symboles : MetronomeEngine, generateClick, createStaticTrack, rebuildTracks, playClick, setVolume, release
+
+## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/MidiVoiceRegistry.kt
+
+31 lignes.
+Symboles : MidiVoiceRegistry, Released, reserve, activate, hasPending, release, cancel, clear
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/PlaybackTimeline.kt
 
@@ -41,6 +46,11 @@ Symboles : TimelineNote, songTimeline, phraseTimeline, TimelineEvent, timelineEv
 
 145 lignes.
 Symboles : SamplerEngine, loadAsync, finishLoadingIfReady, playVoice, stopVoice, stopAll, findNearestSample, release, Float.pow
+
+## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/SerialAudioOutput.kt
+
+62 lignes.
+Symboles : SerialAudioOutput, isReady, open, close
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/data/model/Song.kt
 
@@ -174,7 +184,7 @@ Symboles : HitEffect, LivePlayScreen, controlsBlock, LivePlayCanvas, PianoKeyboa
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayViewModel.kt
 
-549 lignes.
+554 lignes.
 Symboles : NoteWithHand, LivePlayUiState, LivePlayViewModel, handleMidiNoteOn, handleMidiNoteOff, togglePlayPause, timelineNotes, shouldAutoPlay, play, pause, restart, seekToBeat, setSpeed, beginScrub, scrubToBeat, endScrub, toggleLoop, setLoopRange, toggleWaitMode, toggleAudio, toggleMetronome, toggleListenMode, setVisibleBeats, setHand, nextPhrase, prevPhrase, goToPhrase, updateVisibleNotes, addVisibleNotes, updateExpectedKeys, onCleared, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/onboarding/OnboardingPreferences.kt

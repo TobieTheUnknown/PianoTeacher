@@ -2,6 +2,7 @@ package com.tobietheunknown.pianoteacher.audio
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class AudioSessionControllerTest {
     private class Fixture {
@@ -14,12 +15,12 @@ class AudioSessionControllerTest {
             requestFocus = { events += "request"; grantFocus },
             abandonFocus = { events += "abandon" },
             openOutput = { events += "open"; onOpen(); canOpen },
-            silenceAndCloseOutput = { events += "silence-close" },
+            silenceOutput = { events += "silence-close" },
             outputRevision = { outputRevision },
         )
     }
 
-    @Test fun `opening and returning to app never claims focus without playback`() {
+    @Test fun `opening and returning to app never claims focus without playback`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         assertTrue(f.events.isEmpty())
@@ -28,7 +29,7 @@ class AudioSessionControllerTest {
         assertEquals(listOf("silence-close"), f.events)
     }
 
-    @Test fun `focus loss invalidates old transport and explicit play recovers output`() {
+    @Test fun `focus loss invalidates old transport and explicit play recovers output`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         val first = f.controller.beginPlayback()
@@ -46,7 +47,7 @@ class AudioSessionControllerTest {
         assertEquals(listOf("request", "open", "silence-close", "abandon", "request", "open"), f.events)
     }
 
-    @Test fun `background prevents playback until foreground and a fresh user action`() {
+    @Test fun `background prevents playback until foreground and a fresh user action`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         val first = f.controller.beginPlayback()
@@ -58,7 +59,7 @@ class AudioSessionControllerTest {
         assertTrue(f.controller.beginPlayback() > 0)
     }
 
-    @Test fun `denied focus does not open output and can retry later`() {
+    @Test fun `denied focus does not open output and can retry later`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         f.grantFocus = false
@@ -68,7 +69,7 @@ class AudioSessionControllerTest {
         assertTrue(f.controller.beginPlayback() > 0)
     }
 
-    @Test fun `failed output relinquishes focus and a later retry succeeds`() {
+    @Test fun `failed output relinquishes focus and a later retry succeeds`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         f.canOpen = false
@@ -78,7 +79,7 @@ class AudioSessionControllerTest {
         assertTrue(f.controller.beginPlayback() > 0)
     }
 
-    @Test fun `idle release waits for both transport and midi voices`() {
+    @Test fun `idle release waits for both transport and midi voices`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         val session = f.controller.beginPlayback()
@@ -92,7 +93,7 @@ class AudioSessionControllerTest {
         assertTrue(f.controller.prepareOutput())
     }
 
-    @Test fun `route notification immediately invalidates session without transport polling`() {
+    @Test fun `route notification immediately invalidates session without transport polling`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         val first = f.controller.beginPlayback()
@@ -103,13 +104,13 @@ class AudioSessionControllerTest {
         assertFalse(f.controller.prepareOutput())
     }
 
-    @Test fun `midi reopen before route notification clears handles and cannot revive old session`() {
+    @Test fun `midi reopen before route notification clears handles and cannot revive old session`() = runBlocking {
         var revision = 0L
         val handles = mutableSetOf(11L)
         var clears = 0
         val controller = AudioSessionController(
             requestFocus = { true }, abandonFocus = {}, openOutput = { true },
-            silenceAndCloseOutput = { handles.clear(); clears++ },
+            silenceOutput = { handles.clear(); clears++ },
             outputRevision = { revision },
         )
         controller.setForeground(true)
@@ -126,7 +127,7 @@ class AudioSessionControllerTest {
         assertTrue(controller.isActive(fresh))
     }
 
-    @Test fun `route interruption during opening does not issue a usable session`() {
+    @Test fun `route interruption during opening does not issue a usable session`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         f.onOpen = { f.outputRevision++ }
@@ -136,7 +137,7 @@ class AudioSessionControllerTest {
         assertTrue(f.controller.beginPlayback() > 0)
     }
 
-    @Test fun `old attack and click are rejected after check then interruption and reacquisition`() {
+    @Test fun `old attack and click are rejected after check then interruption and reacquisition`() = runBlocking {
         val f = Fixture()
         f.controller.setForeground(true)
         val old = f.controller.beginPlayback()

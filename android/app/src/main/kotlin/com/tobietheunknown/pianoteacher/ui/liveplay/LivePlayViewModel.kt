@@ -324,11 +324,16 @@ class LivePlayViewModel(
             if (chord.isNotEmpty()) {
                 lastAuditionNanos = now
                 scrubbedOccurrences.addAll(chord.map { it.occurrence })
-                val session = audioEngine.beginPlayback()
-                if (session != 0L) {
-                    val voices = chord.map { audioEngine.playVoice(session, it.note.pitch, 65) }
-                    viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
-                        try { delay(110) } finally {
+                viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    val session = audioEngine.beginPlayback()
+                    if (session != 0L) {
+                        val voices = mutableListOf<Long>()
+                        try {
+                            // Opening may suspend: only the latest, still active gesture auditions.
+                            if (!scrubbing || lastAuditionNanos != now) return@launch
+                            voices += chord.map { audioEngine.playVoice(session, it.note.pitch, 65) }
+                            delay(110)
+                        } finally {
                             voices.forEach(audioEngine::stopVoice)
                             audioEngine.endPlayback(session)
                         }

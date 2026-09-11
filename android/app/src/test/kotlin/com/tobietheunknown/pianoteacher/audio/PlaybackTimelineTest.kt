@@ -93,13 +93,13 @@ class PlaybackTimelineTest {
             val raw = FakeAudio()
             val sessions = AudioSessionController(
                 requestFocus = { true }, abandonFocus = {},
-                openOutput = { true }, silenceAndCloseOutput = {},
+                openOutput = { true }, silenceOutput = {},
             )
             sessions.setForeground(true)
             var clicks = 0
             var replacement = 0L
             val audio = object : PlaybackAudio by raw {
-                override fun beginPlayback() = sessions.beginPlayback()
+                override suspend fun beginPlayback() = sessions.beginPlayback()
                 override fun isPlaybackActive(session: Long) = sessions.isActive(session)
                 override fun endPlayback(session: Long) = sessions.endPlayback(session)
                 override fun playVoice(session: Long, pitch: Int, velocity: Int): Long =
@@ -114,7 +114,7 @@ class PlaybackTimelineTest {
                         // autoPlay is evaluated after the transport's session check,
                         // immediately before it hands the attack to PlaybackAudio.
                         sessions.interrupt()
-                        replacement = sessions.beginPlayback()
+                        replacement = runBlocking { sessions.beginPlayback() }
                         true
                     },
                     { emptySet() }, { _, _ -> },
@@ -224,7 +224,7 @@ class PlaybackTimelineTest {
     @Test fun `focus denied leaves transport stopped without note or click`() = runBlocking {
         val audio = FakeAudio()
         val deniedAudio = object : PlaybackAudio by audio {
-            override fun beginPlayback() = 0L
+            override suspend fun beginPlayback() = 0L
         }
         assertFalse(TimelineTransport(deniedAudio, listOf(note(0, 60, 0.0, 1.0)), 4.0).run(
             0.0, { TransportSettings(1.0, 0.0, 4.0) }, { true }, { emptySet() }, { _, _ -> },

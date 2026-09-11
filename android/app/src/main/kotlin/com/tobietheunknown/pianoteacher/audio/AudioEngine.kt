@@ -15,6 +15,7 @@ import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,7 +42,8 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     private val voiceLock = Any()
     private val nextVoice = java.util.concurrent.atomic.AtomicLong(1)
     private val activeVoices = mutableSetOf<Long>()
-    private val midiVoices = mutableMapOf<Int, java.util.ArrayDeque<Long>>()
+    private val midiVoices = MidiVoiceRegistry()
+    private val pendingMidiJobs = mutableMapOf<Long, Job>()
     private var pedalEngaged = false
     private val heldByPedal = mutableSetOf<Long>()
     private var idleReleaseJob: Job? = null
@@ -65,11 +67,16 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         abandonFocus = { audioManager?.abandonAudioFocusRequest(focusRequest); Unit },
         openOutput = { if (oboeReady) nativeStart() else samplerEngine != null },
         outputRevision = { if (oboeReady) nativeOutputRevision() else 0L },
-        silenceAndCloseOutput = {
+        silenceOutput = {
             activeVoices.clear()
             midiVoices.clear()
             heldByPedal.clear()
             pedalEngaged = false
+            pendingMidiJobs.values.toList().forEach { it.cancel() }
+            pendingMidiJobs.clear()
+            if (nativeAvailable) nativeSilence()
+        },
+        closeOutput = {
             if (nativeAvailable) nativeSuspend()
             samplerEngine?.stopAll()
         },
@@ -136,20 +143,16 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     fun onForeground() = sessions.setForeground(true)
     fun onBackground() = sessions.setForeground(false)
 
-    override fun beginPlayback(): Long = synchronized(voiceLock) {
-        if (!_ready.value) return@synchronized 0L
-        idleReleaseJob?.cancel()
-        sessions.beginPlayback()
+    override suspend fun beginPlayback(): Long {
+        synchronized(voiceLock) {
+            if (!_ready.value) return 0L
+            idleReleaseJob?.cancel()
+        }
+        return try { sessions.beginPlayback() }
+        finally { synchronized(voiceLock) { scheduleIdleRelease() } }
     }
 
-    override fun isPlaybackActive(session: Long): Boolean = synchronized(voiceLock) {
-        if (!sessions.isActive(session)) return@synchronized false
-        if (oboeReady && !nativeIsRunning()) {
-            sessions.interrupt()
-            return@synchronized false
-        }
-        true
-    }
+    override fun isPlaybackActive(session: Long): Boolean = sessions.isActive(session)
 
     override fun endPlayback(session: Long) = synchronized(voiceLock) {
         sessions.endPlayback(session)
@@ -160,7 +163,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         idleReleaseJob?.cancel()
         idleReleaseJob = scope.launch {
             delay(1_200) // Let the release envelope finish before returning focus.
-            synchronized(voiceLock) { sessions.releaseIfIdle(activeVoices.isNotEmpty()) }
+            synchronized(voiceLock) { sessions.releaseIfIdle(activeVoices.isNotEmpty() || midiVoices.hasPending()) }
         }
     }
 
@@ -169,10 +172,10 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         sessions.withPlayback(session, 0L) { createVoice(pitch, velocity) }
 
     /** Called only under voiceLock, after preparing MIDI output or validating a score session. */
-    private fun createVoice(pitch: Int, velocity: Int): Long {
+    private fun createVoice(pitch: Int, velocity: Int, reservedId: Long? = null): Long {
         if (!enabled || !_ready.value || pitch !in 0..127) return 0L
         idleReleaseJob?.cancel()
-        val id = nextVoice.getAndIncrement()
+        val id = reservedId ?: nextVoice.getAndIncrement()
         activeVoices.add(id)
         if (oboeReady) nativePlayVoice(id, pitch, velocity.coerceIn(1, 127))
         else samplerEngine?.playVoice(id, pitch, velocity)
@@ -189,9 +192,28 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     }
 
     fun noteOn(pitch: Int, velocity: Int = 80) = synchronized(voiceLock) {
-        if (!enabled || !_ready.value || !sessions.prepareOutput(explicit = true)) return@synchronized
-        val id = createVoice(pitch, velocity)
-        if (id != 0L) midiVoices.getOrPut(pitch) { java.util.ArrayDeque() }.addLast(id)
+        if (!enabled || !_ready.value || pitch !in 0..127) return@synchronized
+        sessions.reconcileOutput()
+        val id = nextVoice.getAndIncrement()
+        midiVoices.reserve(pitch, id)
+        idleReleaseJob?.cancel()
+        val pending = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                val ticket = sessions.prepare(explicit = true)
+                synchronized(voiceLock) {
+                    if (ticket != null && midiVoices.activate(id)) {
+                        val played = sessions.withPrepared(ticket, 0L) { createVoice(pitch, velocity, id) }
+                        if (played == 0L) midiVoices.cancel(id)
+                    } else midiVoices.cancel(id)
+                }
+            } finally {
+                synchronized(voiceLock) {
+                    pendingMidiJobs.remove(id)
+                    scheduleIdleRelease()
+                }
+            }
+        }
+        if (pending.isActive) pendingMidiJobs[id] = pending
     }
 
     fun noteOff(pitch: Int) = synchronized(voiceLock) {
@@ -199,13 +221,14 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         if (pitch < 0) {
             activeVoices.toList().forEach(::stopVoice)
             midiVoices.clear()
+            pendingMidiJobs.values.toList().forEach { it.cancel() }
+            pendingMidiJobs.clear()
             heldByPedal.clear()
         } else {
-            val queue = midiVoices[pitch]
-            val id = queue?.pollFirst()
-            if (queue?.isEmpty() == true) midiVoices.remove(pitch)
-            if (id != null) {
-                if (pedalEngaged) heldByPedal.add(id) else stopVoice(id)
+            val released = midiVoices.release(pitch)
+            if (released != null) {
+                if (released.pending) pendingMidiJobs.remove(released.id)?.cancel()
+                else if (pedalEngaged) heldByPedal.add(released.id) else stopVoice(released.id)
             }
         }
     }
@@ -366,7 +389,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     private external fun nativeInitialize(): Boolean
     private external fun nativeStart(): Boolean
     private external fun nativeSuspend()
-    private external fun nativeIsRunning(): Boolean
+    private external fun nativeSilence()
     private external fun nativeOutputRevision(): Long
     private external fun nativeStop()
     private external fun nativePlayVoice(id: Long, pitch: Int, velocity: Int)

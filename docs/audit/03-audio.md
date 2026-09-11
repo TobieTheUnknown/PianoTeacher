@@ -90,7 +90,7 @@ Limites : le timestamp natif inclut la traversée IPC et demande une validation 
 - Fermeture/reprise : publication d'une nouvelle génération, sans réinitialiser les indices de la file ni modifier les voix depuis le thread de gestion. Les anciennes commandes et clics ne reviennent pas au redémarrage.
 - Tests C++ : ordre on/off, même hauteur avec IDs distincts, vol de la 65e voix et ancien note-off, préférence des voix en release, saturation, clic actif/en attente, purge et génération, producteur suspendu, invalidation pendant le rendu, bouclage des indices, stress concurrent de 100 000 paires, interpolation stéréo et fin de sample. Les allocations C++ dans le rendu sont interdites par le harnais de test.
 
-Les risques P2 laissés ouverts par ce premier checkpoint sont traités dans le lot sessions/routes ci-dessous. La fermeture Oboe reste bloquante sur le chemin de focus, et `release()` reste un chemin dormant à sécuriser. Aucun changement aux P2 sessions/routes, au fallback SoundPool ou au métronome d'aperçu des Réglages. Les underruns, la latence et les changements de périphérique restent à vérifier sur téléphone.
+Les risques P2 laissés ouverts par ce premier checkpoint sont traités dans le lot sessions/routes ci-dessous. La fermeture Oboe est déplacée hors du main dans le checkpoint suivant ; `release()` reste un chemin dormant à sécuriser. Aucun changement aux P2 sessions/routes, au fallback SoundPool ou au métronome d'aperçu des Réglages. Les underruns, la latence et les changements de périphérique restent à vérifier sur téléphone.
 
 ## Checkpoint sessions/routes : interruption native et émission appartenant à une session
 
@@ -100,8 +100,18 @@ Les risques P2 laissés ouverts par ce premier checkpoint sont traités dans le 
 - `PlaybackAudio.playVoice` et `playClick` exigent maintenant la session. `withPlayback` valide le propriétaire et émet sous le même verrou que les interruptions. Le transport transmet son ID pour les attaques, les restaurations de tenues, le count-in et les clics ; le scrub transmet également son ID.
 - Le monitoring MIDI reste une action explicite indépendante du transport ; le chemin SoundPool conserve ses appels et bénéficie du même contrôle de session pour la partition.
 
-Tests déterministes : notification sans polling ; MIDI qui rouvre avant une notification retardée ; interruption pendant l'ouverture ; ancien contrôle de session suivi d'une perte/réacquisition du focus avant l'attaque ou le clic ; vraie exécution du transport interrompue juste avant une attaque ou une restauration de tenue. Aucun rendu UI modifié. La fermeture bloquante, la destruction dormante de `release()`, l'aperçu AudioTrack des Réglages et la validation matérielle restent des sujets séparés.
+Tests déterministes : notification sans polling ; MIDI qui rouvre avant une notification retardée ; interruption pendant l'ouverture ; ancien contrôle de session suivi d'une perte/réacquisition du focus avant l'attaque ou le clic ; vraie exécution du transport interrompue juste avant une attaque ou une restauration de tenue. Aucun rendu UI modifié. La destruction dormante de `release()`, l'aperçu AudioTrack des Réglages et la validation matérielle restent des sujets séparés.
 
 ## Nettoyage du démarrage historique
 
 `AudioEngine.start()` renvoyait toujours `true` sans lancer aucune opération ; ses deux appelants ignoraient ce résultat. L'initialisation reste effectuée une seule fois dans le constructeur du singleton, et les lectures continuent d'attendre `awaitReady()` avant `beginPlayback()`. La méthode et ses deux appels ont été retirés sans modifier le cycle audio.
+
+## Checkpoint fermeture Oboe hors du main
+
+- `SerialAudioOutput` possède un exécuteur série injectable. Les ouvertures et fermetures matérielles s'exécutent sur `PianoOutputLifecycle`, hors du main et hors de tout verrou d'état Kotlin. Une ouverture en attente est partagée ; les générations invalident les résultats périmés, et la file ordonne ancienne fermeture puis nouvelle ouverture.
+- L'interruption invalide immédiatement les sessions, les handles MIDI et les pédales. `nativeSilence` publie seulement une purge des commandes/voix ; elle ne prend pas le mutex du flux. La fermeture Oboe est ensuite mise en file. Le polling `nativeIsRunning` n'est plus appelé sous `voiceLock` : l'état de sortie et la révision native portent la disponibilité.
+- `beginPlayback` est suspendu pendant la préparation matérielle, sans bloquer le thread appelant. Une préparation annulée ou interrompue ne publie aucun propriétaire utilisable ; les émissions déjà prêtes restent synchrones sous le verrou de session.
+- `MidiVoiceRegistry` réserve un handle avant l'ouverture. Un relâchement reçu entre-temps retire cette réservation et annule son attente : aucune attaque différée n'est rejouée. Les hauteurs identiques conservent des IDs distincts et les voix déjà actives gardent le comportement de pédale existant.
+- Le scrub attend sa session dans une coroutine et vérifie que le geste est encore actif et que l'accord est toujours le dernier demandé avant de l'auditionner.
+
+Sept tests supplémentaires couvrent une fermeture artificiellement bloquée, l'ordre stop→start, le passage en arrière-plan pendant ouverture, une notification de route retardée, une note MIDI relâchée avant disponibilité, l'annulation d'une préparation et les handles de même hauteur. Le nettoyage des API `start`/`release`, le choix de fallback, le métronome d'aperçu et l'ordonnancement musical ne font pas partie de ce checkpoint. Un pilote qui ne termine jamais peut encore immobiliser le worker de sortie ; il ne doit plus immobiliser le main. Les transitions matérielles et l'écoute restent à valider sur téléphone.
