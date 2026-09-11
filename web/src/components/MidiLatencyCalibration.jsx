@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
+import { MidiCalibrationSession, MIDI_CALIBRATION_MIN_MATCHES } from '../utils/midiCalibration.js';
 
 /**
  * Visual Scrolling Track Component
@@ -8,20 +9,17 @@ import { audioEngine } from '../services/AudioEngine';
  * Guitar Hero / LivePlay style horizontal scrolling track
  * Shows markers moving towards a hit line for visual calibration
  */
-function VisualScrollingTrack({ currentBeat, totalBeats, beatInterval }) {
+function VisualScrollingTrack({ currentBeat, totalBeats, beatInterval, startTime }) {
     const [elapsedTime, setElapsedTime] = useState(0);
-    const startTimeRef = useRef(null);
     const animationFrameRef = useRef(null);
 
     // Animation loop to update elapsed time
     useEffect(() => {
-        if (startTimeRef.current === null) {
-            startTimeRef.current = performance.now();
-        }
-
+        let active = true;
         const animate = () => {
+            if (!active) return;
             const now = performance.now();
-            const elapsed = now - startTimeRef.current;
+            const elapsed = now - startTime;
             setElapsedTime(elapsed);
             animationFrameRef.current = requestAnimationFrame(animate);
         };
@@ -29,11 +27,12 @@ function VisualScrollingTrack({ currentBeat, totalBeats, beatInterval }) {
         animationFrameRef.current = requestAnimationFrame(animate);
 
         return () => {
-            if (animationFrameRef.current) {
+            active = false;
+            if (animationFrameRef.current !== null) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, []);
+    }, [startTime]);
 
     const trackWidth = 600; // px
     const trackHeight = 120; // px
@@ -239,6 +238,23 @@ function VisualScrollingTrack({ currentBeat, totalBeats, beatInterval }) {
  *
  * Uses a metronome-based approach for predictable rhythm.
  */
+async function createCalibrationSynth(isActive) {
+    await audioEngine.initialize();
+    if (!isActive()) return null;
+    const Tone = audioEngine.getTone();
+    if (!Tone) return null;
+    await Tone.start();
+    if (!isActive()) return null;
+    const synth = new Tone.MembraneSynth({
+        pitchDecay: 0.05,
+        octaves: 10,
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 },
+    });
+    try { return synth.toDestination(); }
+    catch (error) { synth.dispose(); throw error; }
+}
+
 export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
     const [phase, setPhase] = useState('intro'); // 'intro', 'countdown', 'calibrating', 'complete'
     const [countdown, setCountdown] = useState(3);
@@ -251,165 +267,67 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
     const bpm = 60; // 60 BPM = 1 beat per second
     const beatInterval = (60 / bpm) * 1000; // ms per beat
 
-    const metronomeSynth = useRef(null);
-    const metronomeInterval = useRef(null);
-    const beatTimestamps = useRef([]);
-    const expectedBeatTimes = useRef([]);
-    const audioInitialized = useRef(false);
+    const sessionRef = useRef(null);
+    const [calibrationStart, setCalibrationStart] = useState(0);
 
-    // Initialize audio
     useEffect(() => {
-        const initAudio = async () => {
-            if (!audioInitialized.current) {
-                await audioEngine.initialize();
-                const Tone = audioEngine.getTone();
-                if (!Tone) return;
-                await Tone.start();
-
-                metronomeSynth.current = new Tone.MembraneSynth({
-                    pitchDecay: 0.05,
-                    octaves: 10,
-                    oscillator: { type: 'sine' },
-                    envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 }
-                }).toDestination();
-
-                audioInitialized.current = true;
-            }
-        };
-        initAudio();
-
+        const session = new MidiCalibrationSession();
+        sessionRef.current = session;
+        session.prepareAudio(createCalibrationSynth);
+        // Capture raw receipt time; the saved compensation must not be applied
+        // a second time while measuring its replacement.
+        const handleNoteOn = () => session.recordTap();
+        midiInputService.addEventListener('noteOn', handleNoteOn);
         return () => {
-            if (metronomeInterval.current) {
-                clearInterval(metronomeInterval.current);
-            }
+            session.dispose();
+            midiInputService.removeEventListener('noteOn', handleNoteOn);
+            if (sessionRef.current === session) sessionRef.current = null;
         };
     }, []);
 
-    // MIDI listener during calibration
-    useEffect(() => {
-        if (phase !== 'calibrating') return;
-
-        // eslint-disable-next-line no-unused-vars
-        const handleNoteOn = (event) => {
-            const now = performance.now();
-
-            // Record the timestamp of ANY key press during calibration
-            beatTimestamps.current.push(now);
-
-            console.log(`Beat ${beatTimestamps.current.length}/${totalBeats} recorded at ${now.toFixed(2)}ms`);
-        };
-
-        midiInputService.addEventListener('noteOn', handleNoteOn);
-        return () => midiInputService.removeEventListener('noteOn', handleNoteOn);
-    }, [phase]);
-
     const startCountdown = () => {
-        setPhase('countdown');
-        setCountdown(3);
-        setInstructions('Préparez-vous...');
-
-        let count = 3;
-        const countdownTimer = setInterval(() => {
-            count--;
-            if (count > 0) {
+        const session = sessionRef.current;
+        if (!session?.active) return;
+        if (calibrationType === 'audio') session.prepareAudio(createCalibrationSynth);
+        session.start({
+            mode: calibrationType,
+            totalBeats,
+            beatInterval,
+            onCountdown: count => {
+                setPhase('countdown');
                 setCountdown(count);
-                playMetronomeClick(true); // Accent on countdown
-            } else {
-                clearInterval(countdownTimer);
-                startCalibration();
-            }
-        }, beatInterval);
-    };
-
-    const playMetronomeClick = (accent = false) => {
-        if (!metronomeSynth.current) return;
-
-        const frequency = accent ? 'C5' : 'C4';
-        metronomeSynth.current.triggerAttackRelease(frequency, '8n');
-    };
-
-    // playVisualPulse removed - not used (visual pulse handled by beat display)
-
-    const startCalibration = () => {
-        setPhase('calibrating');
-        setCurrentBeat(0);
-        beatTimestamps.current = [];
-        expectedBeatTimes.current = [];
-
-        setInstructions(
-            calibrationType === 'visual'
-                ? '🎵 Jouez UNE NOTE quand le marqueur atteint la ligne !'
-                : '🎵 Jouez UNE NOTE sur chaque "bip" !'
-        );
-
-        let beat = 0;
-        const startTime = performance.now();
-
-        // Start metronome
-        metronomeInterval.current = setInterval(() => {
-            beat++;
-
-            if (beat <= totalBeats) {
-                setCurrentBeat(beat);
-
-                // Record expected beat time
-                const expectedTime = startTime + (beat * beatInterval);
-                expectedBeatTimes.current.push(expectedTime);
-
-                // Trigger audio cue (only for audio mode)
-                if (calibrationType === 'audio') {
-                    playMetronomeClick(beat === 1 || beat % 4 === 1);
+                setInstructions('Préparez-vous...');
+            },
+            onStart: startTime => {
+                setPhase('calibrating');
+                setCalibrationStart(startTime);
+                setCurrentBeat(0);
+                setMeasurements([]);
+                setInstructions(calibrationType === 'visual'
+                    ? '🎵 Jouez UNE NOTE quand le marqueur atteint la ligne !'
+                    : '🎵 Jouez UNE NOTE sur chaque "bip" !');
+            },
+            onBeat: setCurrentBeat,
+            onError: () => {
+                setPhase('intro');
+                setInstructions('Audio indisponible. Réessayez ou choisissez la calibration visuelle.');
+            },
+            onFinish: result => {
+                setPhase('complete');
+                setMeasurements(result.latencies);
+                if (!result.valid) {
+                    setInstructions(`❌ Mesure insuffisante : ${result.latencies.length}/${totalBeats} battements valides.\n` +
+                        `Jouez sur au moins ${MIDI_CALIBRATION_MIN_MATCHES} battements, puis réessayez. Aucun réglage modifié.`);
+                    return;
                 }
-                // Visual mode: no metronome, just visual scrolling
-            } else {
-                // Calibration complete
-                clearInterval(metronomeInterval.current);
-                finishCalibration();
-            }
-        }, beatInterval);
-    };
-
-    const finishCalibration = () => {
-        setPhase('complete');
-
-        // Calculate latency from measurements
-        const latencies = [];
-
-        // Match each user beat with the closest expected beat
-        for (let i = 0; i < Math.min(beatTimestamps.current.length, expectedBeatTimes.current.length); i++) {
-            const userTime = beatTimestamps.current[i];
-            const expectedTime = expectedBeatTimes.current[i];
-            const latency = userTime - expectedTime;
-            latencies.push(latency);
-        }
-
-        setMeasurements(latencies);
-
-        if (latencies.length === 0) {
-            setInstructions('❌ Aucune note détectée ! Réessayez en jouant sur chaque battement.');
-            return;
-        }
-
-        // Calculate statistics
-        const avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
-        const minLatency = Math.min(...latencies);
-        const maxLatency = Math.max(...latencies);
-
-        // Calculate compensation (negative of the measured latency)
-        const compensation = -Math.round(avgLatency);
-
-        setInstructions(
-            `✅ Calibration terminée !\n\n` +
-            `Latence moyenne : ${avgLatency.toFixed(0)}ms\n` +
-            `Min : ${minLatency.toFixed(0)}ms | Max : ${maxLatency.toFixed(0)}ms\n` +
-            `${latencies.length}/${totalBeats} battements détectés\n\n` +
-            `💡 Compensation appliquée : ${compensation}ms`
-        );
-
-        // Apply compensation
-        if (onCalibrationComplete) {
-            onCalibrationComplete(compensation);
-        }
+                setInstructions(`✅ Calibration terminée !\n\n` +
+                    `Latence médiane : ${result.medianLatency.toFixed(0)}ms\n` +
+                    `Min : ${Math.min(...result.latencies).toFixed(0)}ms | Max : ${Math.max(...result.latencies).toFixed(0)}ms\n` +
+                    `${result.latencies.length}/${totalBeats} battements détectés\n\n` +
+                    `💡 Compensation appliquée : ${result.compensation}ms`);
+                onCalibrationComplete?.(result.compensation);
+            },
+        });
     };
 
     return (
@@ -499,6 +417,7 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
                         </p>
                     </div>
 
+                    {instructions && <p role="status">{instructions}</p>}
                     {/* Start button */}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
                         <button
@@ -572,6 +491,7 @@ export function MidiLatencyCalibration({ onCalibrationComplete, onCancel }) {
                             currentBeat={currentBeat}
                             totalBeats={totalBeats}
                             beatInterval={beatInterval}
+                            startTime={calibrationStart}
                         />
                     ) : (
                         /* Audio mode - simple metronome indicator */

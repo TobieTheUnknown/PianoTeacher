@@ -66,3 +66,11 @@ Installation debug avec conservation des données, démarrage à froid puis red�
 - Un débranchement physique conserve le périphérique préféré pour la reconnexion. Une déconnexion demandée par l'utilisateur efface cette préférence. Les scans natifs périmés ne remplacent plus une liste récente et un actif disparu est invalidé.
 
 Limites : une commande native qui ne termine jamais bloque encore la file matérielle. La calibration MIDI, l'horloge des événements natifs et les consommateurs de la compensation restent le lot suivant.
+
+## Calibration MIDI robuste
+
+- Les frappes sont associées une seule fois aux battements dans une fenêtre de ±250 ms. Un battement manqué ou une double attaque ne décale plus toutes les paires suivantes.
+- La calibration exige au moins cinq battements valides sur huit, utilise la médiane et borne la compensation à la plage des réglages, −100 à +100 ms. Un essai insuffisant n'enregistre rien.
+- Une session possède désormais son compte à rebours, son intervalle et son synthé. Le démontage annule les callbacks différés et détruit la ressource, y compris si l'initialisation audio se termine après la fermeture.
+
+La compensation calculée n'est toujours pas consommée par tous les chemins de jugement/enregistrement. Corriger cela demande d'abord de ramener les timestamps Tauri et Web MIDI dans la même horloge monotone.

@@ -100,9 +100,9 @@ Symboles : LoadingSpinner, PageLoadingFallback
 
 ## web/src/components/MidiLatencyCalibration.jsx
 
-725 lignes ; accessible depuis main.jsx
-Dépendances locales : services/MidiInputService.js, services/AudioEngine.js
-Symboles : VisualScrollingTrack, MidiLatencyCalibration
+645 lignes ; accessible depuis main.jsx
+Dépendances locales : services/MidiInputService.js, services/AudioEngine.js, utils/midiCalibration.js
+Symboles : VisualScrollingTrack, createCalibrationSynth, MidiLatencyCalibration
 
 ## web/src/components/MidiVisualizer.jsx
 
@@ -547,6 +547,12 @@ Symboles : getChordDegree, identifyChord, intervalsMatch, getRootName, capitaliz
 76 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js, utils/timing.js
 Symboles : getMeasuresFromPhrase, groupNotesByTime
+
+## web/src/utils/midiCalibration.js
+
+168 lignes ; accessible depuis main.jsx
+Dépendances locales : aucune
+Symboles : matchCalibrationBeats, calculateMidiCalibration, MidiCalibrationSession
 
 ## web/src/utils/phraseEditing.js
 
