@@ -98,9 +98,9 @@ interface PlaybackAudio {
     fun beginPlayback(): Long = 1L
     fun isPlaybackActive(session: Long): Boolean = true
     fun endPlayback(session: Long) = Unit
-    fun playVoice(pitch: Int, velocity: Int = 80): Long
+    fun playVoice(session: Long, pitch: Int, velocity: Int = 80): Long
     fun stopVoice(id: Long)
-    fun playClick(isAccent: Boolean, amplitude: Float = 0.45f)
+    fun playClick(session: Long, isAccent: Boolean, amplitude: Float = 0.45f)
 }
 
 class TimelineTransport(
@@ -134,7 +134,7 @@ class TimelineTransport(
         var lastClick = -1L
         fun resumeHeld(beat: Double) {
             notes.filter { it.note.pitch in 0..127 && it.note.startTime < beat && it.note.startTime + it.note.duration > beat && autoPlay(it) }
-                .forEach { voices[it.occurrence] = audio.playVoice(it.note.pitch, 80) }
+                .forEach { voices[it.occurrence] = audio.playVoice(session, it.note.pitch, 80) }
         }
         fun expectedAt(beat: Double) = notes.asSequence()
             .filter { kotlin.math.abs(it.note.startTime - beat) < 0.000001 && !autoPlay(it) }
@@ -150,7 +150,7 @@ class TimelineTransport(
                     if (beat >= beatsPerMeasure) break
                     val tick = kotlin.math.floor(beat * config.metronomeSubdivision.coerceAtLeast(1)).toLong()
                     if (tick != previousTick) {
-                        audio.playClick(tick == 0L, config.metronomeAmplitude)
+                        audio.playClick(session, tick == 0L, config.metronomeAmplitude)
                         previousTick = tick
                     }
                     delay(4)
@@ -190,7 +190,7 @@ class TimelineTransport(
                     }
                     cursor.pop()
                     if (event.isOn) {
-                        if (autoPlay(event.note)) voices[event.note.occurrence] = audio.playVoice(event.note.note.pitch, 80)
+                        if (autoPlay(event.note)) voices[event.note.occurrence] = audio.playVoice(session, event.note.note.pitch, 80)
                     } else voices.remove(event.note.occurrence)?.let(audio::stopVoice)
                 }
                 val subdivision = settings().metronomeSubdivision
@@ -199,7 +199,7 @@ class TimelineTransport(
                     if (tick != lastClick && beat < config.endBeat) {
                         lastClick = tick
                         val bar = beatsPerMeasure * subdivision
-                        audio.playClick(kotlin.math.abs(tick.toDouble() % bar) < 0.000001, settings().metronomeAmplitude)
+                        audio.playClick(session, kotlin.math.abs(tick.toDouble() % bar) < 0.000001, settings().metronomeAmplitude)
                     }
                 }
                 val now = System.nanoTime()

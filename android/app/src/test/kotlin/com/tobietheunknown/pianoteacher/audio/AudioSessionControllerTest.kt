@@ -8,11 +8,14 @@ class AudioSessionControllerTest {
         val events = mutableListOf<String>()
         var grantFocus = true
         var canOpen = true
+        var outputRevision = 0L
+        var onOpen: () -> Unit = {}
         val controller = AudioSessionController(
             requestFocus = { events += "request"; grantFocus },
             abandonFocus = { events += "abandon" },
-            openOutput = { events += "open"; canOpen },
+            openOutput = { events += "open"; onOpen(); canOpen },
             silenceAndCloseOutput = { events += "silence-close" },
+            outputRevision = { outputRevision },
         )
     }
 
@@ -87,5 +90,64 @@ class AudioSessionControllerTest {
         f.controller.releaseIfIdle(false)
         assertEquals("abandon", f.events.last())
         assertTrue(f.controller.prepareOutput())
+    }
+
+    @Test fun `route notification immediately invalidates session without transport polling`() {
+        val f = Fixture()
+        f.controller.setForeground(true)
+        val first = f.controller.beginPlayback()
+        f.outputRevision++
+        assertTrue(f.controller.reconcileOutput())
+        assertEquals(listOf("silence-close", "abandon"), f.events.takeLast(2))
+        assertFalse(f.controller.isActive(first))
+        assertFalse(f.controller.prepareOutput())
+    }
+
+    @Test fun `midi reopen before route notification clears handles and cannot revive old session`() {
+        var revision = 0L
+        val handles = mutableSetOf(11L)
+        var clears = 0
+        val controller = AudioSessionController(
+            requestFocus = { true }, abandonFocus = {}, openOutput = { true },
+            silenceAndCloseOutput = { handles.clear(); clears++ },
+            outputRevision = { revision },
+        )
+        controller.setForeground(true)
+        val old = controller.beginPlayback()
+        revision++ // Native output closed; JNI notification has not acquired the Kotlin lock yet.
+        assertTrue(controller.prepareOutput(explicit = true)) // MIDI note arrives first.
+        assertTrue(handles.isEmpty())
+        handles.add(22L)
+        val fresh = controller.beginPlayback()
+        assertFalse(controller.reconcileOutput()) // Delayed notification must be harmless.
+        assertEquals(setOf(22L), handles)
+        assertEquals(1, clears)
+        assertFalse(controller.isActive(old))
+        assertTrue(controller.isActive(fresh))
+    }
+
+    @Test fun `route interruption during opening does not issue a usable session`() {
+        val f = Fixture()
+        f.controller.setForeground(true)
+        f.onOpen = { f.outputRevision++ }
+        assertEquals(0L, f.controller.beginPlayback())
+        assertEquals(listOf("silence-close", "abandon"), f.events.takeLast(2))
+        f.onOpen = {}
+        assertTrue(f.controller.beginPlayback() > 0)
+    }
+
+    @Test fun `old attack and click are rejected after check then interruption and reacquisition`() {
+        val f = Fixture()
+        f.controller.setForeground(true)
+        val old = f.controller.beginPlayback()
+        assertTrue(f.controller.isActive(old)) // Transport check before it is suspended.
+        f.controller.interrupt()
+        val fresh = f.controller.beginPlayback()
+        val emitted = mutableListOf<String>()
+        assertEquals(0L, f.controller.withPlayback(old, 0L) { emitted += "old-note"; 1L })
+        f.controller.withPlayback(old, Unit) { emitted += "old-click" }
+        assertEquals(2L, f.controller.withPlayback(fresh, 0L) { emitted += "fresh-note"; 2L })
+        f.controller.withPlayback(fresh, Unit) { emitted += "fresh-click" }
+        assertEquals(listOf("fresh-note", "fresh-click"), emitted)
     }
 }

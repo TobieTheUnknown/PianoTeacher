@@ -83,9 +83,48 @@ class PlaybackTimelineTest {
         val pitches = mutableListOf<Int>()
         var nextId = 1L
         override suspend fun awaitReady() = true
-        override fun playVoice(pitch: Int, velocity: Int): Long = nextId++.also { events += "on" to it; pitches += pitch }
+        override fun playVoice(session: Long, pitch: Int, velocity: Int): Long = nextId++.also { events += "on" to it; pitches += pitch }
         override fun stopVoice(id: Long) { events += "off" to id }
-        override fun playClick(isAccent: Boolean, amplitude: Float) = Unit
+        override fun playClick(session: Long, isAccent: Boolean, amplitude: Float) = Unit
+    }
+
+    @Test fun `transport forwards old owner when interruption occurs just before attack or held restore`() = runBlocking {
+        for (initialBeat in listOf(0.0, 0.5)) {
+            val raw = FakeAudio()
+            val sessions = AudioSessionController(
+                requestFocus = { true }, abandonFocus = {},
+                openOutput = { true }, silenceAndCloseOutput = {},
+            )
+            sessions.setForeground(true)
+            var clicks = 0
+            var replacement = 0L
+            val audio = object : PlaybackAudio by raw {
+                override fun beginPlayback() = sessions.beginPlayback()
+                override fun isPlaybackActive(session: Long) = sessions.isActive(session)
+                override fun endPlayback(session: Long) = sessions.endPlayback(session)
+                override fun playVoice(session: Long, pitch: Int, velocity: Int): Long =
+                    sessions.withPlayback(session, 0L) { raw.playVoice(session, pitch, velocity) }
+                override fun playClick(session: Long, isAccent: Boolean, amplitude: Float) =
+                    sessions.withPlayback(session, Unit) { clicks++; Unit }
+            }
+            val result = withTimeout(2000) {
+                TimelineTransport(audio, listOf(note(0, 60, 0.0, 1.0)), 4.0).run(
+                    initialBeat, { TransportSettings(1.0, 0.0, 1.0, metronomeSubdivision = 1) },
+                    {
+                        // autoPlay is evaluated after the transport's session check,
+                        // immediately before it hands the attack to PlaybackAudio.
+                        sessions.interrupt()
+                        replacement = sessions.beginPlayback()
+                        true
+                    },
+                    { emptySet() }, { _, _ -> },
+                )
+            }
+            assertFalse(result)
+            assertTrue(raw.events.none { it.first == "on" })
+            assertEquals(0, clicks)
+            assertTrue(sessions.isActive(replacement))
+        }
     }
 
     @Test fun `transport does not release a long note when another equal pitch ends`() = runBlocking {

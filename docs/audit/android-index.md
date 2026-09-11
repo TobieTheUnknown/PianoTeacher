@@ -4,7 +4,7 @@ Généré par `python3 scripts/update-source-index.py`. Les symboles indiquent l
 
 ## android/app/src/main/cpp/audio_engine.cpp
 
-301 lignes.
+360 lignes.
 Symboles : AudioEngine
 
 ## android/app/src/main/cpp/voice_mixer.h
@@ -19,13 +19,13 @@ Symboles : MainActivity, onCreate, onNewIntent, onResume, onStop
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioEngine.kt
 
-384 lignes.
-Symboles : AudioEngine, getInstance, start, awaitReady, onForeground, onBackground, beginPlayback, isPlaybackActive, endPlayback, scheduleIdleRelease, playVoice, stopVoice, noteOn, noteOff, stop, setSustainPedal, setEnabled, release, loadOboe, PcmData, decodeMp3Asset, setRelease, playClick
+401 lignes.
+Symboles : AudioEngine, getInstance, start, awaitReady, onForeground, onBackground, beginPlayback, isPlaybackActive, endPlayback, scheduleIdleRelease, playVoice, createVoice, stopVoice, noteOn, noteOff, stop, setSustainPedal, setEnabled, release, loadOboe, PcmData, decodeMp3Asset, setRelease, onNativeOutputInterrupted, playClick
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioSessionController.kt
 
-70 lignes.
-Symboles : AudioSessionController, setForeground, beginPlayback, isActive, endPlayback, prepareOutput, interrupt, releaseIfIdle
+90 lignes.
+Symboles : AudioSessionController, reconcileOutput, setForeground, beginPlayback, isActive, endPlayback, prepareOutput, interrupt, releaseIfIdle
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/MetronomeEngine.kt
 

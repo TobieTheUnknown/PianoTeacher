@@ -44,7 +44,7 @@ Les bancs visuels sont servis en développement et ne font pas partie du bundle 
 - Pas de compilation/installation Tauri macOS/Windows/Linux dans ce lot.
 - Préservation des métadonnées Room assurée par transaction dans le code ; pas encore de test instrumenté de base Android.
 - Gravure : les voix de durées différentes, silences, liaisons et ligatures 6/8 ont des tests purs. Les tuplets et changements internes de métrique/tempo restent hors du modèle courant.
-- Moteur natif : mutex Oboe à examiner. La récupération de route/focus est couverte par tests purs mais reste à écouter sur le Pixel. Le repli SoundPool demande maintenant les 32 flux acceptés par Android.
+- Moteur natif : callback Oboe sans mutex validé par les tests C++ ci-dessous. La récupération de route/focus est couverte par tests purs mais reste à écouter sur le Pixel. Le repli SoundPool demande maintenant les 32 flux acceptés par Android.
 - Premier rendu de `GrandStaffCanvas` : le journal a signalé 54 frames sautées pendant la compilation Compose initiale. Mesurer un lancement de production avant d'en tirer une conclusion, puis profiler si le délai reste perceptible.
 - Import MIDI : les changements internes de tempo/métrique ne sont toujours pas représentés par le modèle global.
 - Réglages Android : MIDI USB/BLE est raccordé au cycle de vie ; l'audio global coupe réellement la session, le niveau de métronome atteint Partition/Coach et l'affichage des touches attendues pilote Live.
@@ -82,4 +82,17 @@ JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ANDROID_
 
 Résultats : sept groupes C++ passés (CTest, ASan/UBSan, TSan), sans erreur détectée ; compilation Oboe arm64-v8a et x86_64 réussie ; **58 tests JVM passés**, aucun échec ni test ignoré. `git diff --check` passe. Les avertissements Gradle concernent la version XML du SDK et des API Kotlin/Android dépréciées déjà présentes.
 
-Le harnais interdit `new`/`new[]` pendant le rendu et vérifie le rendu pendant qu'un producteur est suspendu, ainsi que la purge des générations et un stress concurrent. Ces vérifications ne remplacent pas une mesure des underruns et une écoute sur téléphone avec polyphonie, pédale, focus concurrent et changements de route. Aucune installation ni validation matérielle effectuée pour ce checkpoint ; les défauts P2 sessions/routes restent ouverts.
+Le harnais interdit `new`/`new[]` pendant le rendu et vérifie le rendu pendant qu'un producteur est suspendu, ainsi que la purge des générations et un stress concurrent. Ces vérifications ne remplacent pas une mesure des underruns et une écoute sur téléphone avec polyphonie, pédale, focus concurrent et changements de route. Aucune installation ni validation matérielle effectuée pour ce checkpoint ; les défauts P2 sessions/routes sont traités dans le checkpoint suivant.
+
+## Checkpoint sessions/routes : révision native et ownership atomique
+
+Tests de régression ajoutés avant la correction du contrôleur, puis tests ciblés et validation complète depuis `android/` :
+
+```sh
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ANDROID_HOME='/Users/TobieRaggi/Library/Android/sdk' ./gradlew :app:externalNativeBuildDebug :app:testDebugUnitTest --tests '*AudioSessionControllerTest' --tests '*PlaybackTimelineTest' --offline
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ANDROID_HOME='/Users/TobieRaggi/Library/Android/sdk' ./gradlew :app:testDebugUnitTest :app:assembleDebug --offline
+```
+
+Résultats : tests ciblés passés, **63 tests JVM passés** au complet, aucun échec ni test ignoré ; bibliothèques natives arm64-v8a/x86_64 compilées et APK debug produit. CTest du mixeur reste passant ; `git diff --check` passe. `javap` confirme les signatures compilées de la notification privée JNI et des méthodes d'émission avec session ID.
+
+Les nouveaux tests couvrent les interleavings précis (route notifiée ou notification retardée après réouverture MIDI, interruption pendant ouverture, émission tardive après réacquisition) et le transfert du propriétaire par le vrai transport lors d'une attaque/restauration de tenue. Les callbacks de fermeture JNI sur un vrai appareil, les routes Bluetooth/USB, le focus concurrent et la qualité audio ne sont pas validés matériellement ici. Pas d'installation effectuée.

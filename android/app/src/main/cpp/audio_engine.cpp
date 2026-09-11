@@ -47,8 +47,21 @@ public:
     // backs as a memory barrier so the mSampleByMidi array is safely visible.
     std::atomic<bool> mReady{false};
 
-    AudioEngine() {
+    AudioEngine(JNIEnv* env, jobject owner) {
         for (int i = 0; i < MIDI_RANGE; i++) mNearestForPitch[i] = -1;
+        env->GetJavaVM(&mJavaVm);
+        mJavaOwner = env->NewGlobalRef(owner);
+        const jclass ownerClass = env->GetObjectClass(owner);
+        mInterruptedMethod = env->GetMethodID(ownerClass, "onNativeOutputInterrupted", "()V");
+        env->DeleteLocalRef(ownerClass);
+    }
+
+    ~AudioEngine() override {
+        JNIEnv* env = nullptr;
+        const bool attach = mJavaVm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_EDETACHED;
+        if (attach && mJavaVm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        env->DeleteGlobalRef(mJavaOwner);
+        if (attach) mJavaVm->DetachCurrentThread();
     }
 
     oboe::DataCallbackResult onAudioReady(
@@ -76,6 +89,9 @@ public:
     bool start() {
         std::lock_guard<std::mutex> streamLock(mStreamMutex);
         if (isRunningLocked()) return true;
+        // The error callback can arrive after a MIDI action notices Disconnected.
+        // Record that loss before replacing the old stream, even if onError is late.
+        if (mStream) markInterruptedLocked();
         closeStreamLocked();
         oboe::AudioStreamBuilder builder;
         builder.setDirection(oboe::Direction::Output)
@@ -95,6 +111,7 @@ public:
         }
 
         mOutputSampleRate = mStream->getSampleRate();
+        mStreamInterrupted = false;
         // Set buffer size to 2× burst for stable underrun protection without
         // significant latency increase. Burst is typically 96 frames @48kHz (2ms).
         int32_t burst = mStream->getFramesPerBurst();
@@ -126,14 +143,25 @@ public:
     bool onError(oboe::AudioStream* stream, oboe::Result error) override {
         // Oboe invokes this on its error thread, never the realtime callback.
         // Own closing here so lifecycle/start cannot race Oboe's default close.
-        std::lock_guard<std::mutex> streamLock(mStreamMutex);
-        if (!mStream || mStream.get() != stream) return true; // Already closed by lifecycle.
-        LOGE("Oboe output interrupted: %s", oboe::convertToText(error));
-        stream->stop();
-        stream->close();
+        {
+            std::lock_guard<std::mutex> streamLock(mStreamMutex);
+            if (!mStream || mStream.get() != stream) return true; // Already closed by lifecycle.
+            markInterruptedLocked();
+            LOGE("Oboe output interrupted: %s", oboe::convertToText(error));
+            stream->stop();
+            stream->close();
+        }
+        // Never enter Kotlin while holding mStreamMutex: Kotlin may be waiting in
+        // nativeStart/nativeSuspend with its voice lock held. Notification only
+        // reconciles the revision, so an already handled, late callback is harmless.
+        notifyOutputInterrupted();
         // Keep the shared owner alive until the next explicit start/stop. Samples
         // and their immutable lookup table survive output device replacement.
         return true;
+    }
+
+    int64_t outputRevision() const {
+        return mOutputRevision.load(std::memory_order_acquire);
     }
 
     void noteOn(int64_t id, int pitch, int velocity) {
@@ -196,6 +224,27 @@ public:
     int mOutputSampleRate = 48000;
 
 private:
+    void markInterruptedLocked() {
+        if (!mStreamInterrupted) {
+            mStreamInterrupted = true;
+            mOutputRevision.fetch_add(1, std::memory_order_release);
+        }
+    }
+
+    void notifyOutputInterrupted() {
+        JNIEnv* env = nullptr;
+        const bool attach = mJavaVm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_EDETACHED;
+        if (attach && mJavaVm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        env->CallVoidMethod(mJavaOwner, mInterruptedMethod);
+        if (env->ExceptionCheck()) {
+            // Keep the native error thread usable; the revision is still reconciled
+            // synchronously before the next Kotlin action if notification fails.
+            LOGE("Kotlin output interruption notification failed");
+            env->ExceptionClear();
+        }
+        if (attach) mJavaVm->DetachCurrentThread();
+    }
+
     bool isRunningLocked() const {
         if (!mStream) return false;
         const auto state = mStream->getState();
@@ -220,6 +269,11 @@ private:
     std::mutex mStreamMutex;
     piano::VoiceMixer<> mMixer;
     std::mutex mCommandMutex;
+    JavaVM* mJavaVm = nullptr;
+    jobject mJavaOwner = nullptr;
+    jmethodID mInterruptedMethod = nullptr;
+    std::atomic<int64_t> mOutputRevision{0};
+    bool mStreamInterrupted = false; // mStreamMutex only
 };
 
 // ─── Global instance ─────────────────────────────────────────────────────────
@@ -229,8 +283,8 @@ static AudioEngine* gEngine = nullptr;
 extern "C" {
 
 JNIEXPORT jboolean JNICALL
-Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeInitialize(JNIEnv*, jobject) {
-    if (!gEngine) gEngine = new AudioEngine();
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeInitialize(JNIEnv* env, jobject owner) {
+    if (!gEngine) gEngine = new AudioEngine(env, owner);
     return JNI_TRUE;
 }
 
@@ -243,6 +297,11 @@ Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeStart(JNIEnv*, job
 JNIEXPORT jboolean JNICALL
 Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeIsRunning(JNIEnv*, jobject) {
     return gEngine && gEngine->isRunning() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeOutputRevision(JNIEnv*, jobject) {
+    return gEngine ? gEngine->outputRevision() : 0;
 }
 
 JNIEXPORT void JNICALL

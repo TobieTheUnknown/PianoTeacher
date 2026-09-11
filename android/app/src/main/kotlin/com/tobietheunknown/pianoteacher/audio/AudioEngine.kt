@@ -1,6 +1,7 @@
 package com.tobietheunknown.pianoteacher.audio
 
 import android.content.Context
+import androidx.annotation.Keep
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -63,6 +64,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         requestFocus = { audioManager?.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED },
         abandonFocus = { audioManager?.abandonAudioFocusRequest(focusRequest); Unit },
         openOutput = { if (oboeReady) nativeStart() else samplerEngine != null },
+        outputRevision = { if (oboeReady) nativeOutputRevision() else 0L },
         silenceAndCloseOutput = {
             activeVoices.clear()
             midiVoices.clear()
@@ -163,19 +165,23 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         }
     }
 
-    /** Each score occurrence owns a distinct voice, including overlapping equal pitches. */
-    override fun playVoice(pitch: Int, velocity: Int): Long = synchronized(voiceLock) {
-        if (!enabled || !_ready.value || pitch !in 0..127) return@synchronized 0L
-        if (!sessions.prepareOutput()) return@synchronized 0L
+    /** Each score occurrence must still own a live session at the exact emission point. */
+    override fun playVoice(session: Long, pitch: Int, velocity: Int): Long =
+        sessions.withPlayback(session, 0L) { createVoice(pitch, velocity) }
+
+    /** Called only under voiceLock, after preparing MIDI output or validating a score session. */
+    private fun createVoice(pitch: Int, velocity: Int): Long {
+        if (!enabled || !_ready.value || pitch !in 0..127) return 0L
         idleReleaseJob?.cancel()
         val id = nextVoice.getAndIncrement()
         activeVoices.add(id)
         if (oboeReady) nativePlayVoice(id, pitch, velocity.coerceIn(1, 127))
         else samplerEngine?.playVoice(id, pitch, velocity)
-        id
+        return id
     }
 
     override fun stopVoice(id: Long) = synchronized(voiceLock) {
+        sessions.reconcileOutput()
         if (id != 0L && activeVoices.remove(id)) {
             heldByPedal.remove(id)
             if (oboeReady) nativeStopVoice(id) else samplerEngine?.stopVoice(id)
@@ -185,11 +191,12 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
 
     fun noteOn(pitch: Int, velocity: Int = 80) = synchronized(voiceLock) {
         if (!enabled || !_ready.value || !sessions.prepareOutput(explicit = true)) return@synchronized
-        val id = playVoice(pitch, velocity)
+        val id = createVoice(pitch, velocity)
         if (id != 0L) midiVoices.getOrPut(pitch) { java.util.ArrayDeque() }.addLast(id)
     }
 
     fun noteOff(pitch: Int) = synchronized(voiceLock) {
+        sessions.reconcileOutput()
         if (pitch < 0) {
             activeVoices.toList().forEach(::stopVoice)
             midiVoices.clear()
@@ -210,6 +217,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     }
 
     fun setSustainPedal(engaged: Boolean) = synchronized(voiceLock) {
+        sessions.reconcileOutput()
         pedalEngaged = engaged
         if (!engaged) heldByPedal.toList().forEach(::stopVoice)
     }
@@ -360,6 +368,7 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
     private external fun nativeStart(): Boolean
     private external fun nativeSuspend()
     private external fun nativeIsRunning(): Boolean
+    private external fun nativeOutputRevision(): Long
     private external fun nativeStop()
     private external fun nativePlayVoice(id: Long, pitch: Int, velocity: Int)
     private external fun nativeStopVoice(id: Long)
@@ -375,10 +384,18 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         }
     }
 
-    /** Play a metronome click via the native Oboe audio callback (zero Java AudioTrack overhead) */
-    override fun playClick(isAccent: Boolean, amplitude: Float) = synchronized(voiceLock) {
-        if (enabled && nativeAvailable && oboeReady && sessions.prepareOutput()) {
-            try { nativePlayClick(isAccent, amplitude) } catch (_: Exception) { }
-        }
+    // Invoked on Oboe's error thread, after its stream mutex has been released.
+    // A MIDI action may already have consumed the revision and opened a newer stream.
+    @Keep
+    private fun onNativeOutputInterrupted() {
+        sessions.reconcileOutput()
     }
+
+    /** A stale transport cannot emit a click into a newly acquired session. */
+    override fun playClick(session: Long, isAccent: Boolean, amplitude: Float) =
+        sessions.withPlayback(session, Unit) {
+            if (enabled && nativeAvailable && oboeReady) {
+                try { nativePlayClick(isAccent, amplitude) } catch (_: Exception) { }
+            }
+        }
 }

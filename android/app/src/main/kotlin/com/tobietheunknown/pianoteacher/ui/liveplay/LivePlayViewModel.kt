@@ -328,7 +328,7 @@ class LivePlayViewModel(
                 scrubbedOccurrences.addAll(chord.map { it.occurrence })
                 val session = audioEngine.beginPlayback()
                 if (session != 0L) {
-                    val voices = chord.map { audioEngine.playVoice(it.note.pitch, 65) }
+                    val voices = chord.map { audioEngine.playVoice(session, it.note.pitch, 65) }
                     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
                         try { delay(110) } finally {
                             voices.forEach(audioEngine::stopVoice)
