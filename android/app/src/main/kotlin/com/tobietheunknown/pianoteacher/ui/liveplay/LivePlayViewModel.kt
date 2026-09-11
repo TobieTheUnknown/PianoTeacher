@@ -155,8 +155,6 @@ class LivePlayViewModel(
             }
             updateVisibleNotes(0.0)
 
-            audioEngine.start()
-
             launch {
                 midiManager.events.collect { event ->
                     when (event) {

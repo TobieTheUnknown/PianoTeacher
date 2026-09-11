@@ -96,3 +96,5 @@ JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ANDROID_
 Résultats : tests ciblés passés, **63 tests JVM passés** au complet, aucun échec ni test ignoré ; bibliothèques natives arm64-v8a/x86_64 compilées et APK debug produit. CTest du mixeur reste passant ; `git diff --check` passe. `javap` confirme les signatures compilées de la notification privée JNI et des méthodes d'émission avec session ID.
 
 Les nouveaux tests couvrent les interleavings précis (route notifiée ou notification retardée après réouverture MIDI, interruption pendant ouverture, émission tardive après réacquisition) et le transfert du propriétaire par le vrai transport lors d'une attaque/restauration de tenue. Les callbacks de fermeture JNI sur un vrai appareil, les routes Bluetooth/USB, le focus concurrent et la qualité audio ne sont pas validés matériellement ici. Pas d'installation effectuée.
+
+Après retrait de la méthode historique `AudioEngine.start()` et de ses deux appels sans effet, `:app:testDebugUnitTest :app:assembleDebug` repasse : **63 tests JVM**, compilation Oboe arm64-v8a/x86_64 et APK debug réussies.

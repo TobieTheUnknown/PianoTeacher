@@ -19,8 +19,8 @@ Symboles : MainActivity, onCreate, onNewIntent, onResume, onStop
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioEngine.kt
 
-401 lignes.
-Symboles : AudioEngine, getInstance, start, awaitReady, onForeground, onBackground, beginPlayback, isPlaybackActive, endPlayback, scheduleIdleRelease, playVoice, createVoice, stopVoice, noteOn, noteOff, stop, setSustainPedal, setEnabled, release, loadOboe, PcmData, decodeMp3Asset, setRelease, onNativeOutputInterrupted, playClick
+400 lignes.
+Symboles : AudioEngine, getInstance, awaitReady, onForeground, onBackground, beginPlayback, isPlaybackActive, endPlayback, scheduleIdleRelease, playVoice, createVoice, stopVoice, noteOn, noteOff, stop, setSustainPedal, setEnabled, release, loadOboe, PcmData, decodeMp3Asset, setRelease, onNativeOutputInterrupted, playClick
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/audio/AudioSessionController.kt
 
@@ -149,7 +149,7 @@ Symboles : midiToDiatonic, NoteDuration, classifyDuration, Base, StaffClefConfig
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/learning/LearningViewModel.kt
 
-582 lignes.
+581 lignes.
 Symboles : MeasureData, PhraseSectionData, LearningViewModel, toggleMetronome, toggleWaitMode, toggleListenMode, cycleClefMode, toggleMastered, setHand, adjustTempo, toggleLoop, setLoopRange, toggleDetails, toggleOctaves, focusMeasure, focusPreviousMeasure, focusNextMeasure, play, pause, stop, playMeasureSingle, playMeasureHandSingle, playPhrase, startTimeline, cancelPlayback, renameSong, renamePhrase, deletePhrase, splitPhraseAtMeasure, onCleared, buildSections, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/library/LibraryScreen.kt
@@ -174,7 +174,7 @@ Symboles : HitEffect, LivePlayScreen, controlsBlock, LivePlayCanvas, PianoKeyboa
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayViewModel.kt
 
-551 lignes.
+549 lignes.
 Symboles : NoteWithHand, LivePlayUiState, LivePlayViewModel, handleMidiNoteOn, handleMidiNoteOff, togglePlayPause, timelineNotes, shouldAutoPlay, play, pause, restart, seekToBeat, setSpeed, beginScrub, scrubToBeat, endScrub, toggleLoop, setLoopRange, toggleWaitMode, toggleAudio, toggleMetronome, toggleListenMode, setVisibleBeats, setHand, nextPhrase, prevPhrase, goToPhrase, updateVisibleNotes, addVisibleNotes, updateExpectedKeys, onCleared, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/onboarding/OnboardingPreferences.kt

@@ -130,7 +130,6 @@ class AudioEngine(private val context: Context? = null) : PlaybackAudio {
         }
     }
 
-    fun start(): Boolean = true // Initialisation is eager and asynchronous.
     override suspend fun awaitReady(): Boolean = readiness.await()
 
     /** Resuming a page does not steal focus from music playing in another app. */

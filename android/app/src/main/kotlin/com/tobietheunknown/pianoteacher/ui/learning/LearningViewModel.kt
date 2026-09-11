@@ -182,7 +182,6 @@ class LearningViewModel(
                 } else musicKeySignatureFromStored(s.key)
             }
         }
-        audioEngine.start()
         viewModelScope.launch {
             midiManager.events.collect { event ->
                 when (event) {

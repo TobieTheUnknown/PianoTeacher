@@ -101,3 +101,7 @@ Les risques P2 laissés ouverts par ce premier checkpoint sont traités dans le 
 - Le monitoring MIDI reste une action explicite indépendante du transport ; le chemin SoundPool conserve ses appels et bénéficie du même contrôle de session pour la partition.
 
 Tests déterministes : notification sans polling ; MIDI qui rouvre avant une notification retardée ; interruption pendant l'ouverture ; ancien contrôle de session suivi d'une perte/réacquisition du focus avant l'attaque ou le clic ; vraie exécution du transport interrompue juste avant une attaque ou une restauration de tenue. Aucun rendu UI modifié. La fermeture bloquante, la destruction dormante de `release()`, l'aperçu AudioTrack des Réglages et la validation matérielle restent des sujets séparés.
+
+## Nettoyage du démarrage historique
+
+`AudioEngine.start()` renvoyait toujours `true` sans lancer aucune opération ; ses deux appelants ignoraient ce résultat. L'initialisation reste effectuée une seule fois dans le constructeur du singleton, et les lectures continuent d'attendre `awaitReady()` avant `beginPlayback()`. La méthode et ses deux appels ont été retirés sans modifier le cycle audio.
