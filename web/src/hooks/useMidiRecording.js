@@ -2,6 +2,7 @@ import { quarterNotesPerMeasure } from '../utils/timing.js';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { midiInputService } from '../services/MidiInputService';
 import { createNoteEvent } from '../models/song';
+import { midiRecordingBeat, finalizedMidiTiming } from '../utils/midiTiming.js';
 
 /**
  * Hook for recording MIDI input with quantization
@@ -64,9 +65,7 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         handleNoteOnRef.current = (event) => {
             if (!isRecordingRef.current || isPreRollRef.current) return;
 
-            const currentTime = performance.now();
-            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
-            const timeInBeats = (elapsedTime * tempo) / 60;
+            const timeInBeats = midiRecordingBeat(event.timestamp, startTimeRef.current, tempo);
 
             if (timeInBeats >= phraseLengthBeats) {
                 return;
@@ -99,16 +98,10 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
             const noteData = activeNotesRef.current.get(event.note);
             if (!noteData) return;
 
-            const currentTime = performance.now();
-            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
-            const timeInBeats = (elapsedTime * tempo) / 60;
-
-            const duration = timeInBeats - noteData.startTime;
-
-            const quantizedStartTime = quantize(noteData.startTime);
-            const quantizedDuration = Math.max(quantization, quantize(duration));
-
-            const note = createNoteEvent(event.note, quantizedStartTime, quantizedDuration);
+            const timeInBeats = midiRecordingBeat(event.timestamp, startTimeRef.current, tempo);
+            const timing = finalizedMidiTiming(noteData.startTime, timeInBeats, phraseLengthBeats, quantize, quantization);
+            if (!timing) return;
+            const note = createNoteEvent(event.note, timing.startTime, timing.duration);
 
             setRecordedNotes(prev => [...prev, note]);
             activeNotesRef.current.delete(event.note);
@@ -144,6 +137,8 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
 
     // Stop recording (stable reference using refs)
     const stopRecording = useCallback(() => {
+        isRecordingRef.current = false;
+        isPreRollRef.current = false;
         setIsRecording(false);
         setIsPreRoll(false);
 
@@ -162,19 +157,14 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         midiInputService.removeEventListener('noteOff', handleNoteOffWrapper);
 
         // Finalize any active notes
-        if (startTimeRef.current) {
-            const currentTime = performance.now();
-            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
-            const timeInBeats = (elapsedTime * tempo) / 60;
+        if (startTimeRef.current !== null) {
+            // Manual/automatic stop is a transport boundary, not a MIDI release.
+            const timeInBeats = midiRecordingBeat(performance.now(), startTimeRef.current, tempo);
 
             const finalizedNotes = [];
             activeNotesRef.current.forEach((noteData, pitch) => {
-                const duration = timeInBeats - noteData.startTime;
-                const quantizedStartTime = quantize(noteData.startTime);
-                const quantizedDuration = Math.max(quantization, quantize(duration));
-
-                const note = createNoteEvent(pitch, quantizedStartTime, quantizedDuration);
-                finalizedNotes.push(note);
+                const timing = finalizedMidiTiming(noteData.startTime, timeInBeats, phraseLengthBeats, quantize, quantization);
+                if (timing) finalizedNotes.push(createNoteEvent(pitch, timing.startTime, timing.duration));
             });
 
             if (finalizedNotes.length > 0) {
@@ -183,11 +173,13 @@ export function useMidiRecording(tempo = 120, phraseLength = 4, quantization = 0
         }
 
         activeNotesRef.current.clear();
-    }, [tempo, quantize, quantization, handleNoteOnWrapper, handleNoteOffWrapper]);
+    }, [tempo, phraseLengthBeats, quantize, quantization, handleNoteOnWrapper, handleNoteOffWrapper]);
 
     // Actually start recording (stable reference using refs)
     const actuallyStartRecording = useCallback(() => {
         startTimeRef.current = performance.now();
+        isRecordingRef.current = true;
+        isPreRollRef.current = false;
         setIsRecording(true);
         setRecordedNotes([]);
         activeNotesRef.current.clear();

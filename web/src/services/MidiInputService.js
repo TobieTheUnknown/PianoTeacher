@@ -10,6 +10,8 @@
  * - Native MIDI support for Tauri desktop app
  */
 
+import { normalizedMidiTimestamp } from '../utils/midiTiming.js';
+
 // Tauri APIs loaded dynamically to avoid crashes on Android WebView startup
 let invoke = null;
 let listen = null;
@@ -41,10 +43,11 @@ const isTauri = () => {
 };
 
 export class MidiInputService {
-    constructor({ nativeInvoke = (...args) => invoke(...args), requestAccess = () => globalThis.navigator?.requestMIDIAccess?.({ sysex: false }), storage, autoInit = true } = {}) {
+    constructor({ nativeInvoke = (...args) => invoke(...args), requestAccess = () => globalThis.navigator?.requestMIDIAccess?.({ sysex: false }), storage, autoInit = true, now = () => performance.now() } = {}) {
         this._invoke = nativeInvoke;
         this._requestAccess = requestAccess;
         this._storage = () => storage ?? globalThis.localStorage;
+        this._now = now;
         this._initPromise = null;
         this._connectionGeneration = 0;
         this._refreshGeneration = 0;
@@ -266,9 +269,13 @@ export class MidiInputService {
         });
     }
 
-    handleTauriMidiMessage({ status, note, velocity, timestamp }) {
+    handleTauriMidiMessage({ status, note, velocity }) {
         if (this.useTauriMidi && !this.activeDevice) return;
-        this.handleMidiMessage({ data: [status, note, velocity], timeStamp: timestamp });
+        // Rust sends wall-clock epoch milliseconds, not the browser time origin.
+        // Receipt time avoids clock jumps and guesses about native/browser drift;
+        // IPC delivery latency is included in the user's MIDI calibration.
+        const receivedAt = this._now();
+        this.handleMidiMessage({ data: [status, note, velocity], timeStamp: receivedAt }, receivedAt);
     }
 
     refreshDevices() {
@@ -321,7 +328,7 @@ export class MidiInputService {
         return this.refreshDevices();
     }
 
-    handleMidiMessage(event) {
+    handleMidiMessage(event, receivedAt = this._now()) {
         const [status, note, velocity] = event.data;
 
         // Validate MIDI data
@@ -337,7 +344,7 @@ export class MidiInputService {
             return;
         }
 
-        const timestamp = event.timeStamp + this.settings.latencyCompensation;
+        const timestamp = normalizedMidiTimestamp(event.timeStamp, receivedAt, this.settings.latencyCompensation);
 
         let eventType = null;
         let processedVelocity = velocity;

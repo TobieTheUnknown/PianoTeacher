@@ -4,7 +4,7 @@ import { MidiInputService } from '../src/services/MidiInputService.js';
 
 function service(values = {}) {
     globalThis.localStorage = { getItem: key => values[key] ?? null, setItem() {}, removeItem() {} };
-    return new MidiInputService();
+    return new MidiInputService({ now: () => 12 });
 }
 
 test('MIDI mute and zero threshold survive reopening', () => {

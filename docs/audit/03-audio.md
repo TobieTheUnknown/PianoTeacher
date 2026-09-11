@@ -73,4 +73,11 @@ Limites : une commande native qui ne termine jamais bloque encore la file matér
 - La calibration exige au moins cinq battements valides sur huit, utilise la médiane et borne la compensation à la plage des réglages, −100 à +100 ms. Un essai insuffisant n'enregistre rien.
 - Une session possède désormais son compte à rebours, son intervalle et son synthé. Le démontage annule les callbacks différés et détruit la ressource, y compris si l'initialisation audio se termine après la fermeture.
 
-La compensation calculée n'est toujours pas consommée par tous les chemins de jugement/enregistrement. Corriger cela demande d'abord de ramener les timestamps Tauri et Web MIDI dans la même horloge monotone.
+## Horloge et application de la compensation MIDI
+
+- Les messages Tauri sont horodatés à leur réception avec `performance.now()` ; l'epoch murale envoyée par Rust n'est plus mélangée à l'origine temporelle Web MIDI. Le délai IPC fait ainsi partie de la calibration observée.
+- La compensation décale maintenant les attaques et relâchements de l'enregistrement, ainsi que le jugement Live. Les temps proches du début sont bornés à zéro et les notes finalisées gardent une durée positive dans la phrase.
+- Le monitoring audio du clavier reste immédiat : aucune temporisation n'est ajoutée au son direct.
+- Réglages observe désormais la fin d'initialisation et les changements de paramètres. Actualiser attend le vrai scan et fusionne les clics répétés pendant la même requête.
+
+Limites : le timestamp natif inclut la traversée IPC et demande une validation avec clavier physique. En mode attente, le temps du morceau reste volontairement figé. `LatencyWizard` et l'epoch du backend Rust sont inchangés.

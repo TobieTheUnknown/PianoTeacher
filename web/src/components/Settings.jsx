@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { midiInputService } from '../services/MidiInputService';
+import { observeMidiSettings } from '../utils/midiSettingsState.js';
 import { audioEngine } from '../services/AudioEngine';
 import { MidiVisualizer } from './MidiVisualizer';
 import { MidiLatencyCalibration } from './MidiLatencyCalibration';
@@ -32,47 +33,26 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
     const [midiSupported, setMidiSupported] = useState(() => midiInputService.isSupported);
     const [showLatencyCalibration, setShowLatencyCalibration] = useState(false);
     const [showAvWizard, setShowAvWizard] = useState(false);
+    const [refreshingMidi, setRefreshingMidi] = useState(false);
+    const midiPanelRef = useRef(null);
 
-    // MIDI effects - refresh data when modal opens
-    // This intentionally syncs external service state on modal open - the setState is necessary
-    /* eslint-disable react-hooks/set-state-in-effect */
+    // Keep the open panel synchronized with connection, permission and settings changes.
     useEffect(() => {
         if (!isOpen) return;
 
-        // Batch refresh MIDI state - these values may have changed since component mount
-        const devices = midiInputService.getDevices();
-        const activeDevice = midiInputService.getActiveDevice();
-        const supported = midiInputService.isSupported;
-
-        // Only update if values have changed - intentional sync from external service
-        setMidiDevices(prev => JSON.stringify(prev) !== JSON.stringify(devices) ? devices : prev);
-        setSelectedMidiDevice(prev => prev !== activeDevice ? activeDevice : prev);
-        setMidiSupported(prev => prev !== supported ? supported : prev);
-
-        // Listen for device changes
-        const handleDevicesChanged = (devices) => {
-            setMidiDevices(devices);
-        };
-
-        const handleDeviceConnected = (device) => {
-            setSelectedMidiDevice(device);
-        };
-
-        const handleDeviceDisconnected = () => {
-            setSelectedMidiDevice(null);
-        };
-
-        midiInputService.addEventListener('devicesChanged', handleDevicesChanged);
-        midiInputService.addEventListener('deviceConnected', handleDeviceConnected);
-        midiInputService.addEventListener('deviceDisconnected', handleDeviceDisconnected);
-
+        const panel = observeMidiSettings(midiInputService, snapshot => {
+            setMidiDevices(snapshot.devices);
+            setSelectedMidiDevice(snapshot.device);
+            setMidiSettings(snapshot.settings);
+            setMidiSupported(snapshot.supported);
+            setRefreshingMidi(snapshot.refreshing);
+        });
+        midiPanelRef.current = panel;
         return () => {
-            midiInputService.removeEventListener('devicesChanged', handleDevicesChanged);
-            midiInputService.removeEventListener('deviceConnected', handleDeviceConnected);
-            midiInputService.removeEventListener('deviceDisconnected', handleDeviceDisconnected);
+            panel.dispose();
+            if (midiPanelRef.current === panel) midiPanelRef.current = null;
         };
     }, [isOpen]);
-    /* eslint-enable react-hooks/set-state-in-effect */
 
     if (!isOpen) return null;
 
@@ -103,9 +83,8 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
         setMidiSettings(midiInputService.getSettings());
     };
 
-    const handleRefreshMidiDevices = () => {
-        midiInputService.refreshDevices();
-        setMidiDevices(midiInputService.getDevices());
+    const handleRefreshMidiDevices = async () => {
+        await midiPanelRef.current?.refresh();
     };
 
     const handleLatencyCalibrationComplete = (compensation) => {
@@ -463,6 +442,8 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                                                 </select>
                                                 <button
                                                     onClick={handleRefreshMidiDevices}
+                                                    disabled={refreshingMidi}
+                                                    aria-busy={refreshingMidi}
                                                     aria-label="Actualiser la liste des périphériques MIDI"
                                                     style={{
                                                         padding: '0.75rem 1rem',

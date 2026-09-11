@@ -2,7 +2,7 @@
 
 ## Résultats réellement observés
 
-- `npm --prefix web test` : **71 tests réussis**, aucun échec. Musique, motifs, gravure pure, voix et silences, MIDI aller-retour, migration et protection des sauvegardes, cycle audio simulé, cohérence MIDI navigateur/Tauri, cycle de connexion et calibration MIDI, découpe en 6/8, projection des tenues et reprise audio après seek.
+- `npm --prefix web test` : **82 tests réussis**, aucun échec. Musique, motifs, gravure pure, voix et silences, MIDI aller-retour, migration et protection des sauvegardes, cycle audio simulé, cohérence MIDI navigateur/Tauri, cycle de connexion, calibration et horodatage MIDI, découpe en 6/8, projection des tenues et reprise audio après seek.
 - `npm --prefix web run lint` : passé. Avertissement de fraîcheur de la base `baseline-browser-mapping` ; ne pas le confondre avec une erreur ESLint.
 - `npm --prefix web run build:pages` : passé, base `/PianoTeacher/app/`. Build normal également passé lors du premier lot ; ne remplace pas un test Tauri natif.
 - Après le passage accessibilité/styles : lint, les **46 tests Web** et le build Pages repassent. Recherche statique : aucun `transition: all` restant dans `web/src` et aucun `<label>` non associé dans `Settings.jsx` ou `SongEditor.jsx`.
@@ -11,6 +11,7 @@
 - Après extraction du panneau de sauvegarde de bibliothèque, lint, les **46 tests Web** et le build Pages repassent. Dans le navigateur, l'onglet Biblio expose un seul contrôle d'import ; Échap ferme toujours Réglages et restitue le focus à son bouton d'ouverture.
 - Le lot de cycle MIDI Web porte la suite à **58 tests** : connexions Tauri concurrentes, déconnexion pendant connexion ou initialisation, scan hors ordre, refus de permission retentable, stockage bloqué, valeurs corrompues, retrait et retour d'un périphérique. Lint, suite complète et build Pages passent.
 - Le lot calibration porte la suite à **71 tests** : appariement temporel bijectif, battements manqués, doubles frappes, seuil minimal, bornage et annulation de toutes les ressources après démontage. Lint, suite complète et build Pages passent.
+- Le lot horloge/consommateurs porte la suite à **82 tests** : réception monotone Tauri, compensation 0/−50 ms, attaque et relâchement enregistrés, bornes de phrase, jugement Live et état asynchrone du panneau MIDI. Lint, suite complète et build Pages passent.
 - `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home ANDROID_HOME=/Users/TobieRaggi/Library/Android/sdk android/gradlew -p android :app:testDebugUnitTest :app:assembleDebug` : passé après l'intégration audio/UI/gravure. **58 tests JVM**, C++ arm64/x86_64 compilé, APK debug produit. Huit tests couvrent focus refusé/perdu, arrière-plan, reprise explicite, libération différée et interruption d'un transport ; les nouveaux cas couvrent aussi projection de tenue, découpe 6/8 et ordre des sauvegardes éditeur.
 - Après le passage de sémantique Compose, la même commande Android repasse : **58 tests JVM**, compilation Kotlin, C++ arm64/x86_64 et APK debug réussis. Aucun calcul musical ou chemin audio n'est modifié dans ce lot.
 - Cette APK a été installée sur le Pixel 8 Pro avec `adb install -r` : succès et données conservées. Le lancement explicite a ramené la tâche Piano Teacher existante au premier plan sans recréer l'activité.

@@ -3,6 +3,7 @@ import LivePlayCanvas from './LivePlayCanvas';
 import { getFrenchNoteName } from '../models/song';
 import { audioEngine } from '../services/AudioEngine';
 import { midiInputService } from '../services/MidiInputService';
+import { midiLiveTime, judgeMidiAttack } from '../utils/midiTiming.js';
 import { TimelineNavigator } from './TimelineNavigator';
 import { LivePlayMobileOverlay } from './LivePlayMobileOverlay';
 import { PlaybackDock } from './PlaybackDock';
@@ -29,8 +30,6 @@ import styles from './LivePlayView.module.css';
  */
 
 // Timing tolerances (LivePlay standard)
-const PERFECT_TOLERANCE = 0.052; // ±52ms
-const GOOD_TOLERANCE = 0.152; // ±152ms
 const NOTE_TOLERANCE = 0.302; // ±302ms
 const WAIT_MODE_THRESHOLD = 0.05;
 const SCHEDULE_HORIZON = 0.12; // seconds of audio scheduled ahead each frame
@@ -329,39 +328,25 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
         addFeedback(`🎹 ${getFrenchNoteName(note)}`, 'freeplay', note);
         return;
       }
+      // Monitoring stays active while stopped; score judgments require playback
+      // or a wait-mode pause at a note.
+      if (!isPlaying && pausedAtTimeRef.current === null) return;
 
-      const now = songTimeRef.current; // frame-accurate, not React-state stale
-      const bps = beatsPerSecond;
+      const receiptTime = performance.now();
+      const running = isPlaying && pausedAtTimeRef.current === null;
+      const position = running && clockRef.current && anchorRef.current !== null
+        ? clockRef.current() - anchorRef.current - audioEngine.getAvOffsetSeconds()
+        : songTimeRef.current;
+      const eventTime = midiLiveTime(event.timestamp, receiptTime, position, running);
+      const judgment = judgeMidiAttack(allNotes, note, eventTime, beatsPerSecond, handMode, playedNotesRef.current, NOTE_TOLERANCE);
 
-      if (expectedNotesRef.current.has(note)) {
-        const noteObj = allNotes.find(n =>
-          n.pitch === note &&
-          !playedNotesRef.current.has(n.id) &&
-          Math.abs(now - n.startTime / bps) <= NOTE_TOLERANCE
-        );
-
-        if (noteObj) {
-          const timeDiff = Math.abs(now - noteObj.startTime / bps);
-          let accuracy = 'ok';
-          let feedbackText = '✓';
-
-          if (timeDiff <= PERFECT_TOLERANCE) {
-            accuracy = 'perfect';
-            feedbackText = '✨ PARFAIT !';
-          } else if (timeDiff <= GOOD_TOLERANCE) {
-            accuracy = 'good';
-            feedbackText = '✓ Bien';
-          }
-
-          processedNotesRef.current.add(noteObj.id);
-          markNotePlayed(noteObj.id, 'correct');
-
-          addFeedback(`${feedbackText} ${getFrenchNoteName(note)}`, 'correct', note, accuracy);
-
-          if (waitMode && pausedAtTimeRef.current !== null) {
-            resumeAfterWait();
-          }
-        }
+      if (judgment) {
+        const { note: noteObj, accuracy } = judgment;
+        const feedbackText = accuracy === 'perfect' ? '✨ PARFAIT !' : accuracy === 'good' ? '✓ Bien' : '✓';
+        processedNotesRef.current.add(noteObj.id);
+        markNotePlayed(noteObj.id, 'correct');
+        addFeedback(`${feedbackText} ${getFrenchNoteName(note)}`, 'correct', note, accuracy);
+        if (waitMode && pausedAtTimeRef.current !== null) resumeAfterWait();
       } else if (handMode !== 'watch') {
         addFeedback(`✗ ${getFrenchNoteName(note)}`, 'wrong', note);
       }
@@ -383,7 +368,7 @@ export function LivePlayViewOptimized({ song, onFullscreenChange, onBack }) {
       midiInputService.removeEventListener('noteOn', handleNoteOn);
       midiInputService.removeEventListener('noteOff', handleNoteOff);
     };
-  }, [allNotes, beatsPerSecond, waitMode, handMode, freePlayMode, resumeAfterWait, markNotePlayed, addFeedback]);
+  }, [allNotes, beatsPerSecond, isPlaying, waitMode, handMode, freePlayMode, resumeAfterWait, markNotePlayed, addFeedback]);
 
   // Calculate phrase measure ranges
   const phraseMeasureRanges = useMemo(() => {

@@ -88,8 +88,8 @@ Symboles : aucun
 
 ## web/src/components/LivePlayViewOptimized.jsx
 
-1068 lignes ; accessible depuis main.jsx
-Dépendances locales : components/LivePlayCanvas.jsx, models/song.js, services/AudioEngine.js, services/MidiInputService.js, components/TimelineNavigator.jsx, components/LivePlayMobileOverlay.jsx, components/PlaybackDock.jsx, components/RotatePrompt.jsx, hooks/useDeviceContext.js, hooks/useWakeLock.js, hooks/useFullscreen.js, components/LivePlayView.module.css
+1053 lignes ; accessible depuis main.jsx
+Dépendances locales : components/LivePlayCanvas.jsx, models/song.js, services/AudioEngine.js, services/MidiInputService.js, utils/midiTiming.js, components/TimelineNavigator.jsx, components/LivePlayMobileOverlay.jsx, components/PlaybackDock.jsx, components/RotatePrompt.jsx, hooks/useDeviceContext.js, hooks/useWakeLock.js, hooks/useFullscreen.js, components/LivePlayView.module.css
 Symboles : LivePlayViewOptimized, zoomBtnStyle
 
 ## web/src/components/LoadingFallback.jsx
@@ -154,8 +154,8 @@ Symboles : aucun
 
 ## web/src/components/Settings.jsx
 
-823 lignes ; accessible depuis main.jsx
-Dépendances locales : services/MidiInputService.js, services/AudioEngine.js, components/MidiVisualizer.jsx, components/MidiLatencyCalibration.jsx, components/LatencyWizard.jsx, components/DesignAppearance.jsx, services/OnboardingService.js, hooks/useDeviceContext.js, hooks/useDialogFocus.js, components/settings/LibrarySettingsPanel.jsx, components/Settings.module.css
+804 lignes ; accessible depuis main.jsx
+Dépendances locales : services/MidiInputService.js, utils/midiSettingsState.js, services/AudioEngine.js, components/MidiVisualizer.jsx, components/MidiLatencyCalibration.jsx, components/LatencyWizard.jsx, components/DesignAppearance.jsx, services/OnboardingService.js, hooks/useDeviceContext.js, hooks/useDialogFocus.js, components/settings/LibrarySettingsPanel.jsx, components/Settings.module.css
 Symboles : Settings, TabButton
 
 ## web/src/components/Settings.module.css
@@ -424,8 +424,8 @@ Symboles : useMidiAudio
 
 ## web/src/hooks/useMidiRecording.js
 
-280 lignes ; accessible depuis main.jsx
-Dépendances locales : utils/timing.js, services/MidiInputService.js, models/song.js
+272 lignes ; accessible depuis main.jsx
+Dépendances locales : utils/timing.js, services/MidiInputService.js, models/song.js, utils/midiTiming.js
 Symboles : useMidiRecording
 
 ## web/src/hooks/useNoteSelection.js
@@ -490,8 +490,8 @@ Symboles : preloadDemoSongsIfEmpty
 
 ## web/src/services/MidiInputService.js
 
-473 lignes ; accessible depuis main.jsx
-Dépendances locales : aucune
+480 lignes ; accessible depuis main.jsx
+Dépendances locales : utils/midiTiming.js
 Symboles : loadTauriAPIs, MidiInputService
 
 ## web/src/services/MidiService.js
@@ -553,6 +553,18 @@ Symboles : getMeasuresFromPhrase, groupNotesByTime
 168 lignes ; accessible depuis main.jsx
 Dépendances locales : aucune
 Symboles : matchCalibrationBeats, calculateMidiCalibration, MidiCalibrationSession
+
+## web/src/utils/midiSettingsState.js
+
+37 lignes ; accessible depuis main.jsx
+Dépendances locales : aucune
+Symboles : observeMidiSettings
+
+## web/src/utils/midiTiming.js
+
+50 lignes ; accessible depuis main.jsx
+Dépendances locales : aucune
+Symboles : normalizedMidiTimestamp, midiRecordingBeat, finalizedMidiTiming, midiLiveTime, judgeMidiAttack
 
 ## web/src/utils/phraseEditing.js
 
