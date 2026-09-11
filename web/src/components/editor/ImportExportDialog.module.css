@@ -1,0 +1,100 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.dialog {
+    width: min(100%, 800px);
+    max-height: 85vh;
+    overflow: auto;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+}
+
+.dialog > h2 {
+    margin: 0 0 2rem;
+    font-size: 1.5rem;
+    font-weight: 400;
+}
+
+.card {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-tertiary);
+}
+
+.card h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 500;
+}
+
+.card p {
+    margin: 0 0 1rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 300;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.fileButton {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    cursor: pointer;
+}
+
+.fileButton input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.fileButton:focus-within {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+.exportButton {
+    border-color: transparent;
+    color: white;
+    background: var(--accent-success);
+}
+
+.footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+@media (max-width: 600px) {
+    .overlay { padding: 1rem; }
+    .dialog { padding: 1.25rem; }
+    .actions > * { width: 100%; }
+}

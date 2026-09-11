@@ -4,11 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PianoRoll } from './PianoRoll';
 import { audioEngine } from '../services/AudioEngine';
 import { parseMidiFile } from '../services/MidiService';
-import { StorageService } from '../services/StorageService';
 import { getFrenchNoteName, normalizeKeySignature } from '../models/song';
 import { MobileHeader } from './MobileHeader';
 import { PlaybackDock } from './PlaybackDock';
-import { useDialogFocus } from '../hooks/useDialogFocus';
+import { ImportExportDialog } from './editor/ImportExportDialog';
 
 
 export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, onAddPhrase, onSplitPhrase, onMergePhraseWithPrevious, onRenamePhrasesInOrder, addNoteToPhrase, removeNoteFromPhrase, onUpdateNote, onReorderPhrases, readOnly = false, isMobile = false }) {
@@ -47,10 +46,6 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
     const isInitialMount = useRef(true);
     const saveTimeoutRef = useRef(null);
     const phraseTrackingRafRef = useRef(null);
-    const importExportDialogRef = useDialogFocus({
-        active: showImportExportModal,
-        onEscape: () => setShowImportExportModal(false),
-    });
 
     useEffect(() => {
         audioEngine.initialize().catch(error => {
@@ -957,177 +952,14 @@ export function SongEditor({ song, onUpdateMetadata, onImportSong, onSaveSong, o
                 ))}
             </div>
 
-            {/* Import/Export Modal */}
-            {showImportExportModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                    padding: '2rem'
-                }}
-                onClick={() => setShowImportExportModal(false)}
-                role="presentation"
-                >
-                    <div
-                        ref={importExportDialogRef}
-                        tabIndex="-1"
-                        className="card"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="import-export-title"
-                        style={{
-                            maxWidth: '800px',
-                            width: '100%',
-                            maxHeight: '85vh',
-                            overflow: 'auto',
-                            padding: '2rem'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <h2 id="import-export-title" style={{
-                            marginBottom: '2rem',
-                            fontSize: '1.5rem',
-                            fontWeight: '400'
-                        }}>
-                            Import / Export
-                        </h2>
-
-                        {/* MIDI Section */}
-                        <div style={{
-                            marginBottom: '1.5rem',
-                            padding: '1.25rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <h3 style={{
-                                marginBottom: '0.75rem',
-                                fontSize: '1.125rem',
-                                fontWeight: '500'
-                            }}>
-                                Import MIDI
-                            </h3>
-                            <p style={{
-                                color: 'var(--text-secondary)',
-                                marginBottom: '1rem',
-                                fontSize: '0.875rem',
-                                fontWeight: '300'
-                            }}>
-                                Importer un fichier MIDI pour créer un nouveau morceau
-                            </p>
-                            <div style={{ position: 'relative', display: 'inline-block' }}>
-                                <input
-                                    aria-label="Choisir un fichier MIDI à importer"
-                                    type="file"
-                                    accept=".mid,.midi"
-                                    onChange={handleFileChange}
-                                    style={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        width: '100%',
-                                        height: '100%',
-                                        opacity: 0,
-                                        cursor: 'pointer',
-                                        zIndex: 10
-                                    }}
-                                />
-                                <button className="btn-primary">
-                                    {isImporting ? 'Importation...' : 'Choisir un fichier MIDI'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* JSON Section */}
-                        <div style={{
-                            marginBottom: '1.5rem',
-                            padding: '1.25rem',
-                            background: 'var(--bg-tertiary)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <h3 style={{
-                                marginBottom: '0.75rem',
-                                fontSize: '1.125rem',
-                                fontWeight: '500'
-                            }}>
-                                Export / Import JSON
-                            </h3>
-                            <p style={{
-                                color: 'var(--text-secondary)',
-                                marginBottom: '1rem',
-                                fontSize: '0.875rem',
-                                fontWeight: '300'
-                            }}>
-                                Format JSON pour sauvegarder ou partager
-                            </p>
-                            <div style={{
-                                display: 'flex',
-                                gap: '0.75rem',
-                                flexWrap: 'wrap'
-                            }}>
-                                <button
-                                    onClick={async () => {
-                                        const result = await StorageService.exportSong(song);
-                                        if (result.success && !result.cancelled) {
-                                            const message = result.path
-                                                ? `Fichier JSON exporté !\n${result.path}`
-                                                : 'Fichier JSON téléchargé !';
-                                            alert(message);
-                                        }
-                                    }}
-                                    style={{
-                                        background: 'var(--accent-success)',
-                                        color: 'white',
-                                        border: 'none'
-                                    }}
-                                >
-                                    Exporter JSON
-                                </button>
-                                <div style={{ position: 'relative', display: 'inline-block' }}>
-                                    <input
-                                        aria-label="Choisir un fichier JSON à importer"
-                                        type="file"
-                                        accept=".json"
-                                        onChange={handleImportJson}
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: '100%',
-                                            opacity: 0,
-                                            cursor: 'pointer',
-                                            zIndex: 10
-                                        }}
-                                    />
-                                    <button>
-                                        Importer JSON
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Close Button */}
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            marginTop: '1.5rem'
-                        }}>
-                            <button onClick={() => setShowImportExportModal(false)}>
-                                Fermer
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ImportExportDialog
+                open={showImportExportModal}
+                song={song}
+                isImporting={isImporting}
+                onClose={() => setShowImportExportModal(false)}
+                onImportMidi={handleFileChange}
+                onImportJson={handleImportJson}
+            />
 
             {/* Fixed bottom playback bar — same dock as other pages, with an
                 Editor-specific secondary row for phrase navigation + actions. */}

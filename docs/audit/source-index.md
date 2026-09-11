@@ -178,8 +178,8 @@ Symboles : aucun
 
 ## web/src/components/SongEditor.jsx
 
-1308 lignes ; accessible depuis main.jsx
-Dépendances locales : utils/timing.js, utils/playbackRange.js, components/PianoRoll.jsx, services/AudioEngine.js, services/MidiService.js, services/StorageService.js, models/song.js, components/MobileHeader.jsx, components/PlaybackDock.jsx, hooks/useDialogFocus.js
+1140 lignes ; accessible depuis main.jsx
+Dépendances locales : utils/timing.js, utils/playbackRange.js, components/PianoRoll.jsx, services/AudioEngine.js, services/MidiService.js, models/song.js, components/MobileHeader.jsx, components/PlaybackDock.jsx, components/editor/ImportExportDialog.jsx
 Symboles : SongEditor, EditorBottomBar
 
 ## web/src/components/SongLibrary.jsx
@@ -209,6 +209,18 @@ Symboles : TopNavBar
 ## web/src/components/TopNavBar.module.css
 
 197 lignes ; accessible depuis main.jsx
+Dépendances locales : aucune
+Symboles : aucun
+
+## web/src/components/editor/ImportExportDialog.jsx
+
+58 lignes ; accessible depuis main.jsx
+Dépendances locales : services/StorageService.js, hooks/useDialogFocus.js, components/editor/ImportExportDialog.module.css
+Symboles : ImportExportDialog
+
+## web/src/components/editor/ImportExportDialog.module.css
+
+100 lignes ; accessible depuis main.jsx
 Dépendances locales : aucune
 Symboles : aucun
 
