@@ -4,8 +4,13 @@ Généré par `python3 scripts/update-source-index.py`. Les symboles indiquent l
 
 ## android/app/src/main/cpp/audio_engine.cpp
 
-439 lignes.
+301 lignes.
 Symboles : AudioEngine
+
+## android/app/src/main/cpp/voice_mixer.h
+
+200 lignes.
+Symboles : VoiceMixer
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/MainActivity.kt
 

@@ -59,3 +59,27 @@ Les bancs visuels sont servis en développement et ne font pas partie du bundle 
 4. Relancer uniquement les vérifications affectées par les nouvelles modifications.
 
 Branche locale : `codex/progressive-audit`. Intégration de `origin/codex/ui-onboarding` déjà réalisée. `main` pointe sur le checkpoint ; l'ancienne branche générée `origin/gh-pages` n'est plus la source de publication.
+
+## Checkpoint natif Oboe : callback sans mutex
+
+Commandes depuis la racine :
+
+```sh
+cmake -S android/app/src/main/cpp -B /tmp/piano-voice-mixer-cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/piano-voice-mixer-cmake
+ctest --test-dir /tmp/piano-voice-mixer-cmake --output-on-failure
+c++ -std=c++17 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-omit-frame-pointer -I android/app/src/main/cpp android/app/src/test/cpp/voice_mixer_test.cpp -o /tmp/piano-voice-mixer-asan
+/tmp/piano-voice-mixer-asan
+c++ -std=c++17 -Wall -Wextra -Werror -pthread -fsanitize=thread -I android/app/src/main/cpp android/app/src/test/cpp/voice_mixer_test.cpp -o /tmp/piano-voice-mixer-tsan
+/tmp/piano-voice-mixer-tsan
+```
+
+Depuis `android/` :
+
+```sh
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ANDROID_HOME='/Users/TobieRaggi/Library/Android/sdk' ./gradlew :app:externalNativeBuildDebug :app:testDebugUnitTest --offline
+```
+
+Résultats : sept groupes C++ passés (CTest, ASan/UBSan, TSan), sans erreur détectée ; compilation Oboe arm64-v8a et x86_64 réussie ; **58 tests JVM passés**, aucun échec ni test ignoré. `git diff --check` passe. Les avertissements Gradle concernent la version XML du SDK et des API Kotlin/Android dépréciées déjà présentes.
+
+Le harnais interdit `new`/`new[]` pendant le rendu et vérifie le rendu pendant qu'un producteur est suspendu, ainsi que la purge des générations et un stress concurrent. Ces vérifications ne remplacent pas une mesure des underruns et une écoute sur téléphone avec polyphonie, pédale, focus concurrent et changements de route. Aucune installation ni validation matérielle effectuée pour ce checkpoint ; les défauts P2 sessions/routes restent ouverts.

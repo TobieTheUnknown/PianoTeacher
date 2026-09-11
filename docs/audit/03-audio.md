@@ -28,7 +28,7 @@ Android : `stop` remet la pédale à zéro et ne coupe que les voix appartenant 
 
 Le focus audio appartient maintenant à une action sonore explicite. Passer en arrière-plan ou perdre le focus invalide les transports en cours, ferme le flux et libère le focus ; revenir dans l'application reste silencieux. Le prochain appui sur Lecture redemande le focus et rouvre Oboe sans recharger les samples. Un flux interrompu par Android est détecté comme inactif au lieu de laisser l'interface croire que la lecture continue.
 
-**À ne pas déclarer impeccable** sans écoute/device : mutex bloquant dans le callback Oboe ; la réouverture après changement de route est codée mais demande encore une écoute matérielle ; pédales et notes MIDI superposées sur plusieurs canaux. L'ordonnanceur est monotone à cadence 4 ms, pas calé à l'échantillon dans le callback Oboe.
+**À ne pas déclarer impeccable** sans écoute/device : le mutex du callback Oboe est retiré dans le checkpoint ci-dessous ; la réouverture après changement de route demande encore une correction de la propagation des interruptions aux sessions Kotlin et une écoute matérielle ; pédales et notes MIDI superposées sur plusieurs canaux. L'ordonnanceur est monotone à cadence 4 ms, pas calé à l'échantillon dans le callback Oboe.
 
 SoundPool attend maintenant ses callbacks réels au lieu d'un délai fixe. Le décodage MediaCodec libère codec, extracteur et asset même en erreur, respecte offset/limite des buffers et accepte les sorties PCM 16 bits ou float.
 
@@ -81,3 +81,13 @@ Limites : une commande native qui ne termine jamais bloque encore la file matér
 - Réglages observe désormais la fin d'initialisation et les changements de paramètres. Actualiser attend le vrai scan et fusionne les clics répétés pendant la même requête.
 
 Limites : le timestamp natif inclut la traversée IPC et demande une validation avec clavier physique. En mode attente, le temps du morceau reste volontairement figé. `LatencyWizard` et l'epoch du backend Rust sont inchangés.
+
+## Checkpoint Oboe : commandes bornées et voix appartenant au callback
+
+- `voice_mixer.h` contient le mixeur C++ indépendant d'Android. Seul le callback modifie les voix, leurs enveloppes et le clic. JNI sérialise les producteurs avec un mutex que le rendu ne prend jamais.
+- Une file préallouée de 256 commandes transfère attaques, relâchements et clics. Chaque callback consomme un instantané borné de la file ; seules des opérations atomiques 32 bits garanties sans verrou sont utilisées pour la coordination.
+- Saturation : la commande qui ne rentre pas est refusée et invalide la génération. Le callback suivant coupe les voix/clics de l'ancienne génération et ignore ses commandes en attente. Si la saturation survient pendant le mixage, le buffer est remis à zéro dès que l'invalidation est observée. Cette politique peut perdre des attaques sous surcharge ; elle empêche qu'un note-off perdu laisse une voix tenue.
+- Fermeture/reprise : publication d'une nouvelle génération, sans réinitialiser les indices de la file ni modifier les voix depuis le thread de gestion. Les anciennes commandes et clics ne reviennent pas au redémarrage.
+- Tests C++ : ordre on/off, même hauteur avec IDs distincts, vol de la 65e voix et ancien note-off, préférence des voix en release, saturation, clic actif/en attente, purge et génération, producteur suspendu, invalidation pendant le rendu, bouclage des indices, stress concurrent de 100 000 paires, interpolation stéréo et fin de sample. Les allocations C++ dans le rendu sont interdites par le harnais de test.
+
+Hors de ce checkpoint : le transport ne transmet pas encore son session ID lors d'une attaque ; une réouverture MIDI peut masquer une interruption de route avant son contrôle. La fermeture Oboe reste bloquante sur le chemin de focus, et `release()` reste un chemin dormant à sécuriser. Aucun changement aux P2 sessions/routes, au fallback SoundPool ou au métronome d'aperçu des Réglages. Les underruns, la latence et les changements de périphérique restent à vérifier sur téléphone.

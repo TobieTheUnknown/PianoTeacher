@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <memory>
+#include "voice_mixer.h"
 
 #define LOG_TAG "PianoAudio"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -22,36 +23,11 @@ struct SampleData {
     int totalFrames = 0;     // cached: pcm.size() / channels (avoids per-callback divide)
 };
 
-static const int MAX_VOICES = 64;
 static const int MIDI_RANGE = 128;
 // Release multiplier per-sample: default ~720ms decay to silence (0.001 threshold)
 static std::atomic<float> gReleasePer{0.9998f};
-
-// ─── Metronome click (synthesized in audio callback, zero Java overhead) ─────
-
-struct ClickState {
-    bool active = false; // audio-thread owned
-    std::atomic<int> request{-1}; // packed amplitude + accent, producer -> audio thread
-    int pos = 0;          // current sample position (audio-thread owned)
-    int totalSamples = 0; // click duration in samples (audio-thread owned)
-    double freq = 440.0;  // Hz (audio-thread owned)
-    float amplitude = 0.45f;
-};
-
-static ClickState gClick;
-static int gClickDurationMs = 25; // short click
-
-struct Voice {
-    int64_t id = 0;
-    int pitch = -1;
-    int sampleMidi = -1;       // index into mSampleByMidi
-    double pos = 0.0;          // playback position in frames
-    double rate = 1.0;         // combined pitch-shift + sampleRate-conversion ratio
-    float amplitude = 0.8f;
-    float releaseMult = 1.0f;
-    bool active = false;
-    bool releasing = false;
-};
+static_assert(std::atomic<float>::is_always_lock_free);
+static_assert(std::atomic<bool>::is_always_lock_free);
 
 // ─── AudioEngine ─────────────────────────────────────────────────────────────
 
@@ -81,95 +57,18 @@ public:
         int32_t numFrames
     ) override {
         auto* out = static_cast<float*>(audioData);
-        // Clear output buffer (silence baseline)
-        std::fill(out, out + numFrames * 2, 0.0f);
-
         if (!mReady.load(std::memory_order_acquire)) {
+            std::fill(out, out + numFrames * 2, 0.0f);
             return oboe::DataCallbackResult::Continue;
         }
 
-        const int clickRequest = gClick.request.exchange(-1, std::memory_order_acquire);
-        if (clickRequest >= 0) {
-            gClick.freq = (clickRequest & 1) ? 880.0 : 440.0;
-            gClick.amplitude = (clickRequest >> 1) / 1000.0f;
-            gClick.pos = 0;
-            gClick.totalSamples = mOutputSampleRate * gClickDurationMs / 1000;
-            gClick.active = true;
-        }
-
-        // Snapshot the release rate once per buffer (cheap, avoids re-reading).
-        const float releasePer = gReleasePer.load(std::memory_order_relaxed);
-
-        // Voice loop. After mReady=true, mSampleByMidi is read-only; we touch
-        // it without locking. Voice fields are guarded by mVoiceMutex when
-        // written from the UI thread — we block briefly here rather than
-        // dropping the buffer because every "skip" would produce an audible
-        // click (the buffer is pre-zeroed for the silence baseline).
-        std::lock_guard<std::mutex> vLock(mVoiceMutex);
-        for (int vi = 0; vi < MAX_VOICES; vi++) {
-            Voice& v = mVoices[vi];
-            if (!v.active) continue;
-
-            const SampleData* s = (v.sampleMidi >= 0 && v.sampleMidi < MIDI_RANGE)
-                ? mSampleByMidi[v.sampleMidi].get() : nullptr;
-            if (!s) { v.active = false; continue; }
-
-            const int totalFrames = s->totalFrames;
-            const float* pcm = s->pcm.data();
-            const int channels = s->channels;
-            const float amp = v.amplitude;
-
-            for (int f = 0; f < numFrames; f++) {
-                int idx = (int)v.pos;
-                if (idx >= totalFrames - 1) { v.active = false; break; }
-
-                float frac = (float)(v.pos - idx);
-
-                float left, right;
-                if (channels >= 2) {
-                    int i0 = idx * 2;
-                    left  = pcm[i0]     * (1.0f - frac) + pcm[i0 + 2] * frac;
-                    right = pcm[i0 + 1] * (1.0f - frac) + pcm[i0 + 3] * frac;
-                } else {
-                    float val = pcm[idx] * (1.0f - frac) + pcm[idx + 1] * frac;
-                    left = right = val;
-                }
-
-                float gain = amp * v.releaseMult;
-                out[f * 2]     = std::clamp(out[f * 2]     + left  * gain, -1.0f, 1.0f);
-                out[f * 2 + 1] = std::clamp(out[f * 2 + 1] + right * gain, -1.0f, 1.0f);
-
-                if (v.releasing) {
-                    v.releaseMult *= releasePer;
-                    if (v.releaseMult < 0.001f) { v.active = false; break; }
-                }
-
-                v.pos += v.rate;
-            }
-        }
-
-        // ─── Metronome click (mixed into output) ─────────────────────────────
-        if (gClick.active) {
-            const int sr = mOutputSampleRate;
-            for (int f = 0; f < numFrames && gClick.pos < gClick.totalSamples; f++) {
-                float t = (float)gClick.pos / (float)sr;
-                float env;
-                int attack = gClick.totalSamples / 6;
-                int decay = gClick.totalSamples - attack;
-                if (gClick.pos < attack) {
-                    env = (float)gClick.pos / (float)attack;
-                } else {
-                    env = 1.0f - (float)(gClick.pos - attack) / (float)decay;
-                }
-                float sample = gClick.amplitude * env * (float)std::sin(2.0 * M_PI * gClick.freq * t);
-                out[f * 2]     = std::clamp(out[f * 2]     + sample, -1.0f, 1.0f);
-                out[f * 2 + 1] = std::clamp(out[f * 2 + 1] + sample, -1.0f, 1.0f);
-                gClick.pos++;
-            }
-            if (gClick.pos >= gClick.totalSamples) {
-                gClick.active = false;
-            }
-        }
+        mMixer.render(out, numFrames, mOutputSampleRate,
+            gReleasePer.load(std::memory_order_relaxed), [this](int midi) {
+                const auto* sample = mSampleByMidi[midi].get();
+                return sample
+                    ? piano::SampleView{sample->pcm.data(), sample->totalFrames, sample->channels}
+                    : piano::SampleView{};
+            });
 
         return oboe::DataCallbackResult::Continue;
     }
@@ -238,62 +137,28 @@ public:
     }
 
     void noteOn(int64_t id, int pitch, int velocity) {
-        if (pitch < 0) {  // -1 = stop all (instant; no release)
-            std::lock_guard<std::mutex> lock(mVoiceMutex);
-            for (auto& v : mVoices) v.active = false;
-            return;
-        }
-        if (!mReady.load(std::memory_order_acquire)) return;
-        if (pitch < 0 || pitch >= MIDI_RANGE) return;
-
-        // O(1) sample lookup via precomputed LUT (built in setReady()).
+        // Serialize producers only. The audio callback never takes this lock.
+        std::lock_guard<std::mutex> commandLock(mCommandMutex);
+        if (pitch < 0) { mMixer.invalidate(); return; }
+        if (!mReady.load(std::memory_order_acquire) || pitch >= MIDI_RANGE) return;
         const int nearestMidi = mNearestForPitch[pitch];
         if (nearestMidi < 0) return;
-        const SampleData* s = mSampleByMidi[nearestMidi].get();
-        if (!s) return;
-
-        // Compute rate outside the voice-mutex critical section.
+        const SampleData* sample = mSampleByMidi[nearestMidi].get();
+        if (!sample) return;
         const double pitchShift = std::pow(2.0, (pitch - nearestMidi) / 12.0);
-        const double srCorrection = (double)s->sampleRate / (double)mOutputSampleRate;
-        const double rate = pitchShift * srCorrection;
-        const float amplitude = (velocity / 127.0f) * 0.85f;
-
-        std::lock_guard<std::mutex> vLock(mVoiceMutex);
-
-        // Equal pitches may belong to different hands or overlap. Never reuse a
-        // sounding voice solely because its pitch matches a new attack.
-        int slot = -1;
-        for (int i = 0; i < MAX_VOICES; i++) {
-            if (!mVoices[i].active) { slot = i; break; }
-        }
-        if (slot < 0) {
-            float quietest = 2.0f;
-            for (int i = 0; i < MAX_VOICES; i++) {
-                if (mVoices[i].releasing && mVoices[i].releaseMult < quietest) {
-                    quietest = mVoices[i].releaseMult;
-                    slot = i;
-                }
-            }
-        }
-        if (slot < 0) slot = mNextVoice++ % MAX_VOICES;
-
-        Voice& v = mVoices[slot];
-        v.id = id;
-        v.pitch = pitch;
-        v.sampleMidi = nearestMidi;
-        v.pos = 0.0;
-        v.rate = rate;
-        v.amplitude = amplitude;
-        v.releaseMult = 1.0f;
-        v.releasing = false;
-        v.active = true;
+        const double rate = pitchShift * sample->sampleRate / mOutputSampleRate;
+        mMixer.submit(piano::VoiceCommand::noteOn(
+            id, pitch, nearestMidi, rate, (velocity / 127.0f) * 0.85f));
     }
 
     void noteOff(int64_t id) {
-        std::lock_guard<std::mutex> lock(mVoiceMutex);
-        for (auto& v : mVoices) {
-            if (v.active && v.id == id && !v.releasing) v.releasing = true;
-        }
+        std::lock_guard<std::mutex> commandLock(mCommandMutex);
+        mMixer.submit(piano::VoiceCommand::noteOff(id));
+    }
+
+    void playClick(bool accent, float amplitude) {
+        std::lock_guard<std::mutex> commandLock(mCommandMutex);
+        mMixer.submit(piano::VoiceCommand::click(accent, amplitude));
     }
 
     // Called from the loader thread (UI) for each sample. Not lock-free, but
@@ -345,18 +210,16 @@ private:
             }
             mStream.reset();
         }
-        // The data callback is stopped; no stale release or click survives resume.
-        std::lock_guard<std::mutex> voiceLock(mVoiceMutex);
-        for (auto& voice : mVoices) voice.active = false;
-        gClick.active = false;
-        gClick.request.store(-1, std::memory_order_release);
+        // Publish a new command generation. Voice/click state remains audio-owned;
+        // the next callback discards pre-close commands before producing sound.
+        std::lock_guard<std::mutex> commandLock(mCommandMutex);
+        mMixer.invalidate();
     }
 
     std::shared_ptr<oboe::AudioStream> mStream;
     std::mutex mStreamMutex;
-    Voice mVoices[MAX_VOICES] = {};
-    std::mutex mVoiceMutex;
-    int mNextVoice = 0;
+    piano::VoiceMixer<> mMixer;
+    std::mutex mCommandMutex;
 };
 
 // ─── Global instance ─────────────────────────────────────────────────────────
@@ -432,8 +295,7 @@ Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativeSetRelease(
 JNIEXPORT void JNICALL
 Java_com_tobietheunknown_pianoteacher_audio_AudioEngine_nativePlayClick(
     JNIEnv* /*env*/, jobject /*thiz*/, jboolean isAccent, jfloat amplitude) {
-    const int gain = static_cast<int>(std::clamp(amplitude, 0.0f, 1.0f) * 1000.0f);
-    gClick.request.store((gain << 1) | (isAccent ? 1 : 0), std::memory_order_release);
+    if (gEngine) gEngine->playClick(isAccent, amplitude);
 }
 
 } // extern "C"
