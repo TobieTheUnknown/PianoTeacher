@@ -4,11 +4,11 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -269,7 +269,11 @@ private fun ConnectStep(wantsMidi: Boolean, onMidi: (Boolean) -> Unit) {
             .clip(RoundedCornerShape(18.dp))
             .background(Surface2)
             .border(1.dp, BorderColor, RoundedCornerShape(18.dp))
-            .clickable { onMidi(!wantsMidi) }
+            .toggleable(
+                value = wantsMidi,
+                role = Role.Switch,
+                onValueChange = onMidi,
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -286,7 +290,7 @@ private fun ConnectStep(wantsMidi: Boolean, onMidi: (Boolean) -> Unit) {
         }
         Switch(
             checked = wantsMidi,
-            onCheckedChange = onMidi,
+            onCheckedChange = null,
             colors = SwitchDefaults.colors(checkedTrackColor = IndigoAccent),
         )
     }

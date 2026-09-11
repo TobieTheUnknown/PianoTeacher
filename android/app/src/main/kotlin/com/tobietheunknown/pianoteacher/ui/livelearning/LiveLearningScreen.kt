@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -389,7 +390,11 @@ private fun MeasureCardCompact(
             .clip(RoundedCornerShape(14.dp))
             .background(bg)
             .border(1.5.dp, border, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = "Jouer la mesure ${measure.globalIndex + 1}",
+                onClick = onClick,
+            )
             .padding(10.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -545,7 +550,11 @@ private fun DetailToggle(active: Boolean, onClick: () -> Unit) {
             .clip(RoundedCornerShape(50))
             .background(if (active) IndigoAccent else SurfaceVariant)
             .border(1.dp, if (active) IndigoAccent else BorderColor, RoundedCornerShape(50))
-            .clickable(onClick = onClick)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = if (active) "Masquer le détail" else "Afficher le détail",
+                onClick = onClick,
+            )
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(

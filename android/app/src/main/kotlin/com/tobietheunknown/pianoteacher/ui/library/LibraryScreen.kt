@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -533,7 +534,7 @@ private fun ActionBtn(
                 if (primary) IndigoAccent else BorderColor,
                 RoundedCornerShape(10.dp),
             )
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(vertical = 12.dp),
     ) {
         Column(
@@ -684,7 +685,11 @@ private fun SongCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onLearn() },
+            .clickable(
+                role = Role.Button,
+                onClickLabel = "Ouvrir ${song.title}",
+                onClick = onLearn,
+            ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)

@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -514,7 +515,10 @@ private fun RangeStepper(
                         fontSize = 15.sp,
                         color = IndigoAccent,
                         modifier = Modifier
-                            .clickable { editing = true }
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "Modifier la mesure",
+                            ) { editing = true }
                             .padding(horizontal = 12.dp),
                     )
                 }

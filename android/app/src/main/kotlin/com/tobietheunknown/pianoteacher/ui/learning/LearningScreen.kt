@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -371,7 +372,12 @@ fun LearningScreen(
                 Column {
                     TopAppBar(
                         title = {
-                            Column(modifier = Modifier.clickable { showRenameSongDialog = true }) {
+                            Column(
+                                modifier = Modifier.clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "Renommer le morceau",
+                                ) { showRenameSongDialog = true }
+                            ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -588,7 +594,10 @@ fun LearningScreen(
                     Column(
                         modifier = cardModifier
                             .height(cardH)
-                            .clickable { vm.playMeasureSingle(measure.globalIndex) }
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "Jouer la mesure ${measure.globalIndex + 1}",
+                            ) { vm.playMeasureSingle(measure.globalIndex) }
                     ) {
                         // Compact measure-number header.
                         Row(

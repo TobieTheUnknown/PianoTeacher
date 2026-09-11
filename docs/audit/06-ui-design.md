@@ -18,6 +18,7 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 - Plusieurs boutons avec une icône et un `title` seulement doivent recevoir un `aria-label`. Faire un passage composant par composant, sans attribuer automatiquement le même nom à des actions différentes.
 - Le hook partagé `useDialogFocus` gère maintenant Réglages, les deux dialogues de Bibliothèque et Import/Export de l'Éditeur : focus initial, cycle Tab, fermeture Échap, blocage du scroll de fond et restitution au bouton d'ouverture. L'onboarding garde encore son cycle propre et le fond n'utilise pas encore l'attribut `inert`.
 - La fenêtre Import/Export est maintenant un composant autonome avec sa feuille de styles. `SongEditor.jsx` passe de 1 308 à 1 140 lignes ; chaque sélecteur de fichier n'expose plus qu'un seul contrôle accessible au lieu du champ et d'un bouton décoratif superposés.
+- Sur Android, l'option de clavier MIDI de l'introduction est un seul interrupteur accessible au lieu d'une rangée et d'un `Switch` concurrents. Les titres et cartes de mesure du Coach, les cartes de bibliothèque, les boutons de main Live, le détail Coach et la valeur éditable de boucle annoncent maintenant leur rôle ou leur action.
 - Le changement de morceau, de filtre et de mode reste entièrement dans l'état React. Des URL partageables pour les pages principales rendraient retour navigateur, favoris et liens directs prévisibles.
 
 ## Pourquoi l'interface paraît chargée

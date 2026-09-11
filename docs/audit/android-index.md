@@ -104,12 +104,12 @@ Symboles : MobileHeader
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/common/Pill.kt
 
-73 lignes.
+74 lignes.
 Symboles : Pill, OutlineButton
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/common/PlaybackDock.kt
 
-525 lignes.
+529 lignes.
 Symboles : PhraseRange, PlaybackDock, HandPill, HandSegment, SpeedCluster, PixelBtn, TransportBtn, PlayPauseButton, ToggleIconBtn, LoopActiveStrip, LoopRangeEditor, PhrasePicker, RangeStepper
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/common/PlaybackHand.kt
@@ -139,7 +139,7 @@ Symboles : EditorViewModel, splitPhrase, mergePhraseWithPrevious, Factory
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/learning/LearningScreen.kt
 
-2133 lignes.
+2142 lignes.
 Symboles : midiToDiatonic, NoteDuration, classifyDuration, Base, StaffClefConfig, selectClef, LearningScreen, MeasureCard, TimelineBeatRow, MiniMeasureCard, GrandStaffCanvas, drawHead, StaffNote, ChordRender, androidx.compose.ui.graphics.drawscope.DrawScope.drawStemsAndBeams, attachY, stemX, nominalTip, resolveDirection, drawPlainStem, drawFlags, preferredDirection, beamYAt, NoteLabelsStrip, LearningPianoKeyboard, OctaveKeys, ChordChip, CycleNoteRows, ArpeggioChordBadge, NoteChip
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/learning/LearningViewModel.kt
@@ -149,7 +149,7 @@ Symboles : MeasureData, PhraseSectionData, LearningViewModel, toggleMetronome, t
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/library/LibraryScreen.kt
 
-826 lignes.
+831 lignes.
 Symboles : Song.noteCount, Song.difficulty, Song.keyLabel, LibraryScreen, SongDetailSheet, SheetStat, SheetDivider, RenameDialog, ActionBtn, LibraryOverview, OverviewStat, LibrarySearchAndFilters, EmptySearch, SongCard, MetaChip, ImportBanner, EmptyLibrary
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/library/LibraryViewModel.kt
@@ -159,12 +159,12 @@ Symboles : ImportState, Idle, Loading, Success, Error, LibraryViewModel, importF
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/livelearning/LiveLearningScreen.kt
 
-891 lignes.
+900 lignes.
 Symboles : noteName, LiveLearningScreen, MeasureCardCompact, chordCycleLen, handSideColor, DetailToggle, HandRoleBadge, RoleChip, OstinatoRoleBadge, PedalRoleBadge, OstinatoGlyph, wave, PedalGlyph, MotifRows, NoteChip, NotesRow, BeatStrip, RepeatedMotifRows
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayScreen.kt
 
-950 lignes.
+951 lignes.
 Symboles : HitEffect, LivePlayScreen, controlsBlock, LivePlayCanvas, PianoKeyboard, isBlackKey, LivePlayTopBar, SpeedBadge, LivePlayControls, LivePlayHandButton
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/liveplay/LivePlayViewModel.kt
@@ -179,7 +179,7 @@ Symboles : LearnerProfile, OnboardingPreferences, isComplete, profile, complete,
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/onboarding/OnboardingScreen.kt
 
-480 lignes.
+484 lignes.
 Symboles : OnboardingScreen, finish, OnboardingPanel, StepHeading, WelcomeStep, TransportStep, PhraseStep, ConnectStep, ReminderStep, ThemeChoices, AccentChoices, FeatureLine, InfoPill, OnboardingVisual
 
 ## android/app/src/main/kotlin/com/tobietheunknown/pianoteacher/ui/settings/SettingsScreen.kt
