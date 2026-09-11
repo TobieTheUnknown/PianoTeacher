@@ -57,3 +57,12 @@ Installation debug avec conservation des données, démarrage à froid puis red�
 - Compilation native et 15 tests JVM passés ; absence de test matériel de ces transitions explicitement consignée dans `05-validation.md`.
 
 À approfondir : ownership audio des ViewModels conservés dans la pile de navigation ; canaux MIDI partageant un même pitch ; reconnexion physique après débranchement ; réglage audio global natif et changement de backend pendant une note tenue.
+
+## Troisième lot MIDI Web : connexions concurrentes et préférences
+
+- Les opérations Tauri de connexion/déconnexion sont sérialisées et associées à une génération. Une sélection ou déconnexion plus récente gagne aussi dans le backend natif, même si une ancienne promesse se résout ensuite.
+- Un refus d'accès Web MIDI reste retentable par une action explicite ; les appels concurrents partagent la même demande et aucun minuteur ne répète la permission.
+- Les erreurs `localStorage` n'interrompent plus une connexion, une déconnexion ou la notification des réglages. Les valeurs numériques et les canaux sauvegardés sont bornés et normalisés champ par champ.
+- Un débranchement physique conserve le périphérique préféré pour la reconnexion. Une déconnexion demandée par l'utilisateur efface cette préférence. Les scans natifs périmés ne remplacent plus une liste récente et un actif disparu est invalidé.
+
+Limites : une commande native qui ne termine jamais bloque encore la file matérielle. La calibration MIDI, l'horloge des événements natifs et les consommateurs de la compensation restent le lot suivant.

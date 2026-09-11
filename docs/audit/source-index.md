@@ -490,7 +490,7 @@ Symboles : preloadDemoSongsIfEmpty
 
 ## web/src/services/MidiInputService.js
 
-534 lignes ; accessible depuis main.jsx
+473 lignes ; accessible depuis main.jsx
 Dépendances locales : aucune
 Symboles : loadTauriAPIs, MidiInputService
 

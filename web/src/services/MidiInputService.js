@@ -41,7 +41,15 @@ const isTauri = () => {
 };
 
 export class MidiInputService {
-    constructor() {
+    constructor({ nativeInvoke = (...args) => invoke(...args), requestAccess = () => globalThis.navigator?.requestMIDIAccess?.({ sysex: false }), storage, autoInit = true } = {}) {
+        this._invoke = nativeInvoke;
+        this._requestAccess = requestAccess;
+        this._storage = () => storage ?? globalThis.localStorage;
+        this._initPromise = null;
+        this._connectionGeneration = 0;
+        this._refreshGeneration = 0;
+        this._nativeQueue = Promise.resolve();
+        this._nativePending = 0;
         this.midiAccess = null;
         this.activeDevice = null;
         this.listeners = new Map(); // Event listeners
@@ -57,7 +65,7 @@ export class MidiInputService {
 
         // Defer initialization to avoid crashing Android WebView on startup.
         // Use setTimeout(0) so the event loop processes Tauri's internals first.
-        if (typeof window !== 'undefined') {
+        if (autoInit && typeof window !== 'undefined') {
             const doInit = () => {
                 setTimeout(() => {
                     this.init().catch(err => {
@@ -73,293 +81,244 @@ export class MidiInputService {
         }
     }
 
-    _storedNumber(key, fallback, min, max) {
-        const raw = localStorage.getItem(key);
-        const value = raw === null ? NaN : Number(raw);
-        return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+    _readStored(key) {
+        try { return this._storage()?.getItem(key) ?? null; }
+        catch { return null; }
+    }
+
+    _persistSetting(setting) {
+        const keys = {
+            selectedDeviceId: 'midi-selected-device', velocitySensitivity: 'midi-velocity-sensitivity',
+            latencyCompensation: 'midi-latency', noteOnThreshold: 'midi-note-on-threshold',
+            midiVolume: 'midi-volume', enabledChannels: 'midi-enabled-channels',
+        };
+        const key = Object.hasOwn(keys, setting) ? keys[setting] : null;
+        if (!key) return;
+        const value = this.settings[setting];
+        try {
+            if (value === null) this._storage()?.removeItem(key);
+            else this._storage()?.setItem(key, setting === 'enabledChannels' ? JSON.stringify(value) : String(value));
+        } catch { /* Persistence is optional; the running connection must remain usable. */ }
+    }
+
+    _normalizeSettings(values) {
+        const number = (value, fallback, min, max, integer = false) => {
+            const parsed = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')
+                ? Number(value) : NaN;
+            const bounded = Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+            return integer ? Math.round(bounded) : bounded;
+        };
+        let channels = Array.isArray(values.enabledChannels)
+            ? [...new Set(values.enabledChannels.filter(channel => Number.isInteger(channel) && channel >= 0 && channel < 16))]
+            : Array.from({ length: 16 }, (_, index) => index);
+        if (Array.isArray(values.enabledChannels) && values.enabledChannels.length > 0 && channels.length === 0) {
+            channels = Array.from({ length: 16 }, (_, index) => index);
+        }
+        return {
+            selectedDeviceId: typeof values.selectedDeviceId === 'string' && values.selectedDeviceId.trim() &&
+                !['null', 'undefined'].includes(values.selectedDeviceId) ? values.selectedDeviceId : null,
+            velocitySensitivity: number(values.velocitySensitivity, 1, 0.5, 2),
+            latencyCompensation: number(values.latencyCompensation, 0, -100, 100, true),
+            noteOnThreshold: number(values.noteOnThreshold, 10, 0, 127, true),
+            midiVolume: number(values.midiVolume, 70, 0, 100, true),
+            enabledChannels: channels,
+        };
     }
 
     _loadSettings() {
-        const defaults = {
-            selectedDeviceId: null,
-            velocitySensitivity: 1.0,
-            latencyCompensation: 0,
-            noteOnThreshold: 10,
-            midiVolume: 70,
-            enabledChannels: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
-        };
+        let enabledChannels;
+        try { enabledChannels = JSON.parse(this._readStored('midi-enabled-channels')); }
+        catch { /* A malformed field must not discard the other saved settings. */ }
+        return this._normalizeSettings({
+            selectedDeviceId: this._readStored('midi-selected-device'),
+            velocitySensitivity: this._readStored('midi-velocity-sensitivity'),
+            latencyCompensation: this._readStored('midi-latency'),
+            noteOnThreshold: this._readStored('midi-note-on-threshold'),
+            midiVolume: this._readStored('midi-volume'),
+            enabledChannels,
+        });
+    }
+
+    init() {
+        if (this._initPromise) return this._initPromise;
+        if (this.initialized) return Promise.resolve(this.isSupported);
+        this._initPromise = this._initialize().finally(() => {
+            this._initPromise = null;
+            this.notifyListeners('statusChanged', { isSupported: this.isSupported, initialized: this.initialized });
+        });
+        return this._initPromise;
+    }
+
+    async _initialize() {
         try {
-            return {
-                selectedDeviceId: localStorage.getItem('midi-selected-device') || null,
-                velocitySensitivity: parseFloat(localStorage.getItem('midi-velocity-sensitivity')) || 1.0,
-                latencyCompensation: parseInt(localStorage.getItem('midi-latency')) || 0,
-                noteOnThreshold: this._storedNumber('midi-note-on-threshold', 10, 0, 127),
-                midiVolume: this._storedNumber('midi-volume', 70, 0, 100),
-                enabledChannels: JSON.parse(localStorage.getItem('midi-enabled-channels') || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]')
-            };
-        } catch (err) {
-            console.warn('Failed to load MIDI settings from localStorage:', err.message);
-            return defaults;
+            if (isTauri()) return await this.initTauriMidi();
+            return await this._initWebMidi();
+        } catch (error) {
+            this.initialized = false;
+            console.warn('MIDI initialization failed:', error);
+            return false;
         }
     }
 
-    async init() {
-        if (this.initialized) {
-            console.log('MIDI service already initialized');
-            return;
-        }
-
+    async _initWebMidi() {
         try {
-            console.log('Initializing MIDI service...');
-            console.log('Tauri detected:', isTauri());
-            console.log('TAURI_PLATFORM:', import.meta.env?.TAURI_PLATFORM);
-            console.log('TAURI_FAMILY:', import.meta.env?.TAURI_FAMILY);
-
-            // Check if running in Tauri
-            if (isTauri()) {
-                console.log('Detected Tauri environment, using native MIDI');
-                await this.initTauriMidi();
-                this.initialized = true;
-                return;
-            }
-
-            // Fallback to Web MIDI API
-            if (!navigator.requestMIDIAccess) {
-                console.warn('Web MIDI API not supported in this browser');
+            const access = this._requestAccess();
+            if (!access) {
                 this.isSupported = false;
                 this.initialized = true;
-                return;
+                return false;
             }
-
+            // API availability and permission are different states. A denied
+            // request remains explicitly retryable; no timer retries it.
             this.isSupported = true;
-
-            try {
-                this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
-                console.log('MIDI Access granted via Web MIDI API');
-
-                // Listen for device connection/disconnection
-                this.midiAccess.onstatechange = (e) => this.handleStateChange(e);
-
-                // Initial scan of devices
-                this.refreshDevices();
-
-                // Auto-connect to previously selected device
-                if (this.settings.selectedDeviceId) {
-                    this.selectDevice(this.settings.selectedDeviceId);
-                }
-
-                this.initialized = true;
-
-            } catch (error) {
-                console.error('Failed to get MIDI access:', error);
-                this.isSupported = false;
-                this.initialized = true;
-            }
-        } catch (outerError) {
-            console.warn('MIDI init() caught unexpected error (non-fatal):', outerError.message);
+            this.midiAccess = await access;
+            this.midiAccess.onstatechange = event => this.handleStateChange(event);
             this.initialized = true;
+            this.refreshDevices();
+            return true;
+        } catch (error) {
+            this.initialized = false;
+            console.warn('Failed to get MIDI access:', error);
+            return false;
         }
     }
 
     async initTauriMidi() {
         try {
-            console.log('Initializing Tauri MIDI...');
             await loadTauriAPIs();
-
             this.useTauriMidi = true;
             this.isSupported = true;
-
-            // Listen for MIDI messages from Tauri backend
-            console.log('Setting up MIDI message listener...');
-            this.tauriEventUnlisten = await listen('midi-message', (event) => {
-                console.log('Received MIDI message from Tauri:', event.payload);
-                this.handleTauriMidiMessage(event.payload);
-            });
-
-            console.log('Tauri MIDI initialized successfully');
-
-            // Initial scan of devices
-            console.log('Scanning for MIDI devices...');
+            if (!this.tauriEventUnlisten) {
+                this.tauriEventUnlisten = await listen('midi-message', event => this.handleTauriMidiMessage(event.payload));
+            }
             await this.refreshDevicesTauri();
-
-            // Auto-connect to previously selected device
-            if (this.settings.selectedDeviceId) {
-                console.log('Auto-connecting to previously selected device:', this.settings.selectedDeviceId);
-                await this.selectDeviceTauri(this.settings.selectedDeviceId);
-            }
-
+            this.initialized = true;
+            return true;
         } catch (error) {
-            console.error('Failed to initialize Tauri MIDI:', error);
-            console.error('Error details:', error.message, error.stack);
-            this.isSupported = false;
-
-            // Fallback to Web MIDI if Tauri MIDI fails
-            console.log('Attempting fallback to Web MIDI API...');
+            console.warn('Native MIDI initialization failed:', error);
+            this.tauriEventUnlisten?.();
+            this.tauriEventUnlisten = null;
             this.useTauriMidi = false;
-            if (navigator.requestMIDIAccess) {
-                try {
-                    this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
-                    this.isSupported = true;
-                    this.midiAccess.onstatechange = (e) => this.handleStateChange(e);
-                    this.refreshDevices();
-                    if (this.settings.selectedDeviceId) {
-                        this.selectDevice(this.settings.selectedDeviceId);
-                    }
-                    console.log('Fallback to Web MIDI API successful');
-                } catch (fallbackError) {
-                    console.error('Web MIDI API fallback also failed:', fallbackError);
-                }
-            }
+            return this._initWebMidi();
         }
+    }
+
+    _clearActiveDevice() {
+        if (!this.activeDevice) return;
+        if (!this.useTauriMidi) this.activeDevice.onmidimessage = null;
+        this.activeDevice = null;
+        this.notifyListeners('deviceDisconnected', null);
+    }
+
+    _rememberDevice(deviceId) {
+        this.settings.selectedDeviceId = deviceId;
+        this._persistSetting('selectedDeviceId');
+    }
+
+    _queueNative(operation) {
+        this._nativePending++;
+        const result = this._nativeQueue.then(operation).catch(error => {
+            console.warn('Native MIDI operation failed:', error);
+            return false;
+        }).finally(() => { this._nativePending--; });
+        this._nativeQueue = result;
+        return result;
     }
 
     async refreshDevicesTauri() {
+        const generation = ++this._refreshGeneration;
         try {
-            const devices = await invoke('get_midi_devices');
-
+            const devices = await this._invoke('get_midi_devices');
+            if (generation !== this._refreshGeneration) return;
             this.devices = devices.map(device => ({
-                id: device.id,
-                name: device.name,
-                manufacturer: device.manufacturer,
-                state: 'connected',
-                connection: 'closed',
-                type: 'input'
+                ...device, state: 'connected', connection: 'closed', type: 'input',
             }));
-
-            console.log('MIDI Devices detected (Tauri):', this.devices);
-            this.notifyListeners('devicesChanged', this.devices);
+            this.notifyListeners('devicesChanged', this.getDevices());
+            if (this.activeDevice && !this.devices.some(device => device.id === this.activeDevice.id)) {
+                await this.disconnect({ preservePreference: true });
+            }
+            if (generation === this._refreshGeneration && !this.activeDevice && !this._nativePending &&
+                this.devices.some(device => device.id === this.settings.selectedDeviceId)) {
+                await this.selectDeviceTauri(this.settings.selectedDeviceId);
+            }
         } catch (error) {
-            console.error('Failed to get MIDI devices from Tauri:', error);
+            console.warn('Failed to refresh native MIDI devices:', error);
         }
     }
 
-    async selectDeviceTauri(deviceId) {
-        try {
-            // Disconnect previous device
-            if (this.activeDevice) {
-                await invoke('disconnect_midi_device');
-                this.activeDevice = null;
-                this.notifyListeners('deviceDisconnected', null);
-            }
-
-            // Connect to new device
-            await invoke('connect_midi_device', { deviceId });
-
-            const device = this.devices.find(d => d.id === deviceId);
-
-            this.activeDevice = { id: deviceId, name: device?.name || 'Unknown' };
-            this.settings.selectedDeviceId = deviceId;
-            localStorage.setItem('midi-selected-device', deviceId);
-
-            console.log('Connected to MIDI device (Tauri):', device?.name);
-            this.notifyListeners('deviceConnected', {
-                id: deviceId,
-                name: device?.name || 'Unknown',
-                manufacturer: device?.manufacturer || 'Unknown'
-            });
-
+    selectDeviceTauri(deviceId) {
+        const device = this.devices.find(item => item.id === deviceId);
+        if (!device) return Promise.resolve(false);
+        const generation = ++this._connectionGeneration;
+        this._clearActiveDevice();
+        return this._queueNative(async () => {
+            if (generation !== this._connectionGeneration) return false;
+            // Serialize hardware operations as well as state commits. Ignoring a
+            // stale result alone would leave the backend connected to that port.
+            await this._invoke('disconnect_midi_device');
+            if (generation !== this._connectionGeneration) return false;
+            await this._invoke('connect_midi_device', { deviceId });
+            if (generation !== this._connectionGeneration) return false;
+            this.activeDevice = { ...device, state: 'connected', connection: 'open' };
+            this._rememberDevice(deviceId);
+            this.notifyListeners('deviceConnected', this.getActiveDevice());
             return true;
-        } catch (error) {
-            console.error('Failed to connect to MIDI device (Tauri):', error);
-            return false;
-        }
+        });
     }
 
     handleTauriMidiMessage({ status, note, velocity, timestamp }) {
+        if (this.useTauriMidi && !this.activeDevice) return;
         this.handleMidiMessage({ data: [status, note, velocity], timeStamp: timestamp });
     }
 
     refreshDevices() {
-        if (this.useTauriMidi) {
-            this.refreshDevicesTauri();
-            return;
+        if (this.useTauriMidi) return this.refreshDevicesTauri();
+        if (!this.midiAccess) return this.init();
+        this.devices = [...this.midiAccess.inputs.values()]
+            .filter(input => input.state !== 'disconnected')
+            .map(input => ({
+                id: input.id, name: input.name || 'Unknown Device', manufacturer: input.manufacturer || 'Unknown',
+                state: input.state, connection: input.connection, type: input.type,
+            }));
+        if (this.activeDevice && !this.devices.some(device => device.id === this.activeDevice.id)) {
+            this.disconnect({ preservePreference: true });
         }
-
-        if (!this.midiAccess) return;
-
-        this.devices = [];
-        const inputs = this.midiAccess.inputs.values();
-
-        for (let input of inputs) {
-            this.devices.push({
-                id: input.id,
-                name: input.name || 'Unknown Device',
-                manufacturer: input.manufacturer || 'Unknown',
-                state: input.state,
-                connection: input.connection,
-                type: input.type
-            });
+        this.notifyListeners('devicesChanged', this.getDevices());
+        if (!this.activeDevice && this.devices.some(device => device.id === this.settings.selectedDeviceId)) {
+            this.selectDevice(this.settings.selectedDeviceId);
         }
-
-        console.log('MIDI Devices detected:', this.devices);
-        this.notifyListeners('devicesChanged', this.devices);
     }
 
     selectDevice(deviceId) {
-        if (this.useTauriMidi) {
-            return this.selectDeviceTauri(deviceId);
-        }
-
-        if (!this.midiAccess) return false;
-
-        const input = this.midiAccess.inputs.get(deviceId);
-        if (!input) {
-            console.warn('Device not found:', deviceId);
-            return false;
-        }
-        if (this.activeDevice) {
-            this.activeDevice.onmidimessage = null;
-            this.notifyListeners('deviceDisconnected', null);
-        }
-
+        if (this.useTauriMidi) return this.selectDeviceTauri(deviceId);
+        const input = this.midiAccess?.inputs.get(deviceId);
+        if (!input || input.state === 'disconnected') return false;
+        ++this._connectionGeneration;
+        this._clearActiveDevice();
         this.activeDevice = input;
-        this.settings.selectedDeviceId = deviceId;
-        localStorage.setItem('midi-selected-device', deviceId);
-
-        // Attach message handler
-        this.activeDevice.onmidimessage = (event) => this.handleMidiMessage(event);
-
-        console.log('Connected to MIDI device:', input.name);
-        this.notifyListeners('deviceConnected', {
-            id: input.id,
-            name: input.name,
-            manufacturer: input.manufacturer
-        });
-
+        this.activeDevice.onmidimessage = event => this.handleMidiMessage(event);
+        this._rememberDevice(deviceId);
+        this.notifyListeners('deviceConnected', this.getActiveDevice());
         return true;
     }
 
-    async disconnect() {
-        if (this.useTauriMidi) {
-            try {
-                await invoke('disconnect_midi_device');
-                this.activeDevice = null;
-                this.settings.selectedDeviceId = null;
-                localStorage.removeItem('midi-selected-device');
-                this.notifyListeners('deviceDisconnected', null);
-            } catch (error) {
-                console.error('Failed to disconnect MIDI device (Tauri):', error);
-            }
-            return;
-        }
-
-        if (this.activeDevice) {
-            this.activeDevice.onmidimessage = null;
-            this.activeDevice = null;
-            this.settings.selectedDeviceId = null;
-            localStorage.removeItem('midi-selected-device');
-            this.notifyListeners('deviceDisconnected', null);
-        }
+    disconnect({ preservePreference = false } = {}) {
+        const generation = ++this._connectionGeneration;
+        if (!preservePreference) this._rememberDevice(null);
+        this._clearActiveDevice();
+        if (!this.useTauriMidi) return Promise.resolve(true);
+        return this._queueNative(async () => {
+            if (generation !== this._connectionGeneration) return false;
+            await this._invoke('disconnect_midi_device');
+            return generation === this._connectionGeneration;
+        });
     }
 
     handleStateChange(event) {
-        console.log('MIDI State changed:', event.port.name, event.port.state);
-        this.refreshDevices();
-
-        // If active device was disconnected, clear it
         if (this.activeDevice && event.port.id === this.activeDevice.id && event.port.state === 'disconnected') {
-            this.disconnect();
+            this.disconnect({ preservePreference: true });
         }
+        return this.refreshDevices();
     }
 
     handleMidiMessage(event) {
@@ -425,33 +384,13 @@ export class MidiInputService {
 
     // Settings Management
     updateSettings(newSettings) {
-        this.settings = { ...this.settings, ...newSettings };
-
-        // Persist to localStorage
-        if (newSettings.selectedDeviceId !== undefined) {
-            localStorage.setItem('midi-selected-device', newSettings.selectedDeviceId);
-        }
-        if (newSettings.velocitySensitivity !== undefined) {
-            localStorage.setItem('midi-velocity-sensitivity', newSettings.velocitySensitivity.toString());
-        }
-        if (newSettings.latencyCompensation !== undefined) {
-            localStorage.setItem('midi-latency', newSettings.latencyCompensation.toString());
-        }
-        if (newSettings.noteOnThreshold !== undefined) {
-            localStorage.setItem('midi-note-on-threshold', newSettings.noteOnThreshold.toString());
-        }
-        if (newSettings.midiVolume !== undefined) {
-            localStorage.setItem('midi-volume', newSettings.midiVolume.toString());
-        }
-        if (newSettings.enabledChannels !== undefined) {
-            localStorage.setItem('midi-enabled-channels', JSON.stringify(newSettings.enabledChannels));
-        }
-
-        this.notifyListeners('settingsChanged', this.settings);
+        this.settings = this._normalizeSettings({ ...this.settings, ...newSettings });
+        Object.keys(newSettings).forEach(setting => this._persistSetting(setting));
+        this.notifyListeners('settingsChanged', this.getSettings());
     }
 
     getSettings() {
-        return { ...this.settings };
+        return { ...this.settings, enabledChannels: [...this.settings.enabledChannels] };
     }
 
     // Event Listener Management
