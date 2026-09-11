@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StorageService } from '../services/StorageService';
+import React, { useState, useEffect } from 'react';
 import { midiInputService } from '../services/MidiInputService';
 import { audioEngine } from '../services/AudioEngine';
 import { MidiVisualizer } from './MidiVisualizer';
@@ -9,6 +8,7 @@ import { DesignAppearance } from './DesignAppearance';
 import { OnboardingService } from '../services/OnboardingService';
 import { useDeviceContext } from '../hooks/useDeviceContext';
 import { useDialogFocus } from '../hooks/useDialogFocus';
+import { LibrarySettingsPanel } from './settings/LibrarySettingsPanel';
 import styles from './Settings.module.css';
 
 export function Settings({ isOpen, onClose, onRestartOnboarding }) {
@@ -16,7 +16,6 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
     const [activeTab, setActiveTab] = useState('general');
     const [fontSize, setFontSize] = useState(localStorage.getItem('piano-teacher-font-size') || '16');
     const [fontFamily, setFontFamily] = useState(localStorage.getItem('piano-teacher-font-family') || 'Inter');
-    const fileInputRef = useRef(null);
     const modalRef = useDialogFocus({ active: isOpen, onEscape: onClose });
     const learnerProfile = OnboardingService.getPreferences();
     const learnerGoal = { read: 'Lire avec fluidité', technique: 'Renforcer ma technique', create: 'Créer et arranger' }[learnerProfile.goal] || 'Lire avec fluidité';
@@ -87,39 +86,6 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
         setFontFamily(family);
         document.documentElement.style.setProperty('--font-family', family);
         localStorage.setItem('piano-teacher-font-family', family);
-    };
-
-    const handleExportLibrary = async () => {
-        try {
-            const result = await StorageService.exportLibrary();
-            if (result.success && !result.cancelled) {
-                const message = result.path
-                    ? `Bibliothèque exportée avec succès !\n${result.path}`
-                    : 'Bibliothèque exportée avec succès !';
-                alert(message);
-            }
-        } catch (error) {
-            alert('Erreur lors de l\'export : ' + error.message);
-        }
-    };
-
-    const handleImportLibrary = (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                const merge = window.confirm('Voulez-vous fusionner avec votre bibliothèque existante ?\n\nOK = Fusionner\nAnnuler = Remplacer complètement');
-                StorageService.importLibrary(data, merge);
-                alert('Bibliothèque importée avec succès !');
-                window.location.reload();
-            } catch (error) {
-                alert('Erreur lors de l\'import : ' + error.message);
-            }
-        };
-        reader.readAsText(file);
     };
 
     // MIDI handlers
@@ -429,110 +395,7 @@ export function Settings({ isOpen, onClose, onRestartOnboarding }) {
                     )}
 
                     {activeTab === 'library' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div>
-                                <h3 style={{
-                                    fontSize: '1.1rem',
-                                    fontWeight: '600',
-                                    color: 'var(--text-primary)',
-                                    marginBottom: '1rem'
-                                }}>
-                                    Gestion de la bibliothèque
-                                </h3>
-                                <p style={{
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: '1.5rem'
-                                }}>
-                                    Sauvegardez et restaurez votre collection de morceaux
-                                </p>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    <button
-                                        onClick={handleExportLibrary}
-                                        style={{
-                                            padding: '1rem 1.5rem',
-                                            background: 'var(--gradient-primary)',
-                                            color: 'var(--bg-primary)',
-                                            border: 'none',
-                                            borderRadius: 'var(--radius-md)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.95rem',
-                                            fontWeight: '600',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.5rem',
-                                            transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
-                                            boxShadow: 'var(--shadow-md)'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                        }}
-                                    >
-                                        Exporter la bibliothèque
-                                    </button>
-
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept=".json"
-                                        onChange={handleImportLibrary}
-                                        style={{ display: 'none' }}
-                                    />
-
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        style={{
-                                            padding: '1rem 1.5rem',
-                                            background: 'var(--bg-tertiary)',
-                                            color: 'var(--text-primary)',
-                                            border: '1px solid var(--border-color)',
-                                            borderRadius: 'var(--radius-md)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.95rem',
-                                            fontWeight: '600',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.5rem',
-                                            transition: 'background-color var(--transition-fast), border-color var(--transition-fast)'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = 'var(--bg-secondary)';
-                                            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = 'var(--bg-tertiary)';
-                                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                                        }}
-                                    >
-                                        Importer une bibliothèque
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div style={{
-                                padding: '1rem',
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid rgba(59, 130, 246, 0.3)'
-                            }}>
-                                <p style={{
-                                    fontSize: '0.85rem',
-                                    color: 'var(--text-secondary)',
-                                    margin: 0,
-                                    lineHeight: '1.5'
-                                }}>
-                                    <strong style={{ color: 'var(--text-primary)' }}>Astuce :</strong> Exportez régulièrement votre bibliothèque pour sauvegarder vos morceaux. L'import vous permettra de restaurer ou fusionner vos données.
-                                </p>
-                            </div>
-                        </div>
+                        <LibrarySettingsPanel />
                     )}
 
                     {activeTab === 'midi' && (

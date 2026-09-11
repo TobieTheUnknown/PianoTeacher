@@ -19,6 +19,7 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 - Le hook partagé `useDialogFocus` gère maintenant Réglages, les deux dialogues de Bibliothèque et Import/Export de l'Éditeur : focus initial, cycle Tab, fermeture Échap, blocage du scroll de fond et restitution au bouton d'ouverture. L'onboarding garde encore son cycle propre et le fond n'utilise pas encore l'attribut `inert`.
 - La fenêtre Import/Export est maintenant un composant autonome avec sa feuille de styles. `SongEditor.jsx` passe de 1 308 à 1 140 lignes ; chaque sélecteur de fichier n'expose plus qu'un seul contrôle accessible au lieu du champ et d'un bouton décoratif superposés.
 - Sur Android, l'option de clavier MIDI de l'introduction est un seul interrupteur accessible au lieu d'une rangée et d'un `Switch` concurrents. Les titres et cartes de mesure du Coach, les cartes de bibliothèque, les boutons de main Live, le détail Coach et la valeur éditable de boucle annoncent maintenant leur rôle ou leur action.
+- La gestion de sauvegarde de bibliothèque est extraite de `Settings.jsx` dans un panneau autonome et stylé. Le composant principal passe de 960 à 823 lignes et le champ d'import est directement associé à son bouton visuel.
 - Le changement de morceau, de filtre et de mode reste entièrement dans l'état React. Des URL partageables pour les pages principales rendraient retour navigateur, favoris et liens directs prévisibles.
 
 ## Pourquoi l'interface paraît chargée
@@ -41,4 +42,4 @@ Cette fiche sépare les défauts d'usage à corriger des choix visuels à discut
 
 Faire d'abord un prototype statique du Coach avec une vraie pièce dense, puis le dock, puis Réglages. Valider portrait, paysage, clavier et réduction des animations avant de reporter les mêmes décisions dans Compose. Ne pas commencer par déplacer des couleurs : la surcharge vient surtout du nombre d'informations simultanées.
 
-Le prochain passage de code doit poursuivre cette extraction dans `Settings`, puis évaluer `inert` pour les fonds de dialogue. Changer la taille ou masquer des informations attendra le brainstorming afin de préserver les choix produit.
+Le prochain passage de code doit extraire ensuite les paramètres MIDI de `Settings`, puis évaluer `inert` pour les fonds de dialogue. Changer la taille ou masquer des informations attendra le brainstorming afin de préserver les choix produit.

@@ -154,8 +154,8 @@ Symboles : aucun
 
 ## web/src/components/Settings.jsx
 
-960 lignes ; accessible depuis main.jsx
-Dépendances locales : services/StorageService.js, services/MidiInputService.js, services/AudioEngine.js, components/MidiVisualizer.jsx, components/MidiLatencyCalibration.jsx, components/LatencyWizard.jsx, components/DesignAppearance.jsx, services/OnboardingService.js, hooks/useDeviceContext.js, hooks/useDialogFocus.js, components/Settings.module.css
+823 lignes ; accessible depuis main.jsx
+Dépendances locales : services/MidiInputService.js, services/AudioEngine.js, components/MidiVisualizer.jsx, components/MidiLatencyCalibration.jsx, components/LatencyWizard.jsx, components/DesignAppearance.jsx, services/OnboardingService.js, hooks/useDeviceContext.js, hooks/useDialogFocus.js, components/settings/LibrarySettingsPanel.jsx, components/Settings.module.css
 Symboles : Settings, TabButton
 
 ## web/src/components/Settings.module.css
@@ -367,6 +367,18 @@ Symboles : aucun
 549 lignes ; accessible depuis main.jsx
 Dépendances locales : models/song.js
 Symboles : LearnSidebar, fixedKeyboardRange, uniquePitchLabels, HandGuide, HandIcon, MiniKeyboard
+
+## web/src/components/settings/LibrarySettingsPanel.jsx
+
+59 lignes ; accessible depuis main.jsx
+Dépendances locales : services/StorageService.js, components/settings/LibrarySettingsPanel.module.css
+Symboles : LibrarySettingsPanel
+
+## web/src/components/settings/LibrarySettingsPanel.module.css
+
+91 lignes ; accessible depuis main.jsx
+Dépendances locales : aucune
+Symboles : aucun
 
 ## web/src/components/ui/Cover.jsx
 
